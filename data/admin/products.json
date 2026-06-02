@@ -1,0 +1,129 @@
+[
+  {
+    "id": "1",
+    "name": "Geometrischer Handyhalter",
+    "description": "Modernes geometrisches Design. Perfekt fuer Schreibtisch oder Nachttisch.",
+    "price": 19.99,
+    "originalPrice": 24.99,
+    "type": "3d",
+    "sale": true,
+    "modelUrl": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/Box/glTF-Binary/Box.glb",
+    "dimensionsMm": {
+      "length": 85,
+      "width": 72,
+      "height": 45
+    },
+    "volumen": 45.2,
+    "gewicht": 58,
+    "updatedAt": "2026-06-02T17:46:28.050Z"
+  },
+  {
+    "id": "2",
+    "name": "Desktop Kabelhalter",
+    "description": "Halten Sie Ihre Kabel ordentlich mit dieser eleganten Kabelmanagement-Loesung.",
+    "price": 19.99,
+    "originalPrice": null,
+    "type": "3d",
+    "sale": false,
+    "modelUrl": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/CesiumMilkTruck/glTF-Binary/CesiumMilkTruck.glb",
+    "dimensionsMm": {
+      "length": 42,
+      "width": 28,
+      "height": 18
+    },
+    "volumen": 12.8,
+    "gewicht": 22,
+    "updatedAt": "2026-06-02T17:46:28.050Z"
+  },
+  {
+    "id": "3",
+    "name": "Kopfhoererhalter",
+    "description": "Platzsparender Kopfhoererhalter fuer unter den Schreibtisch.",
+    "price": 14.99,
+    "originalPrice": null,
+    "type": "3d",
+    "sale": false,
+    "modelUrl": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/DamagedHelmet/glTF-Binary/DamagedHelmet.glb",
+    "dimensionsMm": {
+      "length": 120,
+      "width": 95,
+      "height": 35
+    },
+    "volumen": 68.5,
+    "gewicht": 95,
+    "updatedAt": "2026-06-02T17:46:28.050Z"
+  },
+  {
+    "id": "4",
+    "name": "Sukkulenten Pflanztopf",
+    "description": "Minimalistischer Pflanztopf mit Drainage fuer kleine Pflanzen.",
+    "price": 29.99,
+    "originalPrice": null,
+    "type": "3d",
+    "sale": false,
+    "modelUrl": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/Avocado/glTF-Binary/Avocado.glb",
+    "dimensionsMm": {
+      "length": 95,
+      "width": 95,
+      "height": 110
+    },
+    "volumen": 120.4,
+    "gewicht": 142,
+    "updatedAt": "2026-06-02T17:46:28.050Z"
+  },
+  {
+    "id": "5",
+    "name": "Holz Untersetzer Set",
+    "description": "Set aus 4 Premium Holzuntersetzern mit Ihrem individuellen Design.",
+    "price": 24.99,
+    "originalPrice": 34.99,
+    "type": "laser",
+    "sale": true,
+    "laserMaterialId": "wood",
+    "varianten": [],
+    "updatedAt": "2026-06-02T17:46:28.050Z"
+  },
+  {
+    "id": "6",
+    "name": "LED Acryl Schild",
+    "description": "Beleuchtetes Acrylschild mit individuellem Text oder Logo. Inkl. LED-Sockel.",
+    "price": 49.99,
+    "originalPrice": null,
+    "type": "laser",
+    "sale": false,
+    "laserMaterialId": "acrylic",
+    "varianten": [
+      "Weiss opal",
+      "Schwarz matt",
+      "Rot transparent"
+    ],
+    "updatedAt": "2026-06-02T17:46:28.050Z"
+  },
+  {
+    "id": "7",
+    "name": "Leder Schlüsselanhänger",
+    "description": "Echter Lederschlüsselanhänger mit individueller Textgravur.",
+    "price": 9.99,
+    "originalPrice": 12.99,
+    "type": "laser",
+    "sale": true,
+    "laserMaterialId": "leather",
+    "varianten": [
+      "Echtleder Braun",
+      "Echtleder Schwarz"
+    ],
+    "updatedAt": "2026-06-02T17:46:28.050Z"
+  },
+  {
+    "id": "8",
+    "name": "Schiefer Namensschild",
+    "description": "Elegantes Schieferschild perfekt fuer Auszeichnungen oder Deko.",
+    "price": 39.99,
+    "originalPrice": null,
+    "type": "laser",
+    "sale": false,
+    "laserMaterialId": "stone",
+    "varianten": [],
+    "updatedAt": "2026-06-02T17:46:28.050Z"
+  }
+]

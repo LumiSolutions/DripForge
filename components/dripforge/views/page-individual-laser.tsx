@@ -1,0 +1,413 @@
+"use client"
+
+import { useCallback, useMemo, useRef, useState } from "react"
+import { Minus, Plus, ShoppingCart } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
+import { cn } from "@/lib/utils"
+import { laserMaterials } from "@/lib/dripforge/data"
+import { calculateLaserPrice } from "@/lib/dripforge/calculate-laser-price"
+import { INDIVIDUAL_LASER_MATERIAL_BASE_PRICES } from "@/lib/dripforge/laser-individual-config"
+import {
+  DEFAULT_IMAGE_LAYOUT,
+  DEFAULT_LASER_FONT_ID,
+  DEFAULT_TEXT_LAYOUT,
+  type ElementLayout,
+  type ImageLayout,
+  type LaserFontId,
+} from "@/lib/dripforge/laser-design"
+import {
+  DEFAULT_LASER_PRICING_CONFIG,
+  type LaserPricingConfig,
+} from "@/lib/dripforge/laser-pricing-config"
+import {
+  getWorkAreaForSizeId,
+  INDIVIDUAL_LASER_SIZES,
+} from "@/lib/dripforge/laser-work-area"
+import {
+  LaserDesignerStudio,
+  type LaserDesignerState,
+  type LaserEngravingMetrics,
+} from "@/components/dripforge/shared/laser-designer-studio"
+import { IndividualProcessBar } from "@/components/dripforge/shared/individual-process-bar"
+import { captureLaserPreviewLeitbild } from "@/lib/dripforge/capture-leitbild"
+import type { CartItem, LaserMaterialId } from "@/lib/dripforge/types"
+
+export function PageIndividualLaser({
+  setCurrentView,
+  addToCart,
+}: {
+  setCurrentView: (view: string) => void
+  addToCart: (item: CartItem) => void
+}) {
+  const defaultMaterial = laserMaterials[0]
+
+  /** Material-unabhaengig — bleibt beim Wechsel von Holz/Acryl/etc. erhalten */
+  const [gravurText, setGravurText] = useState("")
+  const [uploadedImageSrc, setUploadedImageSrc] = useState<string | null>(null)
+  const [selectedFont, setSelectedFont] =
+    useState<LaserFontId>(DEFAULT_LASER_FONT_ID)
+  const [textLayout, setTextLayout] = useState<ElementLayout>({
+    ...DEFAULT_TEXT_LAYOUT,
+  })
+  const [imageLayout, setImageLayout] = useState<ImageLayout>({
+    ...DEFAULT_IMAGE_LAYOUT,
+  })
+
+  const [selectedMaterialId, setSelectedMaterialId] =
+    useState<LaserMaterialId>(defaultMaterial.id)
+  const [selectedSizeId, setSelectedSizeId] = useState("medium")
+  const [quantity, setQuantity] = useState(1)
+  const [engravingMetrics, setEngravingMetrics] =
+    useState<LaserEngravingMetrics | null>(null)
+  const [pricingConfig] = useState<LaserPricingConfig>(
+    DEFAULT_LASER_PRICING_CONFIG
+  )
+  const laserPreviewRef = useRef<HTMLDivElement>(null)
+
+  const material =
+    laserMaterials.find((m) => m.id === selectedMaterialId) ?? defaultMaterial
+  const sizePreset =
+    INDIVIDUAL_LASER_SIZES.find((s) => s.id === selectedSizeId) ??
+    INDIVIDUAL_LASER_SIZES[1]
+  const workAreaMm = useMemo(
+    () => getWorkAreaForSizeId(selectedSizeId),
+    [selectedSizeId]
+  )
+
+  const laserDesign: LaserDesignerState = useMemo(
+    () => ({
+      selectedVariant: material.types[0] ?? "",
+      selectedFont,
+      engravingText: gravurText,
+      textLayout,
+      imageLayout: {
+        ...imageLayout,
+        src: uploadedImageSrc ?? imageLayout.src,
+      },
+    }),
+    [
+      material.types,
+      selectedFont,
+      gravurText,
+      textLayout,
+      imageLayout,
+      uploadedImageSrc,
+    ]
+  )
+
+  const handleDesignChange = useCallback((patch: Partial<LaserDesignerState>) => {
+    if (patch.engravingText !== undefined) setGravurText(patch.engravingText)
+    if (patch.selectedFont !== undefined) setSelectedFont(patch.selectedFont)
+    if (patch.textLayout !== undefined) setTextLayout(patch.textLayout)
+    if (patch.imageLayout !== undefined) {
+      setImageLayout(patch.imageLayout)
+      if (patch.imageLayout.src !== undefined) {
+        setUploadedImageSrc(patch.imageLayout.src)
+      }
+    }
+  }, [])
+
+  const materialBase =
+    INDIVIDUAL_LASER_MATERIAL_BASE_PRICES[selectedMaterialId] ?? 15
+  const basePrice = materialBase * sizePreset.priceMultiplier
+
+  const priceBreakdown = useMemo(() => {
+    const area = engravingMetrics?.maxAreaMm2 ?? 0
+    return calculateLaserPrice(basePrice, area, quantity, pricingConfig)
+  }, [basePrice, engravingMetrics, quantity, pricingConfig])
+
+  const hasDesign =
+    gravurText.trim().length > 0 || Boolean(uploadedImageSrc)
+
+  const handleAddToCart = async () => {
+    if (!hasDesign) return
+
+    let leitbild: string | undefined
+    try {
+      const leitbildUrl = await captureLaserPreviewLeitbild(laserPreviewRef.current)
+      leitbild = leitbildUrl ?? undefined
+    } catch {
+      console.warn("Leitbild: Laser-Snapshot konnte nicht erstellt werden.")
+    }
+
+    const gravurSize = engravingMetrics?.active
+    addToCart({
+      id: `custom-laser-${Date.now()}`,
+      name: `Individuelle Lasergravur`,
+      price: priceBreakdown.unitPrice,
+      quantity,
+      type: "laser",
+      leitbild,
+      customDetails: {
+        material: material.name,
+        materialVariant: laserDesign.selectedVariant,
+        size: sizePreset.dimensionsLabel,
+        engravingText: gravurText.trim(),
+        userText: gravurText.trim(),
+        userFont: selectedFont,
+        uploadedImage: uploadedImageSrc,
+        layoutCoordinates: {
+          textPosition: { ...textLayout },
+          imagePosition: {
+            x: imageLayout.x,
+            y: imageLayout.y,
+            scale: imageLayout.scale,
+            rotation: imageLayout.rotation,
+          },
+        },
+        hasText: gravurText.trim().length > 0,
+        hasImage: Boolean(uploadedImageSrc),
+        dimensions: gravurSize
+          ? `${gravurSize.widthMm.toFixed(1)} x ${gravurSize.heightMm.toFixed(1)} mm`
+          : sizePreset.dimensionsLabel,
+      },
+    })
+
+    setCurrentView("shop")
+  }
+
+  const activeStep = hasDesign
+    ? selectedMaterialId
+      ? 3
+      : 2
+    : 0
+
+  return (
+    <div className="space-y-8 py-8">
+      <div className="mx-auto max-w-6xl px-4 text-center">
+        <Badge variant="secondary" className="mb-4">
+          Individueller Auftrag
+        </Badge>
+        <h1 className="text-4xl font-bold">
+          <span className="text-foreground">Deine </span>
+          <span className="bg-gradient-to-r from-cyan-400 to-primary bg-clip-text text-transparent">
+            Lasergravur
+          </span>
+        </h1>
+        <p className="mx-auto mt-4 max-w-2xl text-muted-foreground">
+          Text oder Logo hochladen, Schrift waehlen und live auf dem Material
+          positionieren.
+        </p>
+      </div>
+
+      <div className="mx-auto max-w-3xl px-4">
+        <IndividualProcessBar
+          steps={[
+            "Bild / Text",
+            "Material waehlen",
+            "Groesse & Menge",
+            "Warenkorb",
+          ]}
+          activeStep={activeStep}
+        />
+      </div>
+
+      <div className="mx-auto max-w-6xl space-y-6 px-4">
+        {/* Oberer Bereich: Konfiguration links, Vorschau + Bearbeitung rechts */}
+        <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2 lg:gap-8">
+          <div className="flex min-w-0 flex-col gap-6">
+            <LaserDesignerStudio
+              column="settings"
+              material={material}
+              productName="Individuelle Lasergravur"
+              state={laserDesign}
+              onStateChange={handleDesignChange}
+              showMaterialCard={false}
+              showVariantPicker={false}
+            />
+
+            <Card className="rounded-2xl border-border/50 bg-card/50 shadow-sm">
+              <CardContent className="p-6">
+                <h3 className="mb-4 font-bold">Material waehlen</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  {laserMaterials.map((m) => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => setSelectedMaterialId(m.id)}
+                      className={cn(
+                        "rounded-xl border p-4 text-left transition-colors",
+                        selectedMaterialId === m.id
+                          ? "border-cyan-500 bg-cyan-500/10"
+                          : "border-border/60 hover:border-cyan-500/40"
+                      )}
+                    >
+                      <span className="text-2xl">{m.icon}</span>
+                      <p className="mt-2 font-bold">{m.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        ab CHF{" "}
+                        {INDIVIDUAL_LASER_MATERIAL_BASE_PRICES[m.id].toFixed(2)}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="rounded-2xl border-border/50 bg-card/50 shadow-sm">
+              <CardContent className="p-6">
+                <h3 className="mb-4 font-bold">Groesse waehlen</h3>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  {INDIVIDUAL_LASER_SIZES.map((s) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => setSelectedSizeId(s.id)}
+                      className={cn(
+                        "rounded-xl border p-4 text-center transition-colors",
+                        selectedSizeId === s.id
+                          ? "border-cyan-500 bg-cyan-500/10"
+                          : "border-border/60 hover:border-cyan-500/40"
+                      )}
+                    >
+                      <p className="font-bold">{s.name}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {s.dimensionsLabel}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="flex min-w-0 flex-col gap-6">
+            <LaserDesignerStudio
+              column="preview"
+              material={material}
+              productName="Individuelle Lasergravur"
+              state={laserDesign}
+              previewSurfaceRef={laserPreviewRef}
+              onStateChange={handleDesignChange}
+              workAreaMm={workAreaMm}
+              onEngravingMetricsChange={setEngravingMetrics}
+            />
+          </div>
+        </div>
+
+        {/* Unterer Bereich: Preisberechnung und Anzahl — eigener Grid, kein Overlap */}
+        <div className="grid grid-cols-1 items-stretch gap-6 md:grid-cols-2">
+          <Card className="flex min-h-[280px] flex-col rounded-2xl border border-sky-200/80 bg-sky-50 shadow-sm dark:border-cyan-500/25 dark:bg-gradient-to-b dark:from-cyan-500/10 dark:via-sky-950/20">
+            <CardContent className="flex h-full flex-col p-6">
+              <h3 className="mb-4 font-bold">Preisberechnung</h3>
+              <div className="flex flex-1 flex-col justify-between gap-4 text-sm">
+                <div className="space-y-2">
+                  <div className="flex justify-between gap-3">
+                    <span className="text-muted-foreground">Material</span>
+                    <span className="text-right font-medium">{material.name}</span>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <span className="text-muted-foreground">Groesse</span>
+                    <span className="text-right font-medium">
+                      {sizePreset.dimensionsLabel}
+                    </span>
+                  </div>
+                  {engravingMetrics && engravingMetrics.maxAreaMm2 > 0 && (
+                    <div className="flex justify-between gap-3">
+                      <span className="text-muted-foreground">
+                        Gravurflaeche (ca.)
+                      </span>
+                      <span className="font-medium">
+                        {engravingMetrics.maxAreaMm2.toFixed(0)} mm²
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex justify-between gap-3">
+                    <span className="text-muted-foreground">Basispreis</span>
+                    <span className="font-medium">
+                      CHF {priceBreakdown.basePrice.toFixed(2)}
+                    </span>
+                  </div>
+                  {priceBreakdown.areaSurcharge > 0 && (
+                    <div className="flex justify-between gap-3">
+                      <span className="text-muted-foreground">
+                        Aufschlag Grossflaeche
+                      </span>
+                      <span className="font-medium">
+                        CHF {priceBreakdown.areaSurcharge.toFixed(2)}
+                      </span>
+                    </div>
+                  )}
+                  {quantity > 1 && (
+                    <>
+                      <div className="flex justify-between gap-3">
+                        <span className="text-muted-foreground">Stueckpreis</span>
+                        <span className="font-medium">
+                          CHF {priceBreakdown.unitPrice.toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between gap-3">
+                        <span className="text-muted-foreground">Anzahl</span>
+                        <span className="font-medium">x{quantity}</span>
+                      </div>
+                    </>
+                  )}
+                </div>
+                <div>
+                  <div className="mb-3 border-t border-sky-200/80 dark:border-cyan-500/20" />
+                  <div className="flex justify-between gap-3 text-lg font-bold">
+                    <span>Gesamtpreis</span>
+                    <span className="text-cyan-600 dark:text-cyan-400">
+                      CHF {priceBreakdown.totalPrice.toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="flex min-h-[280px] flex-col rounded-2xl border border-gray-100 bg-white shadow-sm dark:border-border/60 dark:bg-card">
+            <CardContent className="flex h-full flex-col justify-between p-6">
+              <div>
+                <h3 className="mb-4 font-bold">Anzahl</h3>
+                <div className="flex items-center gap-3">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                    aria-label="Anzahl verringern"
+                  >
+                    <Minus className="h-4 w-4" />
+                  </Button>
+                  <span className="w-12 text-center text-lg font-bold tabular-nums">
+                    {quantity}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setQuantity(quantity + 1)}
+                    aria-label="Anzahl erhoehen"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+                <p className="mt-4 text-sm text-muted-foreground">
+                  Stueckpreis: CHF {priceBreakdown.unitPrice.toFixed(2)}
+                </p>
+              </div>
+
+              <div className="mt-6">
+                <Button
+                  onClick={handleAddToCart}
+                  disabled={!hasDesign}
+                  className="w-full bg-cyan-500 hover:bg-cyan-600"
+                  size="lg"
+                >
+                  <ShoppingCart className="mr-2 h-5 w-5" />
+                  In den Warenkorb
+                </Button>
+                {!hasDesign && (
+                  <p className="mt-3 text-center text-sm text-muted-foreground">
+                    Bitte Gravur-Text eingeben oder ein Logo hochladen.
+                  </p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
+  )
+}

@@ -1,0 +1,16 @@
+{
+  "checkout": {
+    "mwstAktiv": false,
+    "mwstSatz": 8.1,
+    "twintGatewayAktiv": false,
+    "twintTelefonnummer": "+41 78 901 52 40"
+  },
+  "company": {
+    "firmenname": "DripForge",
+    "firmenAdresse": "Pfäffikon ZH\nSchweiz",
+    "iban": "",
+    "bankname": "",
+    "kontaktEmail": "drip-forge@outlook.com"
+  },
+  "updatedAt": "2026-06-02T18:13:56.197Z"
+}
