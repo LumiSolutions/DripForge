@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import {
-  getPreviewAccessPassword,
+  getTesterPassword,
   PREVIEW_ACCESS_COOKIE,
 } from "@/lib/dripforge/launch-config"
 
@@ -15,7 +15,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Passwort fehlt." }, { status: 400 })
     }
 
-    if (password !== getPreviewAccessPassword()) {
+    if (password !== getTesterPassword()) {
       return NextResponse.json(
         { error: "Falsches Tester-Passwort." },
         { status: 401 }

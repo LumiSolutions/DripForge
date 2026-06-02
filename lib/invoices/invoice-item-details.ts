@@ -18,7 +18,7 @@ export function formatInvoiceItemDetails(item: StoredOrderItem): string {
     if (d?.scale) parts.push(`Skalierung: ${d.scale}`)
     if (d?.filament) parts.push(`Material: ${d.filament}`)
     if (d?.color) parts.push(`Farben: ${d.color}`)
-    if (d?.colorWishes) parts.push(`Farbwuensche: ${d.colorWishes}`)
+    if (d?.colorWishes) parts.push(`Farbwünsche: ${d.colorWishes}`)
   } else {
     parts.push("Lasergravur")
     if (d?.material) parts.push(`Material: ${d.material}`)

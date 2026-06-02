@@ -214,9 +214,9 @@ export function ComingSoonPage({ onAccessGranted }: { onAccessGranted: () => voi
         <button
           type="button"
           onClick={() => setTesterOpen((v) => !v)}
-          className="mt-2 text-[10px] text-zinc-800 transition-colors hover:text-zinc-600"
+          className="mt-2 text-[10px] text-zinc-500 transition-colors hover:text-zinc-400"
         >
-          Tester-Login
+          Tester-Zugang
         </button>
 
         {testerOpen && (

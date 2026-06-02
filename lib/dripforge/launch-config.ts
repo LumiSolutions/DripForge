@@ -5,10 +5,15 @@ export const LAUNCH_DATE_ISO = "2026-08-01T00:00:00"
 
 export const PREVIEW_ACCESS_COOKIE = "dripforge_preview_access"
 
-export const DEFAULT_PREVIEW_ACCESS_PASSWORD = "DripForgeTest2026!"
+export const DEFAULT_TESTER_PASSWORD = "DripForgeTest2026!"
 
-export function getPreviewAccessPassword(): string {
-  return process.env.PREVIEW_ACCESS_PASSWORD ?? DEFAULT_PREVIEW_ACCESS_PASSWORD
+/** Tester-Passwort (Azure/GitHub: NEXT_PUBLIC_TESTER_PASSWORD). */
+export function getTesterPassword(): string {
+  return (
+    process.env.NEXT_PUBLIC_TESTER_PASSWORD ??
+    process.env.PREVIEW_ACCESS_PASSWORD ??
+    DEFAULT_TESTER_PASSWORD
+  )
 }
 
 export function getLaunchCountdown(now = Date.now()): {

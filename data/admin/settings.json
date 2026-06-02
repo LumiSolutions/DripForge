@@ -12,5 +12,8 @@
     "bankname": "",
     "kontaktEmail": "drip-forge@outlook.com"
   },
+  "launch": {
+    "shopLive": false
+  },
   "updatedAt": "2026-06-02T18:13:56.197Z"
 }

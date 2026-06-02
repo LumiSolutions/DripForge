@@ -98,7 +98,7 @@ export function AdminSettingsTab() {
       if (!res.ok) throw new Error(data.error ?? "Live-Schaltung fehlgeschlagen")
       setShopLive(true)
       setSuccess(
-        "Website ist offiziell live — Coming Soon ist fuer alle Besucher deaktiviert."
+        "Website ist offiziell live — Coming Soon ist für alle Besucher deaktiviert."
       )
     } catch (err) {
       console.warn("Admin: Live-Schaltung fehlgeschlagen.", err)
@@ -126,7 +126,7 @@ export function AdminSettingsTab() {
           Globale Shop-Einstellungen
         </h2>
         <p className={cn("text-sm", adminUi.muted)}>
-          Steuert Checkout-Verhalten, MwSt. und Firmendaten fuer den gesamten Shop
+          Steuert Checkout-Verhalten, MwSt. und Firmendaten für den gesamten Shop
         </p>
       </div>
 
@@ -207,7 +207,7 @@ export function AdminSettingsTab() {
           <div className={cn("space-y-2 rounded-xl border p-4", adminUi.section)}>
             <Label className={adminUi.label}>MwSt.-Satz anpassen (%)</Label>
             <p className={cn("text-xs", adminUi.labelMuted)}>
-              Aktuell gueltiger Schweizer Normalsteuersatz: 8.1%. Aenderungen gelten
+              Aktuell gültiger Schweizer Normalsteuersatz: 8.1%. Änderungen gelten
               sofort im Checkout.
             </p>
             <Input
@@ -272,7 +272,7 @@ export function AdminSettingsTab() {
                 Firmendaten & Bankverbindung
               </h3>
               <p className={cn("mt-1 text-sm", adminUi.muted)}>
-                Fuer Footer, Impressum und Zahlungsart «Kauf auf Rechnung» / Vorkasse
+                Für Footer, Impressum und Zahlungsart «Kauf auf Rechnung» / Vorkasse
               </p>
             </div>
 
