@@ -1,6 +1,8 @@
 import type { NextConfig } from "next"
 
 const nextConfig: NextConfig = {
+  // Optimiertes Paket fuer Azure Static Web Apps (schnellerer Warm-up, <250 MB)
+  output: "standalone",
   images: {
     remotePatterns: [
       {

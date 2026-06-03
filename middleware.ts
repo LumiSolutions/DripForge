@@ -7,6 +7,7 @@ const BYPASS_PREFIXES = [
   "/api",
   "/_next",
   "/favicon.ico",
+  "/.swa",
 ]
 
 export async function middleware(request: NextRequest) {
@@ -46,6 +47,9 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    /*
+     * .swa ausnehmen — Azure SWA prueft /.swa/health.html beim Deployment-Warm-up
+     */
+    "/((?!_next/static|_next/image|\\.swa|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 }

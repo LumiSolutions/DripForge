@@ -26,13 +26,14 @@ jobs:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_ZEALOUS_MOSS_08C4EE203 }}
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           action: "upload"
-          ###### Next.js (App Router) — keine separaten Azure Functions ######
-          # API-Routen liegen in app/api/ und werden vom Next.js-Build mitdeployed.
-          # api_location leer lassen, damit kein Functions-Projekt gesucht wird.
+          ###### Next.js Hybrid + output: standalone (next.config.ts) ######
+          # Oryx fuehrt "npm run build" aus (inkl. prepare-standalone.mjs).
+          # output_location leer: Azure erkennt das Standalone-Paket unter .next/standalone.
           app_location: "/"
           api_location: ""
           output_location: ""
           skip_api_build: true
+          app_build_command: "npm run build"
           ###### Ende Build-Konfiguration ######
         env:
           # Node-Version für Oryx-Build und Azure-Warm-up
