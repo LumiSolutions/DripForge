@@ -20,7 +20,8 @@ import type {
   StoredOrder,
 } from "@/lib/admin/types"
 import { DEFAULT_COMPANY_SETTINGS as DEFAULT_COMPANY } from "@/lib/admin/types"
-import { DEFAULT_LAUNCH_SETTINGS } from "@/lib/admin/types"
+import { DEFAULT_LAUNCH_SETTINGS, DEFAULT_SERVICE_VISIBILITY } from "@/lib/admin/types"
+import { normalizeServiceVisibility } from "@/lib/dripforge/service-visibility"
 
 export { isCosmosConfigured }
 
@@ -152,6 +153,7 @@ export async function cosmosGetSettings(): Promise<AdminSettings> {
         checkout: resource.checkout,
         company: { ...DEFAULT_COMPANY, ...resource.company },
         launch: { ...DEFAULT_LAUNCH_SETTINGS, ...resource.launch },
+        services: normalizeServiceVisibility(resource.services),
         updatedAt: resource.updatedAt,
       }
     }
@@ -167,6 +169,7 @@ export async function cosmosGetSettings(): Promise<AdminSettings> {
     checkout: { ...DEFAULT_CHECKOUT_RUNTIME_CONFIG },
     company: { ...DEFAULT_COMPANY },
     launch: { ...DEFAULT_LAUNCH_SETTINGS },
+    services: { ...DEFAULT_SERVICE_VISIBILITY },
     updatedAt: new Date().toISOString(),
   }
   await cosmosSaveSettings(defaults)

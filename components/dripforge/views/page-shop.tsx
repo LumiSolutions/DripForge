@@ -42,6 +42,7 @@ import {
 import { ProductImageGallery } from "@/components/dripforge/shared/product-image-gallery"
 import { ProductShopPrice } from "@/components/dripforge/shared/product-shop-price"
 import type { CartItem, Product, ProductDimensionsMm } from "@/lib/dripforge/types"
+import type { ServiceVisibilitySettings } from "@/lib/admin/types"
 import { getSaleBadgePercent } from "@/lib/dripforge/product-sale"
 import {
   capture3dPreviewLeitbild,
@@ -70,6 +71,7 @@ type PageShopProps = {
   selectedProduct: Product | null
   setSelectedProduct: (product: Product | null) => void
   addToCart: (item: CartItem) => void
+  services: ServiceVisibilitySettings
 }
 
 export function PageShop({
@@ -79,7 +81,10 @@ export function PageShop({
   selectedProduct,
   setSelectedProduct,
   addToCart,
+  services,
 }: PageShopProps) {
+  const showCustom3d = services.druck3d
+  const showCustomLaser = services.lasergravur
   const [filamentTab, setFilamentTab] = useState("pla")
   const [filamentSelection, setFilamentSelection] = useState<FilamentSelection | null>(null)
   const [laserDesign, setLaserDesign] = useState<LaserDesignerState | null>(null)
@@ -659,7 +664,13 @@ export function PageShop({
           </p>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2">
+        <div
+          className={cn(
+            "grid gap-6",
+            showCustom3d && showCustomLaser ? "md:grid-cols-2" : "mx-auto max-w-md md:grid-cols-1"
+          )}
+        >
+          {showCustom3d && (
           <Card className="border-border/50 bg-card/50 transition-colors hover:border-primary/50">
             <CardContent className="p-8">
               <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/20">
@@ -679,7 +690,9 @@ export function PageShop({
               </Button>
             </CardContent>
           </Card>
+          )}
 
+          {showCustomLaser && (
           <Card className="border-border/50 bg-card/50 transition-colors hover:border-cyan-500/50">
             <CardContent className="p-8">
               <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-cyan-500/20">
@@ -699,6 +712,7 @@ export function PageShop({
               </Button>
             </CardContent>
           </Card>
+          )}
         </div>
       </section>
 
@@ -708,9 +722,11 @@ export function PageShop({
             {[
               { id: "all", label: "Alle Produkte" },
               { id: "sale", label: "Rabatt", icon: Tag },
-              { id: "custom", label: "Individuell", icon: Sparkles },
-              { id: "3d", label: "3D-Druck", icon: Printer },
-              { id: "laser", label: "Laser", icon: Zap },
+              ...(showCustom3d || showCustomLaser
+                ? [{ id: "custom", label: "Individuell", icon: Sparkles }]
+                : []),
+              ...(showCustom3d ? [{ id: "3d", label: "3D-Druck", icon: Printer }] : []),
+              ...(showCustomLaser ? [{ id: "laser", label: "Laser", icon: Zap }] : []),
             ].map((filter) => (
               <button
                 key={filter.id}

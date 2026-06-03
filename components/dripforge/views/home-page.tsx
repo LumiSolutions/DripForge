@@ -57,8 +57,16 @@ import { LaserProcessStep } from "@/components/dripforge/shared/laser-process-st
 import { IndividualProcessBar } from "@/components/dripforge/shared/individual-process-bar"
 import { materials3D, laserMaterials, processSteps, products } from "@/lib/dripforge/data"
 import type { CartItem } from "@/lib/dripforge/types"
+import type { ServiceVisibilitySettings } from "@/lib/admin/types"
 
-export function HomePage({ setCurrentView }: { setCurrentView: (view: string) => void }) {
+export function HomePage({
+  setCurrentView,
+  services,
+}: {
+  setCurrentView: (view: string) => void
+  services: ServiceVisibilitySettings
+}) {
+  const showExpertise = services.druck3d || services.lasergravur
   return (
     <div className="space-y-24 pb-24">
       {/* Hero */}
@@ -108,6 +116,7 @@ export function HomePage({ setCurrentView }: { setCurrentView: (view: string) =>
       </section>
 
       {/* Our Expertise */}
+      {showExpertise && (
       <section className="py-16">
         <div className="mx-auto max-w-7xl px-4">
           <div className="mb-12 text-center">
@@ -116,12 +125,21 @@ export function HomePage({ setCurrentView }: { setCurrentView: (view: string) =>
               <span className="bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent">Expertise</span>
             </h2>
             <p className="mt-4 text-muted-foreground">
-              Zwei leistungsstarke Fertigungstechnologien, ein Premium-Erlebnis.
+              {services.druck3d && services.lasergravur
+                ? "Zwei leistungsstarke Fertigungstechnologien, ein Premium-Erlebnis."
+                : "Präzise Fertigung für Ihre individuellen Projekte."}
             </p>
           </div>
 
-          <div className="grid gap-6 md:grid-cols-2">
-            {/* 3D Printing Card */}
+          <div
+            className={cn(
+              "grid gap-6",
+              services.druck3d && services.lasergravur
+                ? "md:grid-cols-2"
+                : "mx-auto max-w-xl md:grid-cols-1"
+            )}
+          >
+            {services.druck3d && (
             <Card className="group relative overflow-hidden border-border/50 bg-card/50">
               <CardContent className="relative p-8">
                 <div className="flex items-start justify-between">
@@ -152,8 +170,9 @@ export function HomePage({ setCurrentView }: { setCurrentView: (view: string) =>
                 </div>
               </CardContent>
             </Card>
+            )}
 
-            {/* Laser Engraving Card */}
+            {services.lasergravur && (
             <Card className="group relative overflow-hidden border-border/50 bg-card/50">
               <CardContent className="relative p-8">
                 <div className="flex items-start justify-between">
@@ -184,9 +203,11 @@ export function HomePage({ setCurrentView }: { setCurrentView: (view: string) =>
                 </div>
               </CardContent>
             </Card>
+            )}
           </div>
         </div>
       </section>
+      )}
 
       {/* Why Choose DripForge */}
       <section className="py-16">

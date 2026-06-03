@@ -57,8 +57,19 @@ import { LaserProcessStep } from "@/components/dripforge/shared/laser-process-st
 import { IndividualProcessBar } from "@/components/dripforge/shared/individual-process-bar"
 import { materials3D, laserMaterials, processSteps, products } from "@/lib/dripforge/data"
 import type { CartItem } from "@/lib/dripforge/types"
+import type { ServiceVisibilitySettings } from "@/lib/admin/types"
+import {
+  isLaserCapabilityVisible,
+  type LaserCapabilityId,
+} from "@/lib/dripforge/service-visibility"
 
-export function PageLaser({ setCurrentView }: { setCurrentView: (view: string) => void }) {
+export function PageLaser({
+  setCurrentView,
+  services,
+}: {
+  setCurrentView: (view: string) => void
+  services: ServiceVisibilitySettings
+}) {
   return (
     <div className="space-y-24 pb-24">
       {/* Hero */}
@@ -104,33 +115,49 @@ export function PageLaser({ setCurrentView }: { setCurrentView: (view: string) =
             </p>
           </div>
 
-          <div className="grid gap-6 md:grid-cols-3">
-            {[
-              {
-                icon: Zap,
+          <div
+            className={cn(
+              "grid gap-6",
+              [services.lasergravur, services.laserschnitt, services.markierungAetzung].filter(
+                Boolean
+              ).length === 1
+                ? "mx-auto max-w-md md:grid-cols-1"
+                : "md:grid-cols-3"
+            )}
+          >
+            {(
+              [
+                {
+                  serviceId: "lasergravur" as LaserCapabilityId,
+                  icon: Zap,
                 iconBg: "bg-cyan-500/20",
                 iconColor: "text-cyan-400",
                 title: "Lasergravur",
                 description: "Hochpräzise Gravuren, die Oberflächen dauerhaft markieren. Perfekt für Logos, Text und filigrane Designs.",
                 features: ["0.1mm Präzision", "Variable Tiefenkontrolle", "Fotogravur möglich", "Vektor- & Rastermodus"],
               },
-              {
-                icon: Scissors,
+                {
+                  serviceId: "laserschnitt" as LaserCapabilityId,
+                  icon: Scissors,
                 iconBg: "bg-primary/20",
                 iconColor: "text-primary",
                 title: "Laserschnitt",
                 description: "Saubere, präzise Schnitte durch verschiedene Materialien mit versiegelten Kanten. Keine mechanische Belastung.",
                 features: ["Saubere Kanten", "Komplexe Geometrien", "Keine Materialverformung", "Enge Toleranzen"],
               },
-              {
-                icon: Stamp,
+                {
+                  serviceId: "markierungAetzung" as LaserCapabilityId,
+                  icon: Stamp,
                 iconBg: "bg-purple-500/20",
                 iconColor: "text-purple-400",
                 title: "Markierung & Ätzung",
                 description: "Oberfl��chenmarkierung für Metalle und beschichtete Materialien. Permanente Markierungen ohne tiefe Gravur.",
                 features: ["Metallmarkierung", "Eloxiertes Aluminium", "Lackierte Oberflächen", "Hoher Kontrast"],
               },
-            ].map((cap) => (
+              ] as const
+            )
+              .filter((cap) => isLaserCapabilityVisible(cap.serviceId, services))
+              .map((cap) => (
               <Card key={cap.title} className="border-border/50 bg-card/50">
                 <CardContent className="p-8">
                   <div className={cn("mb-6 flex h-12 w-12 items-center justify-center rounded-xl", cap.iconBg)}>

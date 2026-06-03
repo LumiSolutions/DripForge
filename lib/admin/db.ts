@@ -17,7 +17,11 @@ import type {
   StoredOrder,
 } from "@/lib/admin/types"
 import { DEFAULT_COMPANY_SETTINGS as DEFAULT_COMPANY } from "@/lib/admin/types"
-import { DEFAULT_LAUNCH_SETTINGS } from "@/lib/admin/types"
+import {
+  DEFAULT_LAUNCH_SETTINGS,
+  DEFAULT_SERVICE_VISIBILITY,
+} from "@/lib/admin/types"
+import { normalizeServiceVisibility } from "@/lib/dripforge/service-visibility"
 import {
   isCosmosConfigured,
   cosmosGetCustomers,
@@ -283,6 +287,7 @@ export async function getSettings(): Promise<AdminSettings> {
       checkout: stored.checkout,
       company: { ...DEFAULT_COMPANY, ...stored.company },
       launch: { ...DEFAULT_LAUNCH_SETTINGS, ...stored.launch },
+      services: normalizeServiceVisibility(stored.services),
       updatedAt: stored.updatedAt,
     }
   }
@@ -290,6 +295,7 @@ export async function getSettings(): Promise<AdminSettings> {
     checkout: { ...DEFAULT_CHECKOUT_RUNTIME_CONFIG },
     company: { ...DEFAULT_COMPANY },
     launch: { ...DEFAULT_LAUNCH_SETTINGS },
+    services: { ...DEFAULT_SERVICE_VISIBILITY },
     updatedAt: new Date().toISOString(),
   }
   await writeJsonFile(SETTINGS_FILE, defaults)
@@ -300,6 +306,7 @@ export async function saveSettings(input: {
   checkout: AdminSettings["checkout"]
   company?: CompanySettings
   launch?: Partial<LaunchSettings>
+  services?: Partial<AdminSettings["services"]>
 }): Promise<AdminSettings> {
   const current = await getSettings()
   const next: AdminSettings = {
@@ -312,6 +319,10 @@ export async function saveSettings(input: {
       ...current.launch,
       ...input.launch,
     },
+    services: normalizeServiceVisibility({
+      ...current.services,
+      ...input.services,
+    }),
     updatedAt: new Date().toISOString(),
   }
   if (isCosmosConfigured()) {

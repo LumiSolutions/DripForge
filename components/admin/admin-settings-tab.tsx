@@ -9,8 +9,9 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
-import type { CompanySettings } from "@/lib/admin/types"
-import { DEFAULT_COMPANY_SETTINGS } from "@/lib/admin/types"
+import type { CompanySettings, ServiceVisibilitySettings } from "@/lib/admin/types"
+import { DEFAULT_COMPANY_SETTINGS, DEFAULT_SERVICE_VISIBILITY } from "@/lib/admin/types"
+import { SERVICE_TOGGLE_OPTIONS } from "@/lib/dripforge/service-visibility"
 import type { CheckoutRuntimeConfig } from "@/lib/dripforge/checkout-config"
 import { DEFAULT_CHECKOUT_RUNTIME_CONFIG } from "@/lib/dripforge/checkout-config"
 import { cn } from "@/lib/utils"
@@ -20,6 +21,9 @@ export function AdminSettingsTab() {
     DEFAULT_CHECKOUT_RUNTIME_CONFIG
   )
   const [company, setCompany] = useState<CompanySettings>(DEFAULT_COMPANY_SETTINGS)
+  const [services, setServices] = useState<ServiceVisibilitySettings>(
+    DEFAULT_SERVICE_VISIBILITY
+  )
   const [shopLive, setShopLive] = useState(false)
   const [goingLive, setGoingLive] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -37,6 +41,7 @@ export function AdminSettingsTab() {
       setCheckout(data.checkout ?? DEFAULT_CHECKOUT_RUNTIME_CONFIG)
       setCompany({ ...DEFAULT_COMPANY_SETTINGS, ...data.company })
       setShopLive(Boolean(data.launch?.shopLive))
+      setServices({ ...DEFAULT_SERVICE_VISIBILITY, ...data.services })
     } catch (err) {
       console.warn("Admin: Einstellungen konnten nicht geladen werden.", err)
       setError(
@@ -61,7 +66,7 @@ export function AdminSettingsTab() {
       const res = await fetch("/api/admin/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ checkout, company }),
+        body: JSON.stringify({ checkout, company, services }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? "Speichern fehlgeschlagen")
@@ -181,6 +186,41 @@ export function AdminSettingsTab() {
 
       <Card className={adminUi.card}>
         <CardContent className="space-y-6 p-6">
+          <div>
+            <h3 className={cn("text-base font-semibold", adminUi.accentTitle)}>
+              Dienstleistungen auf der Website
+            </h3>
+            <p className={cn("mt-1 text-sm", adminUi.muted)}>
+              Steuert Navigation, Startseite und Kacheln. Deaktivierte Services bleiben im Code
+              erhalten und können später aktiviert werden.
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            {SERVICE_TOGGLE_OPTIONS.map((option) => (
+              <div
+                key={option.key}
+                className={cn(
+                  "flex items-start justify-between gap-4 rounded-xl border p-4",
+                  adminUi.section
+                )}
+              >
+                <div className="space-y-1 pr-2">
+                  <Label className={cn("text-sm font-semibold", adminUi.heading)}>
+                    {option.label}
+                  </Label>
+                  <p className={cn("text-xs", adminUi.muted)}>{option.description}</p>
+                </div>
+                <Switch
+                  checked={services[option.key]}
+                  onCheckedChange={(checked) =>
+                    setServices((prev) => ({ ...prev, [option.key]: checked }))
+                  }
+                />
+              </div>
+            ))}
+          </div>
+
           <div
             className={cn(
               "flex items-start justify-between gap-4 rounded-xl border p-4",

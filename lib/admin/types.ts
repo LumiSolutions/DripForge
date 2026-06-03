@@ -79,10 +79,26 @@ export const DEFAULT_LAUNCH_SETTINGS: LaunchSettings = {
   shopLive: false,
 }
 
+/** Sichtbarkeit einzelner Dienstleistungen auf der Website */
+export type ServiceVisibilitySettings = {
+  druck3d: boolean
+  lasergravur: boolean
+  laserschnitt: boolean
+  markierungAetzung: boolean
+}
+
+export const DEFAULT_SERVICE_VISIBILITY: ServiceVisibilitySettings = {
+  druck3d: false,
+  lasergravur: true,
+  laserschnitt: false,
+  markierungAetzung: false,
+}
+
 export type AdminSettings = {
   checkout: CheckoutRuntimeConfig
   company: CompanySettings
   launch: LaunchSettings
+  services: ServiceVisibilitySettings
   updatedAt: string
 }
 

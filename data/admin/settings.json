@@ -15,5 +15,11 @@
   "launch": {
     "shopLive": false
   },
+  "services": {
+    "druck3d": false,
+    "lasergravur": true,
+    "laserschnitt": false,
+    "markierungAetzung": false
+  },
   "updatedAt": "2026-06-02T18:13:56.197Z"
 }

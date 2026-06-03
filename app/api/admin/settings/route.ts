@@ -2,7 +2,8 @@ import { NextResponse } from "next/server"
 import { getSettings, saveSettings } from "@/lib/admin/db"
 import { DEFAULT_COMPANY_SETTINGS } from "@/lib/admin/types"
 import type { CheckoutRuntimeConfig } from "@/lib/dripforge/checkout-config"
-import type { CompanySettings } from "@/lib/admin/types"
+import type { CompanySettings, ServiceVisibilitySettings } from "@/lib/admin/types"
+import { normalizeServiceVisibility } from "@/lib/dripforge/service-visibility"
 
 export async function GET() {
   try {
@@ -22,6 +23,7 @@ export async function PUT(request: Request) {
     const body = (await request.json()) as {
       checkout?: CheckoutRuntimeConfig
       company?: Partial<CompanySettings>
+      services?: Partial<ServiceVisibilitySettings>
     }
 
     if (!body.checkout) {
@@ -52,7 +54,11 @@ export async function PUT(request: Request) {
         DEFAULT_COMPANY_SETTINGS.kontaktEmail,
     }
 
-    const settings = await saveSettings({ checkout, company })
+    const settings = await saveSettings({
+      checkout,
+      company,
+      services: normalizeServiceVisibility(body.services),
+    })
     return NextResponse.json(settings)
   } catch (error) {
     console.warn("Admin-API: Einstellungen konnten nicht gespeichert werden.", error)

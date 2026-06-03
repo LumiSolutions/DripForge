@@ -27,9 +27,18 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import type { CartItem, Product } from "@/lib/dripforge/types"
-import type { CompanySettings } from "@/lib/admin/types"
-import { DEFAULT_COMPANY_SETTINGS } from "@/lib/admin/types"
-import { navItems, products } from "@/lib/dripforge/data"
+import type {
+  CompanySettings,
+  ServiceVisibilitySettings,
+} from "@/lib/admin/types"
+import { DEFAULT_COMPANY_SETTINGS, DEFAULT_SERVICE_VISIBILITY } from "@/lib/admin/types"
+import { products } from "@/lib/dripforge/data"
+import {
+  filterNavItems,
+  isShopNavVisible,
+  isViewAllowed,
+  normalizeServiceVisibility,
+} from "@/lib/dripforge/service-visibility"
 import { HomePage } from "@/components/dripforge/views/home-page"
 import { Page3DDruck } from "@/components/dripforge/views/page-3d-druck"
 import { PageLaser } from "@/components/dripforge/views/page-laser"
@@ -59,6 +68,9 @@ export default function DripForgeApp() {
   )
   const [orderSuccessMessage, setOrderSuccessMessage] = useState<string | null>(
     null
+  )
+  const [services, setServices] = useState<ServiceVisibilitySettings>(
+    DEFAULT_SERVICE_VISIBILITY
   )
   const searchRef = useRef<HTMLDivElement>(null)
   const htmlRef = useRef<HTMLElement>(null)
@@ -90,6 +102,25 @@ export default function DripForgeApp() {
       setSelectedProduct(null)
     }
   }, [currentView])
+
+  useEffect(() => {
+    void fetch("/api/settings/services")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data) setServices(normalizeServiceVisibility(data))
+      })
+      .catch(() => {
+        console.warn("Navigation: Service-Sichtbarkeit konnte nicht geladen werden.")
+      })
+  }, [])
+
+  const visibleNavItems = filterNavItems(services)
+
+  useEffect(() => {
+    if (!isViewAllowed(currentView, services)) {
+      setCurrentView("home")
+    }
+  }, [currentView, services])
 
   useEffect(() => {
     void fetch("/api/settings/company")
@@ -168,7 +199,7 @@ export default function DripForgeApp() {
 
           {/* Desktop Navigation */}
           <nav className="hidden items-center gap-1 md:flex">
-            {navItems.map((item) => (
+            {visibleNavItems.map((item) => (
               <button
                 key={item.id}
                 onClick={() => setCurrentView(item.id)}
@@ -300,7 +331,7 @@ export default function DripForgeApp() {
         {mobileMenuOpen && (
           <div className="border-t border-border bg-background p-4 md:hidden">
             <nav className="flex flex-col gap-2">
-              {navItems.map((item) => (
+              {visibleNavItems.map((item) => (
                 <button
                   key={item.id}
                   onClick={() => {
@@ -342,7 +373,9 @@ export default function DripForgeApp() {
             </div>
           </div>
         )}
-        {currentView === "home" && <HomePage setCurrentView={setCurrentView} />}
+        {currentView === "home" && (
+          <HomePage setCurrentView={setCurrentView} services={services} />
+        )}
         {currentView === "3d-druck" && (
           <Page3DDruck 
             selectedMaterial={selectedMaterial} 
@@ -350,7 +383,9 @@ export default function DripForgeApp() {
             setCurrentView={setCurrentView}
           />
         )}
-        {currentView === "laser" && <PageLaser setCurrentView={setCurrentView} />}
+        {currentView === "laser" && (
+          <PageLaser setCurrentView={setCurrentView} services={services} />
+        )}
         {currentView === "shop" && (
           <PageShop
             shopFilter={shopFilter}
@@ -359,6 +394,7 @@ export default function DripForgeApp() {
             selectedProduct={selectedProduct}
             setSelectedProduct={setSelectedProduct}
             addToCart={addToCart}
+            services={services}
           />
         )}
         {currentView === "kontakt" && <PageKontakt setCurrentView={setCurrentView} />}
@@ -411,10 +447,48 @@ export default function DripForgeApp() {
             <div>
               <h4 className="mb-4 font-semibold text-foreground">Services</h4>
               <ul className="space-y-2 text-sm text-muted-foreground">
-                <li><button onClick={() => setCurrentView("3d-druck")} className="hover:text-primary">3D-Druck</button></li>
-                <li><button onClick={() => setCurrentView("laser")} className="hover:text-primary">Lasergravur</button></li>
-                <li><button onClick={() => setCurrentView("shop")} className="hover:text-primary">Shop</button></li>
-                <li><button onClick={() => setCurrentView("shop")} className="hover:text-primary">Individueller 3D-Druck</button></li>
+                {services.druck3d && (
+                  <li>
+                    <button
+                      onClick={() => setCurrentView("3d-druck")}
+                      className="hover:text-primary"
+                    >
+                      3D-Druck
+                    </button>
+                  </li>
+                )}
+                {(services.lasergravur ||
+                  services.laserschnitt ||
+                  services.markierungAetzung) && (
+                  <li>
+                    <button
+                      onClick={() => setCurrentView("laser")}
+                      className="hover:text-primary"
+                    >
+                      Lasergravur
+                    </button>
+                  </li>
+                )}
+                {isShopNavVisible(services) && (
+                  <li>
+                    <button
+                      onClick={() => setCurrentView("shop")}
+                      className="hover:text-primary"
+                    >
+                      Shop
+                    </button>
+                  </li>
+                )}
+                {services.druck3d && (
+                  <li>
+                    <button
+                      onClick={() => setCurrentView("individual-3d")}
+                      className="hover:text-primary"
+                    >
+                      Individueller 3D-Druck
+                    </button>
+                  </li>
+                )}
               </ul>
             </div>
             <div>
