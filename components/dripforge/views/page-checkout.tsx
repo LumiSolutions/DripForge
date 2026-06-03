@@ -155,9 +155,11 @@ function FormField({
 export function PageCheckout({
   setCurrentView,
   cart,
+  onOrderComplete,
 }: {
   setCurrentView: (view: string) => void
   cart: CartItem[]
+  onOrderComplete?: () => void
 }) {
   const [checkoutConfig, setCheckoutConfig] = useState<CheckoutRuntimeConfig>(
     DEFAULT_CHECKOUT_RUNTIME_CONFIG
@@ -294,9 +296,8 @@ export function PageCheckout({
       return
     }
 
-    alert(
-      `Vielen Dank! Deine Bestellung ${result.data.orderId} wurde erfolgreich uebermittelt.`
-    )
+    onOrderComplete?.()
+    setCurrentView("home")
   }
 
   if (cart.length === 0) {

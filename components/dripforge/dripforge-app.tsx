@@ -57,6 +57,9 @@ export default function DripForgeApp() {
   const [companyFooter, setCompanyFooter] = useState<CompanySettings>(
     DEFAULT_COMPANY_SETTINGS
   )
+  const [orderSuccessMessage, setOrderSuccessMessage] = useState<string | null>(
+    null
+  )
   const searchRef = useRef<HTMLDivElement>(null)
   const htmlRef = useRef<HTMLElement>(null)
 
@@ -322,6 +325,23 @@ export default function DripForgeApp() {
 
       {/* Main Content */}
       <main>
+        {orderSuccessMessage && (
+          <div className="mx-auto max-w-4xl px-4 pt-4">
+            <div
+              role="status"
+              className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-800 dark:text-emerald-200"
+            >
+              <p>{orderSuccessMessage}</p>
+              <button
+                type="button"
+                onClick={() => setOrderSuccessMessage(null)}
+                className="mt-2 text-xs font-medium underline underline-offset-2"
+              >
+                Schliessen
+              </button>
+            </div>
+          </div>
+        )}
         {currentView === "home" && <HomePage setCurrentView={setCurrentView} />}
         {currentView === "3d-druck" && (
           <Page3DDruck 
@@ -348,7 +368,18 @@ export default function DripForgeApp() {
         {currentView === "individual-3d" && <PageIndividual3D setCurrentView={setCurrentView} addToCart={addToCart} />}
         {currentView === "individual-laser" && <PageIndividualLaser setCurrentView={setCurrentView} addToCart={addToCart} />}
         {currentView === "warenkorb" && <PageWarenkorb setCurrentView={setCurrentView} cart={cart} setCart={setCart} />}
-        {currentView === "checkout" && <PageCheckout setCurrentView={setCurrentView} cart={cart} />}
+        {currentView === "checkout" && (
+          <PageCheckout
+            setCurrentView={setCurrentView}
+            cart={cart}
+            onOrderComplete={() => {
+              setCart([])
+              setOrderSuccessMessage(
+                "Vielen Dank! Deine Bestellung wurde erfolgreich übermittelt. Bei «Kauf auf Rechnung» erhältst du die Rechnung per E-Mail, sobald SMTP im Portal konfiguriert ist."
+              )
+            }}
+          />
+        )}
       </main>
 
       {/* Footer */}

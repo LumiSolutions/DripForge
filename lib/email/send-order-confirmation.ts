@@ -67,8 +67,9 @@ export async function sendOrderConfirmationEmail(
   options: SendOrderEmailOptions
 ): Promise<boolean> {
   if (!isSmtpConfigured()) {
-    console.warn(
-      "E-Mail: SMTP nicht konfiguriert (SMTP_HOST, SMTP_USER, SMTP_PASS) — Versand uebersprungen."
+    console.error(
+      "E-Mail: SMTP nicht konfiguriert (SMTP_HOST, SMTP_USER, SMTP_PASS) — Versand übersprungen.",
+      { orderId: order.orderId, to: order.billing.email }
     )
     return false
   }
@@ -102,9 +103,15 @@ export async function sendOrderConfirmationEmail(
             ]
           : undefined,
     })
+    console.info(
+      `E-Mail: Bestätigung gesendet (${order.orderId} → ${order.billing.email}, Rechnung: ${withInvoice}).`
+    )
     return true
   } catch (error) {
-    console.warn("E-Mail: Bestellbestaetigung konnte nicht gesendet werden.", error)
-    return false
+    console.error(
+      `E-Mail: Bestellbestätigung konnte nicht gesendet werden (${order.orderId}).`,
+      error
+    )
+    throw error
   }
 }

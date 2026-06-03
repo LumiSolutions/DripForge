@@ -18,6 +18,21 @@ import type {
 } from "@/lib/admin/types"
 import { DEFAULT_COMPANY_SETTINGS as DEFAULT_COMPANY } from "@/lib/admin/types"
 import { DEFAULT_LAUNCH_SETTINGS } from "@/lib/admin/types"
+import {
+  isCosmosConfigured,
+  cosmosGetCustomers,
+  cosmosGetCustomerByNumber,
+  cosmosGetOrderById,
+  cosmosGetOrders,
+  cosmosGetProducts,
+  cosmosGetSettings,
+  cosmosSaveOrder,
+  cosmosSaveProducts,
+  cosmosSaveSettings,
+  cosmosUpdateOrderInvoice,
+  cosmosUpdateOrderStatus,
+  cosmosUpsertCustomerFromOrder,
+} from "@/lib/admin/cosmos-store"
 
 const DATA_DIR = path.join(process.cwd(), "data", "admin")
 
@@ -44,10 +59,19 @@ async function readJsonFile<T>(filename: string, fallback: T): Promise<T> {
 async function writeJsonFile<T>(filename: string, data: T): Promise<void> {
   await ensureDataDir()
   const filePath = path.join(DATA_DIR, filename)
-  await fs.writeFile(filePath, JSON.stringify(data, null, 2), "utf-8")
+  try {
+    await fs.writeFile(filePath, JSON.stringify(data, null, 2), "utf-8")
+  } catch (error) {
+    console.error(
+      `Dateispeicher: Schreiben fehlgeschlagen (${filename}) — auf Azure ist oft nur Cosmos DB persistent.`,
+      error
+    )
+    throw error
+  }
 }
 
 export async function getOrders(): Promise<StoredOrder[]> {
+  if (isCosmosConfigured()) return cosmosGetOrders()
   const orders = await readJsonFile<StoredOrder[]>(ORDERS_FILE, [])
   return orders.sort(
     (a, b) =>
@@ -56,11 +80,16 @@ export async function getOrders(): Promise<StoredOrder[]> {
 }
 
 export async function getOrderById(orderId: string): Promise<StoredOrder | null> {
+  if (isCosmosConfigured()) return cosmosGetOrderById(orderId)
   const orders = await getOrders()
   return orders.find((o) => o.orderId === orderId) ?? null
 }
 
 export async function saveOrder(order: StoredOrder): Promise<void> {
+  if (isCosmosConfigured()) {
+    await cosmosSaveOrder(order)
+    return
+  }
   const orders = await readJsonFile<StoredOrder[]>(ORDERS_FILE, [])
   orders.unshift(order)
   await writeJsonFile(ORDERS_FILE, orders)
@@ -81,6 +110,7 @@ async function attachCustomerToOrder(
 export async function upsertCustomerFromOrder(
   order: StoredOrder
 ): Promise<StoredCustomer> {
+  if (isCosmosConfigured()) return cosmosUpsertCustomerFromOrder(order)
   const customers = await readJsonFile<StoredCustomer[]>(CUSTOMERS_FILE, [])
   const email = normalizeCustomerEmail(order.billing.email)
   const index = customers.findIndex((c) => c.email === email)
@@ -138,6 +168,7 @@ export async function reconcileCustomersFromOrders(): Promise<void> {
 }
 
 export async function getCustomers(): Promise<StoredCustomer[]> {
+  if (isCosmosConfigured()) return cosmosGetCustomers()
   await reconcileCustomersFromOrders()
   const customers = await readJsonFile<StoredCustomer[]>(CUSTOMERS_FILE, [])
   return customers.sort(
@@ -148,6 +179,7 @@ export async function getCustomers(): Promise<StoredCustomer[]> {
 export async function getCustomerByNumber(
   kundennummer: string
 ): Promise<StoredCustomer | null> {
+  if (isCosmosConfigured()) return cosmosGetCustomerByNumber(kundennummer)
   await reconcileCustomersFromOrders()
   const customers = await readJsonFile<StoredCustomer[]>(CUSTOMERS_FILE, [])
   return customers.find((c) => c.kundennummer === kundennummer) ?? null
@@ -157,6 +189,7 @@ export async function updateOrderStatus(
   orderId: string,
   status: StoredOrder["status"]
 ): Promise<StoredOrder | null> {
+  if (isCosmosConfigured()) return cosmosUpdateOrderStatus(orderId, status)
   const orders = await readJsonFile<StoredOrder[]>(ORDERS_FILE, [])
   const index = orders.findIndex((o) => o.orderId === orderId)
   if (index === -1) return null
@@ -169,6 +202,7 @@ export async function updateOrderInvoice(
   orderId: string,
   data: Pick<StoredOrder, "rechnungPdfUrl" | "rechnungPdfPath" | "kundennummer">
 ): Promise<StoredOrder | null> {
+  if (isCosmosConfigured()) return cosmosUpdateOrderInvoice(orderId, data)
   const orders = await readJsonFile<StoredOrder[]>(ORDERS_FILE, [])
   const index = orders.findIndex((o) => o.orderId === orderId)
   if (index === -1) return null
@@ -190,6 +224,7 @@ export async function readLocalInvoicePdf(filename: string): Promise<Buffer | nu
 }
 
 export async function getProducts(): Promise<AdminProduct[]> {
+  if (isCosmosConfigured()) return cosmosGetProducts()
   const stored = await readJsonFile<AdminProduct[] | null>(PRODUCTS_FILE, null)
   if (stored && stored.length > 0) return stored
   const seeded = seedProducts.map((p) => ({
@@ -204,6 +239,10 @@ export async function getProducts(): Promise<AdminProduct[]> {
 }
 
 export async function saveProducts(products: AdminProduct[]): Promise<void> {
+  if (isCosmosConfigured()) {
+    await cosmosSaveProducts(products)
+    return
+  }
   await writeJsonFile(PRODUCTS_FILE, products)
 }
 
@@ -237,6 +276,7 @@ export async function deleteProduct(id: string): Promise<boolean> {
 }
 
 export async function getSettings(): Promise<AdminSettings> {
+  if (isCosmosConfigured()) return cosmosGetSettings()
   const stored = await readJsonFile<AdminSettings | null>(SETTINGS_FILE, null)
   if (stored?.checkout) {
     return {
@@ -274,6 +314,10 @@ export async function saveSettings(input: {
     },
     updatedAt: new Date().toISOString(),
   }
+  if (isCosmosConfigured()) {
+    await cosmosSaveSettings(next)
+    return next
+  }
   await writeJsonFile(SETTINGS_FILE, next)
   return next
 }
@@ -284,6 +328,10 @@ export async function setShopLive(shopLive: boolean): Promise<AdminSettings> {
     ...current,
     launch: { ...current.launch, shopLive },
     updatedAt: new Date().toISOString(),
+  }
+  if (isCosmosConfigured()) {
+    await cosmosSaveSettings(next)
+    return next
   }
   await writeJsonFile(SETTINGS_FILE, next)
   return next

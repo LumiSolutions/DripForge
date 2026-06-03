@@ -52,23 +52,37 @@ export async function submitOrder(
       body: JSON.stringify(payload),
     })
 
-    const data = (await response.json()) as SubmitOrderResponse & {
-      error?: string
+    let data: SubmitOrderResponse & { error?: string }
+    try {
+      data = (await response.json()) as SubmitOrderResponse & { error?: string }
+    } catch (parseError) {
+      console.error(
+        "Bestellung: Ungültige Server-Antwort.",
+        { status: response.status, parseError }
+      )
+      return {
+        ok: false,
+        error: "Server-Antwort ungültig. Bitte später erneut versuchen.",
+      }
     }
 
     if (!response.ok) {
+      console.error("Bestellung: API-Fehler.", {
+        status: response.status,
+        error: data.error,
+      })
       return {
         ok: false,
-        error: data.error ?? "Bestellung konnte nicht uebermittelt werden.",
+        error: data.error ?? "Bestellung konnte nicht übermittelt werden.",
       }
     }
 
     return { ok: true, data }
   } catch (error) {
-    console.warn("Bestellung: Netzwerkfehler bei der Uebermittlung.", error)
+    console.error("Bestellung: Netzwerkfehler bei der Übermittlung.", error)
     return {
       ok: false,
-      error: "Verbindungsfehler. Bitte spaeter erneut versuchen.",
+      error: "Verbindungsfehler. Bitte später erneut versuchen.",
     }
   }
 }

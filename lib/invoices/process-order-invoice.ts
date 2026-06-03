@@ -25,10 +25,11 @@ export async function processOrderInvoice(
       pdfBuffer: order.paymentMethod === "invoice" ? pdfBuffer : undefined,
     })
   } catch (error) {
-    console.warn(
-      `Rechnung: Verarbeitung fuer Bestellung ${order.orderId} fehlgeschlagen.`,
+    console.error(
+      `Rechnung: Verarbeitung für Bestellung ${order.orderId} fehlgeschlagen.`,
       error
     )
+    throw error
   }
 }
 
