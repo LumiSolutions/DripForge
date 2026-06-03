@@ -34,6 +34,15 @@ jobs:
           output_location: ""
           skip_api_build: true
           ###### Ende Build-Konfiguration ######
+        env:
+          # Node-Version für Oryx-Build und Azure-Warm-up
+          FORWARD_NODE_VERSION: "20"
+          NODE_VERSION: "20"
+          # Schnellerer Next.js-Build (keine Source Maps in CI)
+          NEXT_DISABLE_SOURCEMAPS: "1"
+          # Platzhalter nur für den CI-Build — Runtime nutzt Portal-Secrets
+          COSMOSDB_ENDPOINT: "https://build-placeholder.documents.azure.com:443/"
+          COSMOSDB_KEY: "build-only-placeholder-not-used-in-production"
 
   close_pull_request_job:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
