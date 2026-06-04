@@ -171,6 +171,32 @@ export function PageCheckout({
   const [company, setCompany] = useState<CompanySettings>(DEFAULT_COMPANY_SETTINGS)
 
   useEffect(() => {
+    void fetch("/api/konto/me", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { account?: Partial<CheckoutForm> } | null) => {
+        if (!data?.account) return
+        const a = data.account
+        setForm((prev) => ({
+          ...prev,
+          firstName: prev.firstName || a.firstName || "",
+          lastName: prev.lastName || a.lastName || "",
+          email: prev.email || a.email || "",
+          street: prev.street || a.street || "",
+          zip: prev.zip || a.zip || "",
+          city: prev.city || a.city || "",
+          phone: prev.phone || a.phone || "",
+          deliveryFirstName:
+            prev.deliveryFirstName || a.firstName || "",
+          deliveryLastName: prev.deliveryLastName || a.lastName || "",
+          deliveryStreet: prev.deliveryStreet || a.street || "",
+          deliveryZip: prev.deliveryZip || a.zip || "",
+          deliveryCity: prev.deliveryCity || a.city || "",
+        }))
+      })
+      .catch(() => {
+        /* Gast-Checkout ohne Konto */
+      })
+
     void fetch("/api/settings/checkout")
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {

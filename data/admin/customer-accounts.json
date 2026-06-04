@@ -1,1 +1,11 @@
-[]
+[
+  {
+    "id": "svenja_iten@outlook.com",
+    "email": "svenja_iten@outlook.com",
+    "passwordHash": "scrypt:81cbd82e46baf70fa9920259c2249a3b:b9b1ba029dc0226ad8698b680d496d5341a85372b699337f9aa1e628924118a0505cbd1ba6f75c5fee2bf717f3bcf2d28470f27bc796051301be78530f8c4e99",
+    "firstName": "Svenja",
+    "lastName": "Iten",
+    "createdAt": "2026-06-04T17:49:07.143Z",
+    "updatedAt": "2026-06-04T17:49:07.199Z"
+  }
+]

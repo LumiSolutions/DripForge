@@ -5,10 +5,23 @@ export type CustomerAccount = {
   passwordHash: string
   firstName: string
   lastName: string
+  street?: string
+  zip?: string
+  city?: string
+  phone?: string
   /** Verknuepfung zum CRM (falls bereits Bestellungen) */
   kundennummer?: string
   createdAt: string
   updatedAt: string
+}
+
+export type CustomerProfileInput = {
+  firstName: string
+  lastName: string
+  street: string
+  zip: string
+  city: string
+  phone: string
 }
 
 export type SavedCustomerDesign = {

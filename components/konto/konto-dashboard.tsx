@@ -94,6 +94,22 @@ export function KontoDashboard() {
               </div>
             </CardContent>
           </Card>
+          <Card className="rounded-2xl border-border/50 sm:col-span-2">
+            <CardContent className="flex flex-wrap items-center justify-between gap-4 p-6">
+              <div>
+                <p className="font-medium">Profil &amp; Adressen</p>
+                <p className="text-sm text-muted-foreground">
+                  Checkout-Daten pflegen und speichern
+                </p>
+              </div>
+              <Link
+                href="/konto/profil"
+                className="text-sm font-medium text-primary hover:underline"
+              >
+                Profil bearbeiten →
+              </Link>
+            </CardContent>
+          </Card>
         </div>
 
         <section>

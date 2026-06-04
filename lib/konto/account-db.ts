@@ -72,6 +72,10 @@ export function toPublicAccount(account: CustomerAccount) {
     email: account.email,
     firstName: account.firstName,
     lastName: account.lastName,
+    street: account.street ?? "",
+    zip: account.zip ?? "",
+    city: account.city ?? "",
+    phone: account.phone ?? "",
     kundennummer: account.kundennummer,
     createdAt: account.createdAt,
   }
