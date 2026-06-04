@@ -143,23 +143,21 @@ export function ComingSoonPage({ onAccessGranted }: { onAccessGranted: () => voi
       <EmberField />
 
       <main className="relative z-10 flex w-full flex-1 flex-col items-center justify-center gap-6 px-4">
-        {/* Logo-Grafik (unterer Poster-Bereich ausgeblendet — Countdown/Datum liegen im Layout darunter) */}
-        <div className="flex w-full max-w-2xl shrink-0 flex-col items-center gap-6 sm:max-w-3xl">
-          <div className="relative w-full overflow-hidden rounded-lg shadow-[0_0_80px_rgba(249,115,22,0.15),0_24px_48px_rgba(0,0,0,0.6)] ring-1 ring-white/5">
-            <div className="relative w-full pb-[56%] sm:pb-[58%]">
-              <Image
-                src="/images/launch-hero.png"
-                alt="DripForge — Custom 3D Prints & Laser Engraving"
-                width={1200}
-                height={1200}
-                className="absolute left-0 top-0 h-auto w-full"
-                priority
-              />
-            </div>
+        {/* Quadratisches Hero-Bild vollständig, Countdown darunter */}
+        <div className="flex w-full max-w-[500px] shrink-0 flex-col items-center">
+          <div className="w-full rounded-lg shadow-[0_0_80px_rgba(249,115,22,0.15),0_24px_48px_rgba(0,0,0,0.6)] ring-1 ring-white/5">
+            <Image
+              src="/images/launch-hero.png"
+              alt="DripForge — Custom 3D Prints & Laser Engraving"
+              width={1200}
+              height={1200}
+              className="aspect-square h-auto w-full max-w-[500px] object-contain"
+              priority
+            />
           </div>
 
           {/* Countdown unterhalb des Logos */}
-          <div className="flex w-full max-w-lg flex-col items-center gap-4 text-center">
+          <div className="mt-6 flex w-full max-w-lg flex-col items-center gap-4 text-center">
             <p className="cs-metallic-gold text-[10px] font-semibold uppercase tracking-[0.45em] sm:text-xs">
               Countdown zum Launch
             </p>
