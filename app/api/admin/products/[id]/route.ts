@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server"
-import { deleteProduct, getProductById, upsertProduct } from "@/lib/admin/db"
+import { adminDatabaseErrorResponse } from "@/lib/admin/api-errors"
+import {
+  deleteProduct,
+  getAdminProductById,
+  upsertProduct,
+} from "@/lib/admin/db"
 import { normalizeAdminProductInput } from "@/lib/admin/normalize-product"
 import type { AdminProduct } from "@/lib/admin/types"
 
@@ -8,7 +13,7 @@ type RouteContext = { params: Promise<{ id: string }> }
 export async function GET(_request: Request, context: RouteContext) {
   try {
     const { id } = await context.params
-    const product = await getProductById(id)
+    const product = await getAdminProductById(id)
     if (!product) {
       return NextResponse.json(
         { error: "Produkt nicht gefunden." },
@@ -17,6 +22,8 @@ export async function GET(_request: Request, context: RouteContext) {
     }
     return NextResponse.json({ product })
   } catch (error) {
+    const dbResponse = adminDatabaseErrorResponse(error)
+    if (dbResponse) return dbResponse
     console.warn("Admin-API: Produkt konnte nicht geladen werden.", error)
     return NextResponse.json(
       { error: "Produkt konnte nicht geladen werden." },
@@ -31,7 +38,7 @@ export async function PUT(request: Request, context: RouteContext) {
     const body = (await request.json()) as Partial<AdminProduct> & {
       variantenText?: string
     }
-    const existing = await getProductById(id)
+    const existing = await getAdminProductById(id)
     if (!existing) {
       return NextResponse.json(
         { error: "Produkt nicht gefunden." },
@@ -43,6 +50,8 @@ export async function PUT(request: Request, context: RouteContext) {
     const saved = await upsertProduct(product)
     return NextResponse.json({ product: saved })
   } catch (error) {
+    const dbResponse = adminDatabaseErrorResponse(error)
+    if (dbResponse) return dbResponse
     console.warn("Admin-API: Produkt konnte nicht gespeichert werden.", error)
     return NextResponse.json(
       {
@@ -68,6 +77,8 @@ export async function DELETE(_request: Request, context: RouteContext) {
     }
     return NextResponse.json({ success: true })
   } catch (error) {
+    const dbResponse = adminDatabaseErrorResponse(error)
+    if (dbResponse) return dbResponse
     console.warn("Admin-API: Produkt konnte nicht geloescht werden.", error)
     return NextResponse.json(
       { error: "Produkt konnte nicht geloescht werden." },

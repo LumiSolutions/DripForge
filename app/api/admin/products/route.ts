@@ -1,17 +1,20 @@
 import { NextResponse } from "next/server"
-import { getProducts, upsertProduct } from "@/lib/admin/db"
+import { adminDatabaseErrorResponse } from "@/lib/admin/api-errors"
+import { getAdminProducts, upsertProduct } from "@/lib/admin/db"
 import { normalizeAdminProductInput } from "@/lib/admin/normalize-product"
 import type { AdminProduct } from "@/lib/admin/types"
 
 export async function GET() {
   try {
-    const products = await getProducts()
+    const products = await getAdminProducts()
     return NextResponse.json({ products })
   } catch (error) {
+    const dbResponse = adminDatabaseErrorResponse(error)
+    if (dbResponse) return dbResponse
     console.error("Admin-API: Produkte konnten nicht geladen werden.", error)
     return NextResponse.json(
-      { products: [] },
-      { headers: { "X-DripForge-Degraded": "1" } }
+      { error: "Produkte konnten nicht geladen werden." },
+      { status: 500 }
     )
   }
 }
@@ -25,6 +28,8 @@ export async function POST(request: Request) {
     const saved = await upsertProduct(product)
     return NextResponse.json({ product: saved }, { status: 201 })
   } catch (error) {
+    const dbResponse = adminDatabaseErrorResponse(error)
+    if (dbResponse) return dbResponse
     console.warn("Admin-API: Produkt konnte nicht erstellt werden.", error)
     return NextResponse.json(
       {

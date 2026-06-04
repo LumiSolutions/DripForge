@@ -26,18 +26,23 @@ import {
 } from "@/lib/admin/types"
 import { normalizeServiceVisibility } from "@/lib/dripforge/service-visibility"
 import { buildDefaultAdminSettings } from "@/lib/admin/safe-defaults"
-import { withCosmosFallback } from "@/lib/admin/storage-bridge"
+import {
+  withCosmosFallback,
+  withCosmosRequired,
+} from "@/lib/admin/storage-bridge"
 import { logCosmosError } from "@/lib/cosmos/log-error"
 import {
   cosmosGetCustomers,
   cosmosGetCustomerByNumber,
   cosmosGetOrderById,
   cosmosGetOrders,
+  cosmosDeleteProduct,
+  cosmosGetProductById,
   cosmosGetProducts,
   cosmosGetSettings,
   cosmosSaveOrder,
-  cosmosSaveProducts,
   cosmosSaveSettings,
+  cosmosUpsertProduct,
   cosmosUpdateOrderInvoice,
   cosmosUpdateOrderProductionStatus,
   cosmosUpdateOrderStatus,
@@ -344,6 +349,7 @@ async function getProductsFromFile(): Promise<AdminProduct[]> {
   return seeded
 }
 
+/** Shop-Storefront: Lesen mit Datei-Fallback. */
 export async function getProducts(): Promise<AdminProduct[]> {
   try {
     return await withCosmosFallback("getProducts", cosmosGetProducts, getProductsFromFile)
@@ -353,45 +359,25 @@ export async function getProducts(): Promise<AdminProduct[]> {
   }
 }
 
-export async function saveProducts(products: AdminProduct[]): Promise<void> {
-  await withCosmosFallback(
-    "saveProducts",
-    async () => {
-      await cosmosSaveProducts(products)
-    },
-    async () => {
-      await writeJsonFile(PRODUCTS_FILE, products)
-    }
-  )
+/** Admin-Produktverwaltung: alle Produkte inkl. inaktive — nur Cosmos. */
+export async function getAdminProducts(): Promise<AdminProduct[]> {
+  return withCosmosRequired("getAdminProducts", cosmosGetProducts)
 }
 
-export async function getProductById(id: string): Promise<AdminProduct | null> {
-  const products = await getProducts()
-  return products.find((p) => p.id === id) ?? null
+export async function getAdminProductById(id: string): Promise<AdminProduct | null> {
+  return withCosmosRequired("getAdminProductById", () => cosmosGetProductById(id))
 }
 
 export async function upsertProduct(product: AdminProduct): Promise<AdminProduct> {
-  const products = await getProducts()
   const next: AdminProduct = {
     ...product,
     updatedAt: new Date().toISOString(),
   }
-  const index = products.findIndex((p) => p.id === product.id)
-  if (index >= 0) {
-    products[index] = next
-  } else {
-    products.push(next)
-  }
-  await saveProducts(products)
-  return next
+  return withCosmosRequired("upsertProduct", () => cosmosUpsertProduct(next))
 }
 
 export async function deleteProduct(id: string): Promise<boolean> {
-  const products = await getProducts()
-  const filtered = products.filter((p) => p.id !== id)
-  if (filtered.length === products.length) return false
-  await saveProducts(filtered)
-  return true
+  return withCosmosRequired("deleteProduct", () => cosmosDeleteProduct(id))
 }
 
 async function getSettingsFromFile(): Promise<AdminSettings> {

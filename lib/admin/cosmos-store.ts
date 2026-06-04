@@ -248,3 +248,46 @@ export async function cosmosSaveProducts(
     await container.items.upsert({ ...product, id: product.id })
   }
 }
+
+export async function cosmosGetProductById(
+  id: string
+): Promise<AdminProduct | null> {
+  const container = await getProductsContainer()
+  try {
+    const { resource } = await container
+      .item(id, id)
+      .read<CosmosDoc<AdminProduct>>()
+    if (!resource) return null
+    return {
+      ...(stripCosmosId(resource) as Omit<AdminProduct, "id">),
+      id: resource.id,
+    }
+  } catch (error) {
+    const code = (error as { code?: number }).code
+    if (code === 404) return null
+    logCosmosError(`cosmosGetProductById:${id}`, error)
+    throw error
+  }
+}
+
+export async function cosmosUpsertProduct(
+  product: AdminProduct
+): Promise<AdminProduct> {
+  const container = await getProductsContainer()
+  const doc = { ...product, id: product.id }
+  await container.items.upsert(doc)
+  return doc
+}
+
+export async function cosmosDeleteProduct(id: string): Promise<boolean> {
+  const container = await getProductsContainer()
+  try {
+    await container.item(id, id).delete()
+    return true
+  } catch (error) {
+    const code = (error as { code?: number }).code
+    if (code === 404) return false
+    logCosmosError(`cosmosDeleteProduct:${id}`, error)
+    throw error
+  }
+}
