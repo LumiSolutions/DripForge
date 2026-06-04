@@ -111,7 +111,7 @@ export function ComingSoonPage({ onAccessGranted }: { onAccessGranted: () => voi
   }
 
   return (
-    <div className="relative flex min-h-screen flex-col overflow-hidden bg-[#0a0a0c] text-zinc-100">
+    <div className="relative flex min-h-screen flex-col overflow-x-hidden bg-[#0a0a0c] text-zinc-100">
       {/* Hintergrund: Textur, Glows, Funken */}
       <div className="cs-noise pointer-events-none absolute inset-0 opacity-80" aria-hidden />
       <div
@@ -136,10 +136,10 @@ export function ComingSoonPage({ onAccessGranted }: { onAccessGranted: () => voi
       />
       <EmberField />
 
-      <main className="relative z-10 flex flex-1 flex-col items-center justify-center px-4 py-10 sm:py-14">
+      <main className="relative z-10 flex flex-1 flex-col items-center justify-start gap-10 px-4 py-10 sm:gap-12 sm:py-14">
         {/* Hero-Poster mit Countdown-Overlay */}
-        <div className="relative w-full max-w-2xl sm:max-w-3xl">
-          <div className="relative overflow-hidden rounded-lg shadow-[0_0_80px_rgba(249,115,22,0.15),0_24px_48px_rgba(0,0,0,0.6)] ring-1 ring-white/5">
+        <div className="relative w-full max-w-2xl shrink-0 sm:max-w-3xl">
+          <div className="relative isolate overflow-hidden rounded-lg shadow-[0_0_80px_rgba(249,115,22,0.15),0_24px_48px_rgba(0,0,0,0.6)] ring-1 ring-white/5">
             <Image
               src="/images/launch-hero.png"
               alt="DripForge — Custom 3D Prints & Laser Engraving"
@@ -188,33 +188,29 @@ export function ComingSoonPage({ onAccessGranted }: { onAccessGranted: () => voi
           </div>
         </div>
 
-        {/* Schweizer Text unter dem Poster */}
-        <div className="mt-8 max-w-xl text-center sm:mt-10">
-          <p className="text-sm font-medium uppercase tracking-[0.2em] text-zinc-500 sm:text-xs">
+        {/* Schweizer Text unter dem Poster — URL nur im Hero-Bild */}
+        <section className="flex max-w-xl shrink-0 flex-col items-center gap-3 text-center sm:gap-4">
+          <p className="text-xs font-medium uppercase tracking-[0.2em] text-zinc-500">
             Hier entsteht DripForge
           </p>
-          <h1 className="mt-3 text-lg font-bold leading-snug text-zinc-200 sm:text-xl">
+          <h1 className="text-lg font-bold leading-snug text-zinc-200 sm:text-xl">
             Präziser 3D-Druck &amp; Lasergravur aus der Schweiz
           </h1>
 
           {countdown.isPast && (
-            <p className="mt-4 text-sm text-orange-300">
+            <p className="text-sm text-orange-300">
               Der Launch-Termin ist erreicht — die Freischaltung erfolgt in Kürze.
             </p>
           )}
-        </div>
-
-        <p className="cs-metallic-silver mt-8 text-sm font-medium tracking-[0.35em] sm:text-base">
-          DRIPFORGE.CH
-        </p>
+        </section>
       </main>
 
-      <footer className="relative z-10 px-4 py-5 text-center">
+      <footer className="relative z-10 mt-auto flex flex-col items-center gap-2 px-4 py-6 text-center sm:gap-3 sm:py-8">
         <p className="text-[10px] text-zinc-700">© 2026 DripForge · Pfäffikon ZH</p>
         <button
           type="button"
           onClick={() => setTesterOpen((v) => !v)}
-          className="mt-2 text-[10px] text-zinc-500 transition-colors hover:text-zinc-400"
+          className="text-[10px] text-zinc-500 transition-colors hover:text-zinc-400"
         >
           Tester-Zugang
         </button>
@@ -255,7 +251,7 @@ export function ComingSoonPage({ onAccessGranted }: { onAccessGranted: () => voi
 
         <Link
           href="/admin"
-          className="mt-3 inline-block text-[10px] text-zinc-800 hover:text-zinc-600"
+          className="text-[10px] text-zinc-800 hover:text-zinc-600"
         >
           Admin
         </Link>
