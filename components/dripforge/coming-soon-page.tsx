@@ -111,7 +111,7 @@ export function ComingSoonPage({ onAccessGranted }: { onAccessGranted: () => voi
   }
 
   return (
-    <div className="relative flex min-h-screen flex-col overflow-x-hidden bg-[#0a0a0c] text-zinc-100">
+    <div className="relative flex min-h-screen flex-col items-center justify-between overflow-x-hidden bg-[#0a0a0c] py-10 text-zinc-100 sm:py-12">
       {/* Hintergrund: Textur, Glows, Funken */}
       <div className="cs-noise pointer-events-none absolute inset-0 opacity-80" aria-hidden />
       <div
@@ -136,9 +136,9 @@ export function ComingSoonPage({ onAccessGranted }: { onAccessGranted: () => voi
       />
       <EmberField />
 
-      <main className="relative z-10 flex flex-1 flex-col items-center justify-start gap-10 px-4 py-10 sm:gap-12 sm:py-14">
+      <main className="relative z-10 flex w-full flex-1 flex-col items-center justify-center px-4">
         {/* Hero-Poster mit Countdown-Overlay */}
-        <div className="relative w-full max-w-2xl shrink-0 sm:max-w-3xl">
+        <div className="relative mb-16 w-full max-w-2xl shrink-0 sm:mb-20 sm:max-w-3xl">
           <div className="relative isolate overflow-hidden rounded-lg shadow-[0_0_80px_rgba(249,115,22,0.15),0_24px_48px_rgba(0,0,0,0.6)] ring-1 ring-white/5">
             <Image
               src="/images/launch-hero.png"
@@ -189,7 +189,7 @@ export function ComingSoonPage({ onAccessGranted }: { onAccessGranted: () => voi
         </div>
 
         {/* Schweizer Text unter dem Poster — URL nur im Hero-Bild */}
-        <section className="flex max-w-xl shrink-0 flex-col items-center gap-3 text-center sm:gap-4">
+        <section className="flex max-w-xl shrink-0 flex-col items-center space-y-4 text-center">
           <p className="text-xs font-medium uppercase tracking-[0.2em] text-zinc-500">
             Hier entsteht DripForge
           </p>
@@ -205,20 +205,32 @@ export function ComingSoonPage({ onAccessGranted }: { onAccessGranted: () => voi
         </section>
       </main>
 
-      <footer className="relative z-10 mt-auto flex flex-col items-center gap-2 px-4 py-6 text-center sm:gap-3 sm:py-8">
+      <footer className="relative z-10 mt-6 flex w-full max-w-xl flex-col items-center space-y-6 px-4 pb-2 text-center sm:mt-8">
         <p className="text-[10px] text-zinc-700">© 2026 DripForge · Pfäffikon ZH</p>
-        <button
-          type="button"
-          onClick={() => setTesterOpen((v) => !v)}
-          className="text-[10px] text-zinc-500 transition-colors hover:text-zinc-400"
-        >
-          Tester-Zugang
-        </button>
+
+        <div className="flex flex-wrap items-center justify-center gap-x-2 leading-loose">
+          <button
+            type="button"
+            onClick={() => setTesterOpen((v) => !v)}
+            className="text-[10px] text-zinc-500 transition-colors hover:text-zinc-400"
+          >
+            Tester-Zugang
+          </button>
+          <span className="text-[10px] text-zinc-700" aria-hidden>
+            |
+          </span>
+          <Link
+            href="/admin"
+            className="text-[10px] text-zinc-500 transition-colors hover:text-zinc-400"
+          >
+            Admin
+          </Link>
+        </div>
 
         {testerOpen && (
           <form
             onSubmit={(e) => void handleTesterSubmit(e)}
-            className="mx-auto mt-3 max-w-xs rounded-xl border border-zinc-800/80 bg-zinc-950/90 p-4 text-left shadow-2xl ring-1 ring-orange-500/10"
+            className="mx-auto w-full max-w-xs rounded-xl border border-zinc-800/80 bg-zinc-950/90 p-4 text-left shadow-2xl ring-1 ring-orange-500/10"
           >
             <div className="mb-3 flex items-center gap-2 text-sm text-zinc-400">
               <Lock className="h-3.5 w-3.5 text-orange-500" />
@@ -248,13 +260,6 @@ export function ComingSoonPage({ onAccessGranted }: { onAccessGranted: () => voi
             </Button>
           </form>
         )}
-
-        <Link
-          href="/admin"
-          className="text-[10px] text-zinc-800 hover:text-zinc-600"
-        >
-          Admin
-        </Link>
       </footer>
     </div>
   )
