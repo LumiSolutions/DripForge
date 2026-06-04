@@ -3,11 +3,28 @@
 import { FormEvent, useEffect, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { ClipboardList, Lock, LogOut, Moon, Package, Settings, Sun, Users } from "lucide-react"
+import {
+  ClipboardList,
+  Factory,
+  LayoutDashboard,
+  Warehouse,
+  Lock,
+  LogOut,
+  Moon,
+  Package,
+  Settings,
+  Sun,
+  Tag,
+  Users,
+} from "lucide-react"
 import { AdminCustomersTab } from "@/components/admin/admin-customers-tab"
 import { AdminOrdersTab } from "@/components/admin/admin-orders-tab"
 import { AdminProductsTab } from "@/components/admin/admin-products-tab"
 import { AdminSettingsTab } from "@/components/admin/admin-settings-tab"
+import { AdminCouponsTab } from "@/components/admin/admin-coupons-tab"
+import { AdminInventoryTab } from "@/components/admin/admin-inventory-tab"
+import { AdminProductionTab } from "@/components/admin/admin-production-tab"
+import { AdminStatsTab } from "@/components/admin/admin-stats-tab"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -20,9 +37,21 @@ import { adminUi } from "@/lib/admin/admin-ui-classes"
 import { useSiteTheme } from "@/hooks/use-site-theme"
 import { cn } from "@/lib/utils"
 
-type AdminTab = "orders" | "products" | "customers" | "settings"
+type AdminTab =
+  | "stats"
+  | "production"
+  | "inventory"
+  | "coupons"
+  | "orders"
+  | "products"
+  | "customers"
+  | "settings"
 
 const NAV: { id: AdminTab; label: string; icon: typeof ClipboardList }[] = [
+  { id: "stats", label: "Dashboard / Statistiken", icon: LayoutDashboard },
+  { id: "production", label: "Produktions-Cockpit", icon: Factory },
+  { id: "inventory", label: "Lagerverwaltung", icon: Warehouse },
+  { id: "coupons", label: "Gutscheine & Rabatte", icon: Tag },
   { id: "orders", label: "Bestellungen", icon: ClipboardList },
   { id: "products", label: "Produkte", icon: Package },
   { id: "customers", label: "Kundenverwaltung", icon: Users },
@@ -120,7 +149,7 @@ function AdminLoginScreen({ onSuccess }: { onSuccess: () => void }) {
 export function AdminDashboard() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [hydrated, setHydrated] = useState(false)
-  const [tab, setTab] = useState<AdminTab>("orders")
+  const [tab, setTab] = useState<AdminTab>("stats")
   const [highlightOrderId, setHighlightOrderId] = useState<string | null>(null)
   const { toggleTheme, isDark } = useSiteTheme()
 
@@ -242,6 +271,10 @@ export function AdminDashboard() {
       </aside>
 
       <main className="min-w-0 flex-1 overflow-y-auto p-6 md:p-10">
+        {tab === "stats" && <AdminStatsTab />}
+        {tab === "production" && <AdminProductionTab />}
+        {tab === "inventory" && <AdminInventoryTab />}
+        {tab === "coupons" && <AdminCouponsTab />}
         {tab === "orders" && (
           <AdminOrdersTab
             highlightOrderId={highlightOrderId}

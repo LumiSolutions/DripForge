@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react"
 import Image from "next/image"
+import Link from "next/link"
 import {
   Home,
   Printer,
@@ -72,6 +73,7 @@ export default function DripForgeApp() {
   const [services, setServices] = useState<ServiceVisibilitySettings>(
     DEFAULT_SERVICE_VISIBILITY
   )
+  const [kontoLoggedIn, setKontoLoggedIn] = useState(false)
   const searchRef = useRef<HTMLDivElement>(null)
   const htmlRef = useRef<HTMLElement>(null)
 
@@ -113,6 +115,14 @@ export default function DripForgeApp() {
         console.warn("Navigation: Service-Sichtbarkeit konnte nicht geladen werden.")
       })
   }, [])
+
+  useEffect(() => {
+    void fetch("/api/konto/me", { cache: "no-store" })
+      .then((res) => setKontoLoggedIn(res.ok))
+      .catch(() => setKontoLoggedIn(false))
+  }, [])
+
+  const kontoHref = kontoLoggedIn ? "/konto" : "/konto/login"
 
   const visibleNavItems = filterNavItems(services)
 
@@ -306,6 +316,35 @@ export default function DripForgeApp() {
             >
               Jetzt Erstellen
             </Button>
+
+            <Link
+              href={kontoHref}
+              className={cn(
+                "flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm font-medium transition-colors",
+                kontoLoggedIn
+                  ? "text-primary hover:bg-primary/10"
+                  : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
+              )}
+              title={kontoLoggedIn ? "Mein Konto" : "Anmelden oder registrieren"}
+            >
+              <span
+                className={cn(
+                  "flex h-8 w-8 items-center justify-center rounded-full border transition-colors",
+                  kontoLoggedIn
+                    ? "border-primary/40 bg-primary/15"
+                    : "border-border/80 bg-secondary/50"
+                )}
+              >
+                <User
+                  className={cn(
+                    "h-4 w-4",
+                    kontoLoggedIn ? "text-primary" : "text-muted-foreground"
+                  )}
+                />
+              </span>
+              <span className="hidden lg:inline">Mein Konto</span>
+            </Link>
+
             <button
               onClick={() => setCurrentView("warenkorb")}
               className="relative text-muted-foreground hover:text-primary"
@@ -349,6 +388,19 @@ export default function DripForgeApp() {
                   {item.label}
                 </button>
               ))}
+              <Link
+                href={kontoHref}
+                onClick={() => setMobileMenuOpen(false)}
+                className={cn(
+                  "flex items-center gap-3 rounded-lg border border-primary/20 px-4 py-3 text-sm font-medium",
+                  kontoLoggedIn
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:bg-secondary/50"
+                )}
+              >
+                <User className="h-5 w-5" />
+                Mein Konto
+              </Link>
             </nav>
           </div>
         )}

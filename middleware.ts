@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { PREVIEW_ACCESS_COOKIE } from "@/lib/dripforge/launch-config"
+import {
+  CUSTOMER_SESSION_COOKIE,
+  isKontoPublicPath,
+  parseCustomerSessionEdge,
+} from "@/lib/konto/session-edge"
 
 const BYPASS_PREFIXES = [
   "/admin",
@@ -9,6 +14,8 @@ const BYPASS_PREFIXES = [
   "/favicon.ico",
   "/.swa",
 ]
+
+const LAUNCH_BYPASS_PREFIXES = ["/konto"]
 
 type LaunchPayload = {
   shopLive?: boolean
@@ -30,10 +37,30 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
+  if (pathname.startsWith("/konto")) {
+    if (isKontoPublicPath(pathname)) {
+      return NextResponse.next()
+    }
+
+    const token = request.cookies.get(CUSTOMER_SESSION_COOKIE)?.value
+    const session = await parseCustomerSessionEdge(token)
+    if (!session) {
+      const loginUrl = new URL("/konto/login", request.url)
+      loginUrl.searchParams.set("next", pathname)
+      return NextResponse.redirect(loginUrl)
+    }
+
+    return NextResponse.next()
+  }
+
   const hasPreviewCookie =
     request.cookies.get(PREVIEW_ACCESS_COOKIE)?.value === "true"
 
   if (hasPreviewCookie) {
+    return NextResponse.next()
+  }
+
+  if (LAUNCH_BYPASS_PREFIXES.some((prefix) => pathname.startsWith(prefix))) {
     return NextResponse.next()
   }
 
@@ -62,9 +89,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * .swa ausnehmen — Azure SWA prueft /.swa/health.html beim Deployment-Warm-up
-     */
     "/((?!_next/static|_next/image|\\.swa|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 }

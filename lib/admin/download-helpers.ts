@@ -1,5 +1,9 @@
 "use client"
 
+import { sanitizeFilename } from "@/lib/admin/sanitize-filename"
+
+export { sanitizeFilename }
+
 function triggerDownload(filename: string, href: string) {
   const link = document.createElement("a")
   link.href = href
@@ -21,6 +25,3 @@ export function downloadTextFile(filename: string, content: string) {
   URL.revokeObjectURL(url)
 }
 
-export function sanitizeFilename(name: string): string {
-  return name.replace(/[^a-zA-Z0-9._-]/g, "_")
-}

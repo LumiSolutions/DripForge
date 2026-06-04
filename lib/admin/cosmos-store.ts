@@ -77,6 +77,17 @@ export async function cosmosUpdateOrderStatus(
   return next
 }
 
+export async function cosmosUpdateOrderProductionStatus(
+  orderId: string,
+  productionStatus: StoredOrder["productionStatus"]
+): Promise<StoredOrder | null> {
+  const order = await cosmosGetOrderById(orderId)
+  if (!order || !productionStatus) return null
+  const next = { ...order, productionStatus }
+  await cosmosSaveOrder(next)
+  return next
+}
+
 export async function cosmosUpdateOrderInvoice(
   orderId: string,
   data: Pick<StoredOrder, "rechnungPdfUrl" | "rechnungPdfPath" | "kundennummer">

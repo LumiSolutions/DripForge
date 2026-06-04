@@ -153,3 +153,19 @@ export async function getSettingsContainer(): Promise<Container> {
 export async function getProductsContainer(): Promise<Container> {
   return ensureContainer("products", "/id")
 }
+
+export async function getInventoryContainer(): Promise<Container> {
+  return ensureContainer("inventory", "/id")
+}
+
+export async function getCouponsContainer(): Promise<Container> {
+  return ensureContainer("coupons", "/id")
+}
+
+export async function getCustomerAccountsContainer(): Promise<Container> {
+  return ensureContainer("customer-accounts", "/id")
+}
+
+export async function getCustomerDesignsContainer(): Promise<Container> {
+  return ensureContainer("customer-designs", "/customerEmail")
+}

@@ -367,6 +367,14 @@ export function InvoiceDocument({ order, settings }: InvoiceDocumentProps) {
             <Text style={styles.totalLabel}>Versand ({shippingLabel(order.shippingMethod)})</Text>
             <Text>{formatChf(order.totals.shippingCost)}</Text>
           </View>
+          {(order.totals.discountAmount ?? 0) > 0 ? (
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>
+                Rabatt{order.totals.couponCode ? ` (${order.totals.couponCode})` : ""}
+              </Text>
+              <Text>− {formatChf(order.totals.discountAmount ?? 0)}</Text>
+            </View>
+          ) : null}
           {order.totals.mwstAktiv ? (
             <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>MwSt. ({mwstSatz.toFixed(1)}%)</Text>

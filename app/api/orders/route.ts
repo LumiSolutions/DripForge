@@ -1,11 +1,16 @@
 import { NextResponse } from "next/server"
 import { uploadOrderLeitbild } from "@/lib/azure/upload-order-leitbild"
 import { saveOrder, getSettings, upsertCustomerFromOrder } from "@/lib/admin/db"
+import { getCouponByCode, incrementCouponRedemption } from "@/lib/admin/coupon-db"
+import { validateCouponForCheckout } from "@/lib/admin/coupon-validation"
+import { normalizeCouponCode } from "@/lib/admin/coupon-types"
 import { isCosmosConfigured } from "@/lib/admin/cosmos-store"
 import { processOrderInvoice } from "@/lib/invoices/process-order-invoice"
-import { getPaymentMethodLabel } from "@/lib/admin/types"
+import { DEFAULT_PRODUCTION_STATUS, getPaymentMethodLabel } from "@/lib/admin/types"
 import type { StoredOrder, StoredOrderItem } from "@/lib/admin/types"
 import type { OrderPayload } from "@/lib/dripforge/submit-order"
+import { calculateCheckoutTotalsWithCoupon } from "@/lib/dripforge/coupon-checkout"
+import { getShippingCost } from "@/lib/dripforge/checkout-config"
 
 function stripLeitbildPayload(item: StoredOrderItem): StoredOrderItem {
   const { leitbild: _removed, ...rest } = item
@@ -33,6 +38,39 @@ export async function POST(request: Request) {
     )
 
     const settings = await getSettings()
+
+    const subtotal = payload.items.reduce(
+      (sum, item) => sum + item.price * item.quantity,
+      0
+    )
+    const shippingCost = getShippingCost(payload.shippingMethod)
+
+    const rawCoupon = normalizeCouponCode(payload.couponCode ?? "")
+    let appliedCoupon: {
+      code: string
+      discountType: "percent" | "fixed"
+      discountValue: number
+    } | null = null
+
+    if (rawCoupon) {
+      const coupon = await getCouponByCode(rawCoupon)
+      const validation = validateCouponForCheckout(coupon, rawCoupon)
+      if (!validation.valid) {
+        return NextResponse.json({ error: validation.error }, { status: 400 })
+      }
+      appliedCoupon = {
+        code: validation.coupon.code,
+        discountType: validation.coupon.discountType,
+        discountValue: validation.coupon.discountValue,
+      }
+    }
+
+    const serverTotals = calculateCheckoutTotalsWithCoupon(
+      subtotal,
+      shippingCost,
+      settings.checkout,
+      appliedCoupon
+    )
 
     const itemResults = await Promise.all(
       payload.items.map(async (item) => {
@@ -63,6 +101,7 @@ export async function POST(request: Request) {
       orderId,
       createdAt: new Date().toISOString(),
       status: "ausstehend",
+      productionStatus: DEFAULT_PRODUCTION_STATUS,
       billing: payload.billing,
       delivery: payload.delivery,
       shippingMethod: payload.shippingMethod,
@@ -72,11 +111,15 @@ export async function POST(request: Request) {
         settings.checkout
       ),
       items,
-      totals: payload.totals,
+      totals: serverTotals,
     }
 
     await saveOrder(order)
     console.info(`Bestell-API: Bestellung gespeichert (${orderId}).`)
+
+    if (appliedCoupon) {
+      await incrementCouponRedemption(appliedCoupon.code)
+    }
 
     const customer = await upsertCustomerFromOrder(order)
     console.info(

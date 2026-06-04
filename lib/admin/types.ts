@@ -22,6 +22,15 @@ export const ORDER_STATUS_OPTIONS: {
   { value: "storniert", label: "Storniert" },
 ]
 
+/** Produktions-Cockpit (Kanban), unabhängig vom Shop-Bestellstatus. */
+export type ProductionStatus =
+  | "bereit_fuer_produktion"
+  | "in_produktion"
+  | "qualitaetskontrolle"
+  | "bereit_fuer_versand"
+
+export const DEFAULT_PRODUCTION_STATUS: ProductionStatus = "bereit_fuer_produktion"
+
 export type StoredOrderItem = CartItem & {
   leitbildUrl?: string | null
 }
@@ -30,6 +39,8 @@ export type StoredOrder = {
   orderId: string
   createdAt: string
   status: OrderStatus
+  /** Kanban-Spalte im Produktions-Cockpit */
+  productionStatus?: ProductionStatus
   kundennummer?: string
   billing: OrderAddress
   delivery?: OrderAddress

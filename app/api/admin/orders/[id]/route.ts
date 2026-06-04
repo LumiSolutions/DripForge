@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server"
-import { getOrderById, updateOrderStatus } from "@/lib/admin/db"
+import {
+  getOrderById,
+  updateOrderProductionStatus,
+  updateOrderStatus,
+} from "@/lib/admin/db"
+import { isProductionStatus } from "@/lib/admin/production-status"
 import type { OrderStatus } from "@/lib/admin/types"
 
 type RouteContext = { params: Promise<{ id: string }> }
@@ -27,10 +32,31 @@ export async function GET(_request: Request, context: RouteContext) {
 export async function PATCH(request: Request, context: RouteContext) {
   try {
     const { id } = await context.params
-    const body = (await request.json()) as { status?: OrderStatus }
+    const body = (await request.json()) as {
+      status?: OrderStatus
+      productionStatus?: string
+    }
+
+    if (body.productionStatus) {
+      if (!isProductionStatus(body.productionStatus)) {
+        return NextResponse.json(
+          { error: "Ungueltiger Produktionsstatus." },
+          { status: 400 }
+        )
+      }
+      const order = await updateOrderProductionStatus(id, body.productionStatus)
+      if (!order) {
+        return NextResponse.json(
+          { error: "Bestellung nicht gefunden." },
+          { status: 404 }
+        )
+      }
+      return NextResponse.json({ order })
+    }
+
     if (!body.status) {
       return NextResponse.json(
-        { error: "Status fehlt." },
+        { error: "Status oder productionStatus fehlt." },
         { status: 400 }
       )
     }

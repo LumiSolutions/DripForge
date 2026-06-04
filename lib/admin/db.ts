@@ -13,6 +13,7 @@ import type {
   AdminSettings,
   CompanySettings,
   LaunchSettings,
+  ProductionStatus,
   StoredCustomer,
   StoredOrder,
 } from "@/lib/admin/types"
@@ -36,6 +37,7 @@ import {
   cosmosSaveProducts,
   cosmosSaveSettings,
   cosmosUpdateOrderInvoice,
+  cosmosUpdateOrderProductionStatus,
   cosmosUpdateOrderStatus,
   cosmosUpsertCustomerFromOrder,
 } from "@/lib/admin/cosmos-store"
@@ -252,6 +254,29 @@ export async function updateOrderStatus(
     "updateOrderStatus",
     () => cosmosUpdateOrderStatus(orderId, status),
     () => updateOrderStatusInFile(orderId, status)
+  )
+}
+
+async function updateOrderProductionStatusInFile(
+  orderId: string,
+  productionStatus: ProductionStatus
+): Promise<StoredOrder | null> {
+  const orders = await readJsonFile<StoredOrder[]>(ORDERS_FILE, [])
+  const index = orders.findIndex((o) => o.orderId === orderId)
+  if (index === -1) return null
+  orders[index] = { ...orders[index], productionStatus }
+  await writeJsonFile(ORDERS_FILE, orders)
+  return orders[index]
+}
+
+export async function updateOrderProductionStatus(
+  orderId: string,
+  productionStatus: ProductionStatus
+): Promise<StoredOrder | null> {
+  return withCosmosFallback(
+    "updateOrderProductionStatus",
+    () => cosmosUpdateOrderProductionStatus(orderId, productionStatus),
+    () => updateOrderProductionStatusInFile(orderId, productionStatus)
   )
 }
 

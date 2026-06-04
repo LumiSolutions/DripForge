@@ -10,6 +10,7 @@ import {
   Phone,
   QrCode,
   Smartphone,
+  Tag,
   Truck,
   Wallet,
 } from "lucide-react"
@@ -21,7 +22,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { CartItemDetails } from "@/components/dripforge/shared/cart-item-details"
 import {
-  calculateCheckoutTotals,
   DEFAULT_CHECKOUT_RUNTIME_CONFIG,
   getShippingCost,
   getTwintPaymentDescription,
@@ -31,6 +31,10 @@ import {
   type PaymentMethodId,
   type ShippingMethodId,
 } from "@/lib/dripforge/checkout-config"
+import {
+  calculateCheckoutTotalsWithCoupon,
+  type CheckoutTotalsWithCoupon,
+} from "@/lib/dripforge/coupon-checkout"
 import type { CartItem } from "@/lib/dripforge/types"
 import { cn } from "@/lib/utils"
 import { submitOrder, type OrderPayload } from "@/lib/dripforge/submit-order"
@@ -199,13 +203,75 @@ export function PageCheckout({
   const [submitted, setSubmitted] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [couponInput, setCouponInput] = useState("")
+  const [appliedCouponCode, setAppliedCouponCode] = useState<string | null>(null)
+  const [couponError, setCouponError] = useState<string | null>(null)
+  const [couponLoading, setCouponLoading] = useState(false)
+  const [couponTotals, setCouponTotals] = useState<CheckoutTotalsWithCoupon | null>(
+    null
+  )
 
   const subtotal = useMemo(
     () => cart.reduce((sum, item) => sum + item.price * item.quantity, 0),
     [cart]
   )
   const shippingCost = getShippingCost(shippingMethod)
-  const totals = calculateCheckoutTotals(subtotal, shippingCost, checkoutConfig)
+  const totals: CheckoutTotalsWithCoupon =
+    couponTotals ??
+    calculateCheckoutTotalsWithCoupon(subtotal, shippingCost, checkoutConfig, null)
+
+  useEffect(() => {
+    setAppliedCouponCode(null)
+    setCouponTotals(null)
+    setCouponError(null)
+  }, [subtotal, shippingMethod, checkoutConfig.mwstAktiv, checkoutConfig.mwstSatz])
+
+  const applyCoupon = async () => {
+    const code = couponInput.trim()
+    if (!code) {
+      setCouponError("Bitte einen Gutscheincode eingeben.")
+      return
+    }
+    setCouponLoading(true)
+    setCouponError(null)
+    try {
+      const res = await fetch("/api/coupons/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code,
+          subtotal,
+          shippingMethod,
+        }),
+      })
+      const data = (await res.json()) as {
+        valid?: boolean
+        error?: string
+        code?: string
+        totals?: CheckoutTotalsWithCoupon
+      }
+      if (!data.valid || !data.totals) {
+        setCouponTotals(null)
+        setAppliedCouponCode(null)
+        setCouponError(data.error ?? "Gutschein ungueltig.")
+        return
+      }
+      setCouponTotals(data.totals)
+      setAppliedCouponCode(data.code ?? code.toUpperCase())
+      setCouponInput(data.code ?? code.toUpperCase())
+    } catch {
+      setCouponError("Gutschein konnte nicht geprueft werden.")
+    } finally {
+      setCouponLoading(false)
+    }
+  }
+
+  const removeCoupon = () => {
+    setCouponInput("")
+    setAppliedCouponCode(null)
+    setCouponTotals(null)
+    setCouponError(null)
+  }
 
   const updateField = (key: FieldKey, value: string) => {
     setForm((prev) => ({ ...prev, [key]: value }))
@@ -278,9 +344,12 @@ export function PageCheckout({
       shippingMethod,
       paymentMethod,
       items: cart,
+      couponCode: appliedCouponCode ?? undefined,
       totals: {
         subtotal: totals.subtotal,
         shippingCost: totals.shippingCost,
+        discountAmount: totals.discountAmount,
+        couponCode: totals.couponCode,
         vat: totals.vat,
         total: totals.total,
         mwstAktiv: checkoutConfig.mwstAktiv,
@@ -750,6 +819,48 @@ export function PageCheckout({
                 ))}
               </div>
 
+              <div className="mb-4 space-y-2 rounded-xl border border-dashed border-primary/30 bg-primary/5 p-4">
+                <div className="flex items-center gap-2 text-sm font-semibold">
+                  <Tag className="h-4 w-4 text-primary" />
+                  Gutscheincode
+                </div>
+                <div className="flex gap-2">
+                  <Input
+                    value={couponInput}
+                    onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
+                    placeholder="z. B. LAUNCH20"
+                    className="bg-background/80 font-mono uppercase"
+                    disabled={couponLoading || Boolean(appliedCouponCode)}
+                  />
+                  {appliedCouponCode ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={removeCoupon}
+                    >
+                      Entfernen
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => void applyCoupon()}
+                      disabled={couponLoading || !couponInput.trim()}
+                    >
+                      {couponLoading ? "…" : "Einlösen"}
+                    </Button>
+                  )}
+                </div>
+                {couponError && (
+                  <p className="text-xs text-red-500">{couponError}</p>
+                )}
+                {appliedCouponCode && totals.discountAmount > 0 && (
+                  <p className="text-xs text-primary">
+                    Rabatt aktiv: − CHF {totals.discountAmount.toFixed(2)}
+                  </p>
+                )}
+              </div>
+
               <div className="mt-6 space-y-2 border-t border-slate-200 pt-4 text-sm dark:border-slate-700">
                 <div className="flex justify-between gap-3">
                   <span className="text-muted-foreground">Zwischensumme</span>
@@ -765,6 +876,17 @@ export function PageCheckout({
                       : `CHF ${totals.shippingCost.toFixed(2)}`}
                   </span>
                 </div>
+                {totals.discountAmount > 0 && (
+                  <div className="flex justify-between gap-3 text-green-600 dark:text-green-400">
+                    <span>
+                      Rabatt
+                      {totals.couponCode ? ` (${totals.couponCode})` : ""}
+                    </span>
+                    <span className="font-medium tabular-nums">
+                      − CHF {totals.discountAmount.toFixed(2)}
+                    </span>
+                  </div>
+                )}
                 {checkoutConfig.mwstAktiv ? (
                   <div className="flex justify-between gap-3">
                     <span className="text-muted-foreground">

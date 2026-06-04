@@ -18,9 +18,12 @@ export type OrderPayload = {
   shippingMethod: ShippingMethodId
   paymentMethod: PaymentMethodId
   items: CartItem[]
+  couponCode?: string
   totals: {
     subtotal: number
     shippingCost: number
+    discountAmount?: number
+    couponCode?: string
     vat: number
     total: number
     mwstAktiv: boolean
