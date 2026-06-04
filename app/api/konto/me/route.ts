@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
-import { getAccountByEmail, toPublicAccount } from "@/lib/konto/account-db"
+import { toPublicAccount } from "@/lib/konto/account-db"
 import { getSessionEmailFromRequest } from "@/lib/konto/api-auth"
+import { ensureAccountHasCustomerNumber } from "@/lib/konto/crm-sync"
 
 export async function GET() {
   const email = await getSessionEmailFromRequest()
@@ -8,7 +9,7 @@ export async function GET() {
     return NextResponse.json({ error: "Nicht angemeldet." }, { status: 401 })
   }
 
-  const account = await getAccountByEmail(email)
+  const account = await ensureAccountHasCustomerNumber(email)
   if (!account) {
     return NextResponse.json({ error: "Konto nicht gefunden." }, { status: 404 })
   }

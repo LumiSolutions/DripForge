@@ -39,6 +39,27 @@ export async function cosmosGetAccountByEmail(
   }
 }
 
+export async function cosmosListAccounts(): Promise<CustomerAccount[]> {
+  const container = await getCustomerAccountsContainer()
+  const { resources } = await container.items
+    .query<CosmosDoc<CustomerAccount>>("SELECT * FROM c")
+    .fetchAll()
+  return resources.map((doc) => ({
+    id: doc.id,
+    email: doc.email,
+    passwordHash: doc.passwordHash,
+    firstName: doc.firstName,
+    lastName: doc.lastName,
+    street: doc.street ?? "",
+    zip: doc.zip ?? "",
+    city: doc.city ?? "",
+    phone: doc.phone ?? "",
+    kundennummer: doc.kundennummer,
+    createdAt: doc.createdAt,
+    updatedAt: doc.updatedAt,
+  }))
+}
+
 export async function cosmosUpsertAccount(
   account: CustomerAccount
 ): Promise<CustomerAccount> {

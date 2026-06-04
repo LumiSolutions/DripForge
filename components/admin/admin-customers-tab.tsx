@@ -147,8 +147,8 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
 
         {customers.length === 0 ? (
           <div className={cn("rounded-xl border border-dashed py-16 text-center", adminUi.empty)}>
-            Noch keine Kunden erfasst. Kunden werden automatisch bei der ersten
-            Bestellung angelegt.
+            Noch keine Kunden erfasst. Kunden werden bei Registrierung im Portal
+            oder bei der ersten Bestellung angelegt (Format KD-JJJJ-XXXX).
           </div>
         ) : (
           <div className={adminUi.tableWrap}>
@@ -157,8 +157,8 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
                 <TableRow className={adminUi.tableHeadRow}>
                   <TableHead className={adminUi.tableHead}>Kundennr.</TableHead>
                   <TableHead className={adminUi.tableHead}>Name</TableHead>
-                  <TableHead className={cn("hidden sm:table-cell", adminUi.tableHead)}>
-                    Ort
+                  <TableHead className={cn("hidden md:table-cell", adminUi.tableHead)}>
+                    Registriert
                   </TableHead>
                   <TableHead className={cn("text-right", adminUi.tableHead)}>Best.</TableHead>
                 </TableRow>
@@ -183,8 +183,8 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
                         <p className={cn("font-medium", adminUi.heading)}>{customer.name}</p>
                         <p className={cn("text-xs", adminUi.muted)}>{customer.email}</p>
                       </TableCell>
-                      <TableCell className={cn("hidden sm:table-cell", adminUi.muted)}>
-                        {customer.city || "—"}
+                      <TableCell className={cn("hidden md:table-cell text-xs", adminUi.muted)}>
+                        {formatDate(customer.createdAt)}
                       </TableCell>
                       <TableCell className={cn("text-right tabular-nums", adminUi.bodyText)}>
                         {customer.orderCount}
@@ -218,6 +218,9 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
                 </p>
                 <h3 className={cn("mt-1 text-xl font-bold", adminUi.heading)}>{detail.name}</h3>
                 <p className={cn("text-sm", adminUi.muted)}>{detail.email}</p>
+                <p className={cn("mt-2 text-xs", adminUi.tableCellMuted)}>
+                  Registriert / erfasst: {formatDate(detail.createdAt)}
+                </p>
               </div>
 
               <div className="grid gap-6 md:grid-cols-2">
@@ -316,8 +319,8 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
 
               <p className={cn("flex items-center gap-2 text-xs", adminUi.tableCellMuted)}>
                 <ArrowRight className="h-3 w-3" />
-                Kunden werden bei jeder Gast- oder Erstbestellung automatisch
-                angelegt (Format KD-JJJJ-XXXX).
+                Kunden werden bei Portal-Registrierung oder Gastbestellung
+                automatisch angelegt (Format KD-JJJJ-XXXX).
               </p>
             </>
           ) : (

@@ -60,14 +60,19 @@ export function KontoDashboard() {
       <div className="space-y-8">
         <div>
           <h1 className="text-2xl font-bold">Mein Konto</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Willkommen zurück, {name}
-            {account?.kundennummer && (
-              <span className="ml-2 font-mono text-xs text-primary">
+          <p className="mt-2 text-sm text-muted-foreground">
+            Willkommen zurück, <span className="font-medium text-foreground">{name}</span>
+          </p>
+          {account?.kundennummer ? (
+            <div className="mt-3 inline-flex flex-wrap items-center gap-2 rounded-xl border border-primary/25 bg-primary/10 px-4 py-2">
+              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Ihre Kundennummer
+              </span>
+              <span className="font-mono text-base font-bold tracking-wide text-primary">
                 {account.kundennummer}
               </span>
-            )}
-          </p>
+            </div>
+          ) : null}
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">

@@ -14,6 +14,7 @@ import {
   mergeOrderIntoCustomer,
   normalizeCustomerEmail,
 } from "@/lib/admin/customers"
+import { listAllAccounts } from "@/lib/konto/account-db"
 import type {
   AdminProduct,
   AdminSettings,
@@ -138,9 +139,15 @@ export async function cosmosUpsertCustomerFromOrder(
   if (index >= 0) {
     customer = mergeOrderIntoCustomer(customers[index], order)
   } else {
+    const accounts = await listAllAccounts()
     customer = buildCustomerFromOrder(
       order,
-      generateCustomerNumber(customers)
+      generateCustomerNumber([
+        ...customers,
+        ...accounts
+          .filter((a) => a.kundennummer)
+          .map((a) => ({ kundennummer: a.kundennummer! })),
+      ])
     )
   }
 
@@ -151,6 +158,14 @@ export async function cosmosUpsertCustomerFromOrder(
     await cosmosSaveOrder({ ...orderWithCustomer, kundennummer: customer.kundennummer })
   }
 
+  return customer
+}
+
+export async function cosmosSaveCustomer(
+  customer: StoredCustomer
+): Promise<StoredCustomer> {
+  const container = await getCustomersContainer()
+  await container.items.upsert({ ...customer, id: customer.kundennummer })
   return customer
 }
 

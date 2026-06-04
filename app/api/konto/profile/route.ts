@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getAccountByEmail, saveAccount, toPublicAccount } from "@/lib/konto/account-db"
 import type { CustomerProfileInput } from "@/lib/konto/account-types"
 import { getSessionEmailFromRequest } from "@/lib/konto/api-auth"
+import { syncAccountToCrm } from "@/lib/konto/crm-sync"
 
 function parseProfile(body: unknown): CustomerProfileInput | null {
   if (!body || typeof body !== "object") return null
@@ -36,10 +37,11 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Konto nicht gefunden." }, { status: 404 })
   }
 
-  const updated = await saveAccount({
+  const saved = await saveAccount({
     ...account,
     ...profile,
   })
+  const synced = await syncAccountToCrm(saved)
 
-  return NextResponse.json({ account: toPublicAccount(updated) })
+  return NextResponse.json({ account: toPublicAccount(synced) })
 }

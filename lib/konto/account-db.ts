@@ -3,6 +3,7 @@ import path from "path"
 import { normalizeCustomerEmail } from "@/lib/admin/customers"
 import {
   cosmosGetAccountByEmail,
+  cosmosListAccounts,
   cosmosUpsertAccount,
 } from "@/lib/konto/cosmos-accounts"
 import type { CustomerAccount } from "@/lib/konto/account-types"
@@ -25,6 +26,14 @@ async function writeAccountsFile(accounts: CustomerAccount[]): Promise<void> {
   await fs.mkdir(DATA_DIR, { recursive: true })
   const filePath = path.join(DATA_DIR, ACCOUNTS_FILE)
   await fs.writeFile(filePath, JSON.stringify(accounts, null, 2), "utf-8")
+}
+
+export async function listAllAccounts(): Promise<CustomerAccount[]> {
+  return withCosmosFallback(
+    "listAllAccounts",
+    () => cosmosListAccounts(),
+    readAccountsFile
+  )
 }
 
 export async function getAccountByEmail(

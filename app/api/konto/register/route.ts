@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server"
 import { normalizeCustomerEmail } from "@/lib/admin/customers"
-import { getCustomers } from "@/lib/admin/db"
 import { getAccountByEmail, saveAccount } from "@/lib/konto/account-db"
 import type { CustomerAccount } from "@/lib/konto/account-types"
+import { syncAccountToCrm } from "@/lib/konto/crm-sync"
 import { hashPassword } from "@/lib/konto/password"
 import {
   createCustomerSessionToken,
@@ -51,9 +51,6 @@ export async function POST(request: Request) {
       )
     }
 
-    const customers = await getCustomers()
-    const crm = customers.find((c) => c.email === email)
-
     const now = new Date().toISOString()
     const account: CustomerAccount = {
       id: email,
@@ -61,20 +58,20 @@ export async function POST(request: Request) {
       passwordHash: hashPassword(password),
       firstName,
       lastName,
-      kundennummer: crm?.kundennummer,
       createdAt: now,
       updatedAt: now,
     }
 
     await saveAccount(account)
+    const synced = await syncAccountToCrm(account)
 
     const response = NextResponse.json({
       success: true,
       account: {
-        email: account.email,
-        firstName: account.firstName,
-        lastName: account.lastName,
-        kundennummer: account.kundennummer,
+        email: synced.email,
+        firstName: synced.firstName,
+        lastName: synced.lastName,
+        kundennummer: synced.kundennummer,
       },
     })
 

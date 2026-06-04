@@ -5,7 +5,9 @@ export function normalizeCustomerEmail(email: string): string {
   return email.trim().toLowerCase()
 }
 
-export function generateCustomerNumber(existing: StoredCustomer[]): string {
+export function generateCustomerNumber(
+  existing: Array<{ kundennummer: string }>
+): string {
   const year = new Date().getFullYear()
   const prefix = `KD-${year}-`
   let max = 0
@@ -64,6 +66,7 @@ export type CustomerListItem = {
   email: string
   city: string
   orderCount: number
+  createdAt: string
   updatedAt: string
 }
 
@@ -74,6 +77,7 @@ export function toCustomerListItem(customer: StoredCustomer): CustomerListItem {
     email: customer.email,
     city: customer.billing.city,
     orderCount: customer.orderIds.length,
+    createdAt: customer.createdAt,
     updatedAt: customer.updatedAt,
   }
 }
