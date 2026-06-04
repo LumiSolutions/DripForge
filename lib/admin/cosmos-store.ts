@@ -5,6 +5,7 @@ import {
   getSettingsContainer,
   isCosmosConfigured,
 } from "@/lib/cosmos/client"
+import { logCosmosError } from "@/lib/cosmos/log-error"
 import { products as seedProducts } from "@/lib/dripforge/data"
 import { DEFAULT_CHECKOUT_RUNTIME_CONFIG } from "@/lib/dripforge/checkout-config"
 import {
@@ -60,7 +61,7 @@ export async function cosmosGetOrderById(
   } catch (error) {
     const code = (error as { code?: number }).code
     if (code === 404) return null
-    console.error("Cosmos: Bestellung konnte nicht gelesen werden.", orderId, error)
+    logCosmosError(`cosmosGetOrderById:${orderId}`, error)
     throw error
   }
 }
@@ -172,7 +173,11 @@ export async function cosmosGetSettings(): Promise<AdminSettings> {
     services: { ...DEFAULT_SERVICE_VISIBILITY },
     updatedAt: new Date().toISOString(),
   }
-  await cosmosSaveSettings(defaults)
+  try {
+    await cosmosSaveSettings(defaults)
+  } catch (seedError) {
+    logCosmosError("cosmosGetSettings:seed-defaults", seedError)
+  }
   return defaults
 }
 

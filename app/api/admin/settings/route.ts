@@ -4,17 +4,17 @@ import { DEFAULT_COMPANY_SETTINGS } from "@/lib/admin/types"
 import type { CheckoutRuntimeConfig } from "@/lib/dripforge/checkout-config"
 import type { CompanySettings, ServiceVisibilitySettings } from "@/lib/admin/types"
 import { normalizeServiceVisibility } from "@/lib/dripforge/service-visibility"
+import { buildDefaultAdminSettings } from "@/lib/admin/safe-defaults"
 
 export async function GET() {
   try {
     const settings = await getSettings()
     return NextResponse.json(settings)
   } catch (error) {
-    console.warn("Admin-API: Einstellungen konnten nicht geladen werden.", error)
-    return NextResponse.json(
-      { error: "Einstellungen konnten nicht geladen werden." },
-      { status: 500 }
-    )
+    console.error("Admin-API: Einstellungen konnten nicht geladen werden.", error)
+    return NextResponse.json(buildDefaultAdminSettings(), {
+      headers: { "X-DripForge-Degraded": "1" },
+    })
   }
 }
 

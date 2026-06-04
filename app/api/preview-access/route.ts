@@ -37,7 +37,7 @@ export async function POST(request: Request) {
 
     return response
   } catch (error) {
-    console.warn("Preview-Access: Anmeldung fehlgeschlagen.", error)
+    console.error("Preview-Access: Anmeldung fehlgeschlagen.", error)
     return NextResponse.json(
       { error: "Anmeldung fehlgeschlagen." },
       { status: 500 }

@@ -6,10 +6,10 @@ export async function GET() {
     const orders = await getOrders()
     return NextResponse.json({ orders })
   } catch (error) {
-    console.warn("Admin-API: Bestellungen konnten nicht geladen werden.", error)
+    console.error("Admin-API: Bestellungen konnten nicht geladen werden.", error)
     return NextResponse.json(
-      { error: "Bestellungen konnten nicht geladen werden." },
-      { status: 500 }
+      { orders: [] },
+      { headers: { "X-DripForge-Degraded": "1" } }
     )
   }
 }

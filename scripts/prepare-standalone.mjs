@@ -7,6 +7,8 @@ const staticSrc = join(root, ".next", "static")
 const staticDest = join(standaloneDir, ".next", "static")
 const publicSrc = join(root, "public")
 const publicDest = join(standaloneDir, "public")
+const dataAdminSrc = join(root, "data", "admin")
+const dataAdminDest = join(standaloneDir, "data", "admin")
 
 if (!existsSync(standaloneDir)) {
   console.error("prepare-standalone: .next/standalone fehlt — zuerst next build ausfuehren.")
@@ -22,4 +24,9 @@ if (existsSync(staticSrc)) {
 if (existsSync(publicSrc)) {
   cpSync(publicSrc, publicDest, { recursive: true })
   console.log("prepare-standalone: public kopiert.")
+}
+
+if (existsSync(dataAdminSrc)) {
+  cpSync(dataAdminSrc, dataAdminDest, { recursive: true })
+  console.log("prepare-standalone: data/admin kopiert (Cosmos-Fallback).")
 }

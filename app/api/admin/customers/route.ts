@@ -9,10 +9,10 @@ export async function GET() {
       customers: customers.map(toCustomerListItem),
     })
   } catch (error) {
-    console.warn("Admin-API: Kunden konnten nicht geladen werden.", error)
+    console.error("Admin-API: Kunden konnten nicht geladen werden.", error)
     return NextResponse.json(
-      { error: "Kunden konnten nicht geladen werden." },
-      { status: 500 }
+      { customers: [] },
+      { headers: { "X-DripForge-Degraded": "1" } }
     )
   }
 }

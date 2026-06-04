@@ -10,6 +10,19 @@ const BYPASS_PREFIXES = [
   "/.swa",
 ]
 
+type LaunchPayload = {
+  shopLive?: boolean
+  canAccessShop?: boolean
+  hasPreviewAccess?: boolean
+}
+
+function allowsShopAccess(data: LaunchPayload, hasPreviewCookie: boolean): boolean {
+  if (data.shopLive || data.canAccessShop) return true
+  if (hasPreviewCookie && data.hasPreviewAccess !== false) return true
+  if (hasPreviewCookie) return true
+  return false
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
@@ -17,7 +30,10 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  if (request.cookies.get(PREVIEW_ACCESS_COOKIE)?.value === "true") {
+  const hasPreviewCookie =
+    request.cookies.get(PREVIEW_ACCESS_COOKIE)?.value === "true"
+
+  if (hasPreviewCookie) {
     return NextResponse.next()
   }
 
@@ -28,14 +44,13 @@ export async function middleware(request: NextRequest) {
       cache: "no-store",
     })
 
-    if (res.ok) {
-      const data = (await res.json()) as { shopLive?: boolean; canAccessShop?: boolean }
-      if (data.shopLive || data.canAccessShop) {
-        return NextResponse.next()
-      }
+    const data = (await res.json().catch(() => ({}))) as LaunchPayload
+
+    if (allowsShopAccess(data, hasPreviewCookie)) {
+      return NextResponse.next()
     }
-  } catch {
-    console.warn("Middleware: Launch-Status nicht verfuegbar — Coming Soon aktiv.")
+  } catch (error) {
+    console.warn("Middleware: Launch-Status nicht verfuegbar — Coming Soon aktiv.", error)
   }
 
   if (pathname === "/") {

@@ -5,13 +5,15 @@ import {
   LAUNCH_DATE_ISO,
   PREVIEW_ACCESS_COOKIE,
 } from "@/lib/dripforge/launch-config"
+import { logCosmosError } from "@/lib/cosmos/log-error"
 
 export async function GET() {
+  const cookieStore = await cookies()
+  const previewCookie = cookieStore.get(PREVIEW_ACCESS_COOKIE)
+  const hasPreviewAccess = previewCookie?.value === "true"
+
   try {
     const settings = await getSettings()
-    const cookieStore = await cookies()
-    const previewCookie = cookieStore.get(PREVIEW_ACCESS_COOKIE)
-    const hasPreviewAccess = previewCookie?.value === "true"
 
     return NextResponse.json({
       shopLive: settings.launch.shopLive,
@@ -21,10 +23,15 @@ export async function GET() {
       canAccessShop: settings.launch.shopLive || hasPreviewAccess,
     })
   } catch (error) {
-    console.warn("Launch-API: Status konnte nicht geladen werden.", error)
-    return NextResponse.json(
-      { error: "Launch-Status nicht verfuegbar." },
-      { status: 500 }
-    )
+    logCosmosError("launch-api:getSettings", error)
+
+    return NextResponse.json({
+      shopLive: false,
+      launchAt: LAUNCH_DATE_ISO,
+      previewMode: true,
+      hasPreviewAccess,
+      canAccessShop: hasPreviewAccess,
+      degraded: true,
+    })
   }
 }

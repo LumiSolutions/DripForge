@@ -1,9 +1,16 @@
 import { CosmosClient, type Container, type Database } from "@azure/cosmos"
+import { logCosmosError } from "@/lib/cosmos/log-error"
 
 const DATABASE_ID = process.env.COSMOSDB_DATABASE?.trim() || "dripforge"
 
+/** Request-Timeout in ms (Azure SWA: etwas grosszuegiger). */
+const REQUEST_TIMEOUT_MS = Number(process.env.COSMOSDB_REQUEST_TIMEOUT_MS ?? 60_000)
+
+const MAX_RETRY_ATTEMPTS = Number(process.env.COSMOSDB_MAX_RETRIES ?? 5)
+
 let client: CosmosClient | null = null
 let databaseReady: Promise<Database> | null = null
+const containerReady = new Map<string, Promise<Container>>()
 
 export function isCosmosConfigured(): boolean {
   const endpoint = process.env.COSMOSDB_ENDPOINT?.trim() ?? ""
@@ -13,15 +20,40 @@ export function isCosmosConfigured(): boolean {
   return true
 }
 
+function resetCosmosCaches(): void {
+  databaseReady = null
+  containerReady.clear()
+}
+
 export function getCosmosClient(): CosmosClient {
   if (!isCosmosConfigured()) {
     throw new Error("Cosmos DB ist nicht konfiguriert (COSMOSDB_ENDPOINT / COSMOSDB_KEY).")
   }
   if (!client) {
-    client = new CosmosClient({
-      endpoint: process.env.COSMOSDB_ENDPOINT!,
-      key: process.env.COSMOSDB_KEY!,
-    })
+    try {
+      client = new CosmosClient({
+        endpoint: process.env.COSMOSDB_ENDPOINT!,
+        key: process.env.COSMOSDB_KEY!,
+        connectionPolicy: {
+          requestTimeout: REQUEST_TIMEOUT_MS,
+          enableEndpointDiscovery: true,
+          retryOptions: {
+            maxRetryAttemptCount: MAX_RETRY_ATTEMPTS,
+            fixedRetryIntervalInMilliseconds: 1000,
+            maxWaitTimeInSeconds: 60,
+          },
+        },
+      })
+      console.info("Cosmos DB: Client initialisiert.", {
+        endpoint: process.env.COSMOSDB_ENDPOINT?.replace(/\/\/[^/]+/, "//***"),
+        database: DATABASE_ID,
+        requestTimeoutMs: REQUEST_TIMEOUT_MS,
+        maxRetries: MAX_RETRY_ATTEMPTS,
+      })
+    } catch (error) {
+      logCosmosError("getCosmosClient", error)
+      throw error
+    }
   }
   return client
 }
@@ -30,23 +62,80 @@ async function ensureDatabase(): Promise<Database> {
   if (!databaseReady) {
     databaseReady = (async () => {
       const cosmos = getCosmosClient()
-      const { database } = await cosmos.databases.createIfNotExists({ id: DATABASE_ID })
-      return database
+      try {
+        const { database } = await cosmos.databases.createIfNotExists({
+          id: DATABASE_ID,
+        })
+        console.info(`Cosmos DB: Datenbank "${DATABASE_ID}" bereit.`)
+        return database
+      } catch (createError) {
+        logCosmosError("databases.createIfNotExists", createError)
+        try {
+          const database = cosmos.database(DATABASE_ID)
+          await database.read()
+          console.info(
+            `Cosmos DB: Datenbank "${DATABASE_ID}" per read() erreichbar (create uebersprungen).`
+          )
+          return database
+        } catch (readError) {
+          resetCosmosCaches()
+          logCosmosError("database.read", readError)
+          throw readError
+        }
+      }
     })()
   }
-  return databaseReady
+
+  try {
+    return await databaseReady
+  } catch (error) {
+    resetCosmosCaches()
+    throw error
+  }
 }
 
 async function ensureContainer(
   containerId: string,
   partitionKey: string
 ): Promise<Container> {
-  const database = await ensureDatabase()
-  const { container } = await database.containers.createIfNotExists({
-    id: containerId,
-    partitionKey: { paths: [partitionKey] },
-  })
-  return container
+  const cacheKey = `${containerId}:${partitionKey}`
+  let pending = containerReady.get(cacheKey)
+
+  if (!pending) {
+    pending = (async () => {
+      const database = await ensureDatabase()
+      try {
+        const { container } = await database.containers.createIfNotExists({
+          id: containerId,
+          partitionKey: { paths: [partitionKey] },
+        })
+        console.info(`Cosmos DB: Container "${containerId}" bereit.`)
+        return container
+      } catch (createError) {
+        logCosmosError(`containers.createIfNotExists(${containerId})`, createError)
+        try {
+          const container = database.container(containerId)
+          await container.read()
+          console.info(
+            `Cosmos DB: Container "${containerId}" per read() erreichbar (create uebersprungen).`
+          )
+          return container
+        } catch (readError) {
+          containerReady.delete(cacheKey)
+          logCosmosError(`container.read(${containerId})`, readError)
+          throw readError
+        }
+      }
+    })()
+    containerReady.set(cacheKey, pending)
+  }
+
+  try {
+    return await pending
+  } catch (error) {
+    containerReady.delete(cacheKey)
+    throw error
+  }
 }
 
 export async function getOrdersContainer(): Promise<Container> {

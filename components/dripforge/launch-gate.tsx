@@ -21,6 +21,23 @@ type LaunchStatus = {
   hasPreviewAccess: boolean
 }
 
+type LaunchApiPayload = {
+  canAccessShop?: boolean
+  shopLive?: boolean
+  hasPreviewAccess?: boolean
+  degraded?: boolean
+  error?: string
+}
+
+function parseLaunchStatus(data: LaunchApiPayload): LaunchStatus {
+  const hasPreviewAccess = Boolean(data.hasPreviewAccess)
+  const shopLive = Boolean(data.shopLive)
+  const canAccessShop =
+    Boolean(data.canAccessShop) || hasPreviewAccess || shopLive
+
+  return { canAccessShop, shopLive, hasPreviewAccess }
+}
+
 export default function LaunchGate() {
   const [status, setStatus] = useState<LaunchStatus | null>(null)
   const [loading, setLoading] = useState(true)
@@ -28,13 +45,13 @@ export default function LaunchGate() {
   const loadStatus = useCallback(async () => {
     try {
       const res = await fetch("/api/settings/launch", { cache: "no-store" })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
-      setStatus({
-        canAccessShop: Boolean(data.canAccessShop),
-        shopLive: Boolean(data.shopLive),
-        hasPreviewAccess: Boolean(data.hasPreviewAccess),
-      })
+      const data = (await res.json().catch(() => ({}))) as LaunchApiPayload
+
+      if (!res.ok && !data.canAccessShop && !data.hasPreviewAccess) {
+        console.warn("Launch-Gate: API-Fehler.", data.error ?? res.status)
+      }
+
+      setStatus(parseLaunchStatus(data))
     } catch (err) {
       console.warn("Launch-Gate: Status konnte nicht geladen werden.", err)
       setStatus({ canAccessShop: false, shopLive: false, hasPreviewAccess: false })

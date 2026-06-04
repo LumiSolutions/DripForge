@@ -22,8 +22,10 @@ import {
   DEFAULT_SERVICE_VISIBILITY,
 } from "@/lib/admin/types"
 import { normalizeServiceVisibility } from "@/lib/dripforge/service-visibility"
+import { buildDefaultAdminSettings } from "@/lib/admin/safe-defaults"
+import { withCosmosFallback } from "@/lib/admin/storage-bridge"
+import { logCosmosError } from "@/lib/cosmos/log-error"
 import {
-  isCosmosConfigured,
   cosmosGetCustomers,
   cosmosGetCustomerByNumber,
   cosmosGetOrderById,
@@ -74,8 +76,7 @@ async function writeJsonFile<T>(filename: string, data: T): Promise<void> {
   }
 }
 
-export async function getOrders(): Promise<StoredOrder[]> {
-  if (isCosmosConfigured()) return cosmosGetOrders()
+async function getOrdersFromFile(): Promise<StoredOrder[]> {
   const orders = await readJsonFile<StoredOrder[]>(ORDERS_FILE, [])
   return orders.sort(
     (a, b) =>
@@ -83,20 +84,40 @@ export async function getOrders(): Promise<StoredOrder[]> {
   )
 }
 
-export async function getOrderById(orderId: string): Promise<StoredOrder | null> {
-  if (isCosmosConfigured()) return cosmosGetOrderById(orderId)
-  const orders = await getOrders()
-  return orders.find((o) => o.orderId === orderId) ?? null
+export async function getOrders(): Promise<StoredOrder[]> {
+  try {
+    return await withCosmosFallback("getOrders", cosmosGetOrders, getOrdersFromFile)
+  } catch (error) {
+    logCosmosError("getOrders:total-failure", error)
+    return []
+  }
 }
 
-export async function saveOrder(order: StoredOrder): Promise<void> {
-  if (isCosmosConfigured()) {
-    await cosmosSaveOrder(order)
-    return
-  }
+export async function getOrderById(orderId: string): Promise<StoredOrder | null> {
+  return withCosmosFallback(
+    "getOrderById",
+    () => cosmosGetOrderById(orderId),
+    async () => {
+      const orders = await getOrdersFromFile()
+      return orders.find((o) => o.orderId === orderId) ?? null
+    }
+  )
+}
+
+async function saveOrderToFile(order: StoredOrder): Promise<void> {
   const orders = await readJsonFile<StoredOrder[]>(ORDERS_FILE, [])
   orders.unshift(order)
   await writeJsonFile(ORDERS_FILE, orders)
+}
+
+export async function saveOrder(order: StoredOrder): Promise<void> {
+  await withCosmosFallback(
+    "saveOrder",
+    async () => {
+      await cosmosSaveOrder(order)
+    },
+    () => saveOrderToFile(order)
+  )
 }
 
 async function attachCustomerToOrder(
@@ -111,10 +132,9 @@ async function attachCustomerToOrder(
   await writeJsonFile(ORDERS_FILE, orders)
 }
 
-export async function upsertCustomerFromOrder(
+async function upsertCustomerFromOrderFile(
   order: StoredOrder
 ): Promise<StoredCustomer> {
-  if (isCosmosConfigured()) return cosmosUpsertCustomerFromOrder(order)
   const customers = await readJsonFile<StoredCustomer[]>(CUSTOMERS_FILE, [])
   const email = normalizeCustomerEmail(order.billing.email)
   const index = customers.findIndex((c) => c.email === email)
@@ -133,6 +153,16 @@ export async function upsertCustomerFromOrder(
   await writeJsonFile(CUSTOMERS_FILE, customers)
   await attachCustomerToOrder(order.orderId, customer.kundennummer)
   return customer
+}
+
+export async function upsertCustomerFromOrder(
+  order: StoredOrder
+): Promise<StoredCustomer> {
+  return withCosmosFallback(
+    "upsertCustomerFromOrder",
+    () => cosmosUpsertCustomerFromOrder(order),
+    () => upsertCustomerFromOrderFile(order)
+  )
 }
 
 export async function reconcileCustomersFromOrders(): Promise<void> {
@@ -171,8 +201,7 @@ export async function reconcileCustomersFromOrders(): Promise<void> {
   }
 }
 
-export async function getCustomers(): Promise<StoredCustomer[]> {
-  if (isCosmosConfigured()) return cosmosGetCustomers()
+async function getCustomersFromFile(): Promise<StoredCustomer[]> {
   await reconcileCustomersFromOrders()
   const customers = await readJsonFile<StoredCustomer[]>(CUSTOMERS_FILE, [])
   return customers.sort(
@@ -180,20 +209,33 @@ export async function getCustomers(): Promise<StoredCustomer[]> {
   )
 }
 
+export async function getCustomers(): Promise<StoredCustomer[]> {
+  try {
+    return await withCosmosFallback("getCustomers", cosmosGetCustomers, getCustomersFromFile)
+  } catch (error) {
+    logCosmosError("getCustomers:total-failure", error)
+    return []
+  }
+}
+
 export async function getCustomerByNumber(
   kundennummer: string
 ): Promise<StoredCustomer | null> {
-  if (isCosmosConfigured()) return cosmosGetCustomerByNumber(kundennummer)
-  await reconcileCustomersFromOrders()
-  const customers = await readJsonFile<StoredCustomer[]>(CUSTOMERS_FILE, [])
-  return customers.find((c) => c.kundennummer === kundennummer) ?? null
+  return withCosmosFallback(
+    "getCustomerByNumber",
+    () => cosmosGetCustomerByNumber(kundennummer),
+    async () => {
+      await reconcileCustomersFromOrders()
+      const customers = await readJsonFile<StoredCustomer[]>(CUSTOMERS_FILE, [])
+      return customers.find((c) => c.kundennummer === kundennummer) ?? null
+    }
+  )
 }
 
-export async function updateOrderStatus(
+async function updateOrderStatusInFile(
   orderId: string,
   status: StoredOrder["status"]
 ): Promise<StoredOrder | null> {
-  if (isCosmosConfigured()) return cosmosUpdateOrderStatus(orderId, status)
   const orders = await readJsonFile<StoredOrder[]>(ORDERS_FILE, [])
   const index = orders.findIndex((o) => o.orderId === orderId)
   if (index === -1) return null
@@ -202,17 +244,38 @@ export async function updateOrderStatus(
   return orders[index]
 }
 
-export async function updateOrderInvoice(
+export async function updateOrderStatus(
+  orderId: string,
+  status: StoredOrder["status"]
+): Promise<StoredOrder | null> {
+  return withCosmosFallback(
+    "updateOrderStatus",
+    () => cosmosUpdateOrderStatus(orderId, status),
+    () => updateOrderStatusInFile(orderId, status)
+  )
+}
+
+async function updateOrderInvoiceInFile(
   orderId: string,
   data: Pick<StoredOrder, "rechnungPdfUrl" | "rechnungPdfPath" | "kundennummer">
 ): Promise<StoredOrder | null> {
-  if (isCosmosConfigured()) return cosmosUpdateOrderInvoice(orderId, data)
   const orders = await readJsonFile<StoredOrder[]>(ORDERS_FILE, [])
   const index = orders.findIndex((o) => o.orderId === orderId)
   if (index === -1) return null
   orders[index] = { ...orders[index], ...data }
   await writeJsonFile(ORDERS_FILE, orders)
   return orders[index]
+}
+
+export async function updateOrderInvoice(
+  orderId: string,
+  data: Pick<StoredOrder, "rechnungPdfUrl" | "rechnungPdfPath" | "kundennummer">
+): Promise<StoredOrder | null> {
+  return withCosmosFallback(
+    "updateOrderInvoice",
+    () => cosmosUpdateOrderInvoice(orderId, data),
+    () => updateOrderInvoiceInFile(orderId, data)
+  )
 }
 
 export function getLocalInvoicePath(filename: string): string {
@@ -227,8 +290,7 @@ export async function readLocalInvoicePdf(filename: string): Promise<Buffer | nu
   }
 }
 
-export async function getProducts(): Promise<AdminProduct[]> {
-  if (isCosmosConfigured()) return cosmosGetProducts()
+async function getProductsFromFile(): Promise<AdminProduct[]> {
   const stored = await readJsonFile<AdminProduct[] | null>(PRODUCTS_FILE, null)
   if (stored && stored.length > 0) return stored
   const seeded = seedProducts.map((p) => ({
@@ -242,12 +304,25 @@ export async function getProducts(): Promise<AdminProduct[]> {
   return seeded
 }
 
-export async function saveProducts(products: AdminProduct[]): Promise<void> {
-  if (isCosmosConfigured()) {
-    await cosmosSaveProducts(products)
-    return
+export async function getProducts(): Promise<AdminProduct[]> {
+  try {
+    return await withCosmosFallback("getProducts", cosmosGetProducts, getProductsFromFile)
+  } catch (error) {
+    logCosmosError("getProducts:total-failure", error)
+    return getProductsFromFile().catch(() => [])
   }
-  await writeJsonFile(PRODUCTS_FILE, products)
+}
+
+export async function saveProducts(products: AdminProduct[]): Promise<void> {
+  await withCosmosFallback(
+    "saveProducts",
+    async () => {
+      await cosmosSaveProducts(products)
+    },
+    async () => {
+      await writeJsonFile(PRODUCTS_FILE, products)
+    }
+  )
 }
 
 export async function getProductById(id: string): Promise<AdminProduct | null> {
@@ -279,8 +354,7 @@ export async function deleteProduct(id: string): Promise<boolean> {
   return true
 }
 
-export async function getSettings(): Promise<AdminSettings> {
-  if (isCosmosConfigured()) return cosmosGetSettings()
+async function getSettingsFromFile(): Promise<AdminSettings> {
   const stored = await readJsonFile<AdminSettings | null>(SETTINGS_FILE, null)
   if (stored?.checkout) {
     return {
@@ -298,8 +372,24 @@ export async function getSettings(): Promise<AdminSettings> {
     services: { ...DEFAULT_SERVICE_VISIBILITY },
     updatedAt: new Date().toISOString(),
   }
-  await writeJsonFile(SETTINGS_FILE, defaults)
+  try {
+    await writeJsonFile(SETTINGS_FILE, defaults)
+  } catch (error) {
+    console.warn(
+      "Dateispeicher: settings.json konnte nicht angelegt werden — Defaults werden nur im Speicher verwendet.",
+      error
+    )
+  }
   return defaults
+}
+
+export async function getSettings(): Promise<AdminSettings> {
+  try {
+    return await withCosmosFallback("getSettings", cosmosGetSettings, getSettingsFromFile)
+  } catch (error) {
+    logCosmosError("getSettings:total-failure", error)
+    return buildDefaultAdminSettings()
+  }
 }
 
 export async function saveSettings(input: {
@@ -325,11 +415,17 @@ export async function saveSettings(input: {
     }),
     updatedAt: new Date().toISOString(),
   }
-  if (isCosmosConfigured()) {
-    await cosmosSaveSettings(next)
-    return next
-  }
-  await writeJsonFile(SETTINGS_FILE, next)
+  await withCosmosFallback(
+    "saveSettings",
+    async () => {
+      await cosmosSaveSettings(next)
+      return next
+    },
+    async () => {
+      await writeJsonFile(SETTINGS_FILE, next)
+      return next
+    }
+  )
   return next
 }
 
@@ -340,10 +436,16 @@ export async function setShopLive(shopLive: boolean): Promise<AdminSettings> {
     launch: { ...current.launch, shopLive },
     updatedAt: new Date().toISOString(),
   }
-  if (isCosmosConfigured()) {
-    await cosmosSaveSettings(next)
-    return next
-  }
-  await writeJsonFile(SETTINGS_FILE, next)
+  await withCosmosFallback(
+    "setShopLive",
+    async () => {
+      await cosmosSaveSettings(next)
+      return next
+    },
+    async () => {
+      await writeJsonFile(SETTINGS_FILE, next)
+      return next
+    }
+  )
   return next
 }

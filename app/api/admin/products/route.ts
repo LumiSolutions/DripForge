@@ -8,10 +8,10 @@ export async function GET() {
     const products = await getProducts()
     return NextResponse.json({ products })
   } catch (error) {
-    console.warn("Admin-API: Produkte konnten nicht geladen werden.", error)
+    console.error("Admin-API: Produkte konnten nicht geladen werden.", error)
     return NextResponse.json(
-      { error: "Produkte konnten nicht geladen werden." },
-      { status: 500 }
+      { products: [] },
+      { headers: { "X-DripForge-Degraded": "1" } }
     )
   }
 }
