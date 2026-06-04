@@ -6,7 +6,7 @@ import Link from "next/link"
 import { Loader2, Lock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { getLaunchCountdown } from "@/lib/dripforge/launch-config"
+import { getLaunchCountdown, LAUNCH_DATE } from "@/lib/dripforge/launch-config"
 import { cn } from "@/lib/utils"
 
 function EmberField() {
@@ -86,6 +86,12 @@ export function ComingSoonPage({ onAccessGranted }: { onAccessGranted: () => voi
     return () => window.clearInterval(timer)
   }, [])
 
+  const launchDateLabel = new Intl.DateTimeFormat("de-CH", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(LAUNCH_DATE)
+
   const handleTesterSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setTesterError(null)
@@ -136,59 +142,47 @@ export function ComingSoonPage({ onAccessGranted }: { onAccessGranted: () => voi
       />
       <EmberField />
 
-      <main className="relative z-10 flex w-full flex-1 flex-col items-center justify-center px-4">
-        {/* Hero-Poster mit Countdown-Overlay */}
-        <div className="relative mb-16 w-full max-w-2xl shrink-0 sm:mb-20 sm:max-w-3xl">
-          <div className="relative isolate overflow-hidden rounded-lg shadow-[0_0_80px_rgba(249,115,22,0.15),0_24px_48px_rgba(0,0,0,0.6)] ring-1 ring-white/5">
-            <Image
-              src="/images/launch-hero.png"
-              alt="DripForge — Custom 3D Prints & Laser Engraving"
-              width={1200}
-              height={1200}
-              className="h-auto w-full"
-              priority
-            />
-
-            {/* Verdeckt «WEBSITE OPENING» + statisches Datum im Poster */}
-            <div
-              className="absolute inset-x-[5%] top-[54%] bottom-[9%] flex flex-col items-center justify-end pb-[2%] sm:inset-x-[6%] sm:top-[55%] sm:bottom-[8%] sm:pb-[2.5%]"
-              aria-hidden={false}
-            >
-              <div
-                className="absolute inset-0 rounded-sm bg-gradient-to-b from-[#0b0b0d]/40 via-[#09090b]/97 to-[#070709]/99 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
-                aria-hidden
+      <main className="relative z-10 flex w-full flex-1 flex-col items-center justify-center gap-6 px-4">
+        {/* Logo-Grafik (unterer Poster-Bereich ausgeblendet — Countdown/Datum liegen im Layout darunter) */}
+        <div className="flex w-full max-w-2xl shrink-0 flex-col items-center gap-6 sm:max-w-3xl">
+          <div className="relative w-full overflow-hidden rounded-lg shadow-[0_0_80px_rgba(249,115,22,0.15),0_24px_48px_rgba(0,0,0,0.6)] ring-1 ring-white/5">
+            <div className="relative w-full pb-[56%] sm:pb-[58%]">
+              <Image
+                src="/images/launch-hero.png"
+                alt="DripForge — Custom 3D Prints & Laser Engraving"
+                width={1200}
+                height={1200}
+                className="absolute left-0 top-0 h-auto w-full"
+                priority
               />
-              <div
-                className="pointer-events-none absolute inset-x-0 top-0 h-8 bg-gradient-to-b from-transparent to-[#09090b]"
-                aria-hidden
-              />
+            </div>
+          </div>
 
-              <div className="relative z-10 flex w-full flex-col items-center px-2 sm:px-4">
-                <p className="cs-metallic-gold mb-3 text-[10px] font-semibold uppercase tracking-[0.45em] sm:mb-4 sm:text-xs">
-                  Countdown zum Launch
-                </p>
+          {/* Countdown unterhalb des Logos */}
+          <div className="flex w-full max-w-lg flex-col items-center gap-4 text-center">
+            <p className="cs-metallic-gold text-[10px] font-semibold uppercase tracking-[0.45em] sm:text-xs">
+              Countdown zum Launch
+            </p>
 
-                <div className="rounded-lg border border-orange-500/15 bg-black/40 px-2 py-2 shadow-[0_0_40px_rgba(249,115,22,0.12)] sm:px-4 sm:py-3">
-                  <div className="flex items-end justify-center gap-0.5 sm:gap-1">
-                    <CountdownUnit value={countdown.days} label="Tage" />
-                    <CountdownSeparator />
-                    <CountdownUnit value={countdown.hours} label="Std." />
-                    <CountdownSeparator />
-                    <CountdownUnit value={countdown.minutes} label="Min." />
-                    <CountdownSeparator />
-                    <CountdownUnit value={countdown.seconds} label="Sek." />
-                  </div>
-                </div>
-
-                <p className="cs-metallic-gold mt-4 text-lg font-bold tracking-wider sm:mt-5 sm:text-xl md:text-2xl">
-                  01.08.2026
-                </p>
+            <div className="w-full rounded-lg border border-orange-500/15 bg-black/40 px-3 py-3 shadow-[0_0_40px_rgba(249,115,22,0.12)] sm:px-5 sm:py-4">
+              <div className="flex items-end justify-center gap-0.5 sm:gap-1">
+                <CountdownUnit value={countdown.days} label="Tage" />
+                <CountdownSeparator />
+                <CountdownUnit value={countdown.hours} label="Std." />
+                <CountdownSeparator />
+                <CountdownUnit value={countdown.minutes} label="Min." />
+                <CountdownSeparator />
+                <CountdownUnit value={countdown.seconds} label="Sek." />
               </div>
             </div>
+
+            <p className="cs-metallic-gold text-lg font-bold tracking-wider sm:text-xl md:text-2xl">
+              {launchDateLabel}
+            </p>
           </div>
         </div>
 
-        {/* Schweizer Text unter dem Poster — URL nur im Hero-Bild */}
+        {/* Slogan unter Countdown — URL nur in der Logo-Grafik */}
         <section className="flex max-w-xl shrink-0 flex-col items-center space-y-4 text-center">
           <p className="text-xs font-medium uppercase tracking-[0.2em] text-zinc-500">
             Hier entsteht DripForge
