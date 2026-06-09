@@ -2,7 +2,12 @@ import type { CustomerSessionPayload } from "@/lib/konto/account-types"
 
 export const CUSTOMER_SESSION_COOKIE = "dripforge_customer_session"
 
-const KONTO_PUBLIC_PATHS = ["/konto/login", "/konto/registrieren"]
+const KONTO_PUBLIC_PATHS = [
+  "/konto/login",
+  "/konto/registrieren",
+  "/konto/passwort-vergessen",
+  "/konto/passwort-zuruecksetzen",
+]
 
 export function isKontoPublicPath(pathname: string): boolean {
   return KONTO_PUBLIC_PATHS.some(

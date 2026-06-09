@@ -8,6 +8,8 @@ export type StaffAccount = {
   /** AES-256-GCM verschluesselter TOTP-Secret */
   totpSecretEncrypted: string | null
   totpEnabled: boolean
+  passwordResetTokenHash?: string | null
+  passwordResetExpiresAt?: string | null
   createdAt: string
   updatedAt: string
 }

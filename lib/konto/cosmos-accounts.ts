@@ -28,6 +28,8 @@ export async function cosmosGetAccountByEmail(
       city: doc.city ?? "",
       phone: doc.phone ?? "",
       kundennummer: doc.kundennummer,
+      passwordResetTokenHash: doc.passwordResetTokenHash ?? null,
+      passwordResetExpiresAt: doc.passwordResetExpiresAt ?? null,
       createdAt: doc.createdAt,
       updatedAt: doc.updatedAt,
     }
@@ -55,6 +57,8 @@ export async function cosmosListAccounts(): Promise<CustomerAccount[]> {
     city: doc.city ?? "",
     phone: doc.phone ?? "",
     kundennummer: doc.kundennummer,
+    passwordResetTokenHash: doc.passwordResetTokenHash ?? null,
+    passwordResetExpiresAt: doc.passwordResetExpiresAt ?? null,
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
   }))

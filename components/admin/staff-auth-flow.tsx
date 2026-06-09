@@ -150,12 +150,22 @@ export function StaffAuthFlow({
           </div>
 
           <div className="space-y-2">
-            <Label
-              htmlFor="staff-password"
-              className={compact ? "text-xs text-zinc-500" : adminUi.labelMuted}
-            >
-              Passwort
-            </Label>
+            <div className="flex items-center justify-between">
+              <Label
+                htmlFor="staff-password"
+                className={compact ? "text-xs text-zinc-500" : adminUi.labelMuted}
+              >
+                Passwort
+              </Label>
+              {role === "admin" && intent === "admin" && !compact && (
+                <Link
+                  href="/admin/passwort-vergessen"
+                  className={cn("text-xs transition-colors", adminUi.footerBtn)}
+                >
+                  Passwort vergessen?
+                </Link>
+              )}
+            </div>
             <Input
               id="staff-password"
               type="password"

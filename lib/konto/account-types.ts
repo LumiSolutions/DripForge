@@ -11,6 +11,8 @@ export type CustomerAccount = {
   phone?: string
   /** Verknuepfung zum CRM (falls bereits Bestellungen) */
   kundennummer?: string
+  passwordResetTokenHash?: string | null
+  passwordResetExpiresAt?: string | null
   createdAt: string
   updatedAt: string
 }
