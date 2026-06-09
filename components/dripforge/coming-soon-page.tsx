@@ -1,6 +1,6 @@
 "use client"
 
-import { FormEvent, useEffect, useMemo, useState, type CSSProperties } from "react"
+import { FormEvent, useEffect, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { Loader2, Lock } from "lucide-react"
@@ -8,45 +8,6 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { getLaunchCountdown, LAUNCH_DATE } from "@/lib/dripforge/launch-config"
 import { cn } from "@/lib/utils"
-
-function EmberField() {
-  const embers = useMemo(
-    () =>
-      Array.from({ length: 28 }, (_, i) => ({
-        id: i,
-        left: `${4 + ((i * 17) % 92)}%`,
-        bottom: `${-2 + ((i * 11) % 18)}%`,
-        size: 2 + (i % 4),
-        delay: `${(i * 0.35) % 6}s`,
-        duration: `${3.5 + (i % 5) * 0.7}s`,
-        hue: i % 3 === 0 ? "rgba(56,189,248,0.9)" : "rgba(249,115,22,0.95)",
-      })),
-    []
-  )
-
-  return (
-    <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
-      {embers.map((e) => (
-        <span
-          key={e.id}
-          className="cs-ember absolute rounded-full"
-          style={
-            {
-              left: e.left,
-              bottom: e.bottom,
-              width: e.size,
-              height: e.size,
-              background: e.hue,
-              boxShadow: `0 0 ${e.size * 3}px ${e.hue}`,
-              "--ember-delay": e.delay,
-              "--ember-duration": e.duration,
-            } as CSSProperties
-          }
-        />
-      ))}
-    </div>
-  )
-}
 
 function CountdownUnit({ value, label }: { value: number; label: string }) {
   return (
@@ -117,7 +78,7 @@ export function ComingSoonPage({ onAccessGranted }: { onAccessGranted: () => voi
   }
 
   return (
-    <div className="relative flex min-h-screen flex-col items-center justify-between overflow-x-hidden bg-[#0a0a0c] py-10 text-zinc-100 sm:py-12">
+    <div className="relative flex min-h-screen flex-col items-center justify-between overflow-x-hidden bg-[#0a0a0c]/90 py-10 text-zinc-100 sm:py-12">
       {/* Hintergrund: Textur, Glows, Funken */}
       <div className="cs-noise pointer-events-none absolute inset-0 opacity-80" aria-hidden />
       <div
@@ -140,8 +101,6 @@ export function ComingSoonPage({ onAccessGranted }: { onAccessGranted: () => voi
         className="pointer-events-none absolute inset-x-0 top-[62%] h-px bg-gradient-to-r from-transparent via-cyan-400/25 to-transparent"
         aria-hidden
       />
-      <EmberField />
-
       <main className="relative z-10 flex w-full flex-1 flex-col items-center justify-center gap-6 px-4">
         {/* Quadratisches Hero-Bild vollständig, Countdown darunter */}
         <div className="flex w-full max-w-[500px] shrink-0 flex-col items-center">

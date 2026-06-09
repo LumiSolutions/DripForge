@@ -102,7 +102,7 @@ export default function DripForgeApp() {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="min-h-screen text-foreground">
       <ShopHeader
         mode="spa"
         currentView={currentView}

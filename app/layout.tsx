@@ -10,6 +10,7 @@ import {
   Playfair_Display,
 } from "next/font/google"
 import "./globals.css"
+import { ParticleBackground } from "@/components/dripforge/particle-background"
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -70,7 +71,10 @@ export default function RootLayout({
       suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} ${laserGreatVibes.variable} ${laserInter.variable} ${laserPlayfair.variable} ${laserMontserrat.variable} ${laserJetBrains.variable} ${laserCaveat.variable} h-full antialiased`}
     >
-      <body className="flex min-h-full flex-col font-sans">{children}</body>
+      <body className="relative min-h-full bg-background font-sans">
+        <ParticleBackground />
+        <div className="relative z-10 flex min-h-full flex-col">{children}</div>
+      </body>
     </html>
   )
 }

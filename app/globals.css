@@ -109,6 +109,33 @@
   transform: translateY(0);
 }
 
+/* Globaler Partikel-Hintergrund (Shop, Portal, Landing) */
+@keyframes particle-rise {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) scale(0.6);
+  }
+  15% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(0, -120px, 0) scale(0.2);
+  }
+}
+
+.particle-ember {
+  animation: particle-rise var(--particle-duration, 4s) ease-out infinite;
+  animation-delay: var(--particle-delay, 0s);
+  will-change: transform, opacity;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .particle-field {
+    display: none;
+  }
+}
+
 /* Coming Soon — industrielles Launch-Design */
 @keyframes cs-ember-rise {
   0% {
