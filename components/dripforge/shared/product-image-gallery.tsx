@@ -1,8 +1,8 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import Image from "next/image"
 import { ChevronLeft, ChevronRight } from "lucide-react"
+import { SafeProductImage } from "@/components/dripforge/shared/safe-product-image"
 import { cn } from "@/lib/utils"
 
 type ProductImageGalleryProps = {
@@ -44,7 +44,7 @@ export function ProductImageGallery({
   return (
     <div className={cn("flex flex-col gap-3", className)}>
       <div className="group relative aspect-[4/3] w-full overflow-hidden rounded-xl border border-border/50 bg-secondary/30 shadow-sm">
-        <Image
+        <SafeProductImage
           key={mainSrc}
           src={mainSrc}
           alt={`${alt} — Ansicht ${safeIndex + 1}`}
@@ -99,7 +99,7 @@ export function ProductImageGallery({
                   : "border-border/60 opacity-80 hover:border-primary/50 hover:opacity-100"
               )}
             >
-              <Image
+              <SafeProductImage
                 src={src}
                 alt=""
                 fill

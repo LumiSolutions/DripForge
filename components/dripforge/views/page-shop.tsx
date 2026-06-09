@@ -44,6 +44,8 @@ import { ProductShopPrice } from "@/components/dripforge/shared/product-shop-pri
 import type { CartItem, Product, ProductDimensionsMm } from "@/lib/dripforge/types"
 import type { ServiceVisibilitySettings } from "@/lib/admin/types"
 import { getSaleBadgePercent } from "@/lib/dripforge/product-sale"
+import { normalizeShopProduct } from "@/lib/dripforge/normalize-shop-product"
+import { ProductDetailErrorBoundary } from "@/components/dripforge/product-detail-error-boundary"
 import {
   capture3dPreviewLeitbild,
   captureLaserPreviewLeitbild,
@@ -98,7 +100,7 @@ export function PageShop({
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (Array.isArray(data?.products)) {
-          setShopProducts(data.products)
+          setShopProducts(data.products.map((p: Product) => normalizeShopProduct(p)))
         }
       })
       .catch(() => {
@@ -115,19 +117,34 @@ export function PageShop({
           ? []
           : shopProducts.filter((p) => p.type === shopFilter)
 
-  const openProduct = (product: Product) => {
-    setSelectedProduct(product)
+  const applySelectedProduct = (product: Product) => {
+    const normalized = normalizeShopProduct(product)
+    setSelectedProduct(normalized)
     setQuantity(1)
     setFilamentTab("pla")
     setFilamentSelection(null)
-    if (product.type === "laser") {
-      const mat = getLaserMaterialForProduct(product)
+    if (normalized.type === "laser") {
+      const mat = getLaserMaterialForProduct(normalized)
       setLaserDesign(
-        createDefaultLaserDesignerState(mat, resolveProductVarianten(product))
+        createDefaultLaserDesignerState(mat, resolveProductVarianten(normalized))
       )
     } else {
       setLaserDesign(null)
     }
+  }
+
+  const openProduct = (product: Product) => {
+    applySelectedProduct(product)
+    void fetch(`/api/products/${encodeURIComponent(product.id)}`, {
+      cache: "no-store",
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.product) applySelectedProduct(data.product as Product)
+      })
+      .catch(() => {
+        console.warn("Shop: Einzelprodukt konnte nicht nachgeladen werden.")
+      })
   }
 
   const handleAddToCart = async () => {
@@ -233,34 +250,36 @@ export function PageShop({
         )
 
   if (selectedProduct) {
-    const is3dProduct = selectedProduct.type === "3d"
+    const detailProduct = normalizeShopProduct(selectedProduct)
+    const unitPrice = Number.isFinite(detailProduct.price) ? detailProduct.price : 0
     const shopLaserMaterial =
-      selectedProduct.type === "laser"
-        ? getLaserMaterialForProduct(selectedProduct)
+      detailProduct.type === "laser"
+        ? getLaserMaterialForProduct(detailProduct)
         : null
-    const productDimensions: ProductDimensionsMm = selectedProduct.dimensionsMm ?? {
-      length: 100,
-      width: 100,
-      height: 100,
+    const productDimensions: ProductDimensionsMm = {
+      length: Number(detailProduct.dimensionsMm?.length) || 100,
+      width: Number(detailProduct.dimensionsMm?.width) || 100,
+      height: Number(detailProduct.dimensionsMm?.height) || 100,
     }
     const galleryImages = resolveProductImages(
-      selectedProduct.id,
-      selectedProduct.images,
-      selectedProduct.galerieBilder
+      detailProduct.id,
+      detailProduct.images,
+      detailProduct.galerieBilder
     )
 
     const productModelUrl = resolveProductModelUrl(
-      selectedProduct.id,
-      selectedProduct.modelUrl,
-      selectedProduct.modellDateiUrl
+      detailProduct.id,
+      detailProduct.modelUrl,
+      detailProduct.modellDateiUrl
     )
 
     const customizationBackgroundUrl =
-      selectedProduct.individualisierungsBild?.trim() || undefined
+      detailProduct.individualisierungsBild?.trim() || undefined
 
-    const shopProductVarianten = resolveProductVarianten(selectedProduct)
+    const shopProductVarianten = resolveProductVarianten(detailProduct)
 
     return (
+      <ProductDetailErrorBoundary onReset={() => setSelectedProduct(null)}>
       <div className="space-y-10 pb-24">
         <div className="mx-auto max-w-7xl px-4 pt-8">
           <Button
@@ -272,7 +291,7 @@ export function PageShop({
             Zurueck zum Shop
           </Button>
 
-          {selectedProduct.type === "laser" && shopLaserMaterial && laserDesign ? (
+          {detailProduct.type === "laser" && shopLaserMaterial && laserDesign ? (
             <div className="space-y-6">
             <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2 lg:gap-8">
               <div className="flex min-w-0 flex-col gap-6">
@@ -280,16 +299,16 @@ export function PageShop({
                   <CardContent className="p-6 sm:p-8">
                     <div className="mb-3 flex flex-wrap items-center gap-2">
                       <Badge variant="secondary">Lasergravur</Badge>
-                      {selectedProduct.sale && (
+                      {detailProduct.sale && (
                         <Badge className="bg-red-500 text-white hover:bg-red-500">
                           Rabatt
                         </Badge>
                       )}
                     </div>
-                    <h1 className="text-2xl font-bold sm:text-3xl">{selectedProduct.name}</h1>
-                    <p className="mt-3 text-muted-foreground">{selectedProduct.description}</p>
+                    <h1 className="text-2xl font-bold sm:text-3xl">{detailProduct.name}</h1>
+                    <p className="mt-3 text-muted-foreground">{detailProduct.description}</p>
                     <div className="mt-5">
-                      <ProductShopPrice product={selectedProduct} size="lg" />
+                      <ProductShopPrice product={detailProduct} size="lg" />
                     </div>
                   </CardContent>
                 </Card>
@@ -297,7 +316,7 @@ export function PageShop({
                 <LaserDesignerStudio
                   column="settings"
                   material={shopLaserMaterial}
-                  productName={selectedProduct.name}
+                  productName={detailProduct.name}
                   state={laserDesign}
                   varianten={shopProductVarianten}
                   onStateChange={(patch) =>
@@ -310,7 +329,7 @@ export function PageShop({
                 <LaserDesignerStudio
                   column="preview"
                   material={shopLaserMaterial}
-                  productName={selectedProduct.name}
+                  productName={detailProduct.name}
                   state={laserDesign}
                   customizationBackgroundUrl={customizationBackgroundUrl}
                   previewSurfaceRef={laserPreviewRef}
@@ -330,7 +349,7 @@ export function PageShop({
                       <div className="flex justify-between gap-3">
                         <span className="text-muted-foreground">Produkt</span>
                         <span className="max-w-[55%] text-right font-medium">
-                          {selectedProduct.name}
+                          {detailProduct.name}
                         </span>
                       </div>
                       {laserDesign.selectedVariant && (
@@ -342,7 +361,7 @@ export function PageShop({
                       <div className="flex justify-between gap-3">
                         <span className="text-muted-foreground">Stueckpreis</span>
                         <span className="font-medium">
-                          CHF {selectedProduct.price.toFixed(2)}
+                          CHF {unitPrice.toFixed(2)}
                         </span>
                       </div>
                       {quantity > 1 && (
@@ -357,7 +376,7 @@ export function PageShop({
                       <div className="flex justify-between gap-3 text-lg font-bold">
                         <span>Gesamtpreis</span>
                         <span className="text-cyan-600 dark:text-cyan-400">
-                          CHF {(selectedProduct.price * quantity).toFixed(2)}
+                          CHF {(unitPrice * quantity).toFixed(2)}
                         </span>
                       </div>
                     </div>
@@ -391,7 +410,7 @@ export function PageShop({
                       </Button>
                     </div>
                     <p className="mt-4 text-sm text-muted-foreground">
-                      Stueckpreis: CHF {selectedProduct.price.toFixed(2)}
+                      Stueckpreis: CHF {unitPrice.toFixed(2)}
                     </p>
                   </div>
 
@@ -423,17 +442,17 @@ export function PageShop({
                       <Badge className="border border-cyan-600/30 bg-cyan-600/15 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-cyan-800 shadow-sm dark:text-cyan-200">
                         3D-Druck
                       </Badge>
-                      {selectedProduct.sale && (
+                      {detailProduct.sale && (
                         <Badge className="bg-red-500 text-white hover:bg-red-500">
                           Rabatt
                         </Badge>
                       )}
                     </div>
                     <h1 className="text-2xl font-bold text-slate-900 lg:text-3xl dark:text-slate-50">
-                      {selectedProduct.name}
+                      {detailProduct.name}
                     </h1>
                     <p className="mt-3 text-base leading-relaxed text-muted-foreground">
-                      {selectedProduct.description}
+                      {detailProduct.description}
                     </p>
                   </header>
 
@@ -441,12 +460,12 @@ export function PageShop({
                     <div className="flex min-w-0 flex-col gap-6">
                       <ProductImageGallery
                         images={galleryImages}
-                        alt={selectedProduct.name}
+                        alt={detailProduct.name}
                       />
 
                       <Product3DPreview
                         ref={product3dCanvasRef}
-                        key={`${selectedProduct.id}-${productModelUrl}`}
+                        key={`${detailProduct.id}-${productModelUrl}`}
                         modelUrl={productModelUrl}
                         color={filamentSelection?.colorHex ?? "#1a1a1a"}
                         fixedDimensionsMm={productDimensionsToViewerMm(
@@ -491,10 +510,10 @@ export function PageShop({
                             <div className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
                               <dt className="text-muted-foreground">Volumen</dt>
                               <dd className="font-mono font-semibold tabular-nums">
-                                {selectedProduct.volumen != null
+                                {detailProduct.volumen != null
                                   ? formatProductVolume(
-                                      selectedProduct.volumen,
-                                      selectedProduct.volumenEinheit
+                                      detailProduct.volumen,
+                                      detailProduct.volumenEinheit
                                     )
                                   : "—"}
                               </dd>
@@ -502,8 +521,8 @@ export function PageShop({
                             <div className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
                               <dt className="text-muted-foreground">Gewicht</dt>
                               <dd className="font-mono font-semibold tabular-nums">
-                                {selectedProduct.gewicht != null
-                                  ? formatProductWeight(selectedProduct.gewicht)
+                                {detailProduct.gewicht != null
+                                  ? formatProductWeight(detailProduct.gewicht)
                                   : "—"}
                               </dd>
                             </div>
@@ -540,15 +559,15 @@ export function PageShop({
                                   Stueckpreis
                                 </span>
                                 <span className="font-medium">
-                                  CHF {selectedProduct.price.toFixed(2)}
+                                  CHF {unitPrice.toFixed(2)}
                                 </span>
                               </div>
-                              {selectedProduct.sale &&
-                                selectedProduct.originalPrice && (
+                              {detailProduct.sale &&
+                                detailProduct.originalPrice != null && (
                                   <div className="flex justify-between gap-3">
                                     <span className="text-muted-foreground">UVP</span>
                                     <span className="text-muted-foreground line-through">
-                                      CHF {selectedProduct.originalPrice.toFixed(2)}
+                                      CHF {detailProduct.originalPrice.toFixed(2)}
                                     </span>
                                   </div>
                                 )}
@@ -600,7 +619,7 @@ export function PageShop({
                               <div className="flex justify-between gap-3 text-lg font-bold">
                                 <span>Gesamtpreis</span>
                                 <span className="text-red-500 dark:text-red-400">
-                                  CHF {(selectedProduct.price * quantity).toFixed(2)}
+                                  CHF {(unitPrice * quantity).toFixed(2)}
                                 </span>
                               </div>
                             </div>
@@ -628,6 +647,7 @@ export function PageShop({
           )}
         </div>
       </div>
+      </ProductDetailErrorBoundary>
     )
   }
 

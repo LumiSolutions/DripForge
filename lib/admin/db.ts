@@ -368,6 +368,18 @@ export async function getAdminProductById(id: string): Promise<AdminProduct | nu
   return withCosmosRequired("getAdminProductById", () => cosmosGetProductById(id))
 }
 
+/** Storefront: Einzelprodukt mit Datei-Fallback. */
+export async function getProductById(id: string): Promise<AdminProduct | null> {
+  return withCosmosFallback(
+    "getProductById",
+    () => cosmosGetProductById(id),
+    async () => {
+      const products = await getProductsFromFile()
+      return products.find((p) => p.id === id) ?? null
+    }
+  )
+}
+
 export async function upsertProduct(product: AdminProduct): Promise<AdminProduct> {
   const next: AdminProduct = {
     ...product,

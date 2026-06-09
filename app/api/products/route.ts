@@ -3,6 +3,7 @@ import { getProducts, getSettings } from "@/lib/admin/db"
 import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
 import { isProductActive } from "@/lib/admin/normalize-product"
 import { getSafeServiceVisibility } from "@/lib/admin/safe-defaults"
+import { normalizeShopProducts } from "@/lib/dripforge/normalize-shop-product"
 
 export const dynamic = "force-dynamic"
 
@@ -18,7 +19,7 @@ export async function GET() {
       return true
     })
     return NextResponse.json(
-      { products: activeProducts },
+      { products: normalizeShopProducts(activeProducts) },
       {
         headers: {
           "Cache-Control": "no-store, max-age=0",

@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils"
 import { ShopHeader } from "@/components/dripforge/shop-header"
 import { ShopFooter } from "@/components/dripforge/shop-footer"
 import type { CartItem, Product } from "@/lib/dripforge/types"
+import { normalizeShopProduct } from "@/lib/dripforge/normalize-shop-product"
 import type { ServiceVisibilitySettings } from "@/lib/admin/types"
 import { DEFAULT_SERVICE_VISIBILITY } from "@/lib/admin/types"
 import {
@@ -46,6 +47,7 @@ export default function DripForgeApp() {
   const [services, setServices] = useState<ServiceVisibilitySettings>(
     DEFAULT_SERVICE_VISIBILITY
   )
+  const [pendingProductId, setPendingProductId] = useState<string | null>(null)
 
   useEffect(() => {
     if (currentView !== "shop") {
@@ -71,11 +73,34 @@ export default function DripForgeApp() {
   }, [currentView, services])
 
   useEffect(() => {
-    const view = new URLSearchParams(window.location.search).get("view")
+    const params = new URLSearchParams(window.location.search)
+    const view = params.get("view")
+    const productId = params.get("product")?.trim()
     if (view && isViewAllowed(view, services)) {
       setCurrentView(view)
     }
+    if (productId) {
+      setPendingProductId(productId)
+    }
   }, [services])
+
+  useEffect(() => {
+    if (currentView !== "shop" || !pendingProductId) return
+    const productId = pendingProductId
+    setPendingProductId(null)
+    void fetch(`/api/products/${encodeURIComponent(productId)}`, {
+      cache: "no-store",
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.product) {
+          setSelectedProduct(normalizeShopProduct(data.product as Product))
+        }
+      })
+      .catch(() => {
+        console.warn("Shop: Deep-Link-Produkt konnte nicht geladen werden.")
+      })
+  }, [currentView, pendingProductId])
 
   const addToCart = (item: CartItem) => {
     setCart(prev => [...prev, item])
@@ -102,7 +127,7 @@ export default function DripForgeApp() {
   }
 
   return (
-    <div className="min-h-screen text-foreground">
+    <div className="min-h-screen bg-background text-foreground">
       <ShopHeader
         mode="spa"
         currentView={currentView}

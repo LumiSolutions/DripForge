@@ -5,6 +5,7 @@ import {
   isCosmosConfigured,
 } from "@/lib/cosmos/client"
 import {
+  PRODUCT_DOC_TYPE,
   productsQuerySql,
   resolveProductsContainer,
   toProductCosmosDoc,
@@ -253,25 +254,55 @@ export async function cosmosSaveProducts(
   }
 }
 
+function mapCosmosProductDoc(
+  doc: (CosmosDoc<AdminProduct> & { docType?: string }) | null | undefined,
+  mode: "dedicated" | "shared"
+): AdminProduct | null {
+  if (!doc?.id) return null
+  if (doc.id === SETTINGS_DOC_ID) return null
+  if (mode === "shared" && doc.docType !== PRODUCT_DOC_TYPE) return null
+  return {
+    ...(stripCosmosId(doc) as Omit<AdminProduct, "id">),
+    id: doc.id,
+  }
+}
+
 export async function cosmosGetProductById(
   id: string
 ): Promise<AdminProduct | null> {
-  const { container } = await resolveProductsContainer()
+  const trimmed = id?.trim()
+  if (!trimmed || trimmed === SETTINGS_DOC_ID) return null
+
+  const { container, mode } = await resolveProductsContainer()
+
   try {
     const { resource } = await container
-      .item(id, id)
-      .read<CosmosDoc<AdminProduct>>()
-    if (!resource) return null
-    return {
-      ...(stripCosmosId(resource) as Omit<AdminProduct, "id">),
-      id: resource.id,
-    }
+      .item(trimmed, trimmed)
+      .read<CosmosDoc<AdminProduct> & { docType?: string }>()
+    const mapped = mapCosmosProductDoc(resource, mode)
+    if (mapped) return mapped
   } catch (error) {
     const code = (error as { code?: number }).code
-    if (code === 404) return null
-    logCosmosError(`cosmosGetProductById:${id}`, error)
-    throw error
+    if (code !== 404) {
+      logCosmosError(`cosmosGetProductById:${trimmed}`, error)
+      throw error
+    }
   }
+
+  if (mode === "shared") {
+    const { resources } = await container.items
+      .query<CosmosDoc<AdminProduct> & { docType?: string }>({
+        query: `SELECT * FROM c WHERE c.id = @id AND c.docType = @docType`,
+        parameters: [
+          { name: "@id", value: trimmed },
+          { name: "@docType", value: PRODUCT_DOC_TYPE },
+        ],
+      })
+      .fetchAll()
+    return mapCosmosProductDoc(resources[0], mode)
+  }
+
+  return null
 }
 
 export async function cosmosUpsertProduct(

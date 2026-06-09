@@ -12,7 +12,12 @@ export function ProductShopPrice({
   size = "sm",
   className,
 }: ProductShopPriceProps) {
-  const onSale = product.sale && product.originalPrice != null
+  const price = Number.isFinite(product.price) ? product.price : 0
+  const original =
+    product.originalPrice != null && Number.isFinite(product.originalPrice)
+      ? product.originalPrice
+      : null
+  const onSale = product.sale && original != null
 
   return (
     <div className={cn("flex flex-wrap items-baseline gap-2", className)}>
@@ -23,16 +28,16 @@ export function ProductShopPrice({
           onSale && "text-red-400"
         )}
       >
-        CHF {product.price.toFixed(2)}
+        CHF {price.toFixed(2)}
       </span>
-      {onSale && (
+      {onSale && original != null && (
         <span
           className={cn(
             "text-muted-foreground line-through tabular-nums",
             size === "lg" ? "text-lg" : "text-sm"
           )}
         >
-          CHF {product.originalPrice!.toFixed(2)}
+          CHF {original.toFixed(2)}
         </span>
       )}
     </div>
