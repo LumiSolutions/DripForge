@@ -1,7 +1,14 @@
 "use client"
 
-import { forwardRef, Suspense, useCallback, useEffect, useMemo, useState } from "react"
-import { Canvas } from "@react-three/fiber"
+import {
+  forwardRef,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react"
+import { Canvas, useLoader } from "@react-three/fiber"
 import { LEITBILD_3D_CANVAS_ATTR } from "@/lib/dripforge/capture-leitbild"
 import {
   ContactShadows,
@@ -11,7 +18,9 @@ import {
   useProgress,
 } from "@react-three/drei"
 import { Eye, EyeOff, Loader2 } from "lucide-react"
-import type { Object3D } from "three"
+import type { BufferGeometry, Object3D } from "three"
+import * as THREE from "three"
+import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js"
 import { cn } from "@/lib/utils"
 import {
   ObjectDimensionLines,
@@ -24,8 +33,8 @@ import {
   type PreparedSceneSize,
 } from "@/lib/dripforge/prepare-gltf-scene"
 import {
-  DEFAULT_PRODUCT_MODEL_URL,
-  isWebGltfModelUrl,
+  getProduct3dModelFormat,
+  type Product3dModelFormat,
 } from "@/lib/dripforge/product-model-defaults"
 import { ProductDetailErrorBoundary } from "@/components/dripforge/product-detail-error-boundary"
 
@@ -53,25 +62,13 @@ function SceneLoader() {
   )
 }
 
-function GltfModel({
-  url,
-  color,
-  onOrbitCenter,
-  onPrepared,
-}: {
-  url: string
-  color: string
-  onOrbitCenter: (y: number) => void
+function usePreparedModel(
+  scene: Object3D,
+  color: string,
+  onOrbitCenter: (y: number) => void,
   onPrepared: (scene: Object3D, sizeAt100: PreparedSceneSize) => void
-}) {
-  const { scene } = useGLTF(url)
+) {
   const prepared = useMemo(() => prepareGltfScene(scene), [scene])
-
-  useEffect(() => {
-    return () => {
-      useGLTF.clear(url)
-    }
-  }, [url])
 
   useEffect(() => {
     onOrbitCenter(prepared.orbitCenterY)
@@ -85,16 +82,66 @@ function GltfModel({
     applyFilamentColorToScene(prepared.scene, color)
   }, [prepared.scene, color])
 
-  return <primitive object={prepared.scene} />
+  return prepared.scene
+}
+
+function GltfModel({
+  url,
+  color,
+  onOrbitCenter,
+  onPrepared,
+}: {
+  url: string
+  color: string
+  onOrbitCenter: (y: number) => void
+  onPrepared: (scene: Object3D, sizeAt100: PreparedSceneSize) => void
+}) {
+  const { scene } = useGLTF(url)
+
+  useEffect(() => {
+    return () => {
+      useGLTF.clear(url)
+    }
+  }, [url])
+
+  const preparedScene = usePreparedModel(scene, color, onOrbitCenter, onPrepared)
+  return <primitive object={preparedScene} />
+}
+
+function StlModel({
+  url,
+  color,
+  onOrbitCenter,
+  onPrepared,
+}: {
+  url: string
+  color: string
+  onOrbitCenter: (y: number) => void
+  onPrepared: (scene: Object3D, sizeAt100: PreparedSceneSize) => void
+}) {
+  const geometry = useLoader(STLLoader, url) as BufferGeometry
+  const source = useMemo(() => {
+    const material = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(color),
+      metalness: 0.12,
+      roughness: 0.62,
+    })
+    return new THREE.Mesh(geometry.clone(), material)
+  }, [geometry, color])
+
+  const preparedScene = usePreparedModel(source, color, onOrbitCenter, onPrepared)
+  return <primitive object={preparedScene} />
 }
 
 function ProductPreviewScene({
   modelUrl,
+  modelFormat,
   color,
   fixedDimensionsMm,
   showDimensions,
 }: {
   modelUrl: string
+  modelFormat: Product3dModelFormat
   color: string
   fixedDimensionsMm?: DimensionsMm | null
   showDimensions: boolean
@@ -143,13 +190,23 @@ function ProductPreviewScene({
       </mesh>
 
       <group>
-        <GltfModel
-          key={modelUrl}
-          url={modelUrl}
-          color={color}
-          onOrbitCenter={setOrbitCenterY}
-          onPrepared={handlePrepared}
-        />
+        {modelFormat === "stl" ? (
+          <StlModel
+            key={modelUrl}
+            url={modelUrl}
+            color={color}
+            onOrbitCenter={setOrbitCenterY}
+            onPrepared={handlePrepared}
+          />
+        ) : (
+          <GltfModel
+            key={modelUrl}
+            url={modelUrl}
+            color={color}
+            onOrbitCenter={setOrbitCenterY}
+            onPrepared={handlePrepared}
+          />
+        )}
         {showDimensions && modelScene && dimensionsMm && (
           <ObjectDimensionLines object={modelScene} dimensionsMm={dimensionsMm} />
         )}
@@ -188,9 +245,12 @@ export const Product3DPreview = forwardRef<
   ref
 ) {
   const [showDimensions, setShowDimensions] = useState(true)
-  const resolvedUrl = isWebGltfModelUrl(modelUrl)
-    ? modelUrl!.trim()
-    : DEFAULT_PRODUCT_MODEL_URL
+  const resolvedUrl = modelUrl?.trim() ?? ""
+  const modelFormat = getProduct3dModelFormat(resolvedUrl)
+
+  if (!resolvedUrl || !modelFormat) {
+    return null
+  }
 
   return (
     <div
@@ -233,6 +293,7 @@ export const Product3DPreview = forwardRef<
             <ProductPreviewScene
               key={resolvedUrl}
               modelUrl={resolvedUrl}
+              modelFormat={modelFormat}
               color={color}
               fixedDimensionsMm={fixedDimensionsMm}
               showDimensions={showDimensions}

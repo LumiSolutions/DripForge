@@ -6,7 +6,14 @@
   Zap,
 } from "lucide-react"
 import type { LaserMaterial, Product } from "@/lib/dripforge/types"
-import { PRODUCT_MODEL_URLS } from "@/lib/dripforge/product-model-defaults"
+
+/** Demo-GLBs fuer Seed-Produkte 1–4 (nur lokaler Fallback-Datensatz). */
+const SEED_PRODUCT_MODEL_URLS: Record<string, string> = {
+  "1": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/Box/glTF-Binary/Box.glb",
+  "2": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/CesiumMilkTruck/glTF-Binary/CesiumMilkTruck.glb",
+  "3": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/DamagedHelmet/glTF-Binary/DamagedHelmet.glb",
+  "4": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/Avocado/glTF-Binary/Avocado.glb",
+}
 
 export const navItems = [
   { id: "home", label: "Home", icon: Home },
@@ -29,7 +36,7 @@ export const products: Product[] = [
     saleRabattWert: 20,
     type: "3d",
     sale: true,
-    modelUrl: PRODUCT_MODEL_URLS["1"],
+    modelUrl: SEED_PRODUCT_MODEL_URLS["1"],
     dimensionsMm: { length: 85, width: 72, height: 45 },
     volumen: 45.2,
     gewicht: 58,
@@ -43,7 +50,7 @@ export const products: Product[] = [
     originalPrice: null,
     type: "3d",
     sale: false,
-    modelUrl: PRODUCT_MODEL_URLS["2"],
+    modelUrl: SEED_PRODUCT_MODEL_URLS["2"],
     dimensionsMm: { length: 42, width: 28, height: 18 },
     volumen: 12.8,
     gewicht: 22,
@@ -57,7 +64,7 @@ export const products: Product[] = [
     originalPrice: null,
     type: "3d",
     sale: false,
-    modelUrl: PRODUCT_MODEL_URLS["3"],
+    modelUrl: SEED_PRODUCT_MODEL_URLS["3"],
     dimensionsMm: { length: 120, width: 95, height: 35 },
     volumen: 68.5,
     gewicht: 95,
@@ -70,7 +77,7 @@ export const products: Product[] = [
     originalPrice: null,
     type: "3d",
     sale: false,
-    modelUrl: PRODUCT_MODEL_URLS["4"],
+    modelUrl: SEED_PRODUCT_MODEL_URLS["4"],
     dimensionsMm: { length: 95, width: 95, height: 110 },
     volumen: 120.4,
     gewicht: 142,

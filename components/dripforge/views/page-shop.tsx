@@ -471,15 +471,17 @@ export function PageShop({
                         alt={detailProduct.name}
                       />
 
-                      <Product3DPreview
-                        ref={product3dCanvasRef}
-                        key={`${detailProduct.id}-${productModelUrl}`}
-                        modelUrl={productModelUrl}
-                        color={filamentSelection?.colorHex ?? "#1a1a1a"}
-                        fixedDimensionsMm={productDimensionsToViewerMm(
-                          productDimensions
-                        )}
-                      />
+                      {productModelUrl ? (
+                        <Product3DPreview
+                          ref={product3dCanvasRef}
+                          key={`${detailProduct.id}-${productModelUrl}`}
+                          modelUrl={productModelUrl}
+                          color={filamentSelection?.colorHex ?? "#1a1a1a"}
+                          fixedDimensionsMm={productDimensionsToViewerMm(
+                            productDimensions
+                          )}
+                        />
+                      ) : null}
                     </div>
 
                     <div className="flex min-w-0 flex-col gap-6 lg:min-h-[640px]">
