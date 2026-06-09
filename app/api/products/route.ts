@@ -27,7 +27,7 @@ export async function GET() {
       }
     )
   } catch (error) {
-    console.error("Shop-API: Produkte konnten nicht geladen werden.", error)
+    console.error("Fehler beim Laden des Produkts:", error)
     return NextResponse.json({ products: [] })
   }
 }

@@ -2,7 +2,10 @@ import { NextResponse } from "next/server"
 import { getProductById, getSettings } from "@/lib/admin/db"
 import { isProductActive } from "@/lib/admin/normalize-product"
 import { getSafeServiceVisibility } from "@/lib/admin/safe-defaults"
-import { normalizeShopProduct } from "@/lib/dripforge/normalize-shop-product"
+import {
+  isShopProductDocument,
+  normalizeShopProduct,
+} from "@/lib/dripforge/normalize-shop-product"
 import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
 
 type RouteContext = { params: Promise<{ id: string }> }
@@ -25,7 +28,15 @@ export async function GET(_request: Request, context: RouteContext) {
       getSettings(),
     ])
 
-    if (!raw || !isProductActive(raw)) {
+    if (!raw || !isShopProductDocument(raw as Record<string, unknown>)) {
+      console.error(
+        "Fehler beim Laden des Produkts: Dokument fehlt oder docType ist nicht 'product'.",
+        { productId }
+      )
+      return NextResponse.json({ error: "Produkt nicht gefunden." }, { status: 404 })
+    }
+
+    if (!isProductActive(raw)) {
       return NextResponse.json({ error: "Produkt nicht gefunden." }, { status: 404 })
     }
 
@@ -44,7 +55,7 @@ export async function GET(_request: Request, context: RouteContext) {
       { headers: { "Cache-Control": "no-store, max-age=0" } }
     )
   } catch (error) {
-    console.error("Shop-API: Einzelprodukt konnte nicht geladen werden.", error)
+    console.error("Fehler beim Laden des Produkts:", error)
     return NextResponse.json(
       { error: "Produkt konnte nicht geladen werden." },
       { status: 500 }

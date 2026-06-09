@@ -16,8 +16,13 @@ export function parseVariantenFromAdmin(
 
 /** Normalisiert gespeicherte Produkt-Varianten aus DB/JSON. */
 export function resolveProductVarianten(product: Product): string[] {
-  if (!product.varianten?.length) return []
-  return product.varianten.map((v) => v.trim()).filter(Boolean)
+  const raw = product.varianten as string[] | string | undefined
+  if (!raw) return []
+  if (typeof raw === "string") {
+    return parseVariantenFromAdmin(raw)
+  }
+  if (!Array.isArray(raw)) return []
+  return raw.map((v) => (typeof v === "string" ? v.trim() : "")).filter(Boolean)
 }
 
 /** Fuer Admin-Vorschau: Array als kommagetrennten Text. */

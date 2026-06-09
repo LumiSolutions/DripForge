@@ -32,12 +32,21 @@ const FALLBACK_GALLERY = [
   "/filaments/pla-schwarz.png",
 ]
 
+function sanitizeGallery(images: string[] | null | undefined): string[] {
+  if (!Array.isArray(images)) return []
+  return images
+    .map((src) => (typeof src === "string" ? src.trim() : ""))
+    .filter(Boolean)
+}
+
 export function resolveProductImages(
   productId: string,
   images?: string[] | null,
   galerieBilder?: string[] | null
 ): string[] {
-  if (galerieBilder?.length) return galerieBilder
-  if (images?.length) return images
+  const gallery = sanitizeGallery(galerieBilder)
+  if (gallery.length > 0) return gallery
+  const legacy = sanitizeGallery(images)
+  if (legacy.length > 0) return legacy
   return PRODUCT_IMAGE_GALLERIES[productId] ?? FALLBACK_GALLERY
 }

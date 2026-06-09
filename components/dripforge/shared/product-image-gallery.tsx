@@ -16,8 +16,13 @@ export function ProductImageGallery({
   alt,
   className,
 }: ProductImageGalleryProps) {
+  const safeImages = Array.isArray(images)
+    ? images.filter((src): src is string => typeof src === "string" && Boolean(src.trim()))
+    : []
   const galleryImages =
-    images.length > 0 ? images : ["/filaments/printed-pla-schwarz.png"]
+    safeImages.length > 0
+      ? safeImages
+      : ["/filaments/printed-pla-schwarz.png"]
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
 
   useEffect(() => {
@@ -25,7 +30,7 @@ export function ProductImageGallery({
   }, [images])
 
   const safeIndex = Math.min(currentImageIndex, galleryImages.length - 1)
-  const mainSrc = galleryImages[safeIndex]
+  const mainSrc = galleryImages[safeIndex] ?? "/filaments/printed-pla-schwarz.png"
 
   const nextImage = () => {
     setCurrentImageIndex((prev) =>

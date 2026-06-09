@@ -134,16 +134,24 @@ export function PageShop({
   }
 
   const openProduct = (product: Product) => {
-    applySelectedProduct(product)
-    void fetch(`/api/products/${encodeURIComponent(product.id)}`, {
+    const initial = normalizeShopProduct(product)
+    applySelectedProduct(initial)
+
+    const fetchId = initial.id !== "unknown" ? initial.id : product.id
+    if (!fetchId || fetchId === "unknown") {
+      console.warn("Shop: Produkt-ID fehlt — Detail wird nur aus der Liste angezeigt.")
+      return
+    }
+
+    void fetch(`/api/products/${encodeURIComponent(fetchId)}`, {
       cache: "no-store",
     })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data?.product) applySelectedProduct(data.product as Product)
       })
-      .catch(() => {
-        console.warn("Shop: Einzelprodukt konnte nicht nachgeladen werden.")
+      .catch((error) => {
+        console.error("Fehler beim Laden des Produkts:", error)
       })
   }
 

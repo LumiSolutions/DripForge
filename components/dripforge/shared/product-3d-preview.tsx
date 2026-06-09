@@ -23,7 +23,11 @@ import {
   prepareGltfScene,
   type PreparedSceneSize,
 } from "@/lib/dripforge/prepare-gltf-scene"
-import { DEFAULT_PRODUCT_MODEL_URL } from "@/lib/dripforge/product-model-defaults"
+import {
+  DEFAULT_PRODUCT_MODEL_URL,
+  isWebGltfModelUrl,
+} from "@/lib/dripforge/product-model-defaults"
+import { ProductDetailErrorBoundary } from "@/components/dripforge/product-detail-error-boundary"
 
 export type Product3DPreviewProps = {
   modelUrl?: string
@@ -184,7 +188,9 @@ export const Product3DPreview = forwardRef<
   ref
 ) {
   const [showDimensions, setShowDimensions] = useState(true)
-  const resolvedUrl = modelUrl?.trim() || DEFAULT_PRODUCT_MODEL_URL
+  const resolvedUrl = isWebGltfModelUrl(modelUrl)
+    ? modelUrl!.trim()
+    : DEFAULT_PRODUCT_MODEL_URL
 
   return (
     <div
@@ -211,25 +217,29 @@ export const Product3DPreview = forwardRef<
         </span>
       </button>
 
-      <Canvas
-        ref={ref}
-        shadows
-        camera={{ position: [90, 70, 90], fov: 42, near: 0.1, far: 2000 }}
-        gl={{ antialias: true, alpha: true, preserveDrawingBuffer: true }}
-        className="h-full w-full"
-        style={{ background: "transparent" }}
-        {...{ [LEITBILD_3D_CANVAS_ATTR]: "true" }}
+      <ProductDetailErrorBoundary
+        fallbackTitle="3D-Vorschau konnte nicht geladen werden. Das Produkt bleibt weiterhin bestellbar."
       >
-        <Suspense fallback={null}>
-          <ProductPreviewScene
-            key={resolvedUrl}
-            modelUrl={resolvedUrl}
-            color={color}
-            fixedDimensionsMm={fixedDimensionsMm}
-            showDimensions={showDimensions}
-          />
-        </Suspense>
-      </Canvas>
+        <Canvas
+          ref={ref}
+          shadows
+          camera={{ position: [90, 70, 90], fov: 42, near: 0.1, far: 2000 }}
+          gl={{ antialias: true, alpha: true, preserveDrawingBuffer: true }}
+          className="h-full w-full"
+          style={{ background: "transparent" }}
+          {...{ [LEITBILD_3D_CANVAS_ATTR]: "true" }}
+        >
+          <Suspense fallback={null}>
+            <ProductPreviewScene
+              key={resolvedUrl}
+              modelUrl={resolvedUrl}
+              color={color}
+              fixedDimensionsMm={fixedDimensionsMm}
+              showDimensions={showDimensions}
+            />
+          </Suspense>
+        </Canvas>
+      </ProductDetailErrorBoundary>
       <p className="pointer-events-none absolute bottom-3 left-0 right-0 text-center text-[10px] font-medium text-zinc-600 dark:text-zinc-400">
         Maus/Touch: drehen · Scroll: zoomen
       </p>

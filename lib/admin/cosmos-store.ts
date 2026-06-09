@@ -224,11 +224,13 @@ export async function cosmosSaveSettings(
 export async function cosmosGetProducts(): Promise<AdminProduct[]> {
   const { container, mode } = await resolveProductsContainer()
   const { resources } = await container.items
-    .query<CosmosDoc<AdminProduct>>(productsQuerySql(mode))
+    .query<CosmosDoc<AdminProduct> & { docType?: string }>(productsQuerySql(mode))
     .fetchAll()
 
   if (resources.length > 0) {
-    return resources.map((doc) => stripCosmosId(doc) as AdminProduct)
+    return resources
+      .map((doc) => mapCosmosProductDoc(doc, mode))
+      .filter((product): product is AdminProduct => product != null)
   }
 
   const seeded = seedProducts.map((p) => ({
