@@ -2,103 +2,66 @@
 
 import { useEffect, useState, type CSSProperties } from "react"
 
-type ParticleConfig = {
-  count: number
-  size: { min: number; max: number }
-  opacity: { min: number; max: number }
-  rise: { min: number; max: number }
-  duration: { min: number; max: number }
-  colors: string[]
-}
-
-const DEFAULT_CONFIG: ParticleConfig = {
-  count: 50,
-  size: { min: 2, max: 4.5 },
-  opacity: { min: 0.75, max: 1 },
-  rise: { min: 120, max: 280 },
-  duration: { min: 4, max: 9 },
-  colors: [
-    "rgba(249, 115, 22, 1)",
-    "rgba(245, 158, 11, 0.95)",
-    "rgba(255, 255, 255, 0.95)",
-    "rgba(251, 191, 36, 0.9)",
-    "rgba(56, 189, 248, 0.6)",
-  ],
-}
-
-type Particle = {
+type Spark = {
   id: number
-  left: number
+  left: string
+  bottom: string
   size: number
-  delay: number
-  duration: number
-  rise: number
-  drift: number
-  peakOpacity: number
+  delay: string
+  duration: string
   color: string
 }
 
-function rand(min: number, max: number) {
-  return min + Math.random() * (max - min)
-}
-
-function buildParticles(config: ParticleConfig): Particle[] {
-  return Array.from({ length: config.count }, (_, id) => ({
-    id,
-    left: Math.random() * 96 + 2,
-    size: rand(config.size.min, config.size.max),
-    delay: Math.random() * 8,
-    duration: rand(config.duration.min, config.duration.max),
-    rise: rand(config.rise.min, config.rise.max),
-    drift: (Math.random() - 0.5) * 56,
-    peakOpacity: rand(config.opacity.min, config.opacity.max),
-    color: config.colors[Math.floor(Math.random() * config.colors.length)]!,
+function buildSparks(): Spark[] {
+  return Array.from({ length: 32 }, (_, i) => ({
+    id: i,
+    left: `${4 + ((i * 17) % 92)}%`,
+    bottom: `${-2 + ((i * 11) % 18)}%`,
+    size: 2 + (i % 3),
+    delay: `${(i * 0.35) % 6}s`,
+    duration: `${3.5 + (i % 5) * 0.7}s`,
+    color:
+      i % 4 === 0
+        ? "rgba(255,255,255,0.7)"
+        : i % 3 === 0
+          ? "rgba(56,189,248,0.55)"
+          : "rgba(249,115,22,0.9)",
   }))
 }
 
+/**
+ * Eigenstaendiger Partikel-Layer — beruehrt kein Seitenlayout.
+ * fixed inset-0, hinter interaktivem Content (Layout-Wrapper z-20).
+ */
 export function ParticleBackground() {
-  const [particles, setParticles] = useState<Particle[]>([])
+  const [sparks, setSparks] = useState<Spark[]>([])
 
   useEffect(() => {
-    void fetch("/particles.json")
-      .then((res) => (res.ok ? res.json() : DEFAULT_CONFIG))
-      .then((config: ParticleConfig) => {
-        const merged: ParticleConfig = {
-          ...DEFAULT_CONFIG,
-          ...config,
-          size: { ...DEFAULT_CONFIG.size, ...config.size },
-          opacity: { ...DEFAULT_CONFIG.opacity, ...config.opacity },
-          rise: { ...DEFAULT_CONFIG.rise, ...config.rise },
-          duration: { ...DEFAULT_CONFIG.duration, ...config.duration },
-          colors: config.colors?.length ? config.colors : DEFAULT_CONFIG.colors,
-        }
-        setParticles(buildParticles(merged))
-      })
-      .catch(() => {
-        setParticles(buildParticles(DEFAULT_CONFIG))
-      })
+    setSparks(buildSparks())
   }, [])
 
-  if (particles.length === 0) return null
+  if (sparks.length === 0) return null
 
   return (
-    <div id="particles-js" className="particle-field" aria-hidden>
-      {particles.map((p) => (
+    <div
+      id="particles-js"
+      className="pointer-events-none fixed inset-0 z-10 h-full w-full min-h-screen overflow-hidden"
+      aria-hidden
+    >
+      {sparks.map((s) => (
         <span
-          key={p.id}
-          className="particle-ember"
+          key={s.id}
+          className="cs-ember absolute rounded-full"
           style={
             {
-              left: `${p.left}%`,
-              width: p.size,
-              height: p.size,
-              background: p.color,
-              boxShadow: `0 0 ${Math.max(3, p.size * 3.5)}px ${p.color}`,
-              "--particle-delay": `${p.delay}s`,
-              "--particle-duration": `${p.duration}s`,
-              "--particle-rise": `${-p.rise}px`,
-              "--particle-drift-x": `${p.drift}px`,
-              "--particle-peak-opacity": p.peakOpacity,
+              left: s.left,
+              bottom: s.bottom,
+              width: s.size,
+              height: s.size,
+              background: s.color,
+              boxShadow: `0 0 ${s.size * 3}px ${s.color}`,
+              "--ember-delay": s.delay,
+              "--ember-duration": s.duration,
             } as CSSProperties
           }
         />

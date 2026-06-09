@@ -71,9 +71,9 @@ export default function RootLayout({
       suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} ${laserGreatVibes.variable} ${laserInter.variable} ${laserPlayfair.variable} ${laserMontserrat.variable} ${laserJetBrains.variable} ${laserCaveat.variable} h-full antialiased`}
     >
-      <body className="relative min-h-full bg-background font-sans">
+      <body className="flex min-h-full flex-col font-sans">
         <ParticleBackground />
-        <div className="relative z-10 flex min-h-full flex-col">{children}</div>
+        <div className="relative z-20 flex min-h-full flex-1 flex-col">{children}</div>
       </body>
     </html>
   )
