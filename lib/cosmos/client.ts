@@ -58,7 +58,7 @@ export function getCosmosClient(): CosmosClient {
   return client
 }
 
-async function ensureDatabase(): Promise<Database> {
+export async function ensureDatabase(): Promise<Database> {
   if (!databaseReady) {
     databaseReady = (async () => {
       const cosmos = getCosmosClient()
@@ -138,6 +138,15 @@ async function ensureContainer(
   }
 }
 
+/** Datenbank, Settings- und Produkt-Speicher beim Start vorbereiten. */
+export async function warmCosmosInfrastructure(): Promise<void> {
+  if (!isCosmosConfigured()) return
+  await ensureDatabase()
+  await getSettingsContainer()
+  const { resolveProductsContainer } = await import("@/lib/cosmos/products-container")
+  await resolveProductsContainer()
+}
+
 export async function getOrdersContainer(): Promise<Container> {
   return ensureContainer("orders", "/orderId")
 }
@@ -151,7 +160,9 @@ export async function getSettingsContainer(): Promise<Container> {
 }
 
 export async function getProductsContainer(): Promise<Container> {
-  return ensureContainer("products", "/id")
+  const { resolveProductsContainer } = await import("@/lib/cosmos/products-container")
+  const { container } = await resolveProductsContainer()
+  return container
 }
 
 export async function getInventoryContainer(): Promise<Container> {

@@ -4,7 +4,12 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { Loader2, Pencil, Plus, Save, Trash2, X } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
@@ -63,6 +68,7 @@ async function uploadAdminFile(
 
   const res = await fetch("/api/admin/upload", {
     method: "POST",
+    credentials: "include",
     body: formData,
   })
   const data = await res.json()
@@ -88,12 +94,22 @@ export function AdminProductsTab() {
   const [uploadingMedia, setUploadingMedia] = useState<MediaUploadCategory | null>(
     null
   )
+  const [imageUrlInput, setImageUrlInput] = useState("")
+
+  const closeEditor = () => {
+    setIsEditing(false)
+    setForm(EMPTY_FORM)
+    setImageUrlInput("")
+  }
 
   const loadProducts = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch("/api/admin/products")
+      const res = await fetch("/api/admin/products", {
+        credentials: "include",
+        cache: "no-store",
+      })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? "Laden fehlgeschlagen")
       setProducts(data.products ?? [])
@@ -211,6 +227,13 @@ export function AdminProductsTab() {
     updateField("galerieBilder", next)
   }
 
+  const addImageUrl = () => {
+    const url = imageUrlInput.trim()
+    if (!url) return
+    updateField("galerieBilder", [...(form.galerieBilder ?? []), url])
+    setImageUrlInput("")
+  }
+
   const salePreview = useMemo(() => {
     const basis = Number(form.basisPreis) || 0
     if (!form.sale || basis <= 0) return null
@@ -248,6 +271,7 @@ export function AdminProductsTab() {
 
       const res = await fetch(url, {
         method,
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       })
@@ -255,8 +279,7 @@ export function AdminProductsTab() {
       if (!res.ok) throw new Error(data.error ?? "Speichern fehlgeschlagen")
 
       await loadProducts()
-      setIsEditing(false)
-      setForm(EMPTY_FORM)
+      closeEditor()
     } catch (err) {
       console.warn("Admin: Produkt konnte nicht gespeichert werden.", err)
       setError(
@@ -270,14 +293,14 @@ export function AdminProductsTab() {
   const removeProduct = async (id: string) => {
     if (!confirm("Produkt wirklich loeschen?")) return
     try {
-      const res = await fetch(`/api/admin/products/${id}`, { method: "DELETE" })
+      const res = await fetch(`/api/admin/products/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? "Loeschen fehlgeschlagen")
       await loadProducts()
-      if (form.id === id) {
-        setIsEditing(false)
-        setForm(EMPTY_FORM)
-      }
+      if (form.id === id) closeEditor()
     } catch (err) {
       console.warn("Admin: Produkt konnte nicht geloescht werden.", err)
       setError(
@@ -296,39 +319,38 @@ export function AdminProductsTab() {
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-5">
-      <div className="space-y-4 lg:col-span-2">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className={cn("text-xl font-bold", adminUi.heading)}>Produkt-Management</h2>
-            <p className={cn("text-sm", adminUi.muted)}>{products.length} Produkte</p>
-          </div>
-          <Button
-            type="button"
-            size="sm"
-            onClick={startCreate}
-            className={adminUi.primaryBtn}
-          >
-            <Plus className="mr-1.5 h-4 w-4" />
-            Neu
-          </Button>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className={cn("text-xl font-bold", adminUi.heading)}>Produkt-Management</h2>
+          <p className={cn("text-sm", adminUi.muted)}>{products.length} Produkte</p>
         </div>
+        <Button
+          type="button"
+          size="sm"
+          onClick={startCreate}
+          className={adminUi.primaryBtn}
+        >
+          <Plus className="mr-1.5 h-4 w-4" />
+          Neu
+        </Button>
+      </div>
 
-        {error && <p className={adminUi.error}>{error}</p>}
+      {error && !isEditing && <p className={adminUi.error}>{error}</p>}
 
-        <div className="space-y-2">
-          {products.map((product) => (
-            <button
-              key={product.id}
-              type="button"
-              onClick={() => startEdit(product)}
-              className={cn(
-                "flex w-full items-start justify-between gap-3 rounded-xl border p-4 text-left transition-colors",
-                form.id === product.id && isEditing
-                  ? adminUi.listItemActive
-                  : adminUi.listItem
-              )}
-            >
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {products.map((product) => (
+          <button
+            key={product.id}
+            type="button"
+            onClick={() => startEdit(product)}
+            className={cn(
+              "flex w-full items-start justify-between gap-3 rounded-xl border p-4 text-left transition-colors",
+              form.id === product.id && isEditing
+                ? adminUi.listItemActive
+                : adminUi.listItem
+            )}
+          >
               <div>
                 <p className={cn("font-semibold", adminUi.heading)}>{product.name}</p>
                 <p className={cn("text-xs", adminUi.muted)}>
@@ -352,39 +374,42 @@ export function AdminProductsTab() {
                 )}
                 <Pencil className={cn("h-4 w-4", adminUi.muted)} />
               </div>
-            </button>
-          ))}
-        </div>
+          </button>
+        ))}
       </div>
 
-      <Card className={cn(adminUi.card, "lg:col-span-3")}>
-        <CardContent className="space-y-5 p-6">
-          {!isEditing ? (
-            <div className={cn("flex h-full min-h-[320px] flex-col items-center justify-center text-center", adminUi.muted)}>
-              <Pencil className="mb-3 h-10 w-10 opacity-30" />
-              <p>Produkt auswaehlen oder neu anlegen</p>
+      <Dialog
+        open={isEditing}
+        onOpenChange={(open) => {
+          if (!open) closeEditor()
+        }}
+      >
+        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {products.some((p) => p.id === form.id)
+                ? "Produkt bearbeiten"
+                : "Neues Produkt"}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-5">
+            {error && <p className={adminUi.error}>{error}</p>}
+
+            <div className="flex items-center justify-end">
+              {products.some((p) => p.id === form.id) && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="text-red-400 hover:text-red-300"
+                  onClick={() => void removeProduct(form.id!)}
+                >
+                  <Trash2 className="mr-1.5 h-4 w-4" />
+                  Loeschen
+                </Button>
+              )}
             </div>
-          ) : (
-            <>
-              <div className="flex items-center justify-between">
-                <h3 className={cn("font-bold", adminUi.heading)}>
-                  {products.some((p) => p.id === form.id)
-                    ? "Produkt bearbeiten"
-                    : "Neues Produkt"}
-                </h3>
-                {products.some((p) => p.id === form.id) && (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    className="text-red-400 hover:text-red-300"
-                    onClick={() => void removeProduct(form.id!)}
-                  >
-                    <Trash2 className="mr-1.5 h-4 w-4" />
-                    Loeschen
-                  </Button>
-                )}
-              </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2 sm:col-span-2">
@@ -599,6 +624,22 @@ export function AdminProductsTab() {
 
                 <div className="space-y-2">
                   <Label className={adminUi.label}>Bildergalerie (Shop-Vorschau)</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      value={imageUrlInput}
+                      onChange={(e) => setImageUrlInput(e.target.value)}
+                      placeholder="https://… Bild-URL"
+                      className={adminUi.input}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className={adminUi.outlineBtn}
+                      onClick={addImageUrl}
+                    >
+                      URL
+                    </Button>
+                  </div>
                   <Input
                     type="file"
                     multiple
@@ -721,23 +762,22 @@ export function AdminProductsTab() {
                 </div>
               </div>
 
-              <Button
-                type="button"
-                onClick={() => void saveProduct()}
-                disabled={saving}
-                className={cn("w-full", adminUi.primaryBtn)}
-              >
-                {saving ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Save className="mr-2 h-4 w-4" />
-                )}
-                Speichern
-              </Button>
-            </>
-          )}
-        </CardContent>
-      </Card>
+            <Button
+              type="button"
+              onClick={() => void saveProduct()}
+              disabled={saving}
+              className={cn("w-full", adminUi.primaryBtn)}
+            >
+              {saving ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="mr-2 h-4 w-4" />
+              )}
+              Speichern
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

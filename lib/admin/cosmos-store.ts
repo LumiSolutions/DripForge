@@ -1,10 +1,14 @@
 import {
   getCustomersContainer,
   getOrdersContainer,
-  getProductsContainer,
   getSettingsContainer,
   isCosmosConfigured,
 } from "@/lib/cosmos/client"
+import {
+  productsQuerySql,
+  resolveProductsContainer,
+  toProductCosmosDoc,
+} from "@/lib/cosmos/products-container"
 import { logCosmosError } from "@/lib/cosmos/log-error"
 import { products as seedProducts } from "@/lib/dripforge/data"
 import { DEFAULT_CHECKOUT_RUNTIME_CONFIG } from "@/lib/dripforge/checkout-config"
@@ -217,9 +221,9 @@ export async function cosmosSaveSettings(
 }
 
 export async function cosmosGetProducts(): Promise<AdminProduct[]> {
-  const container = await getProductsContainer()
+  const { container, mode } = await resolveProductsContainer()
   const { resources } = await container.items
-    .query<CosmosDoc<AdminProduct>>("SELECT * FROM c")
+    .query<CosmosDoc<AdminProduct>>(productsQuerySql(mode))
     .fetchAll()
 
   if (resources.length > 0) {
@@ -235,7 +239,7 @@ export async function cosmosGetProducts(): Promise<AdminProduct[]> {
   }))
 
   for (const product of seeded) {
-    await container.items.upsert({ ...product, id: product.id })
+    await container.items.upsert(toProductCosmosDoc({ ...product, id: product.id }, mode))
   }
   return seeded
 }
@@ -243,16 +247,16 @@ export async function cosmosGetProducts(): Promise<AdminProduct[]> {
 export async function cosmosSaveProducts(
   products: AdminProduct[]
 ): Promise<void> {
-  const container = await getProductsContainer()
+  const { container, mode } = await resolveProductsContainer()
   for (const product of products) {
-    await container.items.upsert({ ...product, id: product.id })
+    await container.items.upsert(toProductCosmosDoc({ ...product, id: product.id }, mode))
   }
 }
 
 export async function cosmosGetProductById(
   id: string
 ): Promise<AdminProduct | null> {
-  const container = await getProductsContainer()
+  const { container } = await resolveProductsContainer()
   try {
     const { resource } = await container
       .item(id, id)
@@ -273,14 +277,14 @@ export async function cosmosGetProductById(
 export async function cosmosUpsertProduct(
   product: AdminProduct
 ): Promise<AdminProduct> {
-  const container = await getProductsContainer()
-  const doc = { ...product, id: product.id }
+  const { container, mode } = await resolveProductsContainer()
+  const doc = toProductCosmosDoc({ ...product, id: product.id }, mode)
   await container.items.upsert(doc)
-  return doc
+  return product
 }
 
 export async function cosmosDeleteProduct(id: string): Promise<boolean> {
-  const container = await getProductsContainer()
+  const { container } = await resolveProductsContainer()
   try {
     await container.item(id, id).delete()
     return true

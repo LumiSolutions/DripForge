@@ -94,10 +94,10 @@ export function PageShop({
   const [shopProducts, setShopProducts] = useState<Product[]>(staticProducts)
 
   useEffect(() => {
-    void fetch("/api/products")
+    void fetch("/api/products", { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (Array.isArray(data?.products) && data.products.length > 0) {
+        if (Array.isArray(data?.products)) {
           setShopProducts(data.products)
         }
       })

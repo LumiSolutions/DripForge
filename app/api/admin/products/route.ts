@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { adminDatabaseErrorResponse } from "@/lib/admin/api-errors"
 import { getAdminProducts, upsertProduct } from "@/lib/admin/db"
+import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
 import { normalizeAdminProductInput } from "@/lib/admin/normalize-product"
 import {
   isAuthError,
@@ -13,6 +14,7 @@ export async function GET(request: Request) {
   if (isAuthError(auth)) return auth
 
   try {
+    await warmCosmosInfrastructure()
     const products = await getAdminProducts()
     return NextResponse.json({ products })
   } catch (error) {
@@ -31,6 +33,7 @@ export async function POST(request: Request) {
   if (isAuthError(auth)) return auth
 
   try {
+    await warmCosmosInfrastructure()
     const body = (await request.json()) as Partial<AdminProduct> & {
       variantenText?: string
     }

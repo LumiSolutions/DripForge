@@ -10,6 +10,7 @@ import {
   isAuthError,
   requireAdminSession,
 } from "@/lib/admin/require-admin-session"
+import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
 import type { AdminProduct } from "@/lib/admin/types"
 
 type RouteContext = { params: Promise<{ id: string }> }
@@ -19,6 +20,7 @@ export async function GET(request: Request, context: RouteContext) {
   if (isAuthError(auth)) return auth
 
   try {
+    await warmCosmosInfrastructure()
     const { id } = await context.params
     const product = await getAdminProductById(id)
     if (!product) {
@@ -44,6 +46,7 @@ export async function PUT(request: Request, context: RouteContext) {
   if (isAuthError(auth)) return auth
 
   try {
+    await warmCosmosInfrastructure()
     const { id } = await context.params
     const body = (await request.json()) as Partial<AdminProduct> & {
       variantenText?: string
@@ -80,6 +83,7 @@ export async function DELETE(request: Request, context: RouteContext) {
   if (isAuthError(auth)) return auth
 
   try {
+    await warmCosmosInfrastructure()
     const { id } = await context.params
     const ok = await deleteProduct(id)
     if (!ok) {
