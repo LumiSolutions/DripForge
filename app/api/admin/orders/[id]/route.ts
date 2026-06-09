@@ -5,11 +5,18 @@ import {
   updateOrderStatus,
 } from "@/lib/admin/db"
 import { isProductionStatus } from "@/lib/admin/production-status"
+import {
+  isAuthError,
+  requireAdminSession,
+} from "@/lib/admin/require-admin-session"
 import type { OrderStatus } from "@/lib/admin/types"
 
 type RouteContext = { params: Promise<{ id: string }> }
 
-export async function GET(_request: Request, context: RouteContext) {
+export async function GET(request: Request, context: RouteContext) {
+  const auth = requireAdminSession(request)
+  if (isAuthError(auth)) return auth
+
   try {
     const { id } = await context.params
     const order = await getOrderById(id)
@@ -30,6 +37,9 @@ export async function GET(_request: Request, context: RouteContext) {
 }
 
 export async function PATCH(request: Request, context: RouteContext) {
+  const auth = requireAdminSession(request)
+  if (isAuthError(auth)) return auth
+
   try {
     const { id } = await context.params
     const body = (await request.json()) as {

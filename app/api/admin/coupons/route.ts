@@ -1,9 +1,16 @@
 import { NextResponse } from "next/server"
 import { createCouponInput, getCoupons, upsertCoupon } from "@/lib/admin/coupon-db"
 import { normalizeCouponCode } from "@/lib/admin/coupon-types"
+import {
+  isAuthError,
+  requireAdminSession,
+} from "@/lib/admin/require-admin-session"
 import type { CouponDiscountType } from "@/lib/admin/coupon-types"
 
-export async function GET() {
+export async function GET(request: Request) {
+  const auth = requireAdminSession(request)
+  if (isAuthError(auth)) return auth
+
   try {
     const coupons = await getCoupons()
     return NextResponse.json({ coupons })
@@ -17,6 +24,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const auth = requireAdminSession(request)
+  if (isAuthError(auth)) return auth
+
   try {
     const body = (await request.json()) as {
       code?: string

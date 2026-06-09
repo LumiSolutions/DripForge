@@ -1,6 +1,6 @@
 "use client"
 
-import { FormEvent, useEffect, useState } from "react"
+import { useEffect, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import {
@@ -8,7 +8,6 @@ import {
   Factory,
   LayoutDashboard,
   Warehouse,
-  Lock,
   LogOut,
   Moon,
   Package,
@@ -25,14 +24,7 @@ import { AdminCouponsTab } from "@/components/admin/admin-coupons-tab"
 import { AdminInventoryTab } from "@/components/admin/admin-inventory-tab"
 import { AdminProductionTab } from "@/components/admin/admin-production-tab"
 import { AdminStatsTab } from "@/components/admin/admin-stats-tab"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import {
-  isAdminSessionActive,
-  setAdminSessionActive,
-  verifyAdminPassword,
-} from "@/lib/admin/admin-auth"
+import { StaffAuthFlow } from "@/components/admin/staff-auth-flow"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
 import { useSiteTheme } from "@/hooks/use-site-theme"
 import { cn } from "@/lib/utils"
@@ -58,94 +50,6 @@ const NAV: { id: AdminTab; label: string; icon: typeof ClipboardList }[] = [
   { id: "settings", label: "Shop-Einstellungen", icon: Settings },
 ]
 
-function AdminLoginScreen({ onSuccess }: { onSuccess: () => void }) {
-  const [password, setPassword] = useState("")
-  const [error, setError] = useState<string | null>(null)
-  const [submitting, setSubmitting] = useState(false)
-
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault()
-    setError(null)
-    setSubmitting(true)
-
-    if (verifyAdminPassword(password)) {
-      setAdminSessionActive(true)
-      onSuccess()
-      setPassword("")
-    } else {
-      setError("Falsches Passwort. Bitte erneut versuchen.")
-      console.warn("Admin: Anmeldung fehlgeschlagen — falsches Passwort.")
-    }
-
-    setSubmitting(false)
-  }
-
-  return (
-    <div className={cn("flex min-h-screen items-center justify-center px-4", adminUi.loginPage)}>
-      <div className="w-full max-w-sm">
-        <div className="mb-8 text-center">
-          <Link href="/" className="inline-flex items-center gap-2">
-            <Image
-              src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/ChatGPT%20Image%2016.%20Mai%202026%2C%2022_19_51-CjFqSwPCG95cJ4BMP2Ono6hKObBX8y.png"
-              alt="DripForge"
-              width={36}
-              height={36}
-              className="rounded"
-            />
-            <span className="text-lg font-bold">
-              <span className="text-orange-500">Drip</span>
-              <span className={adminUi.brandText}>Forge</span>
-            </span>
-          </Link>
-          <p className={cn("mt-3 text-sm", adminUi.muted)}>Admin-Bereich</p>
-        </div>
-
-        <form onSubmit={handleSubmit} className={cn("p-6", adminUi.loginCard)}>
-          <div className={cn("mb-5 flex items-center gap-2", adminUi.loginTitle)}>
-            <Lock className="h-4 w-4 text-orange-500" />
-            <h1 className="text-sm font-semibold">Anmelden</h1>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="admin-password" className={adminUi.labelMuted}>
-              Passwort
-            </Label>
-            <Input
-              id="admin-password"
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Admin-Passwort"
-              className={adminUi.input}
-            />
-          </div>
-
-          {error && (
-            <p className="mt-3 text-sm text-red-600 dark:text-red-400" role="alert">
-              {error}
-            </p>
-          )}
-
-          <Button
-            type="submit"
-            disabled={submitting || !password.trim()}
-            className={cn("mt-5 w-full font-semibold", adminUi.primaryBtn)}
-          >
-            Anmelden
-          </Button>
-        </form>
-
-        <p className="mt-6 text-center">
-          <Link href="/" className={cn("text-xs transition-colors", adminUi.footerBtn)}>
-            ← Zurueck zum Shop
-          </Link>
-        </p>
-      </div>
-    </div>
-  )
-}
-
 export function AdminDashboard() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [hydrated, setHydrated] = useState(false)
@@ -159,12 +63,27 @@ export function AdminDashboard() {
   }
 
   useEffect(() => {
-    setIsLoggedIn(isAdminSessionActive())
-    setHydrated(true)
+    void (async () => {
+      try {
+        const res = await fetch("/api/admin/auth/me", { credentials: "include" })
+        setIsLoggedIn(res.ok)
+      } catch {
+        setIsLoggedIn(false)
+      } finally {
+        setHydrated(true)
+      }
+    })()
   }, [])
 
-  const handleLogout = () => {
-    setAdminSessionActive(false)
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/admin/auth/logout", {
+        method: "POST",
+        credentials: "include",
+      })
+    } catch {
+      /* ignore */
+    }
     setIsLoggedIn(false)
   }
 
@@ -177,7 +96,18 @@ export function AdminDashboard() {
   }
 
   if (!isLoggedIn) {
-    return <AdminLoginScreen onSuccess={() => setIsLoggedIn(true)} />
+    return (
+      <div className={cn("flex min-h-screen items-center justify-center px-4", adminUi.loginPage)}>
+        <StaffAuthFlow
+          role="admin"
+          intent="admin"
+          title="Anmelden"
+          subtitle="Admin-Bereich"
+          passwordPlaceholder="Admin-Passwort"
+          onSuccess={() => setIsLoggedIn(true)}
+        />
+      </div>
+    )
   }
 
   return (

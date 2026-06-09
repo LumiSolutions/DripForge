@@ -169,3 +169,7 @@ export async function getCustomerAccountsContainer(): Promise<Container> {
 export async function getCustomerDesignsContainer(): Promise<Container> {
   return ensureContainer("customer-designs", "/customerEmail")
 }
+
+export async function getStaffAccountsContainer(): Promise<Container> {
+  return ensureContainer("staff-accounts", "/id")
+}

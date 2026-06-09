@@ -1,10 +1,17 @@
 import { NextResponse } from "next/server"
 import { getOrderById, getSettings } from "@/lib/admin/db"
 import { ensureOrderInvoicePdf } from "@/lib/invoices/process-order-invoice"
+import {
+  isAuthError,
+  requireAdminSession,
+} from "@/lib/admin/require-admin-session"
 
 type RouteContext = { params: Promise<{ id: string }> }
 
-export async function GET(_request: Request, context: RouteContext) {
+export async function GET(request: Request, context: RouteContext) {
+  const auth = requireAdminSession(request)
+  if (isAuthError(auth)) return auth
+
   try {
     const { id } = await context.params
     const order = await getOrderById(id)

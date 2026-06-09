@@ -1,10 +1,17 @@
 import { NextResponse } from "next/server"
 import { getCustomerByNumber, getOrderById } from "@/lib/admin/db"
 import { customerDisplayName } from "@/lib/admin/customers"
+import {
+  isAuthError,
+  requireAdminSession,
+} from "@/lib/admin/require-admin-session"
 
 type RouteContext = { params: Promise<{ id: string }> }
 
-export async function GET(_request: Request, context: RouteContext) {
+export async function GET(request: Request, context: RouteContext) {
+  const auth = requireAdminSession(request)
+  if (isAuthError(auth)) return auth
+
   try {
     const { id } = await context.params
     const customer = await getCustomerByNumber(decodeURIComponent(id))

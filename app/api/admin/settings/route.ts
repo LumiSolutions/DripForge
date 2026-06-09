@@ -1,12 +1,19 @@
 import { NextResponse } from "next/server"
 import { getSettings, saveSettings } from "@/lib/admin/db"
+import {
+  isAuthError,
+  requireAdminSession,
+} from "@/lib/admin/require-admin-session"
 import { DEFAULT_COMPANY_SETTINGS } from "@/lib/admin/types"
 import type { CheckoutRuntimeConfig } from "@/lib/dripforge/checkout-config"
 import type { CompanySettings, ServiceVisibilitySettings } from "@/lib/admin/types"
 import { normalizeServiceVisibility } from "@/lib/dripforge/service-visibility"
 import { buildDefaultAdminSettings } from "@/lib/admin/safe-defaults"
 
-export async function GET() {
+export async function GET(request: Request) {
+  const auth = requireAdminSession(request)
+  if (isAuthError(auth)) return auth
+
   try {
     const settings = await getSettings()
     return NextResponse.json(settings)
@@ -19,6 +26,9 @@ export async function GET() {
 }
 
 export async function PUT(request: Request) {
+  const auth = requireAdminSession(request)
+  if (isAuthError(auth)) return auth
+
   try {
     const body = (await request.json()) as {
       checkout?: CheckoutRuntimeConfig

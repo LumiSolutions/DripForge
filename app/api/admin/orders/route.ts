@@ -1,7 +1,14 @@
 import { NextResponse } from "next/server"
 import { getOrders } from "@/lib/admin/db"
+import {
+  isAuthError,
+  requireAdminSession,
+} from "@/lib/admin/require-admin-session"
 
-export async function GET() {
+export async function GET(request: Request) {
+  const auth = requireAdminSession(request)
+  if (isAuthError(auth)) return auth
+
   try {
     const orders = await getOrders()
     return NextResponse.json({ orders })

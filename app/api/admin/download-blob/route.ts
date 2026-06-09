@@ -4,8 +4,15 @@ import {
   parseAllowedBlobUrl,
 } from "@/lib/azure/download-blob"
 import { sanitizeFilename } from "@/lib/admin/sanitize-filename"
+import {
+  isAuthError,
+  requireAdminSession,
+} from "@/lib/admin/require-admin-session"
 
 export async function GET(request: Request) {
+  const auth = requireAdminSession(request)
+  if (isAuthError(auth)) return auth
+
   const url = new URL(request.url)
   const blobUrl = url.searchParams.get("url")?.trim()
   if (!blobUrl) {

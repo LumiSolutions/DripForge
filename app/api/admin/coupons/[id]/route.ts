@@ -1,11 +1,18 @@
 import { NextResponse } from "next/server"
 import { deleteCoupon, getCouponByCode, upsertCoupon } from "@/lib/admin/coupon-db"
 import { normalizeCouponCode } from "@/lib/admin/coupon-types"
+import {
+  isAuthError,
+  requireAdminSession,
+} from "@/lib/admin/require-admin-session"
 import type { CouponDiscountType, StoredCoupon } from "@/lib/admin/coupon-types"
 
 type RouteContext = { params: Promise<{ id: string }> }
 
 export async function PATCH(request: Request, context: RouteContext) {
+  const auth = requireAdminSession(request)
+  if (isAuthError(auth)) return auth
+
   try {
     const { id } = await context.params
     const body = (await request.json()) as Partial<{
@@ -57,7 +64,10 @@ export async function PATCH(request: Request, context: RouteContext) {
   }
 }
 
-export async function DELETE(_request: Request, context: RouteContext) {
+export async function DELETE(request: Request, context: RouteContext) {
+  const auth = requireAdminSession(request)
+  if (isAuthError(auth)) return auth
+
   try {
     const { id } = await context.params
     const ok = await deleteCoupon(normalizeCouponCode(id))

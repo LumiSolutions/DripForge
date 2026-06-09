@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server"
 import { getAdminAnalytics } from "@/lib/admin/order-analytics"
+import {
+  isAuthError,
+  requireAdminSession,
+} from "@/lib/admin/require-admin-session"
 import { logCosmosError } from "@/lib/cosmos/log-error"
 import type { AdminAnalytics } from "@/lib/admin/analytics-types"
 
@@ -16,7 +20,10 @@ const EMPTY_ANALYTICS: AdminAnalytics = {
   generatedAt: new Date().toISOString(),
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const auth = requireAdminSession(request)
+  if (isAuthError(auth)) return auth
+
   try {
     const analytics = await getAdminAnalytics()
     return NextResponse.json(analytics, {

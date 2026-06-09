@@ -1,11 +1,9 @@
 "use client"
 
-import { FormEvent, useEffect, useMemo, useState, type CSSProperties } from "react"
+import { useEffect, useMemo, useState, type CSSProperties } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { Loader2, Lock } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { StaffAuthFlow } from "@/components/admin/staff-auth-flow"
 import { getLaunchCountdown, LAUNCH_DATE } from "@/lib/dripforge/launch-config"
 import { cn } from "@/lib/utils"
 
@@ -75,9 +73,6 @@ function CountdownSeparator() {
 export function ComingSoonPage({ onAccessGranted }: { onAccessGranted: () => void }) {
   const [countdown, setCountdown] = useState(getLaunchCountdown())
   const [testerOpen, setTesterOpen] = useState(false)
-  const [password, setPassword] = useState("")
-  const [testerError, setTesterError] = useState<string | null>(null)
-  const [testerLoading, setTesterLoading] = useState(false)
 
   useEffect(() => {
     document.documentElement.classList.add("dark")
@@ -92,30 +87,6 @@ export function ComingSoonPage({ onAccessGranted }: { onAccessGranted: () => voi
     month: "2-digit",
     year: "numeric",
   }).format(LAUNCH_DATE)
-
-  const handleTesterSubmit = async (e: FormEvent) => {
-    e.preventDefault()
-    setTesterError(null)
-    setTesterLoading(true)
-    try {
-      const res = await fetch("/api/preview-access", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? "Zugang verweigert")
-      setPassword("")
-      setTesterOpen(false)
-      onAccessGranted()
-    } catch (err) {
-      setTesterError(
-        err instanceof Error ? err.message : "Zugang konnte nicht freigeschaltet werden."
-      )
-    } finally {
-      setTesterLoading(false)
-    }
-  }
 
   return (
     <div className="relative isolate flex min-h-screen flex-col items-center justify-between overflow-x-hidden bg-[#0a0a0c] py-10 text-zinc-100 sm:py-12">
@@ -222,37 +193,21 @@ export function ComingSoonPage({ onAccessGranted }: { onAccessGranted: () => voi
         </div>
 
         {testerOpen && (
-          <form
-            onSubmit={(e) => void handleTesterSubmit(e)}
-            className="mx-auto w-full max-w-xs rounded-xl border border-zinc-800/80 bg-zinc-950/90 p-4 text-left shadow-2xl ring-1 ring-orange-500/10"
-          >
-            <div className="mb-3 flex items-center gap-2 text-sm text-zinc-400">
-              <Lock className="h-3.5 w-3.5 text-orange-500" />
-              Vorschau-Zugang
-            </div>
-            <Input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Tester-Passwort"
-              className="border-zinc-800 bg-black/60 text-white"
-              autoComplete="current-password"
+          <div className="mx-auto w-full max-w-xs text-left">
+            <StaffAuthFlow
+              role="tester"
+              intent="preview"
+              title="Vorschau-Zugang"
+              passwordPlaceholder="Tester-Passwort"
+              submitLabel="Weiter"
+              compact
+              showBackLink={false}
+              onSuccess={() => {
+                setTesterOpen(false)
+                onAccessGranted()
+              }}
             />
-            {testerError && (
-              <p className="mt-2 text-xs text-red-400">{testerError}</p>
-            )}
-            <Button
-              type="submit"
-              disabled={testerLoading || !password.trim()}
-              className={cn("mt-3 w-full bg-orange-500 hover:bg-orange-600")}
-            >
-              {testerLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                "Shop öffnen"
-              )}
-            </Button>
-          </form>
+          </div>
         )}
       </footer>
     </div>

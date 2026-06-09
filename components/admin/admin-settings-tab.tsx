@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
 import type { CompanySettings, ServiceVisibilitySettings } from "@/lib/admin/types"
 import { DEFAULT_COMPANY_SETTINGS, DEFAULT_SERVICE_VISIBILITY } from "@/lib/admin/types"
+import { AdminTwoFactorSection } from "@/components/admin/admin-two-factor-section"
 import { SERVICE_TOGGLE_OPTIONS } from "@/lib/dripforge/service-visibility"
 import type { CheckoutRuntimeConfig } from "@/lib/dripforge/checkout-config"
 import { DEFAULT_CHECKOUT_RUNTIME_CONFIG } from "@/lib/dripforge/checkout-config"
@@ -137,6 +138,8 @@ export function AdminSettingsTab() {
 
       {error && <p className={adminUi.errorLg}>{error}</p>}
       {success && <p className={adminUi.success}>{success}</p>}
+
+      <AdminTwoFactorSection />
 
       <Card
         className={cn(

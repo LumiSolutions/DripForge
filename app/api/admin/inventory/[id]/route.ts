@@ -5,11 +5,18 @@ import {
   getInventoryMaterialById,
   upsertInventoryMaterial,
 } from "@/lib/admin/inventory-db"
+import {
+  isAuthError,
+  requireAdminSession,
+} from "@/lib/admin/require-admin-session"
 import type { InventoryUnit, StoredInventoryMaterial } from "@/lib/admin/inventory-types"
 
 type RouteContext = { params: Promise<{ id: string }> }
 
 export async function PATCH(request: Request, context: RouteContext) {
+  const auth = requireAdminSession(request)
+  if (isAuthError(auth)) return auth
+
   try {
     const { id } = await context.params
     const body = (await request.json()) as {
@@ -68,7 +75,10 @@ export async function PATCH(request: Request, context: RouteContext) {
   }
 }
 
-export async function DELETE(_request: Request, context: RouteContext) {
+export async function DELETE(request: Request, context: RouteContext) {
+  const auth = requireAdminSession(request)
+  if (isAuthError(auth)) return auth
+
   try {
     const { id } = await context.params
     const ok = await deleteInventoryMaterial(id)

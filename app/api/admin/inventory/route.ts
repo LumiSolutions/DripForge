@@ -4,9 +4,16 @@ import {
   getInventoryMaterials,
   upsertInventoryMaterial,
 } from "@/lib/admin/inventory-db"
+import {
+  isAuthError,
+  requireAdminSession,
+} from "@/lib/admin/require-admin-session"
 import type { InventoryUnit } from "@/lib/admin/inventory-types"
 
-export async function GET() {
+export async function GET(request: Request) {
+  const auth = requireAdminSession(request)
+  if (isAuthError(auth)) return auth
+
   try {
     const materials = await getInventoryMaterials()
     return NextResponse.json({ materials })
@@ -20,6 +27,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const auth = requireAdminSession(request)
+  if (isAuthError(auth)) return auth
+
   try {
     const body = (await request.json()) as {
       name?: string

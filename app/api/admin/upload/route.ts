@@ -5,10 +5,17 @@ import {
   MAX_IMAGE_DATA_URL_BYTES,
   uploadProductMediaBlob,
 } from "@/lib/azure/upload-product-media"
+import {
+  isAuthError,
+  requireAdminSession,
+} from "@/lib/admin/require-admin-session"
 
 const MODEL_EXTENSIONS = [".stl", ".obj", ".glb", ".gltf"]
 
 export async function POST(request: Request) {
+  const auth = requireAdminSession(request)
+  if (isAuthError(auth)) return auth
+
   try {
     const formData = await request.formData()
     const file = formData.get("file")

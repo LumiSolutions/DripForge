@@ -2,9 +2,16 @@ import { NextResponse } from "next/server"
 import { adminDatabaseErrorResponse } from "@/lib/admin/api-errors"
 import { getAdminProducts, upsertProduct } from "@/lib/admin/db"
 import { normalizeAdminProductInput } from "@/lib/admin/normalize-product"
+import {
+  isAuthError,
+  requireAdminSession,
+} from "@/lib/admin/require-admin-session"
 import type { AdminProduct } from "@/lib/admin/types"
 
-export async function GET() {
+export async function GET(request: Request) {
+  const auth = requireAdminSession(request)
+  if (isAuthError(auth)) return auth
+
   try {
     const products = await getAdminProducts()
     return NextResponse.json({ products })
@@ -20,6 +27,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const auth = requireAdminSession(request)
+  if (isAuthError(auth)) return auth
+
   try {
     const body = (await request.json()) as Partial<AdminProduct> & {
       variantenText?: string
