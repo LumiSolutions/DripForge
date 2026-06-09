@@ -78,11 +78,11 @@ export function ComingSoonPage({ onAccessGranted }: { onAccessGranted: () => voi
   }
 
   return (
-    <div className="relative flex min-h-screen flex-col items-center justify-between overflow-x-hidden bg-[#0a0a0c]/90 py-10 text-zinc-100 sm:py-12">
-      {/* Hintergrund: Textur, Glows, Funken */}
-      <div className="cs-noise pointer-events-none absolute inset-0 opacity-80" aria-hidden />
+    <div className="relative flex min-h-screen flex-col items-center justify-between overflow-x-hidden bg-[#0a0a0c]/45 py-10 text-zinc-100 sm:py-12">
+      {/* Hintergrund: Textur, Glows — Partikel (#particles-js) scheinen global durch */}
+      <div className="cs-noise pointer-events-none absolute inset-0 opacity-50" aria-hidden />
       <div
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_120%_80%_at_50%_0%,rgba(24,24,27,0.2),rgba(10,10,12,1)_55%)]"
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_120%_80%_at_50%_0%,rgba(24,24,27,0.15),rgba(10,10,12,0.72)_55%)]"
         aria-hidden
       />
       <div

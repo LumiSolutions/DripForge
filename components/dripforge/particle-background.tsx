@@ -2,15 +2,29 @@
 
 import { useEffect, useState, type CSSProperties } from "react"
 
-const PARTICLE_COUNT = 42
+type ParticleConfig = {
+  count: number
+  size: { min: number; max: number }
+  opacity: { min: number; max: number }
+  rise: { min: number; max: number }
+  duration: { min: number; max: number }
+  colors: string[]
+}
 
-const COLORS = [
-  "rgba(249, 115, 22, 0.95)", /* orange */
-  "rgba(245, 158, 11, 0.9)", /* amber */
-  "rgba(255, 255, 255, 0.8)", /* white */
-  "rgba(251, 191, 36, 0.75)", /* gold */
-  "rgba(56, 189, 248, 0.45)", /* subtle cyan accent */
-] as const
+const DEFAULT_CONFIG: ParticleConfig = {
+  count: 50,
+  size: { min: 2, max: 4.5 },
+  opacity: { min: 0.75, max: 1 },
+  rise: { min: 120, max: 280 },
+  duration: { min: 4, max: 9 },
+  colors: [
+    "rgba(249, 115, 22, 1)",
+    "rgba(245, 158, 11, 0.95)",
+    "rgba(255, 255, 255, 0.95)",
+    "rgba(251, 191, 36, 0.9)",
+    "rgba(56, 189, 248, 0.6)",
+  ],
+}
 
 type Particle = {
   id: number
@@ -24,17 +38,21 @@ type Particle = {
   color: string
 }
 
-function buildParticles(): Particle[] {
-  return Array.from({ length: PARTICLE_COUNT }, (_, id) => ({
+function rand(min: number, max: number) {
+  return min + Math.random() * (max - min)
+}
+
+function buildParticles(config: ParticleConfig): Particle[] {
+  return Array.from({ length: config.count }, (_, id) => ({
     id,
     left: Math.random() * 96 + 2,
-    size: 1 + Math.random() * 2,
+    size: rand(config.size.min, config.size.max),
     delay: Math.random() * 8,
-    duration: 4 + Math.random() * 5.5,
-    rise: 80 + Math.random() * 140,
-    drift: (Math.random() - 0.5) * 48,
-    peakOpacity: 0.55 + Math.random() * 0.4,
-    color: COLORS[Math.floor(Math.random() * COLORS.length)]!,
+    duration: rand(config.duration.min, config.duration.max),
+    rise: rand(config.rise.min, config.rise.max),
+    drift: (Math.random() - 0.5) * 56,
+    peakOpacity: rand(config.opacity.min, config.opacity.max),
+    color: config.colors[Math.floor(Math.random() * config.colors.length)]!,
   }))
 }
 
@@ -42,27 +60,40 @@ export function ParticleBackground() {
   const [particles, setParticles] = useState<Particle[]>([])
 
   useEffect(() => {
-    setParticles(buildParticles())
+    void fetch("/particles.json")
+      .then((res) => (res.ok ? res.json() : DEFAULT_CONFIG))
+      .then((config: ParticleConfig) => {
+        const merged: ParticleConfig = {
+          ...DEFAULT_CONFIG,
+          ...config,
+          size: { ...DEFAULT_CONFIG.size, ...config.size },
+          opacity: { ...DEFAULT_CONFIG.opacity, ...config.opacity },
+          rise: { ...DEFAULT_CONFIG.rise, ...config.rise },
+          duration: { ...DEFAULT_CONFIG.duration, ...config.duration },
+          colors: config.colors?.length ? config.colors : DEFAULT_CONFIG.colors,
+        }
+        setParticles(buildParticles(merged))
+      })
+      .catch(() => {
+        setParticles(buildParticles(DEFAULT_CONFIG))
+      })
   }, [])
 
   if (particles.length === 0) return null
 
   return (
-    <div
-      className="particle-field pointer-events-none fixed inset-0 z-0 overflow-hidden"
-      aria-hidden
-    >
+    <div id="particles-js" className="particle-field" aria-hidden>
       {particles.map((p) => (
         <span
           key={p.id}
-          className="particle-ember absolute bottom-0 rounded-full"
+          className="particle-ember"
           style={
             {
               left: `${p.left}%`,
               width: p.size,
               height: p.size,
               background: p.color,
-              boxShadow: `0 0 ${Math.max(2, p.size * 2.5)}px ${p.color}`,
+              boxShadow: `0 0 ${Math.max(3, p.size * 3.5)}px ${p.color}`,
               "--particle-delay": `${p.delay}s`,
               "--particle-duration": `${p.duration}s`,
               "--particle-rise": `${-p.rise}px`,
