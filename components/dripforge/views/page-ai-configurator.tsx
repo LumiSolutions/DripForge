@@ -28,7 +28,11 @@ const Product3DPreview = dynamic(
   }
 )
 
-export function PageAiConfigurator() {
+export function PageAiConfigurator({
+  setCurrentView,
+}: {
+  setCurrentView?: (view: string) => void
+}) {
   const [prompt, setPrompt] = useState("")
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [generating, setGenerating] = useState(false)
@@ -98,6 +102,17 @@ export function PageAiConfigurator() {
           Beschreibe dein Wunschmodell — unsere KI berücksichtigt automatisch die
           technischen Vorgaben für Lampen (Aussparungen, Bauraum Bambu X1C).
         </p>
+        {setCurrentView && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="mt-4"
+            onClick={() => setCurrentView("shop")}
+          >
+            ← Zurück zum Shop
+          </Button>
+        )}
       </section>
 
       <section className="mx-auto grid max-w-6xl gap-8 px-4 lg:grid-cols-2">

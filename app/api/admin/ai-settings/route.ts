@@ -10,6 +10,7 @@ import {
   type AiSettingsDocument,
 } from "@/lib/ai/ai-settings-types"
 import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
+import { formatCosmosError } from "@/lib/cosmos/log-error"
 
 export const dynamic = "force-dynamic"
 
@@ -24,7 +25,7 @@ export async function GET(request: Request) {
   } catch (error) {
     const dbResponse = adminDatabaseErrorResponse(error)
     if (dbResponse) return dbResponse
-    console.error("Admin AI-Settings: Laden fehlgeschlagen.", error)
+    console.error("Admin AI-Settings: Laden fehlgeschlagen.", formatCosmosError(error))
     return NextResponse.json(
       { error: "KI-Einstellungen konnten nicht geladen werden." },
       { status: 500 }

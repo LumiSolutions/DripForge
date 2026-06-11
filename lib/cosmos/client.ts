@@ -1,5 +1,5 @@
 import { CosmosClient, type Container, type Database } from "@azure/cosmos"
-import { logCosmosError } from "@/lib/cosmos/log-error"
+import { logCosmosError, maskCosmosEndpoint } from "@/lib/cosmos/log-error"
 
 const DATABASE_ID = process.env.COSMOSDB_DATABASE?.trim() || "dripforge"
 
@@ -138,14 +138,44 @@ async function ensureContainer(
   }
 }
 
-/** Datenbank, Settings- und Produkt-Speicher beim Start vorbereiten. */
-export async function warmCosmosInfrastructure(): Promise<void> {
-  if (!isCosmosConfigured()) return
+export function logCosmosConfigStatus(): void {
+  const configured = isCosmosConfigured()
+  console.info("Cosmos DB: Konfigurationsstatus.", {
+    configured,
+    endpoint: maskCosmosEndpoint(process.env.COSMOSDB_ENDPOINT),
+    database: DATABASE_ID,
+    hasKey: Boolean(process.env.COSMOSDB_KEY?.trim()),
+    nodeEnv: process.env.NODE_ENV,
+  })
+  if (!configured) {
+    console.warn(
+      "Cosmos DB: COSMOSDB_ENDPOINT / COSMOSDB_KEY fehlen oder sind Platzhalter — APIs nutzen lokale JSON-Fallbacks."
+    )
+  }
+}
+
+/** Kern-Container beim Start vorbereiten (ohne optionale dedizierte Container). */
+export async function warmCosmosCore(): Promise<void> {
+  if (!isCosmosConfigured()) {
+    logCosmosConfigStatus()
+    return
+  }
+  logCosmosConfigStatus()
   await ensureDatabase()
   await getSettingsContainer()
-  await getProjectSupportersContainer()
   const { resolveProductsContainer } = await import("@/lib/cosmos/products-container")
   await resolveProductsContainer()
+}
+
+/** @deprecated Alias — nutzt warmCosmosCore (kein project-supporters createIfNotExists mehr). */
+export async function warmCosmosInfrastructure(): Promise<void> {
+  await warmCosmosCore()
+}
+
+export async function getProjectSupportersContainer(): Promise<Container> {
+  const { resolveSupportersContainer } = await import("@/lib/support/supporters-container")
+  const { container } = await resolveSupportersContainer()
+  return container
 }
 
 export async function getOrdersContainer(): Promise<Container> {
@@ -184,8 +214,4 @@ export async function getCustomerDesignsContainer(): Promise<Container> {
 
 export async function getStaffAccountsContainer(): Promise<Container> {
   return ensureContainer("staff-accounts", "/id")
-}
-
-export async function getProjectSupportersContainer(): Promise<Container> {
-  return ensureContainer("project-supporters", "/id")
 }

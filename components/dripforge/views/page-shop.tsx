@@ -30,6 +30,7 @@ import {
 } from "@/components/dripforge/shared/laser-designer-studio"
 import { materials3D, products as staticProducts } from "@/lib/dripforge/data"
 import { useFilamentMaterials } from "@/hooks/use-filament-materials"
+import { useAiPublicSettings } from "@/hooks/use-ai-public-settings"
 import { getLaserMaterialForProduct } from "@/lib/dripforge/laser"
 import { resolveProductVarianten } from "@/lib/dripforge/product-varianten"
 import { resolveProductModelUrl } from "@/lib/dripforge/product-model-defaults"
@@ -89,8 +90,10 @@ export function PageShop({
 }: PageShopProps) {
   const { t } = useSiteTexts()
   const filamentMaterials = useFilamentMaterials()
+  const aiPublic = useAiPublicSettings()
   const showCustom3d = services.druck3d
   const showCustomLaser = services.lasergravur
+  const showAiKonfigurator = showCustom3d && aiPublic.enabled
   const [filamentTab, setFilamentTab] = useState("pla")
   const [filamentSelection, setFilamentSelection] = useState<FilamentSelection | null>(null)
   const [laserDesign, setLaserDesign] = useState<LaserDesignerState | null>(null)
@@ -697,7 +700,9 @@ export function PageShop({
         <div
           className={cn(
             "grid gap-6",
-            showCustom3d && showCustomLaser ? "md:grid-cols-2" : "mx-auto max-w-md md:grid-cols-1"
+            [showCustom3d, showCustomLaser, showAiKonfigurator].filter(Boolean).length >= 2
+              ? "md:grid-cols-2 lg:grid-cols-3"
+              : "mx-auto max-w-md md:grid-cols-1"
           )}
         >
           {showCustom3d && (
@@ -716,6 +721,29 @@ export function PageShop({
                 className="h-auto p-0 text-foreground hover:text-primary"
               >
                 Jetzt Erstellen
+                <ArrowRight className="ml-1 h-4 w-4" />
+              </Button>
+            </CardContent>
+          </Card>
+          )}
+
+          {showAiKonfigurator && (
+          <Card className="border-border/50 bg-card/50 transition-colors hover:border-violet-500/50">
+            <CardContent className="p-8">
+              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-violet-500/20">
+                <Sparkles className="h-6 w-6 text-violet-400" />
+              </div>
+              <h3 className="mb-2 text-lg font-bold">KI-Modell erstellen</h3>
+              <p className="mb-6 text-sm text-muted-foreground">
+                Beschreibe dein Wunschmodell per Text oder Bild — unsere KI generiert
+                druckbare 3D-Geometrie nach euren technischen Vorgaben.
+              </p>
+              <Button
+                variant="link"
+                onClick={() => setCurrentView("ai-konfigurator")}
+                className="h-auto p-0 text-foreground hover:text-violet-400"
+              >
+                KI-Konfigurator öffnen
                 <ArrowRight className="ml-1 h-4 w-4" />
               </Button>
             </CardContent>

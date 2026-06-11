@@ -59,6 +59,7 @@ import { materials3D, laserMaterials, processSteps, products } from "@/lib/dripf
 import type { CartItem } from "@/lib/dripforge/types"
 import type { ServiceVisibilitySettings } from "@/lib/admin/types"
 import { useSiteTexts } from "@/components/dripforge/site-texts-provider"
+import { useAiPublicSettings } from "@/hooks/use-ai-public-settings"
 
 export function HomePage({
   setCurrentView,
@@ -68,7 +69,9 @@ export function HomePage({
   services: ServiceVisibilitySettings
 }) {
   const { t } = useSiteTexts()
+  const aiPublic = useAiPublicSettings()
   const showExpertise = services.druck3d || services.lasergravur
+  const showAiKonfigurator = services.druck3d && aiPublic.enabled
   return (
     <div className="space-y-24 pb-24">
       {/* Hero */}
@@ -206,6 +209,35 @@ export function HomePage({
             </Card>
             )}
           </div>
+        </div>
+      </section>
+      )}
+
+      {showAiKonfigurator && (
+      <section className="py-8">
+        <div className="mx-auto max-w-7xl px-4">
+          <Card className="border-violet-500/30 bg-gradient-to-r from-card to-violet-950/20">
+            <CardContent className="flex flex-col items-start gap-6 p-8 md:flex-row md:items-center md:justify-between">
+              <div>
+                <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-violet-500/20">
+                  <Sparkles className="h-6 w-6 text-violet-400" />
+                </div>
+                <h2 className="text-2xl font-bold">KI-Modell erstellen</h2>
+                <p className="mt-2 max-w-xl text-muted-foreground">
+                  Text-to-3D und Image-to-3D — beschreibe deine Idee und erhalte
+                  ein druckbares 3D-Modell nach unseren technischen Vorgaben.
+                </p>
+              </div>
+              <Button
+                size="lg"
+                onClick={() => setCurrentView("ai-konfigurator")}
+                className="bg-violet-600 text-white hover:bg-violet-500"
+              >
+                KI-Konfigurator starten
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            </CardContent>
+          </Card>
         </div>
       </section>
       )}

@@ -1,4 +1,4 @@
-import { getProjectSupportersContainer } from "@/lib/cosmos/client"
+import { resolveSupportersContainer } from "@/lib/support/supporters-container"
 import { logCosmosError } from "@/lib/cosmos/log-error"
 import {
   emptyCategoryTotals,
@@ -14,7 +14,7 @@ type SupporterCosmosDoc = ProjectSupporter
 export async function cosmosSaveProjectSupporter(
   supporter: ProjectSupporter
 ): Promise<ProjectSupporter> {
-  const container = await getProjectSupportersContainer()
+  const { container } = await resolveSupportersContainer()
   await container.items.upsert(supporter)
   return supporter
 }
@@ -25,7 +25,7 @@ export async function cosmosGetProjectSupporterBySessionId(
   const trimmed = stripeSessionId?.trim()
   if (!trimmed) return null
 
-  const container = await getProjectSupportersContainer()
+  const { container } = await resolveSupportersContainer()
   try {
     const { resource } = await container
       .item(trimmed, trimmed)
@@ -41,7 +41,7 @@ export async function cosmosGetProjectSupporterBySessionId(
 }
 
 export async function cosmosGetSupportCategoryTotals(): Promise<SupportCategoryTotals> {
-  const container = await getProjectSupportersContainer()
+  const { container } = await resolveSupportersContainer()
   const { resources } = await container.items
     .query<Pick<ProjectSupporter, "category" | "amountChf">>({
       query: `
@@ -69,7 +69,7 @@ export async function cosmosGetTotalSupportRaisedChf(): Promise<number> {
 }
 
 export async function cosmosGetProjectSupporters(): Promise<ProjectSupporter[]> {
-  const container = await getProjectSupportersContainer()
+  const { container } = await resolveSupportersContainer()
   const { resources } = await container.items
     .query<SupporterCosmosDoc>({
       query: `

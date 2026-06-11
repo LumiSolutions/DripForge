@@ -150,5 +150,6 @@ export type ViewId =
   | "agb"
   | "individual-3d"
   | "individual-laser"
+  | "ai-konfigurator"
   | "warenkorb"
   | "checkout"

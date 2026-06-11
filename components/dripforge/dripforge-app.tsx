@@ -31,8 +31,10 @@ import { PageImpressum } from "@/components/dripforge/views/page-impressum"
 import { PageAGB } from "@/components/dripforge/views/page-agb"
 import { PageIndividual3D } from "@/components/dripforge/views/page-individual-3d"
 import { PageIndividualLaser } from "@/components/dripforge/views/page-individual-laser"
+import { PageAiConfigurator } from "@/components/dripforge/views/page-ai-configurator"
 import { PageWarenkorb } from "@/components/dripforge/views/page-warenkorb"
 import { PageCheckout } from "@/components/dripforge/views/page-checkout"
+import { useAiPublicSettings } from "@/hooks/use-ai-public-settings"
 
 export default function DripForgeApp() {
   const [currentView, setCurrentView] = useState("home")
@@ -47,6 +49,7 @@ export default function DripForgeApp() {
   const [services, setServices] = useState<ServiceVisibilitySettings>(
     DEFAULT_SERVICE_VISIBILITY
   )
+  const aiPublic = useAiPublicSettings()
   const [pendingProductId, setPendingProductId] = useState<string | null>(null)
 
   useEffect(() => {
@@ -67,22 +70,22 @@ export default function DripForgeApp() {
   }, [])
 
   useEffect(() => {
-    if (!isViewAllowed(currentView, services)) {
+    if (!isViewAllowed(currentView, services, { aiEnabled: aiPublic.enabled })) {
       setCurrentView("home")
     }
-  }, [currentView, services])
+  }, [currentView, services, aiPublic.enabled])
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const view = params.get("view")
     const productId = params.get("product")?.trim()
-    if (view && isViewAllowed(view, services)) {
+    if (view && isViewAllowed(view, services, { aiEnabled: aiPublic.enabled })) {
       setCurrentView(view)
     }
     if (productId) {
       setPendingProductId(productId)
     }
-  }, [services])
+  }, [services, aiPublic.enabled])
 
   useEffect(() => {
     if (currentView !== "shop" || !pendingProductId) return
@@ -185,6 +188,9 @@ export default function DripForgeApp() {
         {currentView === "agb" && <PageAGB setCurrentView={setCurrentView} />}
         {currentView === "individual-3d" && <PageIndividual3D setCurrentView={setCurrentView} addToCart={addToCart} />}
         {currentView === "individual-laser" && <PageIndividualLaser setCurrentView={setCurrentView} addToCart={addToCart} />}
+        {currentView === "ai-konfigurator" && aiPublic.enabled && (
+          <PageAiConfigurator setCurrentView={setCurrentView} />
+        )}
         {currentView === "warenkorb" && <PageWarenkorb setCurrentView={setCurrentView} cart={cart} setCart={setCart} />}
         {currentView === "checkout" && (
           <PageCheckout

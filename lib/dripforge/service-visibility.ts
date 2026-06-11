@@ -60,12 +60,15 @@ export function filterNavItems(s: ServiceVisibilitySettings) {
 
 export function isViewAllowed(
   view: string,
-  s: ServiceVisibilitySettings
+  s: ServiceVisibilitySettings,
+  options?: { aiEnabled?: boolean }
 ): boolean {
   switch (view) {
     case "3d-druck":
     case "individual-3d":
       return s.druck3d
+    case "ai-konfigurator":
+      return s.druck3d && Boolean(options?.aiEnabled)
     case "laser":
       return isLaserNavVisible(s)
     case "individual-laser":

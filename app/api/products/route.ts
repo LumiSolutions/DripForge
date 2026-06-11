@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { getProducts, getSettings } from "@/lib/admin/db"
 import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
+import { formatCosmosError } from "@/lib/cosmos/log-error"
 import { isProductActive } from "@/lib/admin/normalize-product"
 import { getSafeServiceVisibility } from "@/lib/admin/safe-defaults"
 import { normalizeShopProducts } from "@/lib/dripforge/normalize-shop-product"
@@ -27,7 +28,7 @@ export async function GET() {
       }
     )
   } catch (error) {
-    console.error("Fehler beim Laden des Produkts:", error)
+    console.error("Products API: Laden fehlgeschlagen.", formatCosmosError(error))
     return NextResponse.json({ products: [] })
   }
 }
