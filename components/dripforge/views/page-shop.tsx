@@ -46,6 +46,7 @@ import type { ServiceVisibilitySettings } from "@/lib/admin/types"
 import { getSaleBadgePercent } from "@/lib/dripforge/product-sale"
 import { normalizeShopProduct } from "@/lib/dripforge/normalize-shop-product"
 import { ProductDetailErrorBoundary } from "@/components/dripforge/product-detail-error-boundary"
+import { useSiteTexts } from "@/components/dripforge/site-texts-provider"
 import {
   capture3dPreviewLeitbild,
   captureLaserPreviewLeitbild,
@@ -85,6 +86,7 @@ export function PageShop({
   addToCart,
   services,
 }: PageShopProps) {
+  const { t } = useSiteTexts()
   const showCustom3d = services.druck3d
   const showCustomLaser = services.lasergravur
   const [filamentTab, setFilamentTab] = useState("pla")
@@ -547,16 +549,13 @@ export function PageShop({
                       </Card>
 
                       <p className="rounded-xl border border-border/40 bg-muted/20 px-4 py-3 text-sm leading-relaxed text-muted-foreground">
-                        Falls du eine andere Groesse fuer dieses Produkt wuenschst,
-                        fertigen wir dies gerne fuer dich an. Melde dich einfach kurz
-                        ueber unser{" "}
+                        {t("shop_delivery_notice")}{" "}
                         <Link
                           href="/kontakt"
                           className="font-medium text-primary underline-offset-2 hover:underline"
                         >
                           Kontaktformular
-                        </Link>{" "}
-                        bei uns.
+                        </Link>
                       </p>
 
                       <div className="mt-auto pt-2">
@@ -666,18 +665,17 @@ export function PageShop({
       <section className="py-16 text-center">
         <Badge variant="outline" className="mb-6 border-primary/30 bg-primary/10 text-primary">
           <ShoppingBag className="mr-1 h-3 w-3" />
-          Shop
+          {t("shop_hero_badge")}
         </Badge>
         <h1 className="text-4xl font-bold md:text-5xl">
-          <span className="text-foreground">Der </span>
+          <span className="text-foreground">{t("shop_hero_title_prefix")}</span>
           <span className="bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent">
-            DripForge
+            {t("shop_hero_title_brand")}
           </span>
-          <span className="text-foreground"> Shop</span>
+          <span className="text-foreground">{t("shop_hero_title_suffix")}</span>
         </h1>
         <p className="mx-auto mt-4 max-w-2xl text-muted-foreground">
-          Durchstoebern Sie unsere Kollektion von Premium 3D-gedruckten und lasergravierten Produkten,
-          oder erstellen Sie Ihr eigenes individuelles Stueck.
+          {t("shop_hero_subtitle")}
         </p>
       </section>
 
@@ -686,11 +684,11 @@ export function PageShop({
           <h2 className="text-2xl font-bold">
             <span className="text-foreground">Erschaffen Sie etwas </span>
             <span className="bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent">
-              Einzigartiges
+              {t("shop_custom_section_title")}
             </span>
           </h2>
           <p className="mt-2 text-muted-foreground">
-            Laden Sie Ihr eigenes Design hoch und verwirklichen Sie Ihre Vision
+            {t("shop_custom_section_subtitle")}
           </p>
         </div>
 
@@ -706,9 +704,9 @@ export function PageShop({
               <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/20">
                 <Printer className="h-6 w-6 text-primary" />
               </div>
-              <h3 className="mb-2 text-lg font-bold">Ihr Individueller 3D-Druck</h3>
+              <h3 className="mb-2 text-lg font-bold">{t("shop_custom_3d_title")}</h3>
               <p className="mb-6 text-sm text-muted-foreground">
-                Laden Sie Ihre STL/OBJ-Datei hoch und erhalten Sie eine sofortige Offerte.
+                {t("shop_custom_3d_description")}
               </p>
               <Button
                 variant="link"
@@ -728,9 +726,9 @@ export function PageShop({
               <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-cyan-500/20">
                 <Zap className="h-6 w-6 text-cyan-400" />
               </div>
-              <h3 className="mb-2 text-lg font-bold">Individuelle Laserkreation</h3>
+              <h3 className="mb-2 text-lg font-bold">{t("shop_custom_laser_title")}</h3>
               <p className="mb-6 text-sm text-muted-foreground">
-                Laden Sie Ihr Bild oder Text hoch und wir gravieren es auf dem Material Ihrer Wahl.
+                {t("shop_custom_laser_description")}
               </p>
               <Button
                 variant="link"
@@ -779,7 +777,7 @@ export function PageShop({
         {filteredProducts.length === 0 ? (
           <Card className="border-border/50 bg-card/50">
             <CardContent className="py-16 text-center">
-              <p className="text-muted-foreground">Keine Produkte in dieser Kategorie.</p>
+              <p className="text-muted-foreground">{t("shop_empty_category")}</p>
             </CardContent>
           </Card>
         ) : (

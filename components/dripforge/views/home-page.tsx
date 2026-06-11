@@ -58,6 +58,7 @@ import { IndividualProcessBar } from "@/components/dripforge/shared/individual-p
 import { materials3D, laserMaterials, processSteps, products } from "@/lib/dripforge/data"
 import type { CartItem } from "@/lib/dripforge/types"
 import type { ServiceVisibilitySettings } from "@/lib/admin/types"
+import { useSiteTexts } from "@/components/dripforge/site-texts-provider"
 
 export function HomePage({
   setCurrentView,
@@ -66,6 +67,7 @@ export function HomePage({
   setCurrentView: (view: string) => void
   services: ServiceVisibilitySettings
 }) {
+  const { t } = useSiteTexts()
   const showExpertise = services.druck3d || services.lasergravur
   return (
     <div className="space-y-24 pb-24">
@@ -76,15 +78,14 @@ export function HomePage({
             <div>
               <Badge variant="outline" className="mb-6 border-primary/30 bg-primary/10 text-primary">
                 <Sparkles className="mr-1 h-3 w-3" />
-                Schweizer Präzision
+                {t("landingpage_hero_badge")}
               </Badge>
               <h1 className="text-4xl font-bold leading-tight md:text-5xl lg:text-6xl">
-                <span className="text-foreground">Präzision trifft </span>
-                <span className="bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent">Kreativität</span>
+                <span className="text-foreground">{t("landingpage_hero_title")} </span>
+                <span className="bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent">{t("landingpage_hero_title_highlight")}</span>
               </h1>
               <p className="mt-6 text-lg text-muted-foreground">
-                Von der Idee zur Realität - wir bringen Ihre Visionen mit industriellem 3D-Druck und 
-                Lasergravur zum Leben. Schweizer Qualität für Ihre individuellen Projekte.
+                {t("landingpage_hero_subtitle")}
               </p>
               <div className="mt-8 flex flex-wrap gap-4">
                 <Button 
@@ -92,11 +93,11 @@ export function HomePage({
                   onClick={() => setCurrentView("shop")}
                   className="bg-primary text-primary-foreground hover:bg-primary/90"
                 >
-                  Jetzt Erstellen
+                  {t("landingpage_hero_cta_primary")}
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
                 <Button size="lg" variant="outline" onClick={() => setCurrentView("shop")}>
-                  Produkte Entdecken
+                  {t("landingpage_hero_cta_secondary")}
                 </Button>
               </div>
             </div>
@@ -122,12 +123,12 @@ export function HomePage({
           <div className="mb-12 text-center">
             <h2 className="text-3xl font-bold md:text-4xl">
               <span className="text-foreground">Unsere </span>
-              <span className="bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent">Expertise</span>
+              <span className="bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent">{t("landingpage_expertise_heading")}</span>
             </h2>
             <p className="mt-4 text-muted-foreground">
               {services.druck3d && services.lasergravur
-                ? "Zwei leistungsstarke Fertigungstechnologien, ein Premium-Erlebnis."
-                : "Präzise Fertigung für Ihre individuellen Projekte."}
+                ? t("landingpage_expertise_subtitle_both")
+                : t("landingpage_expertise_subtitle_single")}
             </p>
           </div>
 
@@ -215,10 +216,10 @@ export function HomePage({
           <div className="mb-12 text-center">
             <h2 className="text-3xl font-bold md:text-4xl">
               <span className="text-foreground">Warum </span>
-              <span className="bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent">DripForge</span>
+              <span className="bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent">{t("landingpage_why_heading")}</span>
             </h2>
             <p className="mt-4 text-muted-foreground">
-              Wir verbinden modernste Technologie mit Handwerkskunst für aussergewöhnliche Ergebnisse.
+              {t("landingpage_why_subtitle")}
             </p>
           </div>
 
@@ -257,12 +258,11 @@ export function HomePage({
               <Package className="mx-auto mb-4 h-10 w-10 text-cyan-400" />
               <h2 className="mb-4 text-3xl font-bold">
                 <span className="text-foreground">Bereit zum </span>
-                <span className="bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent">Erstellen</span>
+                <span className="bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent">{t("landingpage_cta_title")}</span>
                 <span className="text-foreground">?</span>
               </h2>
               <p className="mb-8 text-muted-foreground">
-                Laden Sie Ihr 3D-Modell hoch oder wählen Sie aus unserer Kollektion. Lassen Sie uns Ihre Vision 
-                mit Präzision und Qualität zum Leben erwecken.
+                {t("landingpage_cta_subtitle")}
               </p>
               <div className="flex flex-wrap justify-center gap-4">
                 <Button 
@@ -270,25 +270,25 @@ export function HomePage({
                   onClick={() => setCurrentView("shop")}
                   className="bg-primary text-primary-foreground hover:bg-primary/90"
                 >
-                  3D-Datei Hochladen
+                  {t("landingpage_cta_button_upload")}
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
                 <Button size="lg" variant="outline" onClick={() => setCurrentView("kontakt")}>
-                  Beratung Anfragen
+                  {t("landingpage_cta_button_contact")}
                 </Button>
               </div>
               <div className="mt-8 flex flex-wrap justify-center gap-6 text-sm text-muted-foreground">
                 <span className="flex items-center gap-1">
                   <CheckCircle2 className="h-4 w-4 text-cyan-400" />
-                  Kostenlose Offerte
+                  {t("landingpage_trust_offer")}
                 </span>
                 <span className="flex items-center gap-1">
                   <CheckCircle2 className="h-4 w-4 text-cyan-400" />
-                  Schneller Versand
+                  {t("landingpage_trust_shipping")}
                 </span>
                 <span className="flex items-center gap-1">
                   <CheckCircle2 className="h-4 w-4 text-cyan-400" />
-                  Qualitätsgarantie
+                  {t("landingpage_trust_quality")}
                 </span>
               </div>
             </CardContent>

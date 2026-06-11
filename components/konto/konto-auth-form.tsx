@@ -9,8 +9,10 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { KontoShell } from "@/components/konto/konto-shell"
+import { useSiteTexts } from "@/components/dripforge/site-texts-provider"
 
 export function KontoLoginForm() {
+  const { t } = useSiteTexts()
   const router = useRouter()
   const searchParams = useSearchParams()
   const next = searchParams.get("next") || "/konto"
@@ -47,10 +49,10 @@ export function KontoLoginForm() {
         <CardContent className="space-y-6 p-8">
           <div className="flex items-center gap-2">
             <Lock className="h-5 w-5 text-primary" />
-            <h1 className="text-xl font-bold">Kunden-Login</h1>
+            <h1 className="text-xl font-bold">{t("konto_login_title")}</h1>
           </div>
           <p className="text-sm text-muted-foreground">
-            Melde dich an, um Bestellungen und Designs zu verwalten.
+            {t("konto_login_subtitle")}
           </p>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
@@ -104,6 +106,7 @@ export function KontoLoginForm() {
 }
 
 export function KontoRegisterForm() {
+  const { t } = useSiteTexts()
   const router = useRouter()
   const [firstName, setFirstName] = useState("")
   const [lastName, setLastName] = useState("")
@@ -139,10 +142,10 @@ export function KontoRegisterForm() {
         <CardContent className="space-y-6 p-8">
           <div className="flex items-center gap-2">
             <UserPlus className="h-5 w-5 text-primary" />
-            <h1 className="text-xl font-bold">Konto erstellen</h1>
+            <h1 className="text-xl font-bold">{t("konto_register_title")}</h1>
           </div>
           <p className="text-sm text-muted-foreground">
-            Mit derselben E-Mail wie bei Bestellungen siehst du deine Aufträge automatisch.
+            {t("konto_register_subtitle")}
           </p>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react"
 import dynamic from "next/dynamic"
 import { Loader2 } from "lucide-react"
 import { ComingSoonPage } from "@/components/dripforge/coming-soon-page"
+import { SiteTextsProvider } from "@/components/dripforge/site-texts-provider"
 
 const DripForgeApp = dynamic(() => import("@/components/dripforge/dripforge-app"), {
   ssr: false,
@@ -74,8 +75,16 @@ export default function LaunchGate() {
   }
 
   if (!status?.canAccessShop) {
-    return <ComingSoonPage onAccessGranted={() => void loadStatus()} />
+    return (
+      <SiteTextsProvider>
+        <ComingSoonPage onAccessGranted={() => void loadStatus()} />
+      </SiteTextsProvider>
+    )
   }
 
-  return <DripForgeApp />
+  return (
+    <SiteTextsProvider>
+      <DripForgeApp />
+    </SiteTextsProvider>
+  )
 }

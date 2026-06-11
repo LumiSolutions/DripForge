@@ -13,8 +13,10 @@ import {
 } from "@/lib/dripforge/service-visibility"
 import type { ServiceVisibilitySettings } from "@/lib/admin/types"
 import { shopViewHref } from "@/lib/dripforge/shop-routes"
+import { useSiteTexts } from "@/components/dripforge/site-texts-provider"
 
 export function ShopFooter() {
+  const { t } = useSiteTexts()
   const [companyFooter, setCompanyFooter] = useState<CompanySettings>(
     DEFAULT_COMPANY_SETTINGS
   )
@@ -65,8 +67,7 @@ export function ShopFooter() {
               </span>
             </div>
             <p className="text-sm text-muted-foreground">
-              Verwandeln Sie Ihre Ideen in Realität mit präzisem 3D-Druck und
-              Lasergravur-Services.
+              {t("footer_tagline")}
             </p>
             <div className="mt-4 flex gap-2">
               <Printer className="h-5 w-5 text-muted-foreground" />
@@ -74,7 +75,7 @@ export function ShopFooter() {
             </div>
           </div>
           <div>
-            <h4 className="mb-4 font-semibold text-foreground">Services</h4>
+            <h4 className="mb-4 font-semibold text-foreground">{t("footer_services_heading")}</h4>
             <ul className="space-y-2 text-sm text-muted-foreground">
               {services.druck3d && (
                 <li>
@@ -112,7 +113,7 @@ export function ShopFooter() {
             </ul>
           </div>
           <div>
-            <h4 className="mb-4 font-semibold text-foreground">Unternehmen</h4>
+            <h4 className="mb-4 font-semibold text-foreground">{t("footer_company_heading")}</h4>
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li>
                 <Link href="/kontakt" className="hover:text-primary">
@@ -137,7 +138,7 @@ export function ShopFooter() {
             </ul>
           </div>
           <div>
-            <h4 className="mb-4 font-semibold text-foreground">Kontakt</h4>
+            <h4 className="mb-4 font-semibold text-foreground">{t("footer_contact_heading")}</h4>
             <ul className="space-y-3 text-sm text-muted-foreground">
               <li className="flex items-center gap-2">
                 <Mail className="h-4 w-4 text-primary" />
@@ -157,7 +158,7 @@ export function ShopFooter() {
         </div>
         <div className="mt-8 flex flex-col items-center justify-between gap-4 border-t border-border pt-8 md:flex-row">
           <p className="text-sm text-muted-foreground">
-            © 2026 {companyFooter.firmenname || "DripForge"}. Alle Rechte vorbehalten.
+            © 2026 {companyFooter.firmenname || "DripForge"}. {t("footer_copyright_suffix")}
           </p>
           <div className="flex gap-6 text-sm text-muted-foreground">
             <Link href="/datenschutz" className="hover:text-primary">

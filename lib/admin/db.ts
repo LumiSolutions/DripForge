@@ -48,12 +48,18 @@ import {
   cosmosUpdateOrderStatus,
   cosmosUpsertCustomerFromOrder,
 } from "@/lib/admin/cosmos-store"
+import {
+  cosmosGetSiteTexts,
+  cosmosSaveSiteTexts,
+} from "@/lib/admin/cosmos-site-texts"
+import { mergeSiteTexts, type SiteTexts } from "@/lib/admin/site-texts"
 
 const DATA_DIR = path.join(process.cwd(), "data", "admin")
 
 const ORDERS_FILE = "orders.json"
 const PRODUCTS_FILE = "products.json"
 const SETTINGS_FILE = "settings.json"
+const SITE_TEXTS_FILE = "site-texts.json"
 const CUSTOMERS_FILE = "customers.json"
 
 async function ensureDataDir(): Promise<void> {
@@ -486,4 +492,22 @@ export async function setShopLive(shopLive: boolean): Promise<AdminSettings> {
     }
   )
   return next
+}
+
+export async function getSiteTexts(): Promise<SiteTexts> {
+  return withCosmosFallback(
+    "getSiteTexts",
+    cosmosGetSiteTexts,
+    async () => {
+      const stored = await readJsonFile<Partial<Record<string, string>> | null>(
+        SITE_TEXTS_FILE,
+        null
+      )
+      return mergeSiteTexts(stored)
+    }
+  )
+}
+
+export async function saveSiteTexts(texts: SiteTexts): Promise<SiteTexts> {
+  return withCosmosRequired("saveSiteTexts", () => cosmosSaveSiteTexts(texts))
 }

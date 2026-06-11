@@ -14,12 +14,14 @@ import {
   Settings,
   Sun,
   Tag,
+  Type,
   Users,
 } from "lucide-react"
 import { AdminCustomersTab } from "@/components/admin/admin-customers-tab"
 import { AdminOrdersTab } from "@/components/admin/admin-orders-tab"
 import { AdminProductsTab } from "@/components/admin/admin-products-tab"
 import { AdminSettingsTab } from "@/components/admin/admin-settings-tab"
+import { AdminSiteTextsTab } from "@/components/admin/admin-site-texts-tab"
 import { AdminCouponsTab } from "@/components/admin/admin-coupons-tab"
 import { AdminInventoryTab } from "@/components/admin/admin-inventory-tab"
 import { AdminProductionTab } from "@/components/admin/admin-production-tab"
@@ -38,6 +40,7 @@ type AdminTab =
   | "products"
   | "customers"
   | "settings"
+  | "site-texts"
 
 const NAV: { id: AdminTab; label: string; icon: typeof ClipboardList }[] = [
   { id: "stats", label: "Dashboard / Statistiken", icon: LayoutDashboard },
@@ -48,6 +51,7 @@ const NAV: { id: AdminTab; label: string; icon: typeof ClipboardList }[] = [
   { id: "products", label: "Produkte", icon: Package },
   { id: "customers", label: "Kundenverwaltung", icon: Users },
   { id: "settings", label: "Shop-Einstellungen", icon: Settings },
+  { id: "site-texts", label: "Texte & Inhalte", icon: Type },
 ]
 
 export function AdminDashboard() {
@@ -216,6 +220,7 @@ export function AdminDashboard() {
           <AdminCustomersTab onOpenOrder={openOrderFromCustomers} />
         )}
         {tab === "settings" && <AdminSettingsTab />}
+        {tab === "site-texts" && <AdminSiteTextsTab />}
       </main>
     </div>
   )

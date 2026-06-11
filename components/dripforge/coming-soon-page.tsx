@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type CSSProperties } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { StaffAuthFlow } from "@/components/admin/staff-auth-flow"
+import { useSiteTexts } from "@/components/dripforge/site-texts-provider"
 import { getLaunchCountdown, LAUNCH_DATE } from "@/lib/dripforge/launch-config"
 import { cn } from "@/lib/utils"
 
@@ -71,6 +72,7 @@ function CountdownSeparator() {
 }
 
 export function ComingSoonPage({ onAccessGranted }: { onAccessGranted: () => void }) {
+  const { t } = useSiteTexts()
   const [countdown, setCountdown] = useState(getLaunchCountdown())
   const [testerOpen, setTesterOpen] = useState(false)
 
@@ -132,7 +134,7 @@ export function ComingSoonPage({ onAccessGranted }: { onAccessGranted: () => voi
           {/* Countdown unterhalb des Logos */}
           <div className="flex w-full max-w-lg flex-col items-center gap-4 text-center">
             <p className="cs-metallic-gold text-[10px] font-semibold uppercase tracking-[0.45em] sm:text-xs">
-              Countdown zum Launch
+              {t("landingpage_countdown_label")}
             </p>
 
             <div className="w-full rounded-lg border border-orange-500/15 bg-black/40 px-3 py-3 shadow-[0_0_40px_rgba(249,115,22,0.12)] sm:px-5 sm:py-4">
@@ -156,15 +158,15 @@ export function ComingSoonPage({ onAccessGranted }: { onAccessGranted: () => voi
         {/* Slogan unter Countdown — URL nur in der Logo-Grafik */}
         <section className="flex max-w-xl shrink-0 flex-col items-center space-y-4 text-center">
           <p className="text-xs font-medium uppercase tracking-[0.2em] text-zinc-500">
-            Hier entsteht DripForge
+            {t("landingpage_countdown_teaser")}
           </p>
           <h1 className="text-lg font-bold leading-snug text-zinc-200 sm:text-xl">
-            Präziser 3D-Druck &amp; Lasergravur aus der Schweiz
+            {t("landingpage_countdown_title")}
           </h1>
 
           {countdown.isPast && (
             <p className="text-sm text-orange-300">
-              Der Launch-Termin ist erreicht — die Freischaltung erfolgt in Kürze.
+              {t("landingpage_countdown_past_message")}
             </p>
           )}
         </section>

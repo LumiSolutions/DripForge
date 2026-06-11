@@ -5,6 +5,7 @@ import Link from "next/link"
 import { Loader2, Package, Palette } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { KontoShell } from "@/components/konto/konto-shell"
+import { useSiteTexts } from "@/components/dripforge/site-texts-provider"
 import type { CustomerOrderSummary } from "@/lib/konto/customer-orders"
 
 type Account = {
@@ -15,6 +16,7 @@ type Account = {
 }
 
 export function KontoDashboard() {
+  const { t } = useSiteTexts()
   const [account, setAccount] = useState<Account | null>(null)
   const [orders, setOrders] = useState<CustomerOrderSummary[]>([])
   const [loading, setLoading] = useState(true)
@@ -59,14 +61,15 @@ export function KontoDashboard() {
     <KontoShell accountName={name}>
       <div className="space-y-8">
         <div>
-          <h1 className="text-2xl font-bold">Mein Konto</h1>
+          <h1 className="text-2xl font-bold">{t("konto_welcome_title")}</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Willkommen zurück, <span className="font-medium text-foreground">{name}</span>
+            {t("konto_welcome_subtitle")},{" "}
+            <span className="font-medium text-foreground">{name}</span>
           </p>
           {account?.kundennummer ? (
             <div className="mt-3 inline-flex flex-wrap items-center gap-2 rounded-xl border border-primary/25 bg-primary/10 px-4 py-2">
               <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Ihre Kundennummer
+                {t("konto_customer_number_label")}
               </span>
               <span className="font-mono text-base font-bold tracking-wide text-primary">
                 {account.kundennummer}
@@ -156,6 +159,10 @@ export function KontoDashboard() {
             </div>
           )}
         </section>
+
+        <p className="rounded-xl border border-border/50 bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+          {t("konto_support_hint")}
+        </p>
       </div>
     </KontoShell>
   )
