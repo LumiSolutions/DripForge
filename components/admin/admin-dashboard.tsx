@@ -16,7 +16,9 @@ import {
   Tag,
   Type,
   Users,
+  Layers,
 } from "lucide-react"
+import { AdminFilamentsTab } from "@/components/admin/admin-filaments-tab"
 import { AdminCustomersTab } from "@/components/admin/admin-customers-tab"
 import { AdminOrdersTab } from "@/components/admin/admin-orders-tab"
 import { AdminProductsTab } from "@/components/admin/admin-products-tab"
@@ -41,6 +43,7 @@ type AdminTab =
   | "customers"
   | "settings"
   | "site-texts"
+  | "filaments"
 
 const NAV: { id: AdminTab; label: string; icon: typeof ClipboardList }[] = [
   { id: "stats", label: "Dashboard / Statistiken", icon: LayoutDashboard },
@@ -52,6 +55,7 @@ const NAV: { id: AdminTab; label: string; icon: typeof ClipboardList }[] = [
   { id: "customers", label: "Kundenverwaltung", icon: Users },
   { id: "settings", label: "Shop-Einstellungen", icon: Settings },
   { id: "site-texts", label: "Texte & Inhalte", icon: Type },
+  { id: "filaments", label: "Filament-Verwaltung", icon: Layers },
 ]
 
 export function AdminDashboard() {
@@ -221,6 +225,7 @@ export function AdminDashboard() {
         )}
         {tab === "settings" && <AdminSettingsTab />}
         {tab === "site-texts" && <AdminSiteTextsTab />}
+        {tab === "filaments" && <AdminFilamentsTab />}
       </main>
     </div>
   )

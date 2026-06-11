@@ -47,7 +47,7 @@ import {
   type PricingConfig,
 } from "@/lib/dripforge/pricing-config"
 import { PrintVolumeWarning } from "@/components/dripforge/shared/print-volume-warning"
-import { materials3D } from "@/lib/dripforge/data"
+import { useFilamentMaterials } from "@/hooks/use-filament-materials"
 import { capture3dPreviewLeitbild } from "@/lib/dripforge/capture-leitbild"
 import type { CartItem } from "@/lib/dripforge/types"
 
@@ -105,6 +105,7 @@ export function PageIndividual3D({
   /** Spaeter: per fetch aus Admin-Portal / Datenbank befuellen */
   const [pricingConfig] = useState<PricingConfig>(DEFAULT_PRICING_CONFIG)
   const previewCanvasRef = useRef<HTMLCanvasElement>(null)
+  const filamentMaterials = useFilamentMaterials()
 
   const scaleFactor = scale / 100
   const hasModel = meshParts.length > 0 || Boolean(nativeScene)
@@ -455,7 +456,7 @@ export function PageIndividual3D({
               <CardContent className="p-6">
                 <h3 className="mb-2 font-bold">2. Filament & Farbe (Mehrfarben)</h3>
                 <FilamentMultiColorPicker
-                  materials={materials3D}
+                  materials={filamentMaterials}
                   activeTab={filamentTab}
                   onTabChange={setFilamentTab}
                   onSelectionChange={setMultiColorSelection}

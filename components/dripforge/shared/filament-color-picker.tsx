@@ -5,6 +5,7 @@ import Image from "next/image"
 import { CheckCircle2, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { FilamentMaterial } from "@/lib/dripforge/types"
+import { FilamentStatsPanel } from "@/components/dripforge/shared/filament-stats-panel"
 
 export type FilamentSelection = {
   materialId: string
@@ -35,6 +36,17 @@ export function FilamentColorPicker({
 
   const currentMaterial = materials.find((m) => m.id === activeTab)!
   const selectedColor = currentMaterial?.colors.find((c) => c.id === selectedColors[activeTab])
+
+  useEffect(() => {
+    setSelectedColors(
+      Object.fromEntries(
+        materials.map((m) => [
+          m.id,
+          m.colors.find((c) => c.inStock)?.id ?? m.colors[0]?.id ?? "",
+        ])
+      )
+    )
+  }, [materials])
 
   useEffect(() => {
     if (!onSelectionChange || !currentMaterial || !selectedColor) return
@@ -129,7 +141,9 @@ export function FilamentColorPicker({
           <div className="mt-4 flex items-center justify-between border-t border-border/50 pt-3">
             <div>
               <p className="text-xs text-muted-foreground">{currentMaterial.name}</p>
-              <p className="text-base font-bold">{selectedColor?.name ?? "—"}</p>
+              <p className="text-base font-bold">
+                {selectedColor?.displayName ?? selectedColor?.name ?? "—"}
+              </p>
             </div>
             <span className={cn(
               "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium",
@@ -139,6 +153,7 @@ export function FilamentColorPicker({
               {selectedColor?.inStock ? "Auf Lager" : "Nicht verfuegbar"}
             </span>
           </div>
+          <FilamentStatsPanel color={selectedColor} />
         </div>
 
         {/* Right: color swatch grid */}

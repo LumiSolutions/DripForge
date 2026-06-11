@@ -29,6 +29,7 @@ import {
   type LaserDesignerState,
 } from "@/components/dripforge/shared/laser-designer-studio"
 import { materials3D, products as staticProducts } from "@/lib/dripforge/data"
+import { useFilamentMaterials } from "@/hooks/use-filament-materials"
 import { getLaserMaterialForProduct } from "@/lib/dripforge/laser"
 import { resolveProductVarianten } from "@/lib/dripforge/product-varianten"
 import { resolveProductModelUrl } from "@/lib/dripforge/product-model-defaults"
@@ -87,6 +88,7 @@ export function PageShop({
   services,
 }: PageShopProps) {
   const { t } = useSiteTexts()
+  const filamentMaterials = useFilamentMaterials()
   const showCustom3d = services.druck3d
   const showCustomLaser = services.lasergravur
   const [filamentTab, setFilamentTab] = useState("pla")
@@ -488,7 +490,7 @@ export function PageShop({
 
                     <div className="flex min-w-0 flex-col gap-6 lg:min-h-[640px]">
                       <FilamentColorPicker
-                        materials={materials3D}
+                        materials={filamentMaterials}
                         activeTab={filamentTab}
                         onTabChange={setFilamentTab}
                         onSelectionChange={setFilamentSelection}

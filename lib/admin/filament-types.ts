@@ -1,0 +1,74 @@
+export const FILAMENT_MATERIAL_TYPES = [
+  "PLA",
+  "PETG",
+  "ABS",
+  "ASA",
+  "TPU",
+  "Nylon",
+] as const
+
+export type FilamentMaterialType = (typeof FILAMENT_MATERIAL_TYPES)[number]
+
+export const FILAMENT_SURFACE_FINISHES = ["matt", "glänzend", "carbon"] as const
+
+export type FilamentSurfaceFinish = (typeof FILAMENT_SURFACE_FINISHES)[number]
+
+export type AdminFilament = {
+  id: string
+  materialType: FilamentMaterialType
+  manufacturer: string
+  name: string
+  colorName: string
+  colorHex: string
+  inStock: boolean
+  strength: number
+  flexibility: number
+  heatResistance: number
+  surfaceFinish: FilamentSurfaceFinish
+  priceSurchargeChf: number
+  updatedAt?: string
+}
+
+export function clampStat(value: unknown, fallback = 3): number {
+  const n = Math.round(Number(value))
+  if (!Number.isFinite(n)) return fallback
+  return Math.min(5, Math.max(1, n))
+}
+
+export function normalizeAdminFilament(
+  input: Partial<AdminFilament>,
+  existing?: AdminFilament
+): AdminFilament {
+  const materialType = FILAMENT_MATERIAL_TYPES.includes(
+    input.materialType as FilamentMaterialType
+  )
+    ? (input.materialType as FilamentMaterialType)
+    : existing?.materialType ?? "PLA"
+
+  const surfaceFinish = FILAMENT_SURFACE_FINISHES.includes(
+    input.surfaceFinish as FilamentSurfaceFinish
+  )
+    ? (input.surfaceFinish as FilamentSurfaceFinish)
+    : existing?.surfaceFinish ?? "matt"
+
+  return {
+    id: input.id?.trim() || existing?.id || `fil-${Date.now()}`,
+    materialType,
+    manufacturer: input.manufacturer?.trim() || existing?.manufacturer || "",
+    name: input.name?.trim() || existing?.name || "Neues Filament",
+    colorName: input.colorName?.trim() || existing?.colorName || "Farbe",
+    colorHex: /^#[0-9A-Fa-f]{6}$/.test(input.colorHex ?? "")
+      ? input.colorHex!
+      : existing?.colorHex ?? "#1a1a1a",
+    inStock: input.inStock !== undefined ? Boolean(input.inStock) : existing?.inStock !== false,
+    strength: clampStat(input.strength ?? existing?.strength),
+    flexibility: clampStat(input.flexibility ?? existing?.flexibility),
+    heatResistance: clampStat(input.heatResistance ?? existing?.heatResistance),
+    surfaceFinish,
+    priceSurchargeChf: Math.max(
+      0,
+      Number(input.priceSurchargeChf ?? existing?.priceSurchargeChf ?? 0) || 0
+    ),
+    updatedAt: new Date().toISOString(),
+  }
+}

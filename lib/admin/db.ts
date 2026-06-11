@@ -52,7 +52,21 @@ import {
   cosmosGetSiteTexts,
   cosmosSaveSiteTexts,
 } from "@/lib/admin/cosmos-site-texts"
+import {
+  cosmosDeleteFilament,
+  cosmosGetFilamentById,
+  cosmosGetFilamentMaterials,
+  cosmosGetFilaments,
+  cosmosUpsertFilament,
+} from "@/lib/admin/cosmos-filaments"
 import { mergeSiteTexts, type SiteTexts } from "@/lib/admin/site-texts"
+import type { AdminFilament } from "@/lib/admin/filament-types"
+import {
+  groupFilamentsForConfigurator,
+  legacyMaterialsFallback,
+  seedFilamentsFromLegacyMaterials,
+} from "@/lib/dripforge/filament-catalog"
+import type { FilamentMaterial } from "@/lib/dripforge/types"
 
 const DATA_DIR = path.join(process.cwd(), "data", "admin")
 
@@ -60,6 +74,7 @@ const ORDERS_FILE = "orders.json"
 const PRODUCTS_FILE = "products.json"
 const SETTINGS_FILE = "settings.json"
 const SITE_TEXTS_FILE = "site-texts.json"
+const FILAMENTS_FILE = "filaments.json"
 const CUSTOMERS_FILE = "customers.json"
 
 async function ensureDataDir(): Promise<void> {
@@ -510,4 +525,44 @@ export async function getSiteTexts(): Promise<SiteTexts> {
 
 export async function saveSiteTexts(texts: SiteTexts): Promise<SiteTexts> {
   return withCosmosRequired("saveSiteTexts", () => cosmosSaveSiteTexts(texts))
+}
+
+export async function getAdminFilaments(): Promise<AdminFilament[]> {
+  return withCosmosRequired("getAdminFilaments", cosmosGetFilaments)
+}
+
+export async function getFilamentMaterials(): Promise<FilamentMaterial[]> {
+  return withCosmosFallback(
+    "getFilamentMaterials",
+    cosmosGetFilamentMaterials,
+    async () => {
+      const stored = await readJsonFile<AdminFilament[] | null>(FILAMENTS_FILE, null)
+      if (stored?.length) return groupFilamentsForConfigurator(stored)
+      return legacyMaterialsFallback()
+    }
+  )
+}
+
+export async function getFilamentsForStorefront(): Promise<AdminFilament[]> {
+  return withCosmosFallback(
+    "getFilamentsForStorefront",
+    cosmosGetFilaments,
+    async () => {
+      const stored = await readJsonFile<AdminFilament[] | null>(FILAMENTS_FILE, null)
+      if (stored?.length) return stored
+      return seedFilamentsFromLegacyMaterials()
+    }
+  )
+}
+
+export async function getAdminFilamentById(id: string): Promise<AdminFilament | null> {
+  return withCosmosRequired("getAdminFilamentById", () => cosmosGetFilamentById(id))
+}
+
+export async function upsertFilament(filament: AdminFilament): Promise<AdminFilament> {
+  return withCosmosRequired("upsertFilament", () => cosmosUpsertFilament(filament))
+}
+
+export async function deleteFilament(id: string): Promise<boolean> {
+  return withCosmosRequired("deleteFilament", () => cosmosDeleteFilament(id))
 }

@@ -56,6 +56,7 @@ import { ProcessStepItem } from "@/components/dripforge/shared/process-step-item
 import { LaserProcessStep } from "@/components/dripforge/shared/laser-process-step"
 import { IndividualProcessBar } from "@/components/dripforge/shared/individual-process-bar"
 import { materials3D, laserMaterials, processSteps, products } from "@/lib/dripforge/data"
+import { useFilamentMaterials } from "@/hooks/use-filament-materials"
 import type { CartItem } from "@/lib/dripforge/types"
 
 export function Page3DDruck({ 
@@ -67,6 +68,7 @@ export function Page3DDruck({
   setSelectedMaterial: (m: string) => void
   setCurrentView: (view: string) => void
 }) {
+  const filamentMaterials = useFilamentMaterials()
   const material = materials3D.find(m => m.id === selectedMaterial) || materials3D[0]
 
   return (
@@ -224,8 +226,8 @@ export function Page3DDruck({
           </div>
 
           {/* Color Selection per material — synced with material selector above */}
-          <FilamentColorPicker 
-            materials={materials3D} 
+          <FilamentColorPicker
+            materials={filamentMaterials}
             activeTab={selectedMaterial}
             onTabChange={setSelectedMaterial}
           />

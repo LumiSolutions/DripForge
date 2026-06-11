@@ -120,6 +120,13 @@ export type FilamentColor = {
   inStock: boolean
   image: string | null
   printedExample?: string | null
+  manufacturer?: string
+  displayName?: string
+  strength?: number
+  flexibility?: number
+  heatResistance?: number
+  surfaceFinish?: string
+  priceSurchargeChf?: number
 }
 
 export type FilamentMaterial = {
