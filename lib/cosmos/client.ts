@@ -143,6 +143,7 @@ export async function warmCosmosInfrastructure(): Promise<void> {
   if (!isCosmosConfigured()) return
   await ensureDatabase()
   await getSettingsContainer()
+  await getProjectSupportersContainer()
   const { resolveProductsContainer } = await import("@/lib/cosmos/products-container")
   await resolveProductsContainer()
 }
@@ -183,4 +184,8 @@ export async function getCustomerDesignsContainer(): Promise<Container> {
 
 export async function getStaffAccountsContainer(): Promise<Container> {
   return ensureContainer("staff-accounts", "/id")
+}
+
+export async function getProjectSupportersContainer(): Promise<Container> {
+  return ensureContainer("project-supporters", "/id")
 }

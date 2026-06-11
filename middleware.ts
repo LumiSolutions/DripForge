@@ -80,7 +80,7 @@ export async function middleware(request: NextRequest) {
     console.warn("Middleware: Launch-Status nicht verfuegbar — Coming Soon aktiv.", error)
   }
 
-  if (pathname === "/") {
+  if (pathname === "/" || pathname.startsWith("/support")) {
     return NextResponse.next()
   }
 
