@@ -1,8 +1,12 @@
 import { getProjectSupportersContainer } from "@/lib/cosmos/client"
 import { logCosmosError } from "@/lib/cosmos/log-error"
 import {
+  emptyCategoryTotals,
+  normalizeSupportCategory,
   SUPPORTER_DOC_TYPE,
   type ProjectSupporter,
+  type SupportCategoryId,
+  type SupportCategoryTotals,
 } from "@/lib/support/types"
 
 type SupporterCosmosDoc = ProjectSupporter
@@ -36,21 +40,32 @@ export async function cosmosGetProjectSupporterBySessionId(
   }
 }
 
-export async function cosmosGetTotalSupportRaisedChf(): Promise<number> {
+export async function cosmosGetSupportCategoryTotals(): Promise<SupportCategoryTotals> {
   const container = await getProjectSupportersContainer()
   const { resources } = await container.items
-    .query<{ total: number }>({
+    .query<Pick<ProjectSupporter, "category" | "amountChf">>({
       query: `
-        SELECT VALUE SUM(c.amountChf)
-        FROM c
+        SELECT c.category, c.amountChf FROM c
         WHERE c.docType = @docType AND c.status = "completed"
       `,
       parameters: [{ name: "@docType", value: SUPPORTER_DOC_TYPE }],
     })
     .fetchAll()
 
-  const total = resources[0]
-  return typeof total === "number" && Number.isFinite(total) ? total : 0
+  const totals = emptyCategoryTotals()
+  for (const row of resources) {
+    const category = normalizeSupportCategory(row.category ?? "general")
+    const amount = Number(row.amountChf)
+    if (Number.isFinite(amount)) {
+      totals[category] += amount
+    }
+  }
+  return totals
+}
+
+export async function cosmosGetTotalSupportRaisedChf(): Promise<number> {
+  const totals = await cosmosGetSupportCategoryTotals()
+  return totals.general + totals.materials + totals.printer + totals.laser
 }
 
 export async function cosmosGetProjectSupporters(): Promise<ProjectSupporter[]> {

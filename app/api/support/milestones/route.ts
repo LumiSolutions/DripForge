@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server"
+import { cosmosGetSupportCategoryTotals } from "@/lib/support/cosmos-supporters"
 import {
-  cosmosGetTotalSupportRaisedChf,
-} from "@/lib/support/cosmos-supporters"
-import { computeMilestoneProgress } from "@/lib/support/types"
+  computeMilestoneProgress,
+  totalRaisedFromCategories,
+} from "@/lib/support/types"
 import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
 
 export const dynamic = "force-dynamic"
@@ -10,17 +11,18 @@ export const dynamic = "force-dynamic"
 export async function GET() {
   try {
     await warmCosmosInfrastructure()
-    const totalRaisedChf = await cosmosGetTotalSupportRaisedChf()
-    const milestones = computeMilestoneProgress(totalRaisedChf)
+    const categoryTotals = await cosmosGetSupportCategoryTotals()
+    const milestones = computeMilestoneProgress(categoryTotals)
+    const totalRaisedChf = totalRaisedFromCategories(categoryTotals)
     return NextResponse.json(
-      { totalRaisedChf, milestones },
+      { totalRaisedChf, categoryTotals, milestones },
       { headers: { "Cache-Control": "no-store, max-age=0" } }
     )
   } catch (error) {
     console.error("Support Milestones API: Laden fehlgeschlagen.", error)
-    const milestones = computeMilestoneProgress(0)
+    const milestones = computeMilestoneProgress()
     return NextResponse.json(
-      { totalRaisedChf: 0, milestones },
+      { totalRaisedChf: 0, categoryTotals: null, milestones },
       { headers: { "Cache-Control": "no-store, max-age=0" } }
     )
   }

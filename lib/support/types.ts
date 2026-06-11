@@ -1,5 +1,9 @@
 export const SUPPORTER_DOC_TYPE = "project-supporter"
 
+export type SupportCategoryId = "general" | "materials" | "printer" | "laser"
+
+export type MilestoneId = "materials" | "printer" | "laser"
+
 export type ProjectSupporter = {
   id: string
   docType: typeof SUPPORTER_DOC_TYPE
@@ -8,6 +12,7 @@ export type ProjectSupporter = {
   amountChf: number
   amountCents: number
   currency: "chf"
+  category: SupportCategoryId
   stripeSessionId: string
   stripePaymentIntentId?: string | null
   status: "completed" | "pending"
@@ -15,7 +20,7 @@ export type ProjectSupporter = {
 }
 
 export type SupportMilestone = {
-  id: string
+  id: MilestoneId
   title: string
   description: string
   goalChf: number
@@ -25,37 +30,99 @@ export type SupportMilestone = {
   completed: boolean
 }
 
-export const SUPPORT_MILESTONES = [
+export const SUPPORT_CATEGORIES: {
+  id: SupportCategoryId
+  label: string
+  milestoneId?: MilestoneId
+}[] = [
+  {
+    id: "general",
+    label: "Allgemeine Entwicklung (Aufteilung nach Bedarf)",
+  },
   {
     id: "materials",
+    label: "Spezialmaterialien & Filamente",
+    milestoneId: "materials",
+  },
+  {
+    id: "printer",
+    label: "Zusätzlicher High-Speed-Drucker",
+    milestoneId: "printer",
+  },
+  {
+    id: "laser",
+    label: "Laser-Upgrade für Metallgravuren",
+    milestoneId: "laser",
+  },
+]
+
+export const SUPPORT_MILESTONES = [
+  {
+    id: "materials" as const,
     title: "Spezialmaterialien & Filamente",
     description:
       "Erweiterung unseres Filament-Sortiments mit Premium-Materialien für anspruchsvolle Projekte.",
     goalChf: 500,
+    categoryId: "materials" as const,
   },
   {
-    id: "printer",
+    id: "printer" as const,
     title: "Zusätzlicher High-Speed-Drucker",
     description:
       "Ein zweiter Hochgeschwindigkeits-Drucker für kürzere Lieferzeiten und mehr Kapazität.",
     goalChf: 1500,
+    categoryId: "printer" as const,
   },
   {
-    id: "laser",
+    id: "laser" as const,
     title: "Laser-Upgrade für Metallgravuren",
     description:
       "Upgrade unserer Laseranlage für präzise Gravuren auf Metall und gehärteten Oberflächen.",
     goalChf: 3000,
+    categoryId: "laser" as const,
   },
-] as const
+]
 
-export function computeMilestoneProgress(totalRaisedChf: number): SupportMilestone[] {
-  let remaining = Math.max(0, totalRaisedChf)
+export type SupportCategoryTotals = Record<SupportCategoryId, number>
+
+export function emptyCategoryTotals(): SupportCategoryTotals {
+  return { general: 0, materials: 0, printer: 0, laser: 0 }
+}
+
+export function normalizeSupportCategory(value: unknown): SupportCategoryId {
+  const id = String(value ?? "general").trim() as SupportCategoryId
+  if (SUPPORT_CATEGORIES.some((c) => c.id === id)) return id
+  return "general"
+}
+
+export function milestoneIdToCategory(milestoneId: string): SupportCategoryId {
+  const match = SUPPORT_MILESTONES.find((m) => m.id === milestoneId)
+  return match?.categoryId ?? "general"
+}
+
+export function computeMilestoneProgress(
+  totals: SupportCategoryTotals = emptyCategoryTotals()
+): SupportMilestone[] {
+  const raisedByMilestone: Record<MilestoneId, number> = {
+    materials: totals.materials,
+    printer: totals.printer,
+    laser: totals.laser,
+  }
+
+  let generalPool = totals.general
+  for (const milestone of SUPPORT_MILESTONES) {
+    const gap = Math.max(0, milestone.goalChf - raisedByMilestone[milestone.id])
+    if (gap > 0 && generalPool > 0) {
+      const allocated = Math.min(gap, generalPool)
+      raisedByMilestone[milestone.id] += allocated
+      generalPool -= allocated
+    }
+  }
+
   let previousUnlocked = true
 
   return SUPPORT_MILESTONES.map((milestone) => {
-    const raisedChf = Math.min(remaining, milestone.goalChf)
-    remaining = Math.max(0, remaining - milestone.goalChf)
+    const raisedChf = Math.min(raisedByMilestone[milestone.id], milestone.goalChf)
     const unlocked = previousUnlocked
     previousUnlocked = previousUnlocked && raisedChf >= milestone.goalChf
     const progressPercent = unlocked
@@ -64,13 +131,20 @@ export function computeMilestoneProgress(totalRaisedChf: number): SupportMilesto
     const completed = unlocked && raisedChf >= milestone.goalChf
 
     return {
-      ...milestone,
+      id: milestone.id,
+      title: milestone.title,
+      description: milestone.description,
+      goalChf: milestone.goalChf,
       raisedChf,
       progressPercent,
       unlocked,
       completed,
     }
   })
+}
+
+export function totalRaisedFromCategories(totals: SupportCategoryTotals): number {
+  return totals.general + totals.materials + totals.printer + totals.laser
 }
 
 export function normalizeSupporterAmountChf(value: unknown): number | null {
@@ -93,4 +167,8 @@ export function normalizeSupporterEmail(value: unknown): string | null {
     .toLowerCase()
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return null
   return email.slice(0, 254)
+}
+
+export function categoryLabel(category: SupportCategoryId): string {
+  return SUPPORT_CATEGORIES.find((c) => c.id === category)?.label ?? category
 }

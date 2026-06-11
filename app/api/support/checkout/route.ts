@@ -8,6 +8,8 @@ import {
   normalizeSupporterAmountChf,
   normalizeSupporterEmail,
   normalizeSupporterName,
+  normalizeSupportCategory,
+  categoryLabel,
 } from "@/lib/support/types"
 import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
 
@@ -17,6 +19,7 @@ type CheckoutBody = {
   amountChf?: number
   name?: string
   email?: string
+  category?: string
 }
 
 export async function POST(request: Request) {
@@ -37,6 +40,7 @@ export async function POST(request: Request) {
     const amountChf = normalizeSupporterAmountChf(body.amountChf)
     const name = normalizeSupporterName(body.name)
     const email = normalizeSupporterEmail(body.email)
+    const category = normalizeSupportCategory(body.category)
 
     if (!amountChf) {
       return NextResponse.json(
@@ -73,7 +77,7 @@ export async function POST(request: Request) {
             unit_amount: amountCents,
             product_data: {
               name: "DripForge — Support our Journey",
-              description: `Unterstützung für die DripForge-Manufaktur (${amountChf.toFixed(2)} CHF)`,
+              description: `${categoryLabel(category)} (${amountChf.toFixed(2)} CHF)`,
             },
           },
         },
@@ -82,6 +86,7 @@ export async function POST(request: Request) {
         supporterName: name,
         supporterEmail: email,
         amountChf: amountChf.toFixed(2),
+        supportCategory: category,
         purpose: "support-journey",
       },
       success_url: `${origin}/support?success=1&session_id={CHECKOUT_SESSION_ID}`,

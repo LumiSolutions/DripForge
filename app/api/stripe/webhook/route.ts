@@ -7,6 +7,7 @@ import {
 } from "@/lib/support/cosmos-supporters"
 import {
   SUPPORTER_DOC_TYPE,
+  normalizeSupportCategory,
   type ProjectSupporter,
 } from "@/lib/support/types"
 import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
@@ -43,6 +44,8 @@ async function persistCompletedCheckoutSession(
 
   if (!email || !amountCents) return null
 
+  const category = normalizeSupportCategory(session.metadata?.supportCategory)
+
   const supporter: ProjectSupporter = {
     id: sessionId,
     docType: SUPPORTER_DOC_TYPE,
@@ -51,6 +54,7 @@ async function persistCompletedCheckoutSession(
     amountChf: Math.round(amountCents) / 100,
     amountCents: Math.round(amountCents),
     currency: "chf",
+    category,
     stripeSessionId: sessionId,
     stripePaymentIntentId:
       typeof session.payment_intent === "string"

@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   CheckCircle2,
   CreditCard,
@@ -18,8 +18,20 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { cn } from "@/lib/utils"
-import type { SupportMilestone } from "@/lib/support/types"
+import {
+  milestoneIdToCategory,
+  SUPPORT_CATEGORIES,
+  type SupportCategoryId,
+  type SupportMilestone,
+} from "@/lib/support/types"
 
 const PRESET_AMOUNTS = [20, 50, 100] as const
 
@@ -57,6 +69,9 @@ export function SupportPageContent({
   const [error, setError] = useState<string | null>(null)
   const [showSuccess, setShowSuccess] = useState(Boolean(initialSuccess))
   const [showCanceled, setShowCanceled] = useState(Boolean(initialCanceled))
+  const [category, setCategory] = useState<SupportCategoryId>("general")
+  const [highlightCategory, setHighlightCategory] = useState(false)
+  const formSectionRef = useRef<HTMLElement>(null)
 
   const effectiveAmount = useMemo(() => {
     if (useCustomAmount) {
@@ -92,6 +107,13 @@ export function SupportPageContent({
       .catch(() => setStripeConfigured(false))
   }, [loadMilestones])
 
+  const scrollToFormWithCategory = useCallback((milestoneId: string) => {
+    setCategory(milestoneIdToCategory(milestoneId))
+    setHighlightCategory(true)
+    formSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+    window.setTimeout(() => setHighlightCategory(false), 2200)
+  }, [])
+
   const startCheckout = async () => {
     setSubmitting(true)
     setError(null)
@@ -105,6 +127,7 @@ export function SupportPageContent({
           amountChf: effectiveAmount,
           name,
           email,
+          category,
         }),
       })
       const data = await res.json()
@@ -193,12 +216,18 @@ export function SupportPageContent({
             const Icon =
               MILESTONE_ICONS[milestone.id as keyof typeof MILESTONE_ICONS] ?? Sparkles
             return (
-              <Card
+              <button
                 key={milestone.id}
+                type="button"
+                onClick={() => scrollToFormWithCategory(milestone.id)}
+                className="text-left"
+              >
+              <Card
                 className={cn(
-                  "border-border/50 bg-card/60 backdrop-blur-sm transition-all",
+                  "border-border/50 bg-card/60 backdrop-blur-sm transition-all hover:border-primary/40 hover:shadow-md hover:shadow-primary/5",
                   milestone.completed && "border-emerald-500/40 bg-emerald-500/5",
-                  !milestone.unlocked && "opacity-70"
+                  !milestone.unlocked && "opacity-70",
+                  "cursor-pointer"
                 )}
               >
                 <CardContent className="space-y-4 p-6">
@@ -232,12 +261,20 @@ export function SupportPageContent({
                   </div>
                 </CardContent>
               </Card>
+              </button>
             )
           })}
         </div>
+        <p className="mt-4 text-center text-xs text-muted-foreground">
+          Tipp: Klicke auf eine Meilenstein-Karte, um sie im Formular vorzuwählen.
+        </p>
       </section>
 
-      <section className="mx-auto max-w-2xl px-4">
+      <section
+        ref={formSectionRef}
+        id="support-form"
+        className="mx-auto max-w-2xl scroll-mt-24 px-4"
+      >
         <Card className="overflow-hidden border-border/50 bg-card/70 backdrop-blur-md">
           <CardContent className="space-y-6 p-8">
             <div className="text-center">
@@ -245,6 +282,30 @@ export function SupportPageContent({
               <p className="mt-2 text-sm text-muted-foreground">
                 Wähle einen Betrag und bezahle sicher per TWINT oder Kreditkarte über Stripe.
               </p>
+            </div>
+
+            <div
+              className={cn(
+                "space-y-2 rounded-xl transition-shadow",
+                highlightCategory && "ring-2 ring-primary/50 ring-offset-2 ring-offset-background"
+              )}
+            >
+              <Label htmlFor="support-category">Wofür möchtest du spenden?</Label>
+              <Select
+                value={category}
+                onValueChange={(value) => setCategory(value as SupportCategoryId)}
+              >
+                <SelectTrigger id="support-category" className="w-full">
+                  <SelectValue placeholder="Kategorie wählen" />
+                </SelectTrigger>
+                <SelectContent>
+                  {SUPPORT_CATEGORIES.map((option) => (
+                    <SelectItem key={option.id} value={option.id}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="grid grid-cols-3 gap-3">

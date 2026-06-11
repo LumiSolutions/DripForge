@@ -24,7 +24,7 @@ import {
 } from "@/lib/dripforge/service-visibility"
 import type { ServiceVisibilitySettings } from "@/lib/admin/types"
 import { shopCartHref, shopViewHref } from "@/lib/dripforge/shop-routes"
-import { SupportNavLink, SUPPORT_ROUTE } from "@/components/dripforge/support-nav-link"
+import { SupportNavLink, SupportNavIconLink, SUPPORT_ROUTE } from "@/components/dripforge/support-nav-link"
 
 type SpaNavProps = {
   mode: "spa"
@@ -195,7 +195,7 @@ export function ShopHeader(props: ShopHeaderProps) {
               </Link>
             )
           )}
-          <SupportNavLink active={supportActive} variant="desktop" />
+          <SupportNavLink active={supportActive} />
         </nav>
 
         <div className="flex shrink-0 items-center gap-1 sm:gap-2">
@@ -312,6 +312,8 @@ export function ShopHeader(props: ShopHeaderProps) {
             </Button>
           )}
 
+          <SupportNavIconLink active={supportActive} />
+
           <Link
             href={kontoHref}
             className={cn(
@@ -412,11 +414,6 @@ export function ShopHeader(props: ShopHeaderProps) {
                 </Link>
               )
             )}
-            <SupportNavLink
-              active={supportActive}
-              variant="mobile"
-              onNavigate={() => setMobileMenuOpen(false)}
-            />
             <Link
               href={kontoHref}
               onClick={() => setMobileMenuOpen(false)}
