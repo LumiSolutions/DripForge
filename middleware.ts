@@ -80,6 +80,10 @@ export async function middleware(request: NextRequest) {
     console.warn("Middleware: Launch-Status nicht verfuegbar — Coming Soon aktiv.", error)
   }
 
+  if (pathname.startsWith("/konfigurator")) {
+    return NextResponse.next()
+  }
+
   if (pathname.startsWith("/support")) {
     try {
       const supportUrl = new URL("/api/settings/support", request.url)

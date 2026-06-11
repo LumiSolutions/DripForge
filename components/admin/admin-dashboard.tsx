@@ -14,10 +14,12 @@ import {
   Settings,
   Sun,
   Tag,
+  Sparkles,
   Type,
   Users,
   Layers,
 } from "lucide-react"
+import { AdminAiSettingsTab } from "@/components/admin/admin-ai-settings-tab"
 import { AdminFilamentsTab } from "@/components/admin/admin-filaments-tab"
 import { AdminCustomersTab } from "@/components/admin/admin-customers-tab"
 import { AdminOrdersTab } from "@/components/admin/admin-orders-tab"
@@ -44,6 +46,7 @@ type AdminTab =
   | "settings"
   | "site-texts"
   | "filaments"
+  | "ai-settings"
 
 const NAV: { id: AdminTab; label: string; icon: typeof ClipboardList }[] = [
   { id: "stats", label: "Dashboard / Statistiken", icon: LayoutDashboard },
@@ -55,6 +58,7 @@ const NAV: { id: AdminTab; label: string; icon: typeof ClipboardList }[] = [
   { id: "customers", label: "Kundenverwaltung", icon: Users },
   { id: "settings", label: "Shop-Einstellungen", icon: Settings },
   { id: "site-texts", label: "Texte & Inhalte", icon: Type },
+  { id: "ai-settings", label: "KI-Modell-Konfiguration", icon: Sparkles },
   { id: "filaments", label: "Filament-Verwaltung", icon: Layers },
 ]
 
@@ -225,6 +229,7 @@ export function AdminDashboard() {
         )}
         {tab === "settings" && <AdminSettingsTab />}
         {tab === "site-texts" && <AdminSiteTextsTab />}
+        {tab === "ai-settings" && <AdminAiSettingsTab />}
         {tab === "filaments" && <AdminFilamentsTab />}
       </main>
     </div>

@@ -66,6 +66,11 @@ import {
   cosmosGetMaterialStats,
   cosmosSaveMaterialStats,
 } from "@/lib/admin/cosmos-material-stats"
+import {
+  cosmosGetAiSettings,
+  cosmosSaveAiSettings,
+} from "@/lib/admin/cosmos-ai-settings"
+import { mergeAiSettings, type AiSettingsDocument } from "@/lib/ai/ai-settings-types"
 import { mergeSiteTexts, type SiteTexts } from "@/lib/admin/site-texts"
 import type { AdminFilament } from "@/lib/admin/filament-types"
 import {
@@ -87,6 +92,7 @@ const SETTINGS_FILE = "settings.json"
 const SITE_TEXTS_FILE = "site-texts.json"
 const FILAMENTS_FILE = "filaments.json"
 const MATERIAL_STATS_FILE = "material-stats.json"
+const AI_SETTINGS_FILE = "ai-settings.json"
 const CUSTOMERS_FILE = "customers.json"
 
 async function ensureDataDir(): Promise<void> {
@@ -566,6 +572,26 @@ export async function saveMaterialStats(
   return withCosmosRequired("saveMaterialStats", () =>
     cosmosSaveMaterialStats(categories)
   )
+}
+
+export async function getAiSettings(): Promise<AiSettingsDocument> {
+  return withCosmosFallback(
+    "getAiSettings",
+    cosmosGetAiSettings,
+    async () => {
+      const stored = await readJsonFile<Partial<AiSettingsDocument> | null>(
+        AI_SETTINGS_FILE,
+        null
+      )
+      return mergeAiSettings(stored)
+    }
+  )
+}
+
+export async function saveAiSettings(
+  settings: AiSettingsDocument
+): Promise<AiSettingsDocument> {
+  return withCosmosRequired("saveAiSettings", () => cosmosSaveAiSettings(settings))
 }
 
 export async function getAdminFilaments(): Promise<AdminFilament[]> {
