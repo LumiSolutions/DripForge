@@ -56,8 +56,9 @@ import { ProcessStepItem } from "@/components/dripforge/shared/process-step-item
 import { LaserProcessStep } from "@/components/dripforge/shared/laser-process-step"
 import { IndividualProcessBar } from "@/components/dripforge/shared/individual-process-bar"
 import { materials3D, laserMaterials, processSteps, products } from "@/lib/dripforge/data"
-import { useFilamentMaterials } from "@/hooks/use-filament-materials"
-import type { CartItem } from "@/lib/dripforge/types"
+import { useFilamentCatalog } from "@/hooks/use-filament-catalog"
+import { ratingToPercent } from "@/lib/admin/material-stats-types"
+import type { FilamentMaterialType } from "@/lib/admin/filament-types"
 
 export function Page3DDruck({ 
   selectedMaterial, 
@@ -68,8 +69,23 @@ export function Page3DDruck({
   setSelectedMaterial: (m: string) => void
   setCurrentView: (view: string) => void
 }) {
-  const filamentMaterials = useFilamentMaterials()
+  const { materials: filamentMaterials, materialStats } = useFilamentCatalog()
   const material = materials3D.find(m => m.id === selectedMaterial) || materials3D[0]
+  const statsType = selectedMaterial.toUpperCase() as FilamentMaterialType
+  const categoryStats = materialStats[statsType]
+  const displayStats = categoryStats
+    ? [
+        { label: "Festigkeit", value: ratingToPercent(categoryStats.strength) },
+        { label: "Flexibilität", value: ratingToPercent(categoryStats.flexibility) },
+        { label: "Hitzebeständigkeit", value: ratingToPercent(categoryStats.heatResistance) },
+        { label: "Verarbeitung", value: categoryStats.easeOfUse },
+      ]
+    : [
+        { label: "Festigkeit", value: material.strength },
+        { label: "Flexibilität", value: material.flexibility },
+        { label: "Hitzebeständigkeit", value: material.heatResistance },
+        { label: "Verarbeitung", value: material.easeOfUse },
+      ]
 
   return (
     <div className="space-y-24 pb-24">
@@ -162,12 +178,7 @@ export function Page3DDruck({
 
                 {/* Stats */}
                 <div className="space-y-4">
-                  {[
-                    { label: "Festigkeit", value: material.strength },
-                    { label: "Flexibilität", value: material.flexibility },
-                    { label: "Hitzebeständigkeit", value: material.heatResistance },
-                    { label: "Verarbeitung", value: material.easeOfUse },
-                  ].map((stat) => (
+                  {displayStats.map((stat) => (
                     <div key={stat.label}>
                       <div className="mb-1 flex justify-between text-sm">
                         <span className="text-muted-foreground">{stat.label}</span>

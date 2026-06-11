@@ -133,6 +133,10 @@ export type FilamentMaterial = {
   id: string
   name: string
   colors: FilamentColor[]
+  strength?: number
+  flexibility?: number
+  heatResistance?: number
+  easeOfUse?: number
 }
 
 export type ViewId =

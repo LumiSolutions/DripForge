@@ -1,6 +1,7 @@
 import { getSettingsContainer } from "@/lib/cosmos/client"
 import { logCosmosError } from "@/lib/cosmos/log-error"
-import type { AdminFilament } from "@/lib/admin/filament-types"
+import { normalizeAdminFilament, type AdminFilament } from "@/lib/admin/filament-types"
+import { cosmosGetMaterialStats } from "@/lib/admin/cosmos-material-stats"
 import {
   groupFilamentsForConfigurator,
   seedFilamentsFromLegacyMaterials,
@@ -17,7 +18,7 @@ function mapFilamentDoc(
 ): AdminFilament | null {
   if (!doc?.id || doc.docType !== FILAMENT_DOC_TYPE) return null
   const { docType: _docType, ...filament } = doc
-  return filament as AdminFilament
+  return normalizeAdminFilament(filament)
 }
 
 export async function cosmosGetFilaments(): Promise<AdminFilament[]> {
@@ -94,6 +95,9 @@ export async function cosmosDeleteFilament(id: string): Promise<boolean> {
 }
 
 export async function cosmosGetFilamentMaterials() {
-  const filaments = await cosmosGetFilaments()
-  return groupFilamentsForConfigurator(filaments)
+  const [filaments, statsMap] = await Promise.all([
+    cosmosGetFilaments(),
+    cosmosGetMaterialStats(),
+  ])
+  return groupFilamentsForConfigurator(filaments, statsMap)
 }

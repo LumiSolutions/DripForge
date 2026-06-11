@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server"
-import { getFilamentMaterials, getMaterialStats } from "@/lib/admin/db"
+import { getMaterialStats } from "@/lib/admin/db"
 import { buildDefaultMaterialStats } from "@/lib/admin/material-stats-types"
-import { legacyMaterialsFallback } from "@/lib/dripforge/filament-catalog"
 import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
 
 export const dynamic = "force-dynamic"
@@ -9,19 +8,15 @@ export const dynamic = "force-dynamic"
 export async function GET() {
   try {
     await warmCosmosInfrastructure()
-    const [materials, materialStats] = await Promise.all([
-      getFilamentMaterials(),
-      getMaterialStats(),
-    ])
+    const materialStats = await getMaterialStats()
     return NextResponse.json(
-      { materials, materialStats },
+      { materialStats },
       { headers: { "Cache-Control": "no-store, max-age=0" } }
     )
   } catch (error) {
-    console.error("Filaments API: Laden fehlgeschlagen.", error)
-    const materialStats = buildDefaultMaterialStats()
+    console.error("Material-Stats API: Laden fehlgeschlagen.", error)
     return NextResponse.json(
-      { materials: legacyMaterialsFallback(materialStats), materialStats },
+      { materialStats: buildDefaultMaterialStats() },
       { headers: { "Cache-Control": "no-store, max-age=0" } }
     )
   }

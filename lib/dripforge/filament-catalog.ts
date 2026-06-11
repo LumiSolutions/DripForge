@@ -1,5 +1,10 @@
 import { materials3D } from "@/lib/dripforge/data"
 import type { AdminFilament, FilamentMaterialType } from "@/lib/admin/filament-types"
+import {
+  buildDefaultMaterialStats,
+  type MaterialCategoryStat,
+  type MaterialStatsMap,
+} from "@/lib/admin/material-stats-types"
 import type { FilamentColor, FilamentMaterial } from "@/lib/dripforge/types"
 
 const TYPE_ORDER: FilamentMaterialType[] = [
@@ -18,6 +23,7 @@ function legacyTypeToFilamentType(id: string): FilamentMaterialType {
   if (upper === "ABS") return "ABS"
   if (upper === "ASA") return "ASA"
   if (upper === "TPU") return "TPU"
+  if (upper === "NYLON") return "Nylon"
   return "PLA"
 }
 
@@ -34,10 +40,6 @@ export function seedFilamentsFromLegacyMaterials(): AdminFilament[] {
         colorName: color.name,
         colorHex: color.hex,
         inStock: color.inStock,
-        strength: Math.round((material.strength ?? 60) / 20) || 3,
-        flexibility: Math.round((material.flexibility ?? 30) / 20) || 2,
-        heatResistance: Math.round((material.heatResistance ?? 40) / 20) || 2,
-        surfaceFinish: "matt",
         priceSurchargeChf: 0,
         updatedAt: new Date().toISOString(),
       })
@@ -46,26 +48,45 @@ export function seedFilamentsFromLegacyMaterials(): AdminFilament[] {
   return filaments
 }
 
-export function filamentToColor(filament: AdminFilament): FilamentColor {
+function applyCategoryStats(
+  color: Omit<
+    FilamentColor,
+    "strength" | "flexibility" | "heatResistance" | "surfaceFinish"
+  >,
+  stats: MaterialCategoryStat
+): FilamentColor {
   return {
-    id: filament.id,
-    name: filament.colorName,
-    hex: filament.colorHex,
-    inStock: filament.inStock,
-    image: null,
-    printedExample: null,
-    manufacturer: filament.manufacturer,
-    displayName: [filament.manufacturer, filament.name].filter(Boolean).join(" ").trim(),
-    strength: filament.strength,
-    flexibility: filament.flexibility,
-    heatResistance: filament.heatResistance,
-    surfaceFinish: filament.surfaceFinish,
-    priceSurchargeChf: filament.priceSurchargeChf,
+    ...color,
+    strength: stats.strength,
+    flexibility: stats.flexibility,
+    heatResistance: stats.heatResistance,
+    surfaceFinish: stats.surfaceFinish,
   }
 }
 
+export function filamentToColor(
+  filament: AdminFilament,
+  stats: MaterialCategoryStat
+): FilamentColor {
+  return applyCategoryStats(
+    {
+      id: filament.id,
+      name: filament.colorName,
+      hex: filament.colorHex,
+      inStock: filament.inStock,
+      image: null,
+      printedExample: null,
+      manufacturer: filament.manufacturer,
+      displayName: [filament.manufacturer, filament.name].filter(Boolean).join(" ").trim(),
+      priceSurchargeChf: filament.priceSurchargeChf,
+    },
+    stats
+  )
+}
+
 export function groupFilamentsForConfigurator(
-  filaments: AdminFilament[]
+  filaments: AdminFilament[],
+  statsMap: MaterialStatsMap = buildDefaultMaterialStats()
 ): FilamentMaterial[] {
   const groups = new Map<FilamentMaterialType, AdminFilament[]>()
 
@@ -75,24 +96,46 @@ export function groupFilamentsForConfigurator(
     groups.set(filament.materialType, list)
   }
 
-  return TYPE_ORDER.filter((type) => groups.has(type)).map((type) => ({
-    id: type.toLowerCase(),
-    name: type,
-    colors: (groups.get(type) ?? []).map(filamentToColor),
-  }))
+  return TYPE_ORDER.filter((type) => groups.has(type)).map((type) => {
+    const stats = statsMap[type]
+    return {
+      id: type.toLowerCase(),
+      name: type,
+      strength: stats.strength,
+      flexibility: stats.flexibility,
+      heatResistance: stats.heatResistance,
+      easeOfUse: stats.easeOfUse,
+      colors: (groups.get(type) ?? []).map((filament) => filamentToColor(filament, stats)),
+    }
+  })
 }
 
-export function legacyMaterialsFallback(): FilamentMaterial[] {
-  return materials3D.map((material) => ({
-    id: material.id,
-    name: material.name,
-    colors: material.colors.map((color) => ({
-      id: color.id,
-      name: color.name,
-      hex: color.hex,
-      inStock: color.inStock,
-      image: color.image,
-      printedExample: color.printedExample ?? null,
-    })),
-  }))
+export function legacyMaterialsFallback(
+  statsMap: MaterialStatsMap = buildDefaultMaterialStats()
+): FilamentMaterial[] {
+  return materials3D.map((material) => {
+    const materialType = legacyTypeToFilamentType(material.id)
+    const stats = statsMap[materialType]
+    return {
+      id: material.id,
+      name: material.name,
+      strength: stats.strength,
+      flexibility: stats.flexibility,
+      heatResistance: stats.heatResistance,
+      easeOfUse: stats.easeOfUse,
+      colors: material.colors.map((color) =>
+        applyCategoryStats(
+          {
+            id: color.id,
+            name: color.name,
+            hex: color.hex,
+            inStock: color.inStock,
+            image: color.image,
+            printedExample: color.printedExample ?? null,
+          },
+          stats
+        )
+      ),
+    }
+  })
 }

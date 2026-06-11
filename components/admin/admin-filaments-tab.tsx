@@ -20,14 +20,14 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { AdminMaterialStatsSection } from "@/components/admin/admin-material-stats-section"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
 import {
   FILAMENT_MATERIAL_TYPES,
-  FILAMENT_SURFACE_FINISHES,
   normalizeAdminFilament,
   type AdminFilament,
   type FilamentMaterialType,
-  type FilamentSurfaceFinish,
 } from "@/lib/admin/filament-types"
 import { cn } from "@/lib/utils"
 
@@ -38,44 +38,7 @@ const EMPTY_FORM: Partial<AdminFilament> = {
   colorName: "",
   colorHex: "#1a1a1a",
   inStock: true,
-  strength: 3,
-  flexibility: 3,
-  heatResistance: 3,
-  surfaceFinish: "matt",
   priceSurchargeChf: 0,
-}
-
-function StarRatingInput({
-  label,
-  value,
-  onChange,
-}: {
-  label: string
-  value: number
-  onChange: (value: number) => void
-}) {
-  return (
-    <div className="space-y-2">
-      <Label>{label}</Label>
-      <div className="flex gap-1">
-        {[1, 2, 3, 4, 5].map((star) => (
-          <button
-            key={star}
-            type="button"
-            onClick={() => onChange(star)}
-            className={cn(
-              "h-9 w-9 rounded-lg border text-sm font-semibold transition-colors",
-              value >= star
-                ? "border-primary bg-primary/15 text-primary"
-                : "border-border text-muted-foreground hover:border-primary/40"
-            )}
-          >
-            {star}
-          </button>
-        ))}
-      </div>
-    </div>
-  )
 }
 
 export function AdminFilamentsTab() {
@@ -184,120 +147,126 @@ export function AdminFilamentsTab() {
     }
   }
 
-  if (loading) {
-    return (
-      <div className={cn("flex items-center gap-2 py-16", adminUi.muted)}>
-        <Loader2 className="h-5 w-5 animate-spin" />
-        Filamente werden geladen…
-      </div>
-    )
-  }
-
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className={cn("text-2xl font-bold", adminUi.heading)}>Filament-Verwaltung</h1>
-          <p className={cn("mt-2 text-sm", adminUi.muted)}>
-            Verwalte Materialien, Farben und Eigenschaften fuer den 3D-Druck-Konfigurator.
-          </p>
-        </div>
-        <Button type="button" onClick={openCreate}>
-          <Plus className="mr-2 h-4 w-4" />
-          Filament hinzufuegen
-        </Button>
+      <div>
+        <h1 className={cn("text-2xl font-bold", adminUi.heading)}>Filament-Verwaltung</h1>
+        <p className={cn("mt-2 text-sm", adminUi.muted)}>
+          Farben und Lagerbestand pro Filament — Materialeigenschaften zentral unter Material-Kategorien.
+        </p>
       </div>
 
-      {error && (
-        <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-700 dark:text-red-300">
-          {error}
-        </div>
-      )}
+      <Tabs defaultValue="filaments" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="filaments">Filamente &amp; Farben</TabsTrigger>
+          <TabsTrigger value="categories">Material-Kategorien</TabsTrigger>
+        </TabsList>
 
-      <div className={cn("overflow-hidden rounded-xl border", adminUi.card)}>
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead className="border-b bg-muted/40 text-left">
-              <tr>
-                <th className="px-4 py-3 font-medium">Material</th>
-                <th className="px-4 py-3 font-medium">Hersteller &amp; Name</th>
-                <th className="px-4 py-3 font-medium">Farbe</th>
-                <th className="px-4 py-3 font-medium">Lager</th>
-                <th className="px-4 py-3 font-medium">Stats</th>
-                <th className="px-4 py-3 font-medium">Aufpreis</th>
-                <th className="px-4 py-3 font-medium">Aktionen</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sortedFilaments.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center text-muted-foreground">
-                    Noch keine Filamente angelegt.
-                  </td>
-                </tr>
-              ) : (
-                sortedFilaments.map((filament) => (
-                  <tr key={filament.id} className="border-b last:border-b-0">
-                    <td className="px-4 py-3">
-                      <Badge variant="secondary">{filament.materialType}</Badge>
-                    </td>
-                    <td className="px-4 py-3">
-                      <p className="font-medium">{filament.manufacturer}</p>
-                      <p className="text-muted-foreground">{filament.name}</p>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <span
-                          className="h-5 w-5 rounded-full border border-border"
-                          style={{ backgroundColor: filament.colorHex }}
-                        />
-                        {filament.colorName}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      {filament.inStock ? (
-                        <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
-                          Verfuegbar
-                        </Badge>
-                      ) : (
-                        <Badge variant="destructive">Ausverkauft</Badge>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-xs text-muted-foreground">
-                      S{filament.strength} · F{filament.flexibility} · H{filament.heatResistance}
-                      <br />
-                      {filament.surfaceFinish}
-                    </td>
-                    <td className="px-4 py-3 tabular-nums">
-                      CHF {filament.priceSurchargeChf.toFixed(2)}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex gap-2">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          onClick={() => openEdit(filament)}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          onClick={() => void removeFilament(filament.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+        <TabsContent value="filaments" className="space-y-6">
+          <div className="flex justify-end">
+            <Button type="button" onClick={openCreate}>
+              <Plus className="mr-2 h-4 w-4" />
+              Filament hinzufuegen
+            </Button>
+          </div>
+
+          {error && (
+            <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-700 dark:text-red-300">
+              {error}
+            </div>
+          )}
+
+          {loading ? (
+            <div className={cn("flex items-center gap-2 py-16", adminUi.muted)}>
+              <Loader2 className="h-5 w-5 animate-spin" />
+              Filamente werden geladen…
+            </div>
+          ) : (
+            <div className={cn("overflow-hidden rounded-xl border", adminUi.card)}>
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead className="border-b bg-muted/40 text-left">
+                    <tr>
+                      <th className="px-4 py-3 font-medium">Material</th>
+                      <th className="px-4 py-3 font-medium">Hersteller &amp; Name</th>
+                      <th className="px-4 py-3 font-medium">Farbe</th>
+                      <th className="px-4 py-3 font-medium">Lager</th>
+                      <th className="px-4 py-3 font-medium">Aufpreis</th>
+                      <th className="px-4 py-3 font-medium">Aktionen</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sortedFilaments.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-4 py-10 text-center text-muted-foreground">
+                          Noch keine Filamente angelegt.
+                        </td>
+                      </tr>
+                    ) : (
+                      sortedFilaments.map((filament) => (
+                        <tr key={filament.id} className="border-b last:border-b-0">
+                          <td className="px-4 py-3">
+                            <Badge variant="secondary">{filament.materialType}</Badge>
+                          </td>
+                          <td className="px-4 py-3">
+                            <p className="font-medium">{filament.manufacturer}</p>
+                            <p className="text-muted-foreground">{filament.name}</p>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <span
+                                className="h-5 w-5 rounded-full border border-border"
+                                style={{ backgroundColor: filament.colorHex }}
+                              />
+                              {filament.colorName}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            {filament.inStock ? (
+                              <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
+                                Verfuegbar
+                              </Badge>
+                            ) : (
+                              <Badge variant="destructive">Ausverkauft</Badge>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 tabular-nums">
+                            CHF {filament.priceSurchargeChf.toFixed(2)}
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex gap-2">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                onClick={() => openEdit(filament)}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                onClick={() => void removeFilament(filament.id)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="categories">
+          <AdminMaterialStatsSection />
+        </TabsContent>
+      </Tabs>
 
       <Dialog open={isEditing} onOpenChange={(open) => !open && closeEditor()}>
         <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
@@ -330,6 +299,9 @@ export function AdminFilamentsTab() {
                   ))}
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground">
+                Stabilität, Flexibilität und Hitzebeständigkeit werden vom Material-Typ geerbt.
+              </p>
             </div>
 
             <div className="space-y-2">
@@ -399,49 +371,7 @@ export function AdminFilamentsTab() {
               />
             </div>
 
-            <StarRatingInput
-              label="Stabilitaet / Festigkeit"
-              value={form.strength ?? 3}
-              onChange={(value) => setForm((prev) => ({ ...prev, strength: value }))}
-            />
-            <StarRatingInput
-              label="Flexibilitaet"
-              value={form.flexibility ?? 3}
-              onChange={(value) => setForm((prev) => ({ ...prev, flexibility: value }))}
-            />
-            <StarRatingInput
-              label="Hitzebestaendigkeit"
-              value={form.heatResistance ?? 3}
-              onChange={(value) =>
-                setForm((prev) => ({ ...prev, heatResistance: value }))
-              }
-            />
-
-            <div className="space-y-2">
-              <Label>Oberflaechen-Finish</Label>
-              <Select
-                value={form.surfaceFinish ?? "matt"}
-                onValueChange={(value) =>
-                  setForm((prev) => ({
-                    ...prev,
-                    surfaceFinish: value as FilamentSurfaceFinish,
-                  }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {FILAMENT_SURFACE_FINISHES.map((finish) => (
-                    <SelectItem key={finish} value={finish}>
-                      {finish}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
+            <div className="space-y-2 sm:col-span-2">
               <Label>Preisaufschlag (CHF)</Label>
               <Input
                 type="number"

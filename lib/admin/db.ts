@@ -59,8 +59,16 @@ import {
   cosmosGetFilaments,
   cosmosUpsertFilament,
 } from "@/lib/admin/cosmos-filaments"
+import {
+  cosmosGetMaterialStats,
+  cosmosSaveMaterialStats,
+} from "@/lib/admin/cosmos-material-stats"
 import { mergeSiteTexts, type SiteTexts } from "@/lib/admin/site-texts"
 import type { AdminFilament } from "@/lib/admin/filament-types"
+import {
+  mergeMaterialStats,
+  type MaterialStatsMap,
+} from "@/lib/admin/material-stats-types"
 import {
   groupFilamentsForConfigurator,
   legacyMaterialsFallback,
@@ -75,6 +83,7 @@ const PRODUCTS_FILE = "products.json"
 const SETTINGS_FILE = "settings.json"
 const SITE_TEXTS_FILE = "site-texts.json"
 const FILAMENTS_FILE = "filaments.json"
+const MATERIAL_STATS_FILE = "material-stats.json"
 const CUSTOMERS_FILE = "customers.json"
 
 async function ensureDataDir(): Promise<void> {
@@ -527,6 +536,28 @@ export async function saveSiteTexts(texts: SiteTexts): Promise<SiteTexts> {
   return withCosmosRequired("saveSiteTexts", () => cosmosSaveSiteTexts(texts))
 }
 
+export async function getMaterialStats(): Promise<MaterialStatsMap> {
+  return withCosmosFallback(
+    "getMaterialStats",
+    cosmosGetMaterialStats,
+    async () => {
+      const stored = await readJsonFile<Partial<MaterialStatsMap> | null>(
+        MATERIAL_STATS_FILE,
+        null
+      )
+      return mergeMaterialStats(stored)
+    }
+  )
+}
+
+export async function saveMaterialStats(
+  categories: MaterialStatsMap
+): Promise<MaterialStatsMap> {
+  return withCosmosRequired("saveMaterialStats", () =>
+    cosmosSaveMaterialStats(categories)
+  )
+}
+
 export async function getAdminFilaments(): Promise<AdminFilament[]> {
   return withCosmosRequired("getAdminFilaments", cosmosGetFilaments)
 }
@@ -536,9 +567,12 @@ export async function getFilamentMaterials(): Promise<FilamentMaterial[]> {
     "getFilamentMaterials",
     cosmosGetFilamentMaterials,
     async () => {
-      const stored = await readJsonFile<AdminFilament[] | null>(FILAMENTS_FILE, null)
-      if (stored?.length) return groupFilamentsForConfigurator(stored)
-      return legacyMaterialsFallback()
+      const [stored, stats] = await Promise.all([
+        readJsonFile<AdminFilament[] | null>(FILAMENTS_FILE, null),
+        getMaterialStats(),
+      ])
+      if (stored?.length) return groupFilamentsForConfigurator(stored, stats)
+      return legacyMaterialsFallback(stats)
     }
   )
 }

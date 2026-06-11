@@ -21,10 +21,6 @@ export type AdminFilament = {
   colorName: string
   colorHex: string
   inStock: boolean
-  strength: number
-  flexibility: number
-  heatResistance: number
-  surfaceFinish: FilamentSurfaceFinish
   priceSurchargeChf: number
   updatedAt?: string
 }
@@ -36,7 +32,12 @@ export function clampStat(value: unknown, fallback = 3): number {
 }
 
 export function normalizeAdminFilament(
-  input: Partial<AdminFilament>,
+  input: Partial<AdminFilament> & {
+    strength?: unknown
+    flexibility?: unknown
+    heatResistance?: unknown
+    surfaceFinish?: unknown
+  },
   existing?: AdminFilament
 ): AdminFilament {
   const materialType = FILAMENT_MATERIAL_TYPES.includes(
@@ -44,12 +45,6 @@ export function normalizeAdminFilament(
   )
     ? (input.materialType as FilamentMaterialType)
     : existing?.materialType ?? "PLA"
-
-  const surfaceFinish = FILAMENT_SURFACE_FINISHES.includes(
-    input.surfaceFinish as FilamentSurfaceFinish
-  )
-    ? (input.surfaceFinish as FilamentSurfaceFinish)
-    : existing?.surfaceFinish ?? "matt"
 
   return {
     id: input.id?.trim() || existing?.id || `fil-${Date.now()}`,
@@ -61,10 +56,6 @@ export function normalizeAdminFilament(
       ? input.colorHex!
       : existing?.colorHex ?? "#1a1a1a",
     inStock: input.inStock !== undefined ? Boolean(input.inStock) : existing?.inStock !== false,
-    strength: clampStat(input.strength ?? existing?.strength),
-    flexibility: clampStat(input.flexibility ?? existing?.flexibility),
-    heatResistance: clampStat(input.heatResistance ?? existing?.heatResistance),
-    surfaceFinish,
     priceSurchargeChf: Math.max(
       0,
       Number(input.priceSurchargeChf ?? existing?.priceSurchargeChf ?? 0) || 0
