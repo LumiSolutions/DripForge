@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type CSSProperties } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { StaffAuthFlow } from "@/components/admin/staff-auth-flow"
+import { SupportNavLink } from "@/components/dripforge/support-nav-link"
 import { useSiteTexts } from "@/components/dripforge/site-texts-provider"
 import { getLaunchCountdown, LAUNCH_DATE } from "@/lib/dripforge/launch-config"
 import { cn } from "@/lib/utils"
@@ -116,6 +117,18 @@ export function ComingSoonPage({ onAccessGranted }: { onAccessGranted: () => voi
       />
       </div>
       <EmberField />
+
+      <header className="sticky top-0 z-20 w-full border-b border-white/5 bg-[#0a0a0c]/80 backdrop-blur-xl">
+        <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-3 px-4">
+          <span className="truncate text-sm font-bold tracking-tight">
+            <span className="text-orange-500">Drip</span>
+            <span className="bg-gradient-to-r from-orange-500 to-cyan-400 bg-clip-text text-transparent">
+              Forge
+            </span>
+          </span>
+          <SupportNavLink active={false} variant="desktop" />
+        </div>
+      </header>
 
       <main className="relative z-10 flex w-full flex-1 flex-col items-center justify-center gap-6 px-4">
         {/* Quadratisches Hero-Bild vollstaendig, Countdown darunter */}

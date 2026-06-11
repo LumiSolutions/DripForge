@@ -24,6 +24,7 @@ import {
 } from "@/lib/dripforge/service-visibility"
 import type { ServiceVisibilitySettings } from "@/lib/admin/types"
 import { shopCartHref, shopViewHref } from "@/lib/dripforge/shop-routes"
+import { SupportNavLink, SUPPORT_ROUTE } from "@/components/dripforge/support-nav-link"
 
 type SpaNavProps = {
   mode: "spa"
@@ -55,6 +56,8 @@ export function ShopHeader(props: ShopHeaderProps) {
   const cartCount = props.mode === "spa" ? props.cartCount : (props.cartCount ?? 0)
   const kontoActive =
     props.mode === "link" ? pathname.startsWith("/konto") : false
+  const supportActive =
+    pathname === SUPPORT_ROUTE || pathname.startsWith(`${SUPPORT_ROUTE}/`)
   const kontoHref = kontoLoggedIn ? "/konto" : "/konto/login"
 
   useEffect(() => {
@@ -192,9 +195,10 @@ export function ShopHeader(props: ShopHeaderProps) {
               </Link>
             )
           )}
+          <SupportNavLink active={supportActive} variant="desktop" />
         </nav>
 
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-1 sm:gap-2">
           <button
             type="button"
             onClick={toggleTheme}
@@ -369,7 +373,7 @@ export function ShopHeader(props: ShopHeaderProps) {
 
           <button
             type="button"
-            className="md:hidden"
+            className="shrink-0 md:hidden"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           >
             {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
@@ -408,6 +412,11 @@ export function ShopHeader(props: ShopHeaderProps) {
                 </Link>
               )
             )}
+            <SupportNavLink
+              active={supportActive}
+              variant="mobile"
+              onNavigate={() => setMobileMenuOpen(false)}
+            />
             <Link
               href={kontoHref}
               onClick={() => setMobileMenuOpen(false)}
