@@ -25,6 +25,7 @@ import {
 import type { ServiceVisibilitySettings } from "@/lib/admin/types"
 import { shopCartHref, shopViewHref } from "@/lib/dripforge/shop-routes"
 import { SupportNavLink, SupportNavIconLink, SUPPORT_ROUTE } from "@/components/dripforge/support-nav-link"
+import { useSupportPageActive } from "@/hooks/use-support-page-active"
 
 type SpaNavProps = {
   mode: "spa"
@@ -58,6 +59,7 @@ export function ShopHeader(props: ShopHeaderProps) {
     props.mode === "link" ? pathname.startsWith("/konto") : false
   const supportActive =
     pathname === SUPPORT_ROUTE || pathname.startsWith(`${SUPPORT_ROUTE}/`)
+  const supportPageVisible = useSupportPageActive()
   const kontoHref = kontoLoggedIn ? "/konto" : "/konto/login"
 
   useEffect(() => {
@@ -195,7 +197,7 @@ export function ShopHeader(props: ShopHeaderProps) {
               </Link>
             )
           )}
-          <SupportNavLink active={supportActive} />
+          {supportPageVisible && <SupportNavLink active={supportActive} />}
         </nav>
 
         <div className="flex shrink-0 items-center gap-1 sm:gap-2">
@@ -312,7 +314,7 @@ export function ShopHeader(props: ShopHeaderProps) {
             </Button>
           )}
 
-          <SupportNavIconLink active={supportActive} />
+          {supportPageVisible && <SupportNavIconLink active={supportActive} />}
 
           <Link
             href={kontoHref}

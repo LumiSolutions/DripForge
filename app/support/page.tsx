@@ -1,11 +1,13 @@
 "use client"
 
-import { useEffect, Suspense } from "react"
-import { useSearchParams } from "next/navigation"
+import { useEffect, Suspense, useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { Loader2 } from "lucide-react"
 import { ShopHeader } from "@/components/dripforge/shop-header"
 import { ShopFooter } from "@/components/dripforge/shop-footer"
 import { SiteTextsProvider } from "@/components/dripforge/site-texts-provider"
 import { SupportPageContent } from "@/components/dripforge/views/support-page-content"
+import { fetchSupportPageActive } from "@/hooks/use-support-page-active"
 
 function SupportPageInner() {
   const searchParams = useSearchParams()
@@ -18,6 +20,37 @@ function SupportPageInner() {
       initialCanceled={initialCanceled}
     />
   )
+}
+
+function SupportPageGate({ children }: { children: React.ReactNode }) {
+  const router = useRouter()
+  const [status, setStatus] = useState<"loading" | "allowed" | "blocked">("loading")
+
+  useEffect(() => {
+    void fetchSupportPageActive().then((active) => {
+      if (!active) {
+        setStatus("blocked")
+        router.replace("/")
+        return
+      }
+      setStatus("allowed")
+    })
+  }, [router])
+
+  if (status === "loading") {
+    return (
+      <div className="flex min-h-[50vh] items-center justify-center text-muted-foreground">
+        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+        Wird geladen…
+      </div>
+    )
+  }
+
+  if (status === "blocked") {
+    return null
+  }
+
+  return <>{children}</>
 }
 
 export default function SupportPage() {
@@ -35,15 +68,17 @@ export default function SupportPage() {
         <ShopHeader mode="link" />
 
         <main>
-          <Suspense
-            fallback={
-              <div className="py-24 text-center text-muted-foreground">
-                Support-Seite wird geladen…
-              </div>
-            }
-          >
-            <SupportPageInner />
-          </Suspense>
+          <SupportPageGate>
+            <Suspense
+              fallback={
+                <div className="py-24 text-center text-muted-foreground">
+                  Support-Seite wird geladen…
+                </div>
+              }
+            >
+              <SupportPageInner />
+            </Suspense>
+          </SupportPageGate>
         </main>
 
         <ShopFooter />

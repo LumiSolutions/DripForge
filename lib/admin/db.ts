@@ -25,7 +25,10 @@ import {
   DEFAULT_SERVICE_VISIBILITY,
 } from "@/lib/admin/types"
 import { normalizeServiceVisibility } from "@/lib/dripforge/service-visibility"
-import { buildDefaultAdminSettings } from "@/lib/admin/safe-defaults"
+import {
+  buildDefaultAdminSettings,
+  normalizeSupportPageActive,
+} from "@/lib/admin/safe-defaults"
 import {
   withCosmosFallback,
   withCosmosRequired,
@@ -430,6 +433,7 @@ async function getSettingsFromFile(): Promise<AdminSettings> {
       company: { ...DEFAULT_COMPANY, ...stored.company },
       launch: { ...DEFAULT_LAUNCH_SETTINGS, ...stored.launch },
       services: normalizeServiceVisibility(stored.services),
+      isSupportPageActive: stored.isSupportPageActive === true,
       updatedAt: stored.updatedAt,
     }
   }
@@ -438,6 +442,7 @@ async function getSettingsFromFile(): Promise<AdminSettings> {
     company: { ...DEFAULT_COMPANY },
     launch: { ...DEFAULT_LAUNCH_SETTINGS },
     services: { ...DEFAULT_SERVICE_VISIBILITY },
+    isSupportPageActive: false,
     updatedAt: new Date().toISOString(),
   }
   try {
@@ -465,6 +470,7 @@ export async function saveSettings(input: {
   company?: CompanySettings
   launch?: Partial<LaunchSettings>
   services?: Partial<AdminSettings["services"]>
+  isSupportPageActive?: boolean
 }): Promise<AdminSettings> {
   const current = await getSettings()
   const next: AdminSettings = {
@@ -481,6 +487,10 @@ export async function saveSettings(input: {
       ...current.services,
       ...input.services,
     }),
+    isSupportPageActive:
+      input.isSupportPageActive !== undefined
+        ? normalizeSupportPageActive(input.isSupportPageActive)
+        : current.isSupportPageActive === true,
     updatedAt: new Date().toISOString(),
   }
   await withCosmosFallback(

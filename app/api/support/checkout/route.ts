@@ -12,6 +12,8 @@ import {
   categoryLabel,
 } from "@/lib/support/types"
 import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
+import { getSettings } from "@/lib/admin/db"
+import { buildSupportPageSettings } from "@/lib/dripforge/support-page-settings"
 
 export const dynamic = "force-dynamic"
 
@@ -36,6 +38,14 @@ export async function POST(request: Request) {
 
   try {
     await warmCosmosInfrastructure()
+    const settings = await getSettings()
+    if (!buildSupportPageSettings(settings).isSupportPageActive) {
+      return NextResponse.json(
+        { error: "Die Support-Kampagne ist derzeit nicht aktiv." },
+        { status: 403 }
+      )
+    }
+
     const body = (await request.json()) as CheckoutBody
     const amountChf = normalizeSupporterAmountChf(body.amountChf)
     const name = normalizeSupporterName(body.name)
@@ -115,5 +125,13 @@ export async function POST(request: Request) {
 }
 
 export async function GET() {
-  return NextResponse.json({ configured: isStripeConfigured() })
+  try {
+    const settings = await getSettings()
+    return NextResponse.json({
+      configured: isStripeConfigured(),
+      active: buildSupportPageSettings(settings).isSupportPageActive,
+    })
+  } catch {
+    return NextResponse.json({ configured: isStripeConfigured(), active: false })
+  }
 }

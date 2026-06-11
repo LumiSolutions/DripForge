@@ -186,6 +186,7 @@ export async function cosmosGetSettings(): Promise<AdminSettings> {
         company: { ...DEFAULT_COMPANY, ...resource.company },
         launch: { ...DEFAULT_LAUNCH_SETTINGS, ...resource.launch },
         services: normalizeServiceVisibility(resource.services),
+        isSupportPageActive: resource.isSupportPageActive === true,
         updatedAt: resource.updatedAt,
       }
     }
@@ -202,6 +203,7 @@ export async function cosmosGetSettings(): Promise<AdminSettings> {
     company: { ...DEFAULT_COMPANY },
     launch: { ...DEFAULT_LAUNCH_SETTINGS },
     services: { ...DEFAULT_SERVICE_VISIBILITY },
+    isSupportPageActive: false,
     updatedAt: new Date().toISOString(),
   }
   try {

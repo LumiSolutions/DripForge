@@ -80,7 +80,23 @@ export async function middleware(request: NextRequest) {
     console.warn("Middleware: Launch-Status nicht verfuegbar — Coming Soon aktiv.", error)
   }
 
-  if (pathname === "/" || pathname.startsWith("/support")) {
+  if (pathname.startsWith("/support")) {
+    try {
+      const supportUrl = new URL("/api/settings/support", request.url)
+      const res = await fetch(supportUrl, { cache: "no-store" })
+      const data = (await res.json().catch(() => ({}))) as {
+        isSupportPageActive?: boolean
+      }
+      if (data.isSupportPageActive === true) {
+        return NextResponse.next()
+      }
+    } catch (error) {
+      console.warn("Middleware: Support-Status nicht verfuegbar.", error)
+    }
+    return NextResponse.redirect(new URL("/", request.url))
+  }
+
+  if (pathname === "/") {
     return NextResponse.next()
   }
 

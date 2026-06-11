@@ -34,6 +34,7 @@ export async function PUT(request: Request) {
       checkout?: CheckoutRuntimeConfig
       company?: Partial<CompanySettings>
       services?: Partial<ServiceVisibilitySettings>
+      isSupportPageActive?: boolean
     }
 
     if (!body.checkout) {
@@ -68,6 +69,7 @@ export async function PUT(request: Request) {
       checkout,
       company,
       services: normalizeServiceVisibility(body.services),
+      isSupportPageActive: body.isSupportPageActive,
     })
     return NextResponse.json(settings)
   } catch (error) {

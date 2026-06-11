@@ -14,8 +14,13 @@ export function buildDefaultAdminSettings(): AdminSettings {
     company: { ...DEFAULT_COMPANY_SETTINGS },
     launch: { ...DEFAULT_LAUNCH_SETTINGS },
     services: { ...DEFAULT_SERVICE_VISIBILITY },
+    isSupportPageActive: false,
     updatedAt: new Date().toISOString(),
   }
+}
+
+export function normalizeSupportPageActive(value: unknown): boolean {
+  return value === true
 }
 
 export function getSafeServiceVisibility(

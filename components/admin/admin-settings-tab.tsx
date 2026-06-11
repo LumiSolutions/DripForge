@@ -27,6 +27,7 @@ export function AdminSettingsTab() {
     DEFAULT_SERVICE_VISIBILITY
   )
   const [shopLive, setShopLive] = useState(false)
+  const [isSupportPageActive, setIsSupportPageActive] = useState(false)
   const [goingLive, setGoingLive] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -43,6 +44,7 @@ export function AdminSettingsTab() {
       setCheckout(data.checkout ?? DEFAULT_CHECKOUT_RUNTIME_CONFIG)
       setCompany({ ...DEFAULT_COMPANY_SETTINGS, ...data.company })
       setShopLive(Boolean(data.launch?.shopLive))
+      setIsSupportPageActive(Boolean(data.isSupportPageActive))
       setServices({ ...DEFAULT_SERVICE_VISIBILITY, ...data.services })
     } catch (err) {
       console.warn("Admin: Einstellungen konnten nicht geladen werden.", err)
@@ -68,12 +70,13 @@ export function AdminSettingsTab() {
       const res = await fetch("/api/admin/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ checkout, company, services }),
+        body: JSON.stringify({ checkout, company, services, isSupportPageActive }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? "Speichern fehlgeschlagen")
       setCheckout(data.checkout)
       setCompany({ ...DEFAULT_COMPANY_SETTINGS, ...data.company })
+      setIsSupportPageActive(Boolean(data.isSupportPageActive))
       setSuccess("Einstellungen gespeichert — Shop wird aktualisiert.")
     } catch (err) {
       console.warn("Admin: Einstellungen konnten nicht gespeichert werden.", err)
@@ -187,6 +190,40 @@ export function AdminSettingsTab() {
               Website offiziell live schalten
             </Button>
           )}
+        </CardContent>
+      </Card>
+
+      <Card className={adminUi.card}>
+        <CardContent className="space-y-4 p-6">
+          <div>
+            <h3 className={cn("text-base font-semibold", adminUi.accentTitle)}>
+              Support-Kampagne
+            </h3>
+            <p className={cn("mt-1 text-sm", adminUi.muted)}>
+              Steuert die Sichtbarkeit von «Unsere Mission» im Header und die Erreichbarkeit
+              der Seite /support.
+            </p>
+          </div>
+          <div
+            className={cn(
+              "flex items-start justify-between gap-4 rounded-xl border p-4",
+              adminUi.section
+            )}
+          >
+            <div className="space-y-1 pr-2">
+              <Label className={cn("text-sm font-semibold", adminUi.heading)}>
+                Support-Kampagne («Unsere Mission») auf der Website anzeigen
+              </Label>
+              <p className={cn("text-xs", adminUi.muted)}>
+                Wenn deaktiviert, erscheint der Link weder im Desktop-Header noch als
+                Mobile-Icon. Direktaufrufe von /support werden zur Startseite umgeleitet.
+              </p>
+            </div>
+            <Switch
+              checked={isSupportPageActive}
+              onCheckedChange={setIsSupportPageActive}
+            />
+          </div>
         </CardContent>
       </Card>
 

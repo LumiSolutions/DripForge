@@ -5,6 +5,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { StaffAuthFlow } from "@/components/admin/staff-auth-flow"
 import { SupportNavLink, SupportNavIconLink } from "@/components/dripforge/support-nav-link"
+import { useSupportPageActive } from "@/hooks/use-support-page-active"
 import { useSiteTexts } from "@/components/dripforge/site-texts-provider"
 import { getLaunchCountdown, LAUNCH_DATE } from "@/lib/dripforge/launch-config"
 import { cn } from "@/lib/utils"
@@ -74,6 +75,7 @@ function CountdownSeparator() {
 
 export function ComingSoonPage({ onAccessGranted }: { onAccessGranted: () => void }) {
   const { t } = useSiteTexts()
+  const supportPageVisible = useSupportPageActive()
   const [countdown, setCountdown] = useState(getLaunchCountdown())
   const [testerOpen, setTesterOpen] = useState(false)
 
@@ -126,8 +128,12 @@ export function ComingSoonPage({ onAccessGranted }: { onAccessGranted: () => voi
               Forge
             </span>
           </span>
-          <SupportNavIconLink active={false} />
-          <SupportNavLink active={false} />
+          {supportPageVisible && (
+            <>
+              <SupportNavIconLink active={false} />
+              <SupportNavLink active={false} />
+            </>
+          )}
         </div>
       </header>
 

@@ -110,6 +110,8 @@ export type AdminSettings = {
   company: CompanySettings
   launch: LaunchSettings
   services: ServiceVisibilitySettings
+  /** Support-Kampagne (/support) im Header und als Route sichtbar */
+  isSupportPageActive: boolean
   updatedAt: string
 }
 
