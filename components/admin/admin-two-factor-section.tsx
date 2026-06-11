@@ -1,7 +1,7 @@
 "use client"
 
 import { FormEvent, useCallback, useEffect, useState } from "react"
-import { KeyRound, Loader2, ShieldCheck } from "lucide-react"
+import { KeyRound, Loader2, ShieldCheck, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -13,6 +13,7 @@ export function AdminTwoFactorSection() {
   const [totpEnabled, setTotpEnabled] = useState(false)
   const [loading, setLoading] = useState(true)
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
+  const [secretBase32, setSecretBase32] = useState<string | null>(null)
   const [code, setCode] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
@@ -37,10 +38,55 @@ export function AdminTwoFactorSection() {
     void loadStatus()
   }, [loadStatus])
 
-  const startReset = async () => {
+  const requestSetup = async (force: boolean) => {
+    setBusy(true)
+    setError(null)
+    setSuccess(null)
+    try {
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      }
+      if (force) headers["x-confirm-reset"] = "1"
+
+      const res = await fetch("/api/admin/auth/reset-totp", {
+        method: "POST",
+        headers,
+        credentials: "include",
+        body: JSON.stringify({ force }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? "Setup fehlgeschlagen")
+      setQrDataUrl(data.qrDataUrl ?? null)
+      setSecretBase32(data.secretBase32 ?? null)
+      if (force) setTotpEnabled(false)
+      setCode("")
+      setSuccess(data.message ?? "QR-Code bereit.")
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Setup fehlgeschlagen")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const beginSetup = async () => {
+    if (totpEnabled) {
+      if (
+        !confirm(
+          "2FA wirklich neu einrichten? Der bisherige Authenticator-Eintrag wird ungueltig, bis Sie den neuen Code bestaetigen."
+        )
+      ) {
+        return
+      }
+      await requestSetup(true)
+      return
+    }
+    await requestSetup(false)
+  }
+
+  const clearAllStaff2fa = async () => {
     if (
       !confirm(
-        "Neuen 2FA-QR-Code erzeugen? Der bisherige Authenticator-Eintrag wird ungueltig, bis Sie den neuen Code bestaetigen."
+        "Alle gespeicherten 2FA-Secrets (Admin + Tester) loeschen? Beide Rollen muessen 2FA beim naechsten Login neu einrichten."
       )
     ) {
       return
@@ -50,18 +96,21 @@ export function AdminTwoFactorSection() {
     setError(null)
     setSuccess(null)
     try {
-      const res = await fetch("/api/admin/auth/reset-totp", {
+      const res = await fetch("/api/admin/staff/clear-2fa", {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
         credentials: "include",
+        body: JSON.stringify({ role: "all" }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? "Reset fehlgeschlagen")
-      setQrDataUrl(data.qrDataUrl ?? null)
+      if (!res.ok) throw new Error(data.error ?? "Zuruecksetzen fehlgeschlagen")
       setTotpEnabled(false)
+      setQrDataUrl(null)
+      setSecretBase32(null)
       setCode("")
-      setSuccess(data.message ?? "Neuer QR-Code erstellt.")
+      setSuccess(data.message ?? "2FA zurueckgesetzt.")
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Reset fehlgeschlagen")
+      setError(err instanceof Error ? err.message : "Zuruecksetzen fehlgeschlagen")
     } finally {
       setBusy(false)
     }
@@ -83,6 +132,7 @@ export function AdminTwoFactorSection() {
       if (!res.ok) throw new Error(data.error ?? "Aktivierung fehlgeschlagen")
       setTotpEnabled(true)
       setQrDataUrl(null)
+      setSecretBase32(null)
       setCode("")
       setSuccess(data.message ?? "2FA ist aktiv.")
     } catch (err) {
@@ -113,7 +163,8 @@ export function AdminTwoFactorSection() {
               Zwei-Faktor-Authentisierung (2FA)
             </h3>
             <p className={cn("mt-1 text-sm", adminUi.muted)}>
-              Authenticator-App (TOTP) fuer Admin-Zugang. Kunden-Logins sind nicht betroffen.
+              Ein fester Authenticator-Eintrag pro Rolle (Admin/Tester). Der QR-Code
+              erscheint nur bei der Ersteinrichtung.
             </p>
           </div>
         </div>
@@ -127,7 +178,11 @@ export function AdminTwoFactorSection() {
           )}
         >
           Status:{" "}
-          {totpEnabled && !qrDataUrl ? "Aktiv" : "Einrichtung ausstehend / wird aktualisiert"}
+          {totpEnabled && !qrDataUrl
+            ? "Aktiv"
+            : qrDataUrl
+              ? "Ersteinrichtung — QR scannen, dann Code eingeben"
+              : "Noch nicht eingerichtet"}
         </div>
 
         {error && <p className={adminUi.errorLg}>{error}</p>}
@@ -136,7 +191,9 @@ export function AdminTwoFactorSection() {
         {qrDataUrl && (
           <form onSubmit={(e) => void activate(e)} className="space-y-4">
             <p className={cn("text-sm", adminUi.muted)}>
-              QR-Code scannen und mit einem 6-stelligen Code bestaetigen:
+              QR-Code scannen (mehrere Geraete nacheinander moeglich) oder
+              Schlüssel manuell eintragen, dann mit einem 6-stelligen Code
+              bestaetigen:
             </p>
             <div className="flex justify-center">
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -148,6 +205,14 @@ export function AdminTwoFactorSection() {
                 height={200}
               />
             </div>
+            {secretBase32 && (
+              <div className="space-y-1">
+                <Label className={adminUi.labelMuted}>Manueller Eintrag (Base32)</Label>
+                <code className="block break-all rounded-md border border-zinc-700 bg-zinc-900/80 px-3 py-2 text-center text-xs tracking-wide text-zinc-200">
+                  {secretBase32}
+                </code>
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="admin-2fa-code" className={adminUi.labelMuted}>
                 Verifizierungscode
@@ -174,20 +239,37 @@ export function AdminTwoFactorSection() {
           </form>
         )}
 
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => void startReset()}
-          disabled={busy}
-          className={adminUi.outlineBtn}
-        >
-          {busy ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <KeyRound className="mr-2 h-4 w-4" />
-          )}
-          {totpEnabled ? "2FA neu einrichten" : "2FA einrichten"}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => void beginSetup()}
+            disabled={busy}
+            className={adminUi.outlineBtn}
+          >
+            {busy ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <KeyRound className="mr-2 h-4 w-4" />
+            )}
+            {totpEnabled ? "2FA neu einrichten" : "2FA einrichten"}
+          </Button>
+
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => void clearAllStaff2fa()}
+            disabled={busy}
+            className={adminUi.outlineBtn}
+          >
+            {busy ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Trash2 className="mr-2 h-4 w-4" />
+            )}
+            2FA komplett zuruecksetzen (Admin + Tester)
+          </Button>
+        </div>
       </CardContent>
     </Card>
   )

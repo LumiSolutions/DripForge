@@ -11,12 +11,9 @@ import {
   getAdminPendingFromRequest,
 } from "@/lib/admin/admin-session"
 import { getStaffById, saveStaff } from "@/lib/admin/staff-db"
-import { decryptTotpSecret, encryptTotpSecret } from "@/lib/admin/totp-crypto"
-import {
-  createTotpQrDataUrl,
-  generateTotpSecret,
-  verifyTotpCode,
-} from "@/lib/admin/totp"
+import { getTotpSetupMaterial } from "@/lib/admin/staff-totp-setup"
+import { decryptTotpSecret } from "@/lib/admin/totp-crypto"
+import { verifyTotpCode } from "@/lib/admin/totp"
 import type { StaffAccount, StaffAuthIntent, StaffRole } from "@/lib/admin/staff-types"
 
 const PREVIEW_COOKIE_MAX_AGE = 60 * 60 * 24 * 90
@@ -64,21 +61,23 @@ export async function setupTotpForPending(
     )
   }
 
-  const secret = generateTotpSecret()
-  const encrypted = encryptTotpSecret(secret)
-  const qrDataUrl = await createTotpQrDataUrl(account.role, secret)
+  if (account.totpEnabled) {
+    return NextResponse.json(
+      { error: "2FA ist bereits aktiv. Bitte Code eingeben." },
+      { status: 400 }
+    )
+  }
 
-  await saveStaff({
-    ...account,
-    totpSecretEncrypted: encrypted,
-    totpEnabled: false,
-  })
+  const { material } = await getTotpSetupMaterial(account)
 
   return NextResponse.json({
     success: true,
-    qrDataUrl,
-    message:
-      "Scannen Sie den QR-Code mit Ihrer Authenticator-App und bestätigen Sie mit einem 6-stelligen Code.",
+    qrDataUrl: material.qrDataUrl,
+    secretBase32: material.secretBase32,
+    isNewSecret: material.isNewSecret,
+    message: material.isNewSecret
+      ? "Scannen Sie den QR-Code mit Ihrer Authenticator-App und bestätigen Sie mit einem 6-stelligen Code."
+      : "Bestehender QR-Code. Beide Geräte können nacheinander scannen oder den Schlüssel manuell eintragen.",
   })
 }
 

@@ -40,6 +40,7 @@ export function StaffAuthFlow({
   const [password, setPassword] = useState("")
   const [code, setCode] = useState("")
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
+  const [secretBase32, setSecretBase32] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -68,6 +69,7 @@ export function StaffAuthFlow({
           throw new Error(setupData.error ?? "2FA-Einrichtung fehlgeschlagen")
         }
         setQrDataUrl(setupData.qrDataUrl ?? null)
+        setSecretBase32(setupData.secretBase32 ?? null)
         setStep("setup")
       } else {
         setStep("totp")
@@ -234,7 +236,8 @@ export function StaffAuthFlow({
                 )}
               >
                 QR-Code mit Google Authenticator, Microsoft Authenticator o.&auml;.
-                scannen.
+                scannen. Beide Handys koennen nacheinander denselben Code
+                erfassen, bevor Sie den 6-stelligen Code bestaetigen.
               </p>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -244,6 +247,28 @@ export function StaffAuthFlow({
                 width={220}
                 height={220}
               />
+              {secretBase32 && (
+                <div className="w-full space-y-1">
+                  <p
+                    className={cn(
+                      "text-center text-xs font-medium",
+                      compact ? "text-zinc-400" : adminUi.muted
+                    )}
+                  >
+                    Manueller Eintrag (Base32)
+                  </p>
+                  <code
+                    className={cn(
+                      "block break-all rounded-md border px-2 py-1.5 text-center text-[11px] tracking-wide",
+                      compact
+                        ? "border-zinc-800 bg-black/60 text-zinc-300"
+                        : "border-zinc-700 bg-zinc-900/80 text-zinc-200"
+                    )}
+                  >
+                    {secretBase32}
+                  </code>
+                </div>
+              )}
             </div>
           )}
 
