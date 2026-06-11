@@ -1,7 +1,7 @@
 "use client"
 
 import dynamic from "next/dynamic"
-import { useCallback, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { Loader2, Sparkles, Upload } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -11,6 +11,11 @@ import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
 import { Textarea } from "@/components/ui/textarea"
 import type { Generate3dResult } from "@/lib/ai/generate-3d-provider"
+import type { ThreeDGeneratorPublicStatus } from "@/lib/ai/three-d-generator-config"
+import {
+  AiGeneratorDemoNotice,
+  handleGenerate3dResponse,
+} from "@/components/dripforge/ai-generator-demo-notice"
 import { cn } from "@/lib/utils"
 
 const Product3DPreview = dynamic(
@@ -39,6 +44,21 @@ export function PageAiConfigurator({
   const [progress, setProgress] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<Generate3dResult | null>(null)
+  const [generatorStatus, setGeneratorStatus] =
+    useState<ThreeDGeneratorPublicStatus | null>(null)
+
+  useEffect(() => {
+    void fetch("/api/generate-3d/status", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && typeof data.demoMode === "boolean") {
+          setGeneratorStatus(data as ThreeDGeneratorPublicStatus)
+        }
+      })
+      .catch(() => {
+        /* Demo-Hinweis optional */
+      })
+  }, [])
 
   const simulateProgress = useCallback(() => {
     setProgress(8)
@@ -78,6 +98,7 @@ export function PageAiConfigurator({
 
       setProgress(100)
       setResult(data)
+      handleGenerate3dResponse(data, generatorStatus)
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Generierung fehlgeschlagen."
@@ -166,10 +187,18 @@ export function PageAiConfigurator({
               </div>
             )}
 
+            {generatorStatus?.demoMode && !result && (
+              <AiGeneratorDemoNotice
+                message="Demo-Modus: Es wird ein Beispiel-3D-Modell angezeigt, bis der API-Key konfiguriert ist."
+                status={generatorStatus}
+              />
+            )}
+
             {result?.message && (
-              <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
-                {result.message}
-              </div>
+              <AiGeneratorDemoNotice
+                message={result.message}
+                status={generatorStatus}
+              />
             )}
 
             <Button

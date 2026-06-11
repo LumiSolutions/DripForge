@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getAiSettings } from "@/lib/admin/db"
 import { getAiCategoryById } from "@/lib/ai/ai-settings-types"
 import { generate3dModel } from "@/lib/ai/generate-3d-provider"
+import { logThreeDGeneratorDevHint } from "@/lib/ai/three-d-generator-config"
 import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
 
 export const dynamic = "force-dynamic"
@@ -81,6 +82,10 @@ export async function POST(request: Request) {
       },
       category
     )
+
+    if (result.provider === "simulation") {
+      logThreeDGeneratorDevHint("POST /api/generate-3d")
+    }
 
     return NextResponse.json(result, {
       headers: { "Cache-Control": "no-store, max-age=0" },

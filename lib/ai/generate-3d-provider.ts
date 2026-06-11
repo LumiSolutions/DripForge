@@ -3,6 +3,13 @@ import {
   type AiCutoutSpec,
   type AiPrintVolumeMm,
 } from "@/lib/ai/ai-settings-types"
+import {
+  getThreeDGeneratorApiUrl,
+  isThreeDGeneratorConfigured,
+  logThreeDGeneratorDevHint,
+  THREE_D_GENERATOR_ENV_KEY,
+  THREE_D_GENERATOR_PROVIDER,
+} from "@/lib/ai/three-d-generator-config"
 
 export type Generate3dRequest = {
   userPrompt: string
@@ -28,6 +35,12 @@ export type Generate3dResult = {
   constraintsApplied: Generate3dConstraints
   provider: "simulation" | "external"
   message?: string
+  demoMode?: boolean
+  generatorStatus?: {
+    provider: string
+    defaultApiUrl: string
+    envKey: string
+  }
 }
 
 function formatCutout(cutout: AiCutoutSpec): string {
@@ -81,26 +94,22 @@ export const SIMULATED_MODEL_URL =
   "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/DamagedHelmet/glTF-Binary/DamagedHelmet.glb"
 
 export function isExternal3dGeneratorConfigured(): boolean {
-  const key = process.env.THREE_D_GENERATOR_API_KEY?.trim() ?? ""
-  if (!key) return false
-  if (key.includes("placeholder")) return false
-  return true
+  return isThreeDGeneratorConfigured()
 }
 
 export async function callExternal3dGenerator(
   constraints: Generate3dConstraints,
   referenceImageBase64?: string | null
 ): Promise<{ modelUrl: string } | null> {
-  const apiKey = process.env.THREE_D_GENERATOR_API_KEY?.trim()
-  const apiUrl =
-    process.env.THREE_D_GENERATOR_API_URL?.trim() ??
-    "https://api.meshy.ai/openapi/v2/text-to-3d"
+  const apiKey = process.env[THREE_D_GENERATOR_ENV_KEY]?.trim()
+  const apiUrl = getThreeDGeneratorApiUrl()
 
   if (!apiKey || !isExternal3dGeneratorConfigured()) {
+    logThreeDGeneratorDevHint("callExternal3dGenerator")
     return null
   }
 
-  // Vorbereitet für Tripo3D / Meshy — Request-Struktur, Ausführung folgt in Phase 2.
+  // Vorbereitet für Meshy (Standard) — URL über THREE_D_GENERATOR_API_URL auf Tripo3D/Luma umstellbar.
   try {
     const response = await fetch(apiUrl, {
       method: "POST",
@@ -169,6 +178,12 @@ export async function generate3dModel(
     constraintsApplied: constraints,
     provider: "simulation",
     message:
-      "THREE_D_GENERATOR_API_KEY nicht gesetzt — Demo-Modell zur Vorschau geladen. Technische Vorgaben wurden für die spätere Generierung vorbereitet.",
+      `${THREE_D_GENERATOR_ENV_KEY} nicht gesetzt — Demo-Modell zur Vorschau geladen. Technische Vorgaben wurden für die spätere Generierung vorbereitet.`,
+    demoMode: true,
+    generatorStatus: {
+      provider: THREE_D_GENERATOR_PROVIDER.primary,
+      defaultApiUrl: THREE_D_GENERATOR_PROVIDER.defaultApiUrl,
+      envKey: THREE_D_GENERATOR_ENV_KEY,
+    },
   }
 }

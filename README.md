@@ -1,36 +1,115 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# DripForge Web
 
-## Getting Started
+Next.js-Shop und Admin-Portal für [dripforge.ch](https://dripforge.ch).
 
-First, run the development server:
+## Lokale Entwicklung
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Öffne [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Kopiere `.env.example` nach `.env.local` und trage die Werte ein:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+cp .env.example .env.local
+```
 
-## Learn More
+Nach Änderungen an `.env.local` den Dev-Server neu starten.
 
-To learn more about Next.js, take a look at the following resources:
+## Umgebungsvariablen (Überblick)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| Variable | Zweck |
+|----------|--------|
+| `COSMOSDB_ENDPOINT` | Azure Cosmos DB Endpoint |
+| `COSMOSDB_KEY` | Cosmos DB Primary Key |
+| `COSMOSDB_DATABASE` | Datenbankname (Standard: `dripforge`) |
+| `THREE_D_GENERATOR_API_KEY` | API-Key für Text/Image-to-3D (Meshy o. ä.) |
+| `THREE_D_GENERATOR_API_URL` | Optional — Standard: Meshy AI Text-to-3D |
+| `ADMIN_SESSION_SECRET` | Admin-Session-Signatur |
+| `ADMIN_2FA_ENCRYPTION_KEY` | Verschlüsselung der TOTP-Secrets |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Weitere Keys (Stripe, SMTP, …) siehe `.env.example`.
 
-## Deploy on Vercel
+---
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## 3D-KI-Generator (Azure)
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Der KI-Konfigurator (`/konfigurator/ai`) nutzt standardmässig **Meshy AI** (`lib/ai/generate-3d-provider.ts`).  
+Ohne API-Key wird ein **Demo-GLB** geladen — die technischen Vorgaben aus dem Admin werden trotzdem angewendet.
+
+### Lokal testen
+
+In `.env.local` (Projekt-Root):
+
+```env
+THREE_D_GENERATOR_API_KEY=msy_xxxxxxxxxxxxxxxx
+# Optional — anderer Anbieter:
+# THREE_D_GENERATOR_API_URL=https://api.meshy.ai/openapi/v2/text-to-3d
+```
+
+API-Key bei [Meshy AI](https://www.meshy.ai/) erstellen. Alternativ kann `THREE_D_GENERATOR_API_URL` auf Tripo3D oder Luma AI zeigen (Request-Body muss ggf. in Phase 2 angepasst werden).
+
+Dev-Server neu starten. In der Browser-Konsole erscheint bei fehlendem Key ein Hinweis mit dem exakten Variablennamen.
+
+### Azure App Settings (Live: dripforge.ch)
+
+Je nach Hosting:
+
+#### Azure Static Web Apps (empfohlen für dieses Repo)
+
+1. [Azure Portal](https://portal.azure.com) → **Static Web Apps** → eure DripForge-Instanz  
+2. **Settings** → **Environment variables** (bzw. **Configuration** → **Application settings**)  
+3. **Add**:
+   - **Name:** `THREE_D_GENERATOR_API_KEY`  
+   - **Value:** euer Meshy- (oder Tripo3D-/Luma-) API-Key  
+4. Optional **Add**:
+   - **Name:** `THREE_D_GENERATOR_API_URL`  
+   - **Value:** `https://api.meshy.ai/openapi/v2/text-to-3d` (oder URL des gewählten Anbieters)  
+5. **Save** — die App wird neu deployed bzw. die API-Funktion lädt die Variablen beim nächsten Request.
+
+Alternativ per Azure CLI:
+
+```bash
+az staticwebapp appsettings set \
+  --name <static-web-app-name> \
+  --resource-group <resource-group> \
+  --setting-names THREE_D_GENERATOR_API_KEY="msy_xxx" THREE_D_GENERATOR_API_URL="https://api.meshy.ai/openapi/v2/text-to-3d"
+```
+
+#### Azure App Service
+
+1. **App Service** → **Settings** → **Environment variables** → **App settings**  
+2. Gleiche Namen/Werte wie oben hinzufügen  
+3. **Save** → **Restart** der App
+
+### Prüfen auf Live
+
+- `GET https://dripforge.ch/api/generate-3d/status` → `"configured": true` wenn der Key gesetzt ist  
+- KI-Konfigurator: keine gelbe Demo-Warnung mehr; echtes Modell nach Generierung
+
+**Hinweis:** Secrets nie ins Git committen — nur in `.env.local` (lokal) und Azure App Settings (Live).
+
+---
+
+## Build & Deploy
+
+```bash
+npm run build
+```
+
+GitHub Actions / Azure SWA deployen automatisch von `main`.
+
+## Admin & Cosmos DB
+
+Admin-Daten (Produkte, Filamente, KI-Einstellungen, Texte) liegen in Azure Cosmos DB.  
+Ohne Cosmos-Konfiguration greifen lokale JSON-Fallbacks unter `data/admin/` (nur für Entwicklung).
+
+Cosmos-Container teilen sich bei RU-Limits den `settings`-Container (`docType`-basiert).
+
+## Weitere Dokumentation
+
+- [Next.js Docs](https://nextjs.org/docs)
+- Meshy API: [docs.meshy.ai](https://docs.meshy.ai/)
