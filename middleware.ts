@@ -22,6 +22,7 @@ type LaunchPayload = {
   canAccessShop?: boolean
   hasPreviewAccess?: boolean
   showSupportOnMainSite?: boolean
+  showSupportOnCountdownPage?: boolean
 }
 
 function allowsShopAccess(data: LaunchPayload, hasPreviewCookie: boolean): boolean {
@@ -88,7 +89,10 @@ export async function middleware(request: NextRequest) {
   }
 
   if (pathname.startsWith("/support")) {
-    if (launchData.showSupportOnMainSite === true) {
+    if (
+      launchData.showSupportOnMainSite === true ||
+      launchData.showSupportOnCountdownPage === true
+    ) {
       return NextResponse.next()
     }
     return NextResponse.redirect(new URL("/", request.url))

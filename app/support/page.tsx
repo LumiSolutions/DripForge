@@ -27,14 +27,27 @@ function SupportPageGate({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = useState<"loading" | "allowed" | "blocked">("loading")
 
   useEffect(() => {
-    void fetchSupportPageSettings().then((settings) => {
-      if (!settings.showSupportOnMainSite) {
-        setStatus("blocked")
-        router.replace("/")
-        return
-      }
-      setStatus("allowed")
-    })
+    let cancelled = false
+
+    void fetchSupportPageSettings()
+      .then((settings) => {
+        if (cancelled) return
+        if (!settings.showSupportOnMainSite) {
+          setStatus("blocked")
+          router.replace("/")
+          return
+        }
+        setStatus("allowed")
+      })
+      .catch(() => {
+        if (cancelled) return
+        // API-Fehler: Seite anzeigen (Middleware hat bereits geprüft)
+        setStatus("allowed")
+      })
+
+    return () => {
+      cancelled = true
+    }
   }, [router])
 
   if (status === "loading") {

@@ -6,22 +6,26 @@ import { cn } from "@/lib/utils"
 
 export const SUPPORT_ROUTE = "/support"
 
+/** Gleiche Touch-Fläche wie Sonne/Lupe im Shop-Header */
+export const HEADER_ICON_BTN_CLASS =
+  "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground active:text-foreground touch-manipulation"
+
 type SupportMissionLinkProps = {
   active?: boolean
   onNavigate?: () => void
   /** main = Shop-Header; countdown = Coming-Soon-Header */
   variant?: "main" | "countdown"
-  /** desktop = Nav ab md; mobile = Toolbar unter md; all = beide Breakpoints */
+  /** desktop = Nav ab md; mobile = Toolbar unter md */
   display?: "desktop" | "mobile" | "all"
   className?: string
 }
 
-/** Herz-Icon + «Unsere Mission» — Label immer per CSS: hidden md:inline */
+/** Herz-Icon + «Unsere Mission» — Label per CSS: hidden md:inline */
 export function SupportMissionLink({
   active = false,
   onNavigate,
   variant = "main",
-  display = "all",
+  display = "mobile",
   className,
 }: SupportMissionLinkProps) {
   const visibilityClass =
@@ -31,54 +35,53 @@ export function SupportMissionLink({
         ? "inline-flex md:hidden"
         : "inline-flex"
 
-  const mainActive = active
-    ? "bg-primary/15 text-primary"
-    : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
-
-  const countdownActive = active
-    ? "border-orange-500/40 bg-orange-500/15 text-orange-300"
-    : "border-white/10 bg-white/5 text-zinc-200 hover:border-orange-500/30 hover:bg-orange-500/10 hover:text-orange-200"
-
   const isMain = variant === "main"
 
   return (
     <Link
       href={SUPPORT_ROUTE}
+      prefetch
       onClick={onNavigate}
       title="Unsere Mission"
       aria-label="Unsere Mission unterstützen"
       className={cn(
         visibilityClass,
-        "shrink-0 items-center justify-center text-sm font-medium transition-[padding,gap,width,border-radius,background-color] duration-200",
+        "relative z-10",
         isMain
-          ? cn(
-              "size-9 gap-0 rounded-full border p-0",
-              "md:size-auto md:gap-2 md:rounded-lg md:border-transparent md:px-4 md:py-2",
-              active
-                ? "border-primary/40 bg-primary/15 text-primary md:bg-primary/15"
-                : "border-border/80 bg-secondary/40 text-primary/90 hover:border-primary/30 hover:bg-primary/10 md:border-transparent md:bg-transparent md:text-muted-foreground md:hover:bg-secondary/50 md:hover:text-foreground"
-            )
+          ? display === "desktop"
+            ? cn(
+                "items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors",
+                active
+                  ? "bg-primary/15 text-primary"
+                  : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
+              )
+            : cn(
+                HEADER_ICON_BTN_CLASS,
+                active && "text-primary hover:text-primary"
+              )
           : cn(
-              "size-9 gap-0 rounded-full border p-0",
-              "md:size-auto md:gap-2 md:px-4 md:py-2",
-              countdownActive
+              HEADER_ICON_BTN_CLASS,
+              "rounded-full border border-white/10 bg-white/5 text-orange-400/90 hover:border-orange-500/30 hover:bg-orange-500/10 hover:text-orange-200 md:h-auto md:w-auto md:gap-2 md:rounded-full md:px-4 md:py-2",
+              active && "border-orange-500/40 bg-orange-500/15 text-orange-300"
             ),
         className
       )}
     >
       <Heart
         className={cn(
-          "h-4 w-4 shrink-0",
-          variant === "countdown"
+          "pointer-events-none h-5 w-5 shrink-0",
+          isMain
             ? active
+              ? "fill-primary/25 text-primary"
+              : "text-primary/90"
+            : active
               ? "fill-orange-500/30 text-orange-400"
               : "text-orange-400/90"
-            : active
-              ? "fill-primary/25 text-primary"
-              : "text-primary/80"
         )}
       />
-      <span className="hidden whitespace-nowrap md:inline">Unsere Mission</span>
+      <span className="pointer-events-none hidden whitespace-nowrap md:inline">
+        Unsere Mission
+      </span>
     </Link>
   )
 }

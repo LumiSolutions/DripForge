@@ -25,7 +25,7 @@ import {
 } from "@/lib/dripforge/service-visibility"
 import type { ServiceVisibilitySettings } from "@/lib/admin/types"
 import { shopCartHref, shopViewHref } from "@/lib/dripforge/shop-routes"
-import { SupportMissionLink, SUPPORT_ROUTE } from "@/components/dripforge/support-nav-link"
+import { SupportMissionLink, SUPPORT_ROUTE, HEADER_ICON_BTN_CLASS } from "@/components/dripforge/support-nav-link"
 import { useSupportPageSettings } from "@/hooks/use-support-page-active"
 
 type SpaNavProps = {
@@ -207,11 +207,11 @@ export function ShopHeader(props: ShopHeaderProps) {
           )}
         </nav>
 
-        <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+        <div className="flex shrink-0 items-center gap-3">
           <button
             type="button"
             onClick={toggleTheme}
-            className="text-muted-foreground transition-colors hover:text-foreground"
+            className={cn(HEADER_ICON_BTN_CLASS)}
             title={theme === "dark" ? "Light Mode" : "Dark Mode"}
           >
             {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
@@ -250,7 +250,7 @@ export function ShopHeader(props: ShopHeaderProps) {
                 <button
                   type="button"
                   onClick={() => setSearchOpen(true)}
-                  className="text-muted-foreground transition-colors hover:text-foreground"
+                  className={HEADER_ICON_BTN_CLASS}
                   title="Suchen"
                 >
                   <Search className="h-5 w-5" />
@@ -363,10 +363,10 @@ export function ShopHeader(props: ShopHeaderProps) {
             <button
               type="button"
               onClick={() => props.onNavigate("warenkorb")}
-              className="relative text-muted-foreground hover:text-primary"
+              className={cn(HEADER_ICON_BTN_CLASS, "relative hover:text-primary")}
               title="Warenkorb"
             >
-              <ShoppingBag className="h-6 w-6" />
+              <ShoppingBag className="h-5 w-5" />
               {cartCount > 0 && (
                 <span className="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
                   {cartCount}
@@ -376,10 +376,10 @@ export function ShopHeader(props: ShopHeaderProps) {
           ) : (
             <Link
               href={shopCartHref()}
-              className="relative text-muted-foreground hover:text-primary"
+              className={cn(HEADER_ICON_BTN_CLASS, "relative hover:text-primary")}
               title="Warenkorb"
             >
-              <ShoppingBag className="h-6 w-6" />
+              <ShoppingBag className="h-5 w-5" />
               {cartCount > 0 && (
                 <span className="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
                   {cartCount}
@@ -390,10 +390,10 @@ export function ShopHeader(props: ShopHeaderProps) {
 
           <button
             type="button"
-            className="shrink-0 md:hidden"
+            className={cn(HEADER_ICON_BTN_CLASS, "md:hidden")}
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           >
-            {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+            {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
         </div>
       </div>
