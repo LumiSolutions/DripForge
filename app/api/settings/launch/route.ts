@@ -8,6 +8,9 @@ import {
 import { buildSupportPageSettings } from "@/lib/dripforge/support-page-settings"
 import { logCosmosError } from "@/lib/cosmos/log-error"
 
+export const dynamic = "force-dynamic"
+export const runtime = "nodejs"
+
 export async function GET() {
   const cookieStore = await cookies()
   const previewCookie = cookieStore.get(PREVIEW_ACCESS_COOKIE)
@@ -17,15 +20,23 @@ export async function GET() {
     const settings = await getSettings()
     const support = buildSupportPageSettings(settings)
 
-    return NextResponse.json({
-      shopLive: settings.launch.shopLive,
-      launchAt: LAUNCH_DATE_ISO,
-      previewMode: !settings.launch.shopLive,
-      hasPreviewAccess,
-      canAccessShop: settings.launch.shopLive || hasPreviewAccess,
-      showSupportOnMainSite: support.showSupportOnMainSite,
-      showSupportOnCountdownPage: support.showSupportOnCountdownPage,
-    })
+    return NextResponse.json(
+      {
+        shopLive: settings.launch.shopLive,
+        launchAt: LAUNCH_DATE_ISO,
+        previewMode: !settings.launch.shopLive,
+        hasPreviewAccess,
+        canAccessShop: settings.launch.shopLive || hasPreviewAccess,
+        showSupportOnMainSite: support.showSupportOnMainSite,
+        showSupportOnCountdownPage: support.showSupportOnCountdownPage,
+      },
+      {
+        headers: {
+          "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+          Pragma: "no-cache",
+        },
+      }
+    )
   } catch (error) {
     logCosmosError("launch-api:getSettings", error)
 

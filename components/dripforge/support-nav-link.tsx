@@ -6,28 +6,64 @@ import { cn } from "@/lib/utils"
 
 export const SUPPORT_ROUTE = "/support"
 
-type SupportNavLinkProps = {
-  active: boolean
+type SupportMissionLinkProps = {
+  active?: boolean
   onNavigate?: () => void
+  /** main = Shop-Header; countdown = Coming-Soon-Header */
+  variant?: "main" | "countdown"
+  /** desktop = nur ab md; mobile = nur unter md; all = immer sichtbar */
+  display?: "desktop" | "mobile" | "all"
+  className?: string
 }
 
-/** Desktop-Navigation: Text + Icon (ab md sichtbar). */
-export function SupportNavLink({ active, onNavigate }: SupportNavLinkProps) {
+/** Herz-Icon + «Unsere Mission» — einheitliches Support-Nav-Element */
+export function SupportMissionLink({
+  active = false,
+  onNavigate,
+  variant = "main",
+  display = "all",
+  className,
+}: SupportMissionLinkProps) {
+  const displayClass =
+    display === "desktop"
+      ? "hidden md:flex"
+      : display === "mobile"
+        ? "flex md:hidden"
+        : "flex"
+
+  const mainStyles = active
+    ? "bg-primary/15 text-primary"
+    : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
+
+  const countdownStyles = active
+    ? "border-orange-500/40 bg-orange-500/15 text-orange-300"
+    : "border-white/10 bg-white/5 text-zinc-200 hover:border-orange-500/30 hover:bg-orange-500/10 hover:text-orange-200"
+
   return (
     <Link
       href={SUPPORT_ROUTE}
       onClick={onNavigate}
+      title="Unsere Mission"
+      aria-label="Unsere Mission unterstützen"
       className={cn(
-        "hidden shrink-0 items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors md:flex",
-        active
-          ? "bg-primary/15 text-primary"
-          : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
+        displayClass,
+        "shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors sm:px-4",
+        variant === "countdown"
+          ? cn("rounded-full border", countdownStyles)
+          : mainStyles,
+        className
       )}
     >
       <Heart
         className={cn(
-          "h-4 w-4",
-          active ? "fill-primary/25 text-primary" : "text-primary/80"
+          "h-4 w-4 shrink-0",
+          variant === "countdown"
+            ? active
+              ? "fill-orange-500/30 text-orange-400"
+              : "text-orange-400/90"
+            : active
+              ? "fill-primary/25 text-primary"
+              : "text-primary/80"
         )}
       />
       <span className="whitespace-nowrap">Unsere Mission</span>
@@ -35,21 +71,21 @@ export function SupportNavLink({ active, onNavigate }: SupportNavLinkProps) {
   )
 }
 
-/** Mobile-Toolbar: nur Icon, direkt im Header sichtbar (unter md). */
+/** @deprecated Nutze SupportMissionLink */
+export function SupportNavLink(props: { active: boolean; onNavigate?: () => void }) {
+  return (
+    <SupportMissionLink
+      active={props.active}
+      onNavigate={props.onNavigate}
+      variant="main"
+      display="desktop"
+    />
+  )
+}
+
+/** @deprecated Nutze SupportMissionLink mit display="mobile" */
 export function SupportNavIconLink({ active }: { active: boolean }) {
   return (
-    <Link
-      href={SUPPORT_ROUTE}
-      title="Unsere Mission"
-      aria-label="Unsere Mission unterstützen"
-      className={cn(
-        "flex h-9 w-9 shrink-0 items-center justify-center rounded-full border transition-colors md:hidden",
-        active
-          ? "border-primary/40 bg-primary/15 text-primary"
-          : "border-border/80 bg-secondary/40 text-primary/90 hover:border-primary/30 hover:bg-primary/10"
-      )}
-    >
-      <Heart className={cn("h-4 w-4", active && "fill-primary/25")} />
-    </Link>
+    <SupportMissionLink active={active} variant="main" display="mobile" />
   )
 }

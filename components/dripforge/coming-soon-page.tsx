@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, type CSSProperties } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { StaffAuthFlow } from "@/components/admin/staff-auth-flow"
-import { SupportNavLink, SupportNavIconLink } from "@/components/dripforge/support-nav-link"
+import { SupportMissionLink } from "@/components/dripforge/support-nav-link"
 import { useSupportPageSettings } from "@/hooks/use-support-page-active"
 import { useSiteTexts } from "@/components/dripforge/site-texts-provider"
 import { getLaunchCountdown, LAUNCH_DATE } from "@/lib/dripforge/launch-config"
@@ -129,10 +129,7 @@ export function ComingSoonPage({ onAccessGranted }: { onAccessGranted: () => voi
             </span>
           </span>
           {supportPageVisible && (
-            <>
-              <SupportNavIconLink active={false} />
-              <SupportNavLink active={false} />
-            </>
+            <SupportMissionLink active={false} variant="countdown" display="all" />
           )}
         </div>
       </header>
