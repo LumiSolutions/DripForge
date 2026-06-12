@@ -5,6 +5,8 @@ import {
   isAuthError,
   requireAdminSession,
 } from "@/lib/admin/require-admin-session"
+import { getAccountByEmail } from "@/lib/konto/account-db"
+import { normalizeAiCredits } from "@/lib/konto/ai-credits"
 
 type RouteContext = { params: Promise<{ id: string }> }
 
@@ -38,6 +40,16 @@ export async function GET(request: Request, context: RouteContext) {
         name: customerDisplayName(customer.billing),
       },
       orders,
+      portalAccount: await (async () => {
+        const account = await getAccountByEmail(customer.email)
+        if (!account) {
+          return { registered: false as const, aiCredits: null }
+        }
+        return {
+          registered: true as const,
+          aiCredits: normalizeAiCredits(account.aiCredits),
+        }
+      })(),
     })
   } catch (error) {
     console.warn("Admin-API: Kunde konnte nicht geladen werden.", error)

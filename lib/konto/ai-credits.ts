@@ -3,7 +3,7 @@ import { getAccountByEmail, saveAccount } from "@/lib/konto/account-db"
 import type { CustomerAccount } from "@/lib/konto/account-types"
 
 export const CUSTOMER_DOC_TYPE = "user" as const
-export const WELCOME_AI_CREDITS = 1
+export const WELCOME_AI_CREDITS = 2
 
 /** Staffelung: höchste passende Stufe gilt (nicht kumulativ). */
 const CREDIT_TIERS: { minChf: number; credits: number }[] = [
@@ -133,4 +133,57 @@ export async function refundAiCredit(email: string): Promise<number> {
     aiCredits: remaining,
   })
   return remaining
+}
+
+/** Admin: absoluten KI-Credit-Saldo setzen. */
+export async function adminSetAiCredits(
+  email: string,
+  credits: number
+): Promise<{ success: boolean; aiCredits: number; error?: string }> {
+  const normalizedEmail = normalizeCustomerEmail(email)
+  if (!normalizedEmail) {
+    return { success: false, aiCredits: 0, error: "invalid_email" }
+  }
+
+  const account = await getAccountByEmail(normalizedEmail)
+  if (!account) {
+    return { success: false, aiCredits: 0, error: "no_portal_account" }
+  }
+
+  const nextCredits = normalizeAiCredits(credits)
+  await saveAccount({
+    ...account,
+    docType: CUSTOMER_DOC_TYPE,
+    aiCredits: nextCredits,
+  })
+
+  console.info(`KI-Credits (Admin): ${normalizedEmail} → ${nextCredits}.`)
+  return { success: true, aiCredits: nextCredits }
+}
+
+/** Admin: Credits addieren oder abziehen. */
+export async function adminAdjustAiCredits(
+  email: string,
+  delta: number
+): Promise<{ success: boolean; aiCredits: number; error?: string }> {
+  const normalizedEmail = normalizeCustomerEmail(email)
+  if (!normalizedEmail) {
+    return { success: false, aiCredits: 0, error: "invalid_email" }
+  }
+
+  const account = await getAccountByEmail(normalizedEmail)
+  if (!account) {
+    return { success: false, aiCredits: 0, error: "no_portal_account" }
+  }
+
+  const nextCredits = normalizeAiCredits(
+    normalizeAiCredits(account.aiCredits) + Math.trunc(delta)
+  )
+  await saveAccount({
+    ...account,
+    docType: CUSTOMER_DOC_TYPE,
+    aiCredits: nextCredits,
+  })
+
+  return { success: true, aiCredits: nextCredits }
 }

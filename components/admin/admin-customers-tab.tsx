@@ -5,12 +5,16 @@ import {
   ArrowRight,
   ExternalLink,
   Loader2,
+  Minus,
+  Plus,
   RefreshCw,
+  Sparkles,
   UserRound,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
 import {
   Table,
   TableBody,
@@ -29,6 +33,10 @@ import { adminUi } from "@/lib/admin/admin-ui-classes"
 import { cn } from "@/lib/utils"
 
 type CustomerDetail = StoredCustomer & { name: string }
+
+type PortalAccountInfo =
+  | { registered: true; aiCredits: number }
+  | { registered: false; aiCredits: null }
 
 function formatDate(iso: string) {
   return new Intl.DateTimeFormat("de-CH", {
@@ -49,6 +57,12 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
   const [customers, setCustomers] = useState<CustomerListItem[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [detail, setDetail] = useState<CustomerDetail | null>(null)
+  const [portalAccount, setPortalAccount] = useState<PortalAccountInfo | null>(
+    null
+  )
+  const [creditInput, setCreditInput] = useState("")
+  const [creditSaving, setCreditSaving] = useState(false)
+  const [creditMessage, setCreditMessage] = useState<string | null>(null)
   const [orders, setOrders] = useState<StoredOrder[]>([])
   const [loading, setLoading] = useState(true)
   const [detailLoading, setDetailLoading] = useState(false)
@@ -83,6 +97,15 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
       if (!res.ok) throw new Error(data.error ?? "Laden fehlgeschlagen")
       setDetail(data.customer ?? null)
       setOrders(data.orders ?? [])
+      const portal = data.portalAccount as PortalAccountInfo | undefined
+      if (portal?.registered && typeof portal.aiCredits === "number") {
+        setPortalAccount({ registered: true, aiCredits: portal.aiCredits })
+        setCreditInput(String(portal.aiCredits))
+      } else {
+        setPortalAccount({ registered: false, aiCredits: null })
+        setCreditInput("")
+      }
+      setCreditMessage(null)
     } catch (err) {
       console.warn("Admin: Kundendetails konnten nicht geladen werden.", err)
       setError(
@@ -105,8 +128,48 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
     } else {
       setDetail(null)
       setOrders([])
+      setPortalAccount(null)
+      setCreditInput("")
+      setCreditMessage(null)
     }
   }, [selectedId, loadCustomerDetail])
+
+  const updateAiCredits = async (payload: { aiCredits?: number; delta?: number }) => {
+    if (!selectedId) return
+    setCreditSaving(true)
+    setCreditMessage(null)
+    try {
+      const res = await fetch(
+        `/api/admin/customers/${encodeURIComponent(selectedId)}/ai-credits`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify(payload),
+        }
+      )
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? "Speichern fehlgeschlagen")
+      setPortalAccount({ registered: true, aiCredits: data.aiCredits })
+      setCreditInput(String(data.aiCredits))
+      setCreditMessage(`KI-Credits gespeichert: ${data.aiCredits}`)
+    } catch (err) {
+      setCreditMessage(
+        err instanceof Error ? err.message : "KI-Credits konnten nicht gespeichert werden."
+      )
+    } finally {
+      setCreditSaving(false)
+    }
+  }
+
+  const saveCreditInput = async () => {
+    const parsed = Number.parseInt(creditInput, 10)
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      setCreditMessage("Bitte eine gültige Zahl (0 oder grösser) eingeben.")
+      return
+    }
+    await updateAiCredits({ aiCredits: parsed })
+  }
 
   const selectCustomer = (kundennummer: string) => {
     setSelectedId((prev) => (prev === kundennummer ? null : kundennummer))
@@ -221,6 +284,92 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
                 <p className={cn("mt-2 text-xs", adminUi.tableCellMuted)}>
                   Registriert / erfasst: {formatDate(detail.createdAt)}
                 </p>
+              </div>
+
+              <div className={cn("space-y-4 rounded-xl border p-4", adminUi.section)}>
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-orange-500" />
+                  <h4 className={cn("text-sm font-semibold", adminUi.accentTitle)}>
+                    KI-Credits (Loyalty)
+                  </h4>
+                </div>
+
+                {portalAccount?.registered ? (
+                  <div className="space-y-3">
+                    <p className={cn("text-sm", adminUi.muted)}>
+                      Portal-Konto aktiv — Credits für Text/Image-to-3D im
+                      KI-Konfigurator.
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="outline"
+                        className={adminUi.outlineBtn}
+                        disabled={creditSaving}
+                        onClick={() => void updateAiCredits({ delta: -1 })}
+                      >
+                        <Minus className="h-4 w-4" />
+                      </Button>
+                      <Input
+                        type="number"
+                        min={0}
+                        step={1}
+                        value={creditInput}
+                        onChange={(e) => setCreditInput(e.target.value)}
+                        className={cn("w-24 text-center tabular-nums", adminUi.input)}
+                      />
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="outline"
+                        className={adminUi.outlineBtn}
+                        disabled={creditSaving}
+                        onClick={() => void updateAiCredits({ delta: 1 })}
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        className={adminUi.primaryBtn}
+                        disabled={creditSaving}
+                        onClick={() => void saveCreditInput()}
+                      >
+                        {creditSaving ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          "Speichern"
+                        )}
+                      </Button>
+                    </div>
+                    <p className={cn("text-xs", adminUi.tableCellMuted)}>
+                      Aktuell:{" "}
+                      <span className="font-semibold text-orange-400">
+                        {portalAccount.aiCredits}
+                      </span>{" "}
+                      Generierung{portalAccount.aiCredits === 1 ? "" : "en"}
+                    </p>
+                  </div>
+                ) : (
+                  <p className={cn("text-sm", adminUi.muted)}>
+                    Kein Portal-Konto — KI-Credits können erst vergeben werden,
+                    wenn sich der Kunde unter derselben E-Mail registriert hat.
+                  </p>
+                )}
+
+                {creditMessage && (
+                  <p
+                    className={cn(
+                      "text-xs",
+                      creditMessage.includes("gespeichert")
+                        ? adminUi.success
+                        : adminUi.error
+                    )}
+                  >
+                    {creditMessage}
+                  </p>
+                )}
               </div>
 
               <div className="grid gap-6 md:grid-cols-2">

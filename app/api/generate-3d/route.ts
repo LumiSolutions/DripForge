@@ -30,7 +30,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error:
-            "Du hast keine KI-Credits mehr. Kaufe etwas im Shop oder lade dein Guthaben auf.",
+            "Keine KI-Credits mehr vorhanden. Kontaktiere uns oder tätige eine Bestellung, um neue Credits zu erhalten.",
           remainingAiCredits: 0,
         },
         { status: 402 }
