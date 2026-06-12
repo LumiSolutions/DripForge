@@ -85,6 +85,13 @@ export default function DripForgeApp() {
     if (productId) {
       setPendingProductId(productId)
     }
+    if (params.get("order_success") === "1") {
+      setOrderSuccessMessage(
+        "Vielen Dank! Deine Zahlung war erfolgreich. Die Bestellung wird verarbeitet — KI-Credits werden nach Bestätigung gutgeschrieben."
+      )
+      setCart([])
+      window.history.replaceState({}, "", window.location.pathname)
+    }
   }, [services, aiPublic.enabled])
 
   useEffect(() => {

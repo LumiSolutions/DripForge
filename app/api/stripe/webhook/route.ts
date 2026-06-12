@@ -11,7 +11,7 @@ import {
   type ProjectSupporter,
 } from "@/lib/support/types"
 import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
-import { grantAiCreditsForPaidOrder } from "@/lib/konto/ai-credits"
+import { fulfillPaidShopOrder } from "@/lib/shop/order-processing"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -68,7 +68,7 @@ async function persistCompletedCheckoutSession(
   return cosmosSaveProjectSupporter(supporter)
 }
 
-async function grantShopCreditsFromCheckoutSession(
+async function handleShopCheckoutCompleted(
   session: Stripe.Checkout.Session
 ): Promise<void> {
   if (session.payment_status !== "paid" && session.status !== "complete") {
@@ -80,19 +80,25 @@ async function grantShopCreditsFromCheckoutSession(
     return
   }
 
-  const email =
-    session.customer_details?.email ??
-    session.metadata?.customerEmail ??
-    session.customer_email ??
-    ""
+  const orderId = session.metadata?.orderId?.trim()
+  if (!orderId) {
+    console.warn("Stripe Webhook: shop-order ohne orderId in metadata.")
+    return
+  }
 
   const amountCents = session.amount_total ?? 0
-  const totalChf = Math.round(amountCents) / 100
-  const referenceId = session.metadata?.orderId?.trim() || session.id
+  const totalChf =
+    amountCents > 0
+      ? Math.round(amountCents) / 100
+      : Number(session.metadata?.totalChf ?? 0)
 
-  if (!email || totalChf <= 0) return
+  const userId = session.metadata?.userId?.trim() || null
 
-  await grantAiCreditsForPaidOrder(email, totalChf, referenceId)
+  await fulfillPaidShopOrder(orderId, {
+    stripeSessionId: session.id,
+    userId,
+    totalChf,
+  })
 }
 
 export async function POST(request: Request) {
@@ -130,7 +136,7 @@ export async function POST(request: Request) {
       if (session.metadata?.purpose === "support-journey") {
         await persistCompletedCheckoutSession(session)
       } else {
-        await grantShopCreditsFromCheckoutSession(session)
+        await handleShopCheckoutCompleted(session)
       }
     }
 

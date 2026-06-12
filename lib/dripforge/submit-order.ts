@@ -45,6 +45,50 @@ export type SubmitOrderResult =
   | { ok: true; data: SubmitOrderResponse }
   | { ok: false; error: string }
 
+export type StripeCheckoutResult =
+  | { ok: true; url: string; sessionId: string; orderId: string }
+  | { ok: false; error: string }
+
+export async function startStripeCheckout(
+  payload: OrderPayload
+): Promise<StripeCheckoutResult> {
+  try {
+    const response = await fetch("/api/checkout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(payload),
+    })
+
+    const data = (await response.json()) as {
+      url?: string
+      sessionId?: string
+      orderId?: string
+      error?: string
+    }
+
+    if (!response.ok || !data.url) {
+      return {
+        ok: false,
+        error: data.error ?? "Stripe Checkout konnte nicht gestartet werden.",
+      }
+    }
+
+    return {
+      ok: true,
+      url: data.url,
+      sessionId: data.sessionId ?? "",
+      orderId: data.orderId ?? "",
+    }
+  } catch (error) {
+    console.error("Checkout: Netzwerkfehler.", error)
+    return {
+      ok: false,
+      error: "Verbindungsfehler. Bitte später erneut versuchen.",
+    }
+  }
+}
+
 export async function submitOrder(
   payload: OrderPayload
 ): Promise<SubmitOrderResult> {

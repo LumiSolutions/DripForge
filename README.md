@@ -97,17 +97,33 @@ az staticwebapp appsettings set \
 ## KI-Credits (Loyalty)
 
 Kundenkonten (`customer-accounts`, `docType: "user"`) haben `aiCredits`.  
-Neuregistrierung: **2 Willkommens-Credits**.
+Neuregistrierung: **0 Credits** (Gutschrift durch Shop-Einkäufe).
 
-**Manuelle Vergabe (Admin):** Im Admin unter **Kundenverwaltung** → Kunde auswählen → Bereich **KI-Credits** (Plus/Minus oder direkte Eingabe). Nur für Kunden mit Portal-Registrierung (gleiche E-Mail).
+**Gutschrift** (höchste passende Stufe, idempotent pro Stripe-Session):
+
+| Bestellwert (CHF) | Credits |
+|-------------------|---------|
+| ab 20             | +1      |
+| ab 50             | +3      |
+| ab 100            | +8      |
+
+**Stripe Shop-Checkout:** `POST /api/checkout` erstellt eine Stripe-Session (`metadata.userId`, `metadata.orderId`). Nach `checkout.session.completed` verarbeitet der Webhook Bestellung + Credits.
+
+**Rechnungskauf:** Weiterhin `POST /api/orders` (sofortige Gutschrift bei Portal-Konto).
 
 Eine Generierung auf `/konfigurator/ai` verbraucht **1 Credit** (`POST /api/generate-3d`, Login erforderlich).
 
-Automatische Gutschrift nach Shop-Bestellung ist bis zur Live-Zahlungsanbindung deaktiviert.
+### Stripe konfigurieren
+
+```env
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...
+```
+
+Webhook-URL (Live): `https://dripforge.ch/api/stripe/webhook` — Event: `checkout.session.completed`.
 
 ---
-
-## Build & Deploy
 
 ```bash
 npm run build

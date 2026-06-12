@@ -163,7 +163,7 @@ export function PageAiConfigurator({
               <Link href="/konto/login" className="font-medium text-primary hover:underline">
                 Anmelden
               </Link>
-              , um KI-Credits zu nutzen (2 Willkommens-Credits bei Registrierung).
+              , um KI-Credits zu nutzen (Credits durch Shop-Einkäufe).
             </p>
           )}
         </div>
@@ -222,8 +222,8 @@ export function PageAiConfigurator({
 
             {noCredits && (
               <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
-                Keine KI-Credits mehr vorhanden. Kontaktiere uns oder tätige eine
-                Bestellung, um neue Credits zu erhalten.
+                Du hast keine KI-Credits mehr. Kaufe etwas im Shop oder lade dein
+                Guthaben auf.
                 {setCurrentView ? (
                   <Button
                     type="button"

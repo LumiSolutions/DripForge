@@ -37,7 +37,7 @@ import {
 } from "@/lib/dripforge/coupon-checkout"
 import type { CartItem } from "@/lib/dripforge/types"
 import { cn } from "@/lib/utils"
-import { submitOrder, type OrderPayload } from "@/lib/dripforge/submit-order"
+import { submitOrder, startStripeCheckout, type OrderPayload } from "@/lib/dripforge/submit-order"
 import type { CompanySettings } from "@/lib/admin/types"
 import { DEFAULT_COMPANY_SETTINGS } from "@/lib/admin/types"
 
@@ -218,6 +218,13 @@ export function PageCheckout({
       .catch(() => {
         console.warn("Checkout: Firmendaten konnten nicht geladen werden.")
       })
+
+    void fetch("/api/checkout")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        setStripeConfigured(Boolean(data?.configured))
+      })
+      .catch(() => setStripeConfigured(false))
   }, [])
 
   const [form, setForm] = useState<CheckoutForm>(EMPTY_FORM)
@@ -236,6 +243,7 @@ export function PageCheckout({
   const [couponTotals, setCouponTotals] = useState<CheckoutTotalsWithCoupon | null>(
     null
   )
+  const [stripeConfigured, setStripeConfigured] = useState(false)
 
   const subtotal = useMemo(
     () => cart.reduce((sum, item) => sum + item.price * item.quantity, 0),
@@ -383,6 +391,22 @@ export function PageCheckout({
     }
 
     setIsSubmitting(true)
+
+    const useStripe =
+      stripeConfigured &&
+      (paymentMethod === "card" || paymentMethod === "twint")
+
+    if (useStripe) {
+      const stripeResult = await startStripeCheckout(orderPayload)
+      setIsSubmitting(false)
+      if (!stripeResult.ok) {
+        setSubmitError(stripeResult.error)
+        return
+      }
+      window.location.href = stripeResult.url
+      return
+    }
+
     const result = await submitOrder(orderPayload)
     setIsSubmitting(false)
 

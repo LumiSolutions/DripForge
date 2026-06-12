@@ -53,6 +53,10 @@ export type StoredOrder = {
   rechnungPdfUrl?: string
   /** Lokaler Dateiname unter data/admin/invoices/ */
   rechnungPdfPath?: string
+  /** Stripe Checkout Session (Shop) */
+  stripeSessionId?: string | null
+  /** Zahlung bestätigt (false = wartet auf Stripe-Webhook) */
+  paymentConfirmed?: boolean
 }
 
 export type CompanySettings = {
