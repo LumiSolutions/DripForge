@@ -1,5 +1,10 @@
 ﻿name: Azure Static Web Apps CI/CD
 
+# Verhindert parallele Uploads zum gleichen SWA-Environment (Race → "No matching environment").
+concurrency:
+  group: swa-zealous-moss-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   push:
     branches:
@@ -32,6 +37,7 @@ jobs:
           app_location: "/"
           api_location: ""
           output_location: ""
+          production_branch: "main"
           skip_api_build: true
           app_build_command: "npm run build"
           ###### Ende Build-Konfiguration ######
