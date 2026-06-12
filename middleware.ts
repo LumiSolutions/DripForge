@@ -21,6 +21,7 @@ type LaunchPayload = {
   shopLive?: boolean
   canAccessShop?: boolean
   hasPreviewAccess?: boolean
+  showSupportOnMainSite?: boolean
 }
 
 function allowsShopAccess(data: LaunchPayload, hasPreviewCookie: boolean): boolean {
@@ -64,6 +65,8 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
+  let launchData: LaunchPayload = {}
+
   try {
     const launchUrl = new URL("/api/settings/launch", request.url)
     const res = await fetch(launchUrl, {
@@ -71,9 +74,9 @@ export async function middleware(request: NextRequest) {
       cache: "no-store",
     })
 
-    const data = (await res.json().catch(() => ({}))) as LaunchPayload
+    launchData = (await res.json().catch(() => ({}))) as LaunchPayload
 
-    if (allowsShopAccess(data, hasPreviewCookie)) {
+    if (allowsShopAccess(launchData, hasPreviewCookie)) {
       return NextResponse.next()
     }
   } catch (error) {
@@ -85,17 +88,8 @@ export async function middleware(request: NextRequest) {
   }
 
   if (pathname.startsWith("/support")) {
-    try {
-      const supportUrl = new URL("/api/settings/support", request.url)
-      const res = await fetch(supportUrl, { cache: "no-store" })
-      const data = (await res.json().catch(() => ({}))) as {
-        isSupportPageActive?: boolean
-      }
-      if (data.isSupportPageActive === true) {
-        return NextResponse.next()
-      }
-    } catch (error) {
-      console.warn("Middleware: Support-Status nicht verfuegbar.", error)
+    if (launchData.showSupportOnMainSite === true) {
+      return NextResponse.next()
     }
     return NextResponse.redirect(new URL("/", request.url))
   }

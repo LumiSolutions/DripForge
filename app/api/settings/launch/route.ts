@@ -5,6 +5,7 @@ import {
   LAUNCH_DATE_ISO,
   PREVIEW_ACCESS_COOKIE,
 } from "@/lib/dripforge/launch-config"
+import { buildSupportPageSettings } from "@/lib/dripforge/support-page-settings"
 import { logCosmosError } from "@/lib/cosmos/log-error"
 
 export async function GET() {
@@ -14,6 +15,7 @@ export async function GET() {
 
   try {
     const settings = await getSettings()
+    const support = buildSupportPageSettings(settings)
 
     return NextResponse.json({
       shopLive: settings.launch.shopLive,
@@ -21,6 +23,8 @@ export async function GET() {
       previewMode: !settings.launch.shopLive,
       hasPreviewAccess,
       canAccessShop: settings.launch.shopLive || hasPreviewAccess,
+      showSupportOnMainSite: support.showSupportOnMainSite,
+      showSupportOnCountdownPage: support.showSupportOnCountdownPage,
     })
   } catch (error) {
     logCosmosError("launch-api:getSettings", error)
@@ -31,6 +35,8 @@ export async function GET() {
       previewMode: true,
       hasPreviewAccess,
       canAccessShop: hasPreviewAccess,
+      showSupportOnMainSite: false,
+      showSupportOnCountdownPage: false,
       degraded: true,
     })
   }

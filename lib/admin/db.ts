@@ -27,8 +27,9 @@ import {
 import { normalizeServiceVisibility } from "@/lib/dripforge/service-visibility"
 import {
   buildDefaultAdminSettings,
-  normalizeSupportPageActive,
+  normalizeSupportFlag,
 } from "@/lib/admin/safe-defaults"
+import { buildSupportPageSettings } from "@/lib/dripforge/support-page-settings"
 import {
   withCosmosFallback,
   withCosmosRequired,
@@ -439,7 +440,7 @@ async function getSettingsFromFile(): Promise<AdminSettings> {
       company: { ...DEFAULT_COMPANY, ...stored.company },
       launch: { ...DEFAULT_LAUNCH_SETTINGS, ...stored.launch },
       services: normalizeServiceVisibility(stored.services),
-      isSupportPageActive: stored.isSupportPageActive === true,
+      ...buildSupportPageSettings(stored),
       updatedAt: stored.updatedAt,
     }
   }
@@ -448,7 +449,8 @@ async function getSettingsFromFile(): Promise<AdminSettings> {
     company: { ...DEFAULT_COMPANY },
     launch: { ...DEFAULT_LAUNCH_SETTINGS },
     services: { ...DEFAULT_SERVICE_VISIBILITY },
-    isSupportPageActive: false,
+    showSupportOnMainSite: false,
+    showSupportOnCountdownPage: false,
     updatedAt: new Date().toISOString(),
   }
   try {
@@ -476,7 +478,8 @@ export async function saveSettings(input: {
   company?: CompanySettings
   launch?: Partial<LaunchSettings>
   services?: Partial<AdminSettings["services"]>
-  isSupportPageActive?: boolean
+  showSupportOnMainSite?: boolean
+  showSupportOnCountdownPage?: boolean
 }): Promise<AdminSettings> {
   const current = await getSettings()
   const next: AdminSettings = {
@@ -493,10 +496,14 @@ export async function saveSettings(input: {
       ...current.services,
       ...input.services,
     }),
-    isSupportPageActive:
-      input.isSupportPageActive !== undefined
-        ? normalizeSupportPageActive(input.isSupportPageActive)
-        : current.isSupportPageActive === true,
+    showSupportOnMainSite:
+      input.showSupportOnMainSite !== undefined
+        ? normalizeSupportFlag(input.showSupportOnMainSite)
+        : current.showSupportOnMainSite === true,
+    showSupportOnCountdownPage:
+      input.showSupportOnCountdownPage !== undefined
+        ? normalizeSupportFlag(input.showSupportOnCountdownPage)
+        : current.showSupportOnCountdownPage === true,
     updatedAt: new Date().toISOString(),
   }
   await withCosmosFallback(

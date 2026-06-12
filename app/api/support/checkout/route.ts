@@ -39,7 +39,7 @@ export async function POST(request: Request) {
   try {
     await warmCosmosInfrastructure()
     const settings = await getSettings()
-    if (!buildSupportPageSettings(settings).isSupportPageActive) {
+    if (!buildSupportPageSettings(settings).showSupportOnMainSite) {
       return NextResponse.json(
         { error: "Die Support-Kampagne ist derzeit nicht aktiv." },
         { status: 403 }
@@ -129,7 +129,7 @@ export async function GET() {
     const settings = await getSettings()
     return NextResponse.json({
       configured: isStripeConfigured(),
-      active: buildSupportPageSettings(settings).isSupportPageActive,
+      active: buildSupportPageSettings(settings).showSupportOnMainSite,
     })
   } catch {
     return NextResponse.json({ configured: isStripeConfigured(), active: false })

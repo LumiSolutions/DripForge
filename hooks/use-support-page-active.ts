@@ -1,31 +1,51 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { buildSupportPageSettings } from "@/lib/dripforge/support-page-settings"
+import {
+  buildSupportPageSettings,
+  type SupportPageSettings,
+} from "@/lib/dripforge/support-page-settings"
 
-export function useSupportPageActive(): boolean {
-  const [active, setActive] = useState(false)
+const DEFAULT_SUPPORT_SETTINGS: SupportPageSettings = {
+  showSupportOnMainSite: false,
+  showSupportOnCountdownPage: false,
+}
+
+export function useSupportPageSettings(): SupportPageSettings {
+  const [settings, setSettings] = useState<SupportPageSettings>(
+    DEFAULT_SUPPORT_SETTINGS
+  )
 
   useEffect(() => {
     void fetch("/api/settings/support", { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        setActive(buildSupportPageSettings(data).isSupportPageActive)
+        setSettings(buildSupportPageSettings(data))
       })
       .catch(() => {
-        setActive(false)
+        setSettings(DEFAULT_SUPPORT_SETTINGS)
       })
   }, [])
 
-  return active
+  return settings
 }
 
-export async function fetchSupportPageActive(): Promise<boolean> {
+/** @deprecated Nutze useSupportPageSettings().showSupportOnMainSite */
+export function useSupportPageActive(): boolean {
+  return useSupportPageSettings().showSupportOnMainSite
+}
+
+export async function fetchSupportPageSettings(): Promise<SupportPageSettings> {
   try {
     const res = await fetch("/api/settings/support", { cache: "no-store" })
     const data = res.ok ? await res.json() : null
-    return buildSupportPageSettings(data).isSupportPageActive
+    return buildSupportPageSettings(data)
   } catch {
-    return false
+    return DEFAULT_SUPPORT_SETTINGS
   }
+}
+
+/** @deprecated Nutze fetchSupportPageSettings().showSupportOnMainSite */
+export async function fetchSupportPageActive(): Promise<boolean> {
+  return (await fetchSupportPageSettings()).showSupportOnMainSite
 }

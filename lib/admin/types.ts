@@ -114,8 +114,10 @@ export type AdminSettings = {
   company: CompanySettings
   launch: LaunchSettings
   services: ServiceVisibilitySettings
-  /** Support-Kampagne (/support) im Header und als Route sichtbar */
-  isSupportPageActive: boolean
+  /** Support-Kampagne auf der normalen Website (Header, Mobile, /support) */
+  showSupportOnMainSite: boolean
+  /** Support-Link/Button auf der Countdown-Landingpage */
+  showSupportOnCountdownPage: boolean
   updatedAt: string
 }
 

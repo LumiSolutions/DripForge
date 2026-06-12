@@ -13,6 +13,7 @@ import {
 import { logCosmosError } from "@/lib/cosmos/log-error"
 import { products as seedProducts } from "@/lib/dripforge/data"
 import { DEFAULT_CHECKOUT_RUNTIME_CONFIG } from "@/lib/dripforge/checkout-config"
+import { buildSupportPageSettings } from "@/lib/dripforge/support-page-settings"
 import {
   buildCustomerFromOrder,
   generateCustomerNumber,
@@ -186,7 +187,7 @@ export async function cosmosGetSettings(): Promise<AdminSettings> {
         company: { ...DEFAULT_COMPANY, ...resource.company },
         launch: { ...DEFAULT_LAUNCH_SETTINGS, ...resource.launch },
         services: normalizeServiceVisibility(resource.services),
-        isSupportPageActive: resource.isSupportPageActive === true,
+        ...buildSupportPageSettings(resource),
         updatedAt: resource.updatedAt,
       }
     }
@@ -203,7 +204,8 @@ export async function cosmosGetSettings(): Promise<AdminSettings> {
     company: { ...DEFAULT_COMPANY },
     launch: { ...DEFAULT_LAUNCH_SETTINGS },
     services: { ...DEFAULT_SERVICE_VISIBILITY },
-    isSupportPageActive: false,
+    showSupportOnMainSite: false,
+    showSupportOnCountdownPage: false,
     updatedAt: new Date().toISOString(),
   }
   try {

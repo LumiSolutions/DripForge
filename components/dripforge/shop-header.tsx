@@ -6,6 +6,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
   Box,
+  Heart,
   Menu,
   Moon,
   Search,
@@ -25,7 +26,7 @@ import {
 import type { ServiceVisibilitySettings } from "@/lib/admin/types"
 import { shopCartHref, shopViewHref } from "@/lib/dripforge/shop-routes"
 import { SupportNavLink, SupportNavIconLink, SUPPORT_ROUTE } from "@/components/dripforge/support-nav-link"
-import { useSupportPageActive } from "@/hooks/use-support-page-active"
+import { useSupportPageSettings } from "@/hooks/use-support-page-active"
 
 type SpaNavProps = {
   mode: "spa"
@@ -59,7 +60,7 @@ export function ShopHeader(props: ShopHeaderProps) {
     props.mode === "link" ? pathname.startsWith("/konto") : false
   const supportActive =
     pathname === SUPPORT_ROUTE || pathname.startsWith(`${SUPPORT_ROUTE}/`)
-  const supportPageVisible = useSupportPageActive()
+  const { showSupportOnMainSite: supportPageVisible } = useSupportPageSettings()
   const kontoHref = kontoLoggedIn ? "/konto" : "/konto/login"
 
   useEffect(() => {
@@ -415,6 +416,21 @@ export function ShopHeader(props: ShopHeaderProps) {
                   {item.label}
                 </Link>
               )
+            )}
+            {supportPageVisible && (
+              <Link
+                href={SUPPORT_ROUTE}
+                onClick={() => setMobileMenuOpen(false)}
+                className={cn(
+                  "flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors",
+                  supportActive
+                    ? "bg-primary/15 text-primary"
+                    : "text-muted-foreground hover:bg-secondary/50"
+                )}
+              >
+                <Heart className="h-5 w-5 fill-primary/20 text-primary" />
+                Unsere Mission
+              </Link>
             )}
             <Link
               href={kontoHref}

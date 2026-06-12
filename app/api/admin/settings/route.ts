@@ -34,7 +34,8 @@ export async function PUT(request: Request) {
       checkout?: CheckoutRuntimeConfig
       company?: Partial<CompanySettings>
       services?: Partial<ServiceVisibilitySettings>
-      isSupportPageActive?: boolean
+      showSupportOnMainSite?: boolean
+      showSupportOnCountdownPage?: boolean
     }
 
     if (!body.checkout) {
@@ -69,7 +70,8 @@ export async function PUT(request: Request) {
       checkout,
       company,
       services: normalizeServiceVisibility(body.services),
-      isSupportPageActive: body.isSupportPageActive,
+      showSupportOnMainSite: body.showSupportOnMainSite,
+      showSupportOnCountdownPage: body.showSupportOnCountdownPage,
     })
     return NextResponse.json(settings)
   } catch (error) {

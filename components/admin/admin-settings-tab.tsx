@@ -16,6 +16,7 @@ import { AdminTwoFactorSection } from "@/components/admin/admin-two-factor-secti
 import { SERVICE_TOGGLE_OPTIONS } from "@/lib/dripforge/service-visibility"
 import type { CheckoutRuntimeConfig } from "@/lib/dripforge/checkout-config"
 import { DEFAULT_CHECKOUT_RUNTIME_CONFIG } from "@/lib/dripforge/checkout-config"
+import { buildSupportPageSettings } from "@/lib/dripforge/support-page-settings"
 import { cn } from "@/lib/utils"
 
 export function AdminSettingsTab() {
@@ -27,7 +28,8 @@ export function AdminSettingsTab() {
     DEFAULT_SERVICE_VISIBILITY
   )
   const [shopLive, setShopLive] = useState(false)
-  const [isSupportPageActive, setIsSupportPageActive] = useState(false)
+  const [showSupportOnMainSite, setShowSupportOnMainSite] = useState(false)
+  const [showSupportOnCountdownPage, setShowSupportOnCountdownPage] = useState(false)
   const [goingLive, setGoingLive] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -44,7 +46,9 @@ export function AdminSettingsTab() {
       setCheckout(data.checkout ?? DEFAULT_CHECKOUT_RUNTIME_CONFIG)
       setCompany({ ...DEFAULT_COMPANY_SETTINGS, ...data.company })
       setShopLive(Boolean(data.launch?.shopLive))
-      setIsSupportPageActive(Boolean(data.isSupportPageActive))
+      const support = buildSupportPageSettings(data)
+      setShowSupportOnMainSite(support.showSupportOnMainSite)
+      setShowSupportOnCountdownPage(support.showSupportOnCountdownPage)
       setServices({ ...DEFAULT_SERVICE_VISIBILITY, ...data.services })
     } catch (err) {
       console.warn("Admin: Einstellungen konnten nicht geladen werden.", err)
@@ -70,13 +74,21 @@ export function AdminSettingsTab() {
       const res = await fetch("/api/admin/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ checkout, company, services, isSupportPageActive }),
+        body: JSON.stringify({
+          checkout,
+          company,
+          services,
+          showSupportOnMainSite,
+          showSupportOnCountdownPage,
+        }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? "Speichern fehlgeschlagen")
       setCheckout(data.checkout)
       setCompany({ ...DEFAULT_COMPANY_SETTINGS, ...data.company })
-      setIsSupportPageActive(Boolean(data.isSupportPageActive))
+      const support = buildSupportPageSettings(data)
+      setShowSupportOnMainSite(support.showSupportOnMainSite)
+      setShowSupportOnCountdownPage(support.showSupportOnCountdownPage)
       setSuccess("Einstellungen gespeichert — Shop wird aktualisiert.")
     } catch (err) {
       console.warn("Admin: Einstellungen konnten nicht gespeichert werden.", err)
@@ -200,8 +212,8 @@ export function AdminSettingsTab() {
               Support-Kampagne
             </h3>
             <p className={cn("mt-1 text-sm", adminUi.muted)}>
-              Steuert die Sichtbarkeit von «Unsere Mission» im Header und die Erreichbarkeit
-              der Seite /support.
+              Zwei unabhängige Schalter: Hauptwebsite (Header, /support) und
+              Countdown-Landingpage.
             </p>
           </div>
           <div
@@ -212,16 +224,36 @@ export function AdminSettingsTab() {
           >
             <div className="space-y-1 pr-2">
               <Label className={cn("text-sm font-semibold", adminUi.heading)}>
-                Support-Kampagne («Unsere Mission») auf der Website anzeigen
+                Support-Kampagne auf der Hauptwebsite anzeigen
               </Label>
               <p className={cn("text-xs", adminUi.muted)}>
-                Wenn deaktiviert, erscheint der Link weder im Desktop-Header noch als
-                Mobile-Icon. Direktaufrufe von /support werden zur Startseite umgeleitet.
+                Steuert «Unsere Mission» im Desktop-Header, Mobile-Icon und
+                Mobile-Menü. Direktaufrufe von /support sind erlaubt, wenn aktiv.
               </p>
             </div>
             <Switch
-              checked={isSupportPageActive}
-              onCheckedChange={setIsSupportPageActive}
+              checked={showSupportOnMainSite}
+              onCheckedChange={setShowSupportOnMainSite}
+            />
+          </div>
+          <div
+            className={cn(
+              "flex items-start justify-between gap-4 rounded-xl border p-4",
+              adminUi.section
+            )}
+          >
+            <div className="space-y-1 pr-2">
+              <Label className={cn("text-sm font-semibold", adminUi.heading)}>
+                Support-Kampagne auf der Countdown-Landingpage anzeigen
+              </Label>
+              <p className={cn("text-xs", adminUi.muted)}>
+                Zeigt den Support-Link im Header der Coming-Soon-Seite, solange
+                der Shop noch nicht live ist.
+              </p>
+            </div>
+            <Switch
+              checked={showSupportOnCountdownPage}
+              onCheckedChange={setShowSupportOnCountdownPage}
             />
           </div>
         </CardContent>

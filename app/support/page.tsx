@@ -7,7 +7,7 @@ import { ShopHeader } from "@/components/dripforge/shop-header"
 import { ShopFooter } from "@/components/dripforge/shop-footer"
 import { SiteTextsProvider } from "@/components/dripforge/site-texts-provider"
 import { SupportPageContent } from "@/components/dripforge/views/support-page-content"
-import { fetchSupportPageActive } from "@/hooks/use-support-page-active"
+import { fetchSupportPageSettings } from "@/hooks/use-support-page-active"
 
 function SupportPageInner() {
   const searchParams = useSearchParams()
@@ -27,8 +27,8 @@ function SupportPageGate({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = useState<"loading" | "allowed" | "blocked">("loading")
 
   useEffect(() => {
-    void fetchSupportPageActive().then((active) => {
-      if (!active) {
+    void fetchSupportPageSettings().then((settings) => {
+      if (!settings.showSupportOnMainSite) {
         setStatus("blocked")
         router.replace("/")
         return
