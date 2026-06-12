@@ -36,6 +36,7 @@ export type Generate3dResult = {
   provider: "simulation" | "external"
   message?: string
   demoMode?: boolean
+  remainingAiCredits?: number
   generatorStatus?: {
     provider: string
     defaultApiUrl: string

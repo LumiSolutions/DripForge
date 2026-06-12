@@ -94,6 +94,25 @@ az staticwebapp appsettings set \
 
 ---
 
+## KI-Credits (Loyalty)
+
+Kundenkonten (`customer-accounts`, `docType: "user"`) haben `aiCredits`.  
+Neuregistrierung: **1 Willkommens-Credit**.
+
+**Gutschrift nach Shop-Bestellung** (nur eingeloggte Portal-Konten mit gleicher E-Mail):
+
+| Bestellwert (CHF) | Credits |
+|-------------------|---------|
+| ab 20             | +1      |
+| ab 50             | +3      |
+| ab 100            | +8      |
+
+Gutschrift erfolgt automatisch in `POST /api/orders` sowie über den Stripe-Webhook bei `checkout.session.completed` mit `metadata.purpose: "shop-order"` (oder `"shop-checkout"`).
+
+Eine Generierung auf `/konfigurator/ai` verbraucht **1 Credit** (`POST /api/generate-3d`, Login erforderlich).
+
+---
+
 ## Build & Deploy
 
 ```bash

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { normalizeCustomerEmail } from "@/lib/admin/customers"
 import { getAccountByEmail, saveAccount } from "@/lib/konto/account-db"
+import { WELCOME_AI_CREDITS, CUSTOMER_DOC_TYPE } from "@/lib/konto/ai-credits"
 import type { CustomerAccount } from "@/lib/konto/account-types"
 import { syncAccountToCrm } from "@/lib/konto/crm-sync"
 import { hashPassword } from "@/lib/konto/password"
@@ -54,10 +55,12 @@ export async function POST(request: Request) {
     const now = new Date().toISOString()
     const account: CustomerAccount = {
       id: email,
+      docType: CUSTOMER_DOC_TYPE,
       email,
       passwordHash: hashPassword(password),
       firstName,
       lastName,
+      aiCredits: WELCOME_AI_CREDITS,
       createdAt: now,
       updatedAt: now,
     }
@@ -72,6 +75,7 @@ export async function POST(request: Request) {
         firstName: synced.firstName,
         lastName: synced.lastName,
         kundennummer: synced.kundennummer,
+        aiCredits: synced.aiCredits,
       },
     })
 

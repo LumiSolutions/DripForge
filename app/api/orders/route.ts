@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server"
 import { uploadOrderLeitbild } from "@/lib/azure/upload-order-leitbild"
 import { saveOrder, getSettings, upsertCustomerFromOrder } from "@/lib/admin/db"
+import { getAccountByEmail } from "@/lib/konto/account-db"
+import { grantAiCreditsForPaidOrder } from "@/lib/konto/ai-credits"
 import { getCouponByCode, incrementCouponRedemption } from "@/lib/admin/coupon-db"
 import { validateCouponForCheckout } from "@/lib/admin/coupon-validation"
 import { normalizeCouponCode } from "@/lib/admin/coupon-types"
@@ -126,6 +128,22 @@ export async function POST(request: Request) {
       `Bestell-API: Kunde verknüpft (${customer.kundennummer}, ${orderId}).`
     )
 
+    const portalAccount = await getAccountByEmail(order.billing.email)
+    let aiCreditsGranted = 0
+    if (portalAccount) {
+      const grant = await grantAiCreditsForPaidOrder(
+        order.billing.email,
+        serverTotals.total,
+        orderId
+      )
+      if (grant.granted) {
+        aiCreditsGranted = grant.credits
+        console.info(
+          `Bestell-API: +${grant.credits} KI-Credits für ${order.billing.email} (${orderId}).`
+        )
+      }
+    }
+
     const orderWithCustomer: StoredOrder = {
       ...order,
       kundennummer: customer.kundennummer,
@@ -144,6 +162,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       orderId,
       kundennummer: customer.kundennummer,
+      aiCreditsGranted,
       items: itemResults,
       message: "Bestellung erfolgreich übermittelt.",
     })

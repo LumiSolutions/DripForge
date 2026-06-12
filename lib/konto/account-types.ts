@@ -1,6 +1,8 @@
 export type CustomerAccount = {
   /** Normalisierte E-Mail (Cosmos-ID) */
   id: string
+  /** Cosmos-Dokumenttyp */
+  docType?: "user"
   email: string
   passwordHash: string
   firstName: string
@@ -11,6 +13,10 @@ export type CustomerAccount = {
   phone?: string
   /** Verknuepfung zum CRM (falls bereits Bestellungen) */
   kundennummer?: string
+  /** KI-Generierungs-Credits (Loyalty) */
+  aiCredits: number
+  /** Bereits vergebene Gutschriften pro Bestell-/Stripe-Referenz (Idempotenz) */
+  aiCreditGrants?: Record<string, number>
   passwordResetTokenHash?: string | null
   passwordResetExpiresAt?: string | null
   createdAt: string

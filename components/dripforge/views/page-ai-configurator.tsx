@@ -1,8 +1,9 @@
 "use client"
 
 import dynamic from "next/dynamic"
+import Link from "next/link"
 import { useCallback, useEffect, useState } from "react"
-import { Loader2, Sparkles, Upload } from "lucide-react"
+import { Coins, Loader2, Sparkles, Upload } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -16,6 +17,7 @@ import {
   AiGeneratorDemoNotice,
   handleGenerate3dResponse,
 } from "@/components/dripforge/ai-generator-demo-notice"
+import { useCustomerAiCredits } from "@/hooks/use-customer-ai-credits"
 import { cn } from "@/lib/utils"
 
 const Product3DPreview = dynamic(
@@ -46,6 +48,11 @@ export function PageAiConfigurator({
   const [result, setResult] = useState<Generate3dResult | null>(null)
   const [generatorStatus, setGeneratorStatus] =
     useState<ThreeDGeneratorPublicStatus | null>(null)
+  const { loggedIn, loading: creditsLoading, aiCredits, refresh } =
+    useCustomerAiCredits()
+
+  const canGenerate = loggedIn && aiCredits > 0 && !generating
+  const noCredits = loggedIn && aiCredits === 0
 
   useEffect(() => {
     void fetch("/api/generate-3d/status", { cache: "no-store" })
@@ -91,13 +98,20 @@ export function PageAiConfigurator({
       const res = await fetch("/api/generate-3d", {
         method: "POST",
         body: form,
+        credentials: "include",
         cache: "no-store",
       })
-      const data = (await res.json()) as Generate3dResult & { error?: string }
+      const data = (await res.json()) as Generate3dResult & {
+        error?: string
+        remainingAiCredits?: number
+      }
       if (!res.ok) throw new Error(data.error ?? "Generierung fehlgeschlagen.")
 
       setProgress(100)
       setResult(data)
+      if (typeof data.remainingAiCredits === "number") {
+        await refresh()
+      }
       handleGenerate3dResponse(data, generatorStatus)
     } catch (err) {
       setError(
@@ -134,6 +148,25 @@ export function PageAiConfigurator({
             ← Zurück zum Shop
           </Button>
         )}
+
+        <div className="mx-auto mt-6 inline-flex flex-col items-center gap-2">
+          {creditsLoading ? (
+            <p className="text-sm text-muted-foreground">Guthaben wird geladen…</p>
+          ) : loggedIn ? (
+            <div className="inline-flex items-center gap-2 rounded-full border border-violet-500/30 bg-violet-500/10 px-4 py-2 text-sm font-medium text-violet-200">
+              <Coins className="h-4 w-4 text-violet-400" />
+              Verfügbare KI-Generierungen:{" "}
+              <span className="text-base font-bold text-violet-300">{aiCredits}</span>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              <Link href="/konto/login" className="font-medium text-primary hover:underline">
+                Anmelden
+              </Link>
+              , um KI-Credits zu nutzen (1 Willkommens-Credit bei Registrierung).
+            </p>
+          )}
+        </div>
       </section>
 
       <section className="mx-auto grid max-w-6xl gap-8 px-4 lg:grid-cols-2">
@@ -187,6 +220,30 @@ export function PageAiConfigurator({
               </div>
             )}
 
+            {noCredits && (
+              <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
+                Du hast keine KI-Credits mehr. Kaufe etwas im Shop oder lade dein
+                Guthaben auf.
+                {setCurrentView ? (
+                  <Button
+                    type="button"
+                    variant="link"
+                    className="mt-1 h-auto p-0 text-amber-900 dark:text-amber-100"
+                    onClick={() => setCurrentView("shop")}
+                  >
+                    Zum Shop →
+                  </Button>
+                ) : (
+                  <Link
+                    href="/?view=shop"
+                    className="mt-1 block font-medium underline underline-offset-2"
+                  >
+                    Zum Shop →
+                  </Link>
+                )}
+              </div>
+            )}
+
             {generatorStatus?.demoMode && !result && (
               <AiGeneratorDemoNotice
                 message="Demo-Modus: Es wird ein Beispiel-3D-Modell angezeigt, bis der API-Key konfiguriert ist."
@@ -205,7 +262,7 @@ export function PageAiConfigurator({
               type="button"
               size="lg"
               className="w-full"
-              disabled={generating}
+              disabled={!canGenerate}
               onClick={() => void handleGenerate()}
             >
               {generating ? (

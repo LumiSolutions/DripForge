@@ -11,6 +11,7 @@ import {
   type ProjectSupporter,
 } from "@/lib/support/types"
 import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
+import { grantAiCreditsForPaidOrder } from "@/lib/konto/ai-credits"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -67,6 +68,33 @@ async function persistCompletedCheckoutSession(
   return cosmosSaveProjectSupporter(supporter)
 }
 
+async function grantShopCreditsFromCheckoutSession(
+  session: Stripe.Checkout.Session
+): Promise<void> {
+  if (session.payment_status !== "paid" && session.status !== "complete") {
+    return
+  }
+
+  const purpose = session.metadata?.purpose
+  if (purpose !== "shop-order" && purpose !== "shop-checkout") {
+    return
+  }
+
+  const email =
+    session.customer_details?.email ??
+    session.metadata?.customerEmail ??
+    session.customer_email ??
+    ""
+
+  const amountCents = session.amount_total ?? 0
+  const totalChf = Math.round(amountCents) / 100
+  const referenceId = session.metadata?.orderId?.trim() || session.id
+
+  if (!email || totalChf <= 0) return
+
+  await grantAiCreditsForPaidOrder(email, totalChf, referenceId)
+}
+
 export async function POST(request: Request) {
   if (!isStripeConfigured()) {
     return NextResponse.json({ error: "Stripe nicht konfiguriert." }, { status: 503 })
@@ -101,6 +129,8 @@ export async function POST(request: Request) {
       const session = event.data.object as Stripe.Checkout.Session
       if (session.metadata?.purpose === "support-journey") {
         await persistCompletedCheckoutSession(session)
+      } else {
+        await grantShopCreditsFromCheckoutSession(session)
       }
     }
 

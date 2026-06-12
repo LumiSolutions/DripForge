@@ -7,6 +7,7 @@ import {
   cosmosUpsertAccount,
 } from "@/lib/konto/cosmos-accounts"
 import type { CustomerAccount } from "@/lib/konto/account-types"
+import { CUSTOMER_DOC_TYPE, normalizeAiCredits } from "@/lib/konto/ai-credits"
 import { withCosmosFallback } from "@/lib/admin/storage-bridge"
 
 const DATA_DIR = path.join(process.cwd(), "data", "admin")
@@ -36,13 +37,22 @@ export async function listAllAccounts(): Promise<CustomerAccount[]> {
   )
 }
 
+function normalizeAccount(account: CustomerAccount): CustomerAccount {
+  return {
+    ...account,
+    docType: account.docType ?? CUSTOMER_DOC_TYPE,
+    aiCredits: normalizeAiCredits(account.aiCredits),
+    aiCreditGrants: account.aiCreditGrants ?? {},
+  }
+}
+
 export async function getAccountByEmail(
   email: string
 ): Promise<CustomerAccount | null> {
   const normalized = normalizeCustomerEmail(email)
   if (!normalized) return null
 
-  return withCosmosFallback(
+  const account = await withCosmosFallback(
     "getAccountByEmail",
     () => cosmosGetAccountByEmail(normalized),
     async () => {
@@ -50,6 +60,7 @@ export async function getAccountByEmail(
       return accounts.find((a) => a.email === normalized) ?? null
     }
   )
+  return account ? normalizeAccount(account) : null
 }
 
 export async function saveAccount(account: CustomerAccount): Promise<CustomerAccount> {
@@ -57,6 +68,8 @@ export async function saveAccount(account: CustomerAccount): Promise<CustomerAcc
     ...account,
     id: normalizeCustomerEmail(account.email),
     email: normalizeCustomerEmail(account.email),
+    docType: account.docType ?? CUSTOMER_DOC_TYPE,
+    aiCredits: normalizeAiCredits(account.aiCredits),
     updatedAt: new Date().toISOString(),
   }
 
@@ -86,6 +99,7 @@ export function toPublicAccount(account: CustomerAccount) {
     city: account.city ?? "",
     phone: account.phone ?? "",
     kundennummer: account.kundennummer,
+    aiCredits: normalizeAiCredits(account.aiCredits),
     createdAt: account.createdAt,
   }
 }

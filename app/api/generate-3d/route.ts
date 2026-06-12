@@ -4,6 +4,8 @@ import { getAiCategoryById } from "@/lib/ai/ai-settings-types"
 import { generate3dModel } from "@/lib/ai/generate-3d-provider"
 import { logThreeDGeneratorDevHint } from "@/lib/ai/three-d-generator-config"
 import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
+import { getSessionEmailFromRequest } from "@/lib/konto/api-auth"
+import { consumeAiCredit, refundAiCredit } from "@/lib/konto/ai-credits"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -14,6 +16,26 @@ const MAX_IMAGE_BYTES = 8 * 1024 * 1024
 export async function POST(request: Request) {
   try {
     await warmCosmosInfrastructure()
+
+    const email = await getSessionEmailFromRequest()
+    if (!email) {
+      return NextResponse.json(
+        { error: "Bitte melde dich an, um KI-Generierungen zu nutzen." },
+        { status: 401 }
+      )
+    }
+
+    const creditUse = await consumeAiCredit(email)
+    if (!creditUse.success) {
+      return NextResponse.json(
+        {
+          error:
+            "Du hast keine KI-Credits mehr. Kaufe etwas im Shop oder lade dein Guthaben auf.",
+          remainingAiCredits: 0,
+        },
+        { status: 402 }
+      )
+    }
 
     const contentType = request.headers.get("content-type") ?? ""
     let userPrompt = ""
@@ -52,12 +74,14 @@ export async function POST(request: Request) {
     }
 
     if (!userPrompt) {
+      await refundAiCredit(email)
       return NextResponse.json(
         { error: "Bitte beschreibe dein Wunschmodell." },
         { status: 400 }
       )
     }
     if (userPrompt.length > MAX_PROMPT_LENGTH) {
+      await refundAiCredit(email)
       return NextResponse.json(
         { error: `Prompt darf maximal ${MAX_PROMPT_LENGTH} Zeichen lang sein.` },
         { status: 400 }
@@ -67,29 +91,39 @@ export async function POST(request: Request) {
     const aiSettings = await getAiSettings()
     const category = getAiCategoryById(aiSettings, categoryId)
     if (!category || !category.enabled) {
+      await refundAiCredit(email)
       return NextResponse.json(
         { error: "Produktkategorie nicht verfügbar oder deaktiviert." },
         { status: 400 }
       )
     }
 
-    const result = await generate3dModel(
-      {
-        userPrompt,
-        categoryId: category.id,
-        referenceImageBase64,
-        referenceImageMimeType,
-      },
-      category
-    )
+    let result
+    try {
+      result = await generate3dModel(
+        {
+          userPrompt,
+          categoryId: category.id,
+          referenceImageBase64,
+          referenceImageMimeType,
+        },
+        category
+      )
+    } catch (genError) {
+      await refundAiCredit(email)
+      throw genError
+    }
 
     if (result.provider === "simulation") {
       logThreeDGeneratorDevHint("POST /api/generate-3d")
     }
 
-    return NextResponse.json(result, {
-      headers: { "Cache-Control": "no-store, max-age=0" },
-    })
+    return NextResponse.json(
+      { ...result, remainingAiCredits: creditUse.remaining },
+      {
+        headers: { "Cache-Control": "no-store, max-age=0" },
+      }
+    )
   } catch (error) {
     console.error("Generate-3D API: Fehler.", error)
     return NextResponse.json(
