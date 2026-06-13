@@ -24,6 +24,7 @@ import {
   type SaleRabattTyp,
 } from "@/lib/dripforge/product-sale"
 import type { LaserMaterialId, Product } from "@/lib/dripforge/types"
+import type { MaterialItem, ProductMaterialLink } from "@/lib/admin/material-types"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
 import { cn } from "@/lib/utils"
 
@@ -52,6 +53,7 @@ const EMPTY_FORM: ProductFormState = {
   individualisierungsBild: "",
   modellDateiUrl: "",
   variantenText: "",
+  materialLinks: [],
 }
 
 type MediaUploadCategory = "gallery" | "customization" | "model"
@@ -84,6 +86,16 @@ function filenameFromUrl(url: string): string {
   return name || "Datei"
 }
 
+function emptyMaterialLink(): ProductMaterialLink {
+  return { materialId: "", consumptionGrams: 0 }
+}
+
+function materialLabel(item: MaterialItem, variantId?: string): string {
+  if (!variantId) return item.name
+  const variant = item.variants.find((v) => v.id === variantId)
+  return variant?.farbe ? `${item.name} — ${variant.farbe}` : item.name
+}
+
 export function AdminProductsTab() {
   const [products, setProducts] = useState<AdminProduct[]>([])
   const [loading, setLoading] = useState(true)
@@ -95,6 +107,20 @@ export function AdminProductsTab() {
     null
   )
   const [imageUrlInput, setImageUrlInput] = useState("")
+  const [materialCatalog, setMaterialCatalog] = useState<MaterialItem[]>([])
+
+  const loadMaterials = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/materials", {
+        credentials: "include",
+        cache: "no-store",
+      })
+      const data = await res.json()
+      if (res.ok) setMaterialCatalog(data.materials ?? [])
+    } catch {
+      /* optional for product editor */
+    }
+  }, [])
 
   const closeEditor = () => {
     setIsEditing(false)
@@ -125,7 +151,8 @@ export function AdminProductsTab() {
 
   useEffect(() => {
     void loadProducts()
-  }, [loadProducts])
+    void loadMaterials()
+  }, [loadProducts, loadMaterials])
 
   const startCreate = () => {
     setForm({
@@ -147,6 +174,7 @@ export function AdminProductsTab() {
       individualisierungsBild: product.individualisierungsBild ?? "",
       modellDateiUrl: product.modellDateiUrl ?? product.modelUrl ?? "",
       variantenText: formatVariantenForAdmin(product.varianten ?? []),
+      materialLinks: product.materialLinks ?? [],
     })
     setIsEditing(true)
   }
@@ -232,6 +260,38 @@ export function AdminProductsTab() {
     if (!url) return
     updateField("galerieBilder", [...(form.galerieBilder ?? []), url])
     setImageUrlInput("")
+  }
+
+  const productVariantOptions = useMemo(() => {
+    const fromText = (form.variantenText ?? "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean)
+    return fromText
+  }, [form.variantenText])
+
+  const updateMaterialLink = (
+    index: number,
+    patch: Partial<ProductMaterialLink>
+  ) => {
+    const links = [...(form.materialLinks ?? [])]
+    const prev = links[index]
+    const next = { ...prev, ...patch }
+    if (patch.materialId !== undefined && patch.materialId !== prev.materialId) {
+      next.variantId = undefined
+    }
+    links[index] = next
+    updateField("materialLinks", links)
+  }
+
+  const addMaterialLink = () => {
+    updateField("materialLinks", [...(form.materialLinks ?? []), emptyMaterialLink()])
+  }
+
+  const removeMaterialLink = (index: number) => {
+    const links = [...(form.materialLinks ?? [])]
+    links.splice(index, 1)
+    updateField("materialLinks", links)
   }
 
   const salePreview = useMemo(() => {
@@ -616,6 +676,179 @@ export function AdminProductsTab() {
                   </div>
                 </div>
               )}
+
+              <div className={cn("space-y-4 rounded-xl border p-4", adminUi.section)}>
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <h4 className={cn("text-sm font-semibold", adminUi.accentTitle)}>
+                      Rohmaterial-Verknüpfung
+                    </h4>
+                    <p className={cn("text-xs", adminUi.muted)}>
+                      Verbrauch pro verkaufter Einheit in Gramm — wird bei Bestellung reserviert
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className={adminUi.outlineBtn}
+                    onClick={addMaterialLink}
+                  >
+                    <Plus className="mr-1 h-3 w-3" />
+                    Link
+                  </Button>
+                </div>
+
+                {(form.materialLinks?.length ?? 0) === 0 ? (
+                  <p className={cn("text-xs", adminUi.muted)}>
+                    Kein Rohmaterial verknüpft.
+                  </p>
+                ) : (
+                  form.materialLinks!.map((link, index) => {
+                    const selectedMaterial = materialCatalog.find(
+                      (m) => m.id === link.materialId
+                    )
+                    return (
+                      <div
+                        key={`mat-link-${index}`}
+                        className={cn(
+                          "grid gap-3 rounded-lg border p-3 sm:grid-cols-2",
+                          adminUi.section
+                        )}
+                      >
+                        <div className="space-y-1.5 sm:col-span-2">
+                          <Label className={cn("text-xs", adminUi.labelMuted)}>
+                            Rohmaterial
+                          </Label>
+                          <select
+                            value={link.materialId}
+                            onChange={(e) =>
+                              updateMaterialLink(index, { materialId: e.target.value })
+                            }
+                            className={cn(
+                              "h-10 w-full rounded-md border px-3 text-sm",
+                              adminUi.select
+                            )}
+                          >
+                            <option value="">— Material wählen —</option>
+                            {materialCatalog.map((m) => (
+                              <option key={m.id} value={m.id}>
+                                {m.name}
+                                {m.category === "filament" ? " (Filament)" : m.category === "lasermaterial" ? " (Laser)" : ""}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {selectedMaterial && selectedMaterial.variants.length > 0 && (
+                          <div className="space-y-1.5 sm:col-span-2">
+                            <Label className={cn("text-xs", adminUi.labelMuted)}>
+                              Variante (Farbe)
+                            </Label>
+                            <select
+                              value={link.variantId ?? ""}
+                              onChange={(e) =>
+                                updateMaterialLink(index, {
+                                  variantId: e.target.value || undefined,
+                                })
+                              }
+                              className={cn(
+                                "h-10 w-full rounded-md border px-3 text-sm",
+                                adminUi.select
+                              )}
+                            >
+                              <option value="">— Gesamtbestand —</option>
+                              {selectedMaterial.variants.map((v) => (
+                                <option key={v.id} value={v.id}>
+                                  {v.farbe || v.id}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+
+                        <div className="space-y-1.5">
+                          <Label className={cn("text-xs", adminUi.labelMuted)}>
+                            Verbrauch (g / Stück)
+                          </Label>
+                          <Input
+                            type="number"
+                            min={0}
+                            step={1}
+                            value={link.consumptionGrams}
+                            onChange={(e) =>
+                              updateMaterialLink(index, {
+                                consumptionGrams: Math.max(
+                                  0,
+                                  Number(e.target.value) || 0
+                                ),
+                              })
+                            }
+                            className={adminUi.input}
+                          />
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <Label className={cn("text-xs", adminUi.labelMuted)}>
+                            Produktvariante (optional)
+                          </Label>
+                          {productVariantOptions.length > 0 ? (
+                            <select
+                              value={link.productVariant ?? ""}
+                              onChange={(e) =>
+                                updateMaterialLink(index, {
+                                  productVariant: e.target.value || undefined,
+                                })
+                              }
+                              className={cn(
+                                "h-10 w-full rounded-md border px-3 text-sm",
+                                adminUi.select
+                              )}
+                            >
+                              <option value="">Alle Varianten</option>
+                              {productVariantOptions.map((v) => (
+                                <option key={v} value={v}>
+                                  {v}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <Input
+                              value={link.productVariant ?? ""}
+                              onChange={(e) =>
+                                updateMaterialLink(index, {
+                                  productVariant: e.target.value || undefined,
+                                })
+                              }
+                              placeholder="z. B. Schwarz"
+                              className={adminUi.input}
+                            />
+                          )}
+                        </div>
+
+                        {selectedMaterial && (
+                          <p className={cn("text-xs sm:col-span-2", adminUi.muted)}>
+                            → {materialLabel(selectedMaterial, link.variantId)}
+                          </p>
+                        )}
+
+                        <div className="sm:col-span-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className={cn("hover:text-red-300", adminUi.muted)}
+                            onClick={() => removeMaterialLink(index)}
+                          >
+                            <X className="mr-1 h-3 w-3" />
+                            Verknüpfung entfernen
+                          </Button>
+                        </div>
+                      </div>
+                    )
+                  })
+                )}
+              </div>
 
               <div className={cn("space-y-4 rounded-xl border p-4", adminUi.section)}>
                 <h4 className={cn("text-sm font-semibold", adminUi.accentTitle)}>

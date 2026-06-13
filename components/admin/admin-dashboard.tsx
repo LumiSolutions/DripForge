@@ -27,12 +27,13 @@ import { AdminProductsTab } from "@/components/admin/admin-products-tab"
 import { AdminSettingsTab } from "@/components/admin/admin-settings-tab"
 import { AdminSiteTextsTab } from "@/components/admin/admin-site-texts-tab"
 import { AdminCouponsTab } from "@/components/admin/admin-coupons-tab"
-import { AdminInventoryTab } from "@/components/admin/admin-inventory-tab"
+import { AdminMaterialsTab } from "@/components/admin/admin-materials-tab"
 import { AdminProductionTab } from "@/components/admin/admin-production-tab"
 import { AdminStatsTab } from "@/components/admin/admin-stats-tab"
 import { StaffAuthFlow } from "@/components/admin/staff-auth-flow"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
 import { useSiteTheme } from "@/hooks/use-site-theme"
+import type { MaterialCategory } from "@/lib/admin/material-types"
 import { cn } from "@/lib/utils"
 
 type AdminTab =
@@ -47,6 +48,13 @@ type AdminTab =
   | "site-texts"
   | "filaments"
   | "ai-settings"
+
+type InventorySubTab = MaterialCategory
+
+const INVENTORY_SUB: { id: InventorySubTab; label: string }[] = [
+  { id: "filament", label: "Filament" },
+  { id: "lasermaterial", label: "Lasermaterial" },
+]
 
 const NAV: { id: AdminTab; label: string; icon: typeof ClipboardList }[] = [
   { id: "stats", label: "Dashboard / Statistiken", icon: LayoutDashboard },
@@ -66,6 +74,7 @@ export function AdminDashboard() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [hydrated, setHydrated] = useState(false)
   const [tab, setTab] = useState<AdminTab>("stats")
+  const [inventorySub, setInventorySub] = useState<InventorySubTab>("filament")
   const [highlightOrderId, setHighlightOrderId] = useState<string | null>(null)
   const { toggleTheme, isDark } = useSiteTheme()
 
@@ -215,7 +224,26 @@ export function AdminDashboard() {
       <main className="min-w-0 flex-1 overflow-y-auto p-6 md:p-10">
         {tab === "stats" && <AdminStatsTab />}
         {tab === "production" && <AdminProductionTab />}
-        {tab === "inventory" && <AdminInventoryTab />}
+        {tab === "inventory" && (
+          <div className="space-y-6">
+            <div className={cn("flex flex-wrap gap-2 rounded-xl border p-2", adminUi.section)}>
+              {INVENTORY_SUB.map((sub) => (
+                <button
+                  key={sub.id}
+                  type="button"
+                  onClick={() => setInventorySub(sub.id)}
+                  className={cn(
+                    "rounded-lg px-4 py-2 text-sm font-medium transition-colors",
+                    inventorySub === sub.id ? adminUi.navActive : adminUi.navInactive
+                  )}
+                >
+                  {sub.label}
+                </button>
+              ))}
+            </div>
+            <AdminMaterialsTab category={inventorySub} />
+          </div>
+        )}
         {tab === "coupons" && <AdminCouponsTab />}
         {tab === "orders" && (
           <AdminOrdersTab

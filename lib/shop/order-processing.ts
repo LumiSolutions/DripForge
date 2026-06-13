@@ -20,6 +20,7 @@ import { calculateCheckoutTotalsWithCoupon } from "@/lib/dripforge/coupon-checko
 import { getShippingCost } from "@/lib/dripforge/checkout-config"
 import type { OrderPayload } from "@/lib/dripforge/submit-order"
 import { grantAiCreditsForPaidOrder } from "@/lib/konto/ai-credits"
+import { applyInventoryReservationForOrder } from "@/lib/admin/order-inventory-hook"
 
 function stripLeitbildPayload(item: StoredOrderItem): StoredOrderItem {
   const { leitbild: _removed, ...rest } = item
@@ -181,6 +182,8 @@ export async function fulfillPaidShopOrder(
     ...updated,
     kundennummer: customer.kundennummer,
   }
+
+  await applyInventoryReservationForOrder(orderWithCustomer)
 
   try {
     await processOrderInvoice(orderWithCustomer, settings)

@@ -19,7 +19,7 @@ export async function POST(request: Request) {
   try {
     const formData = await request.formData()
     const file = formData.get("file")
-    const productId = String(formData.get("productId") ?? "temp")
+    const productId = String(formData.get("productId") ?? formData.get("materialId") ?? "temp")
     const category = String(formData.get("category") ?? "gallery")
 
     if (!(file instanceof File)) {

@@ -1,0 +1,84 @@
+import { NextResponse } from "next/server"
+import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
+import {
+  createMaterialInput,
+  deleteMaterial,
+  getMaterials,
+  upsertMaterial,
+} from "@/lib/admin/material-db"
+import { normalizeMaterialItem } from "@/lib/admin/cosmos-materials"
+import {
+  isAuthError,
+  requireAdminSession,
+} from "@/lib/admin/require-admin-session"
+import type { MaterialCategory, MaterialItem } from "@/lib/admin/material-types"
+
+export const dynamic = "force-dynamic"
+export const runtime = "nodejs"
+
+export async function GET(request: Request) {
+  const auth = requireAdminSession(request)
+  if (isAuthError(auth)) return auth
+
+  try {
+    await warmCosmosInfrastructure()
+    const { searchParams } = new URL(request.url)
+    const category = searchParams.get("category") as MaterialCategory | null
+    const materials = await getMaterials(
+      category && ["filament", "lasermaterial", "sonstiges"].includes(category)
+        ? category
+        : undefined
+    )
+    return NextResponse.json({ materials })
+  } catch (error) {
+    console.error("Admin-API: Materialien konnten nicht geladen werden.", error)
+    return NextResponse.json(
+      { materials: [] },
+      { headers: { "X-DripForge-Degraded": "1" } }
+    )
+  }
+}
+
+export async function POST(request: Request) {
+  const auth = requireAdminSession(request)
+  if (isAuthError(auth)) return auth
+
+  try {
+    await warmCosmosInfrastructure()
+    const body = (await request.json()) as Partial<MaterialItem> & {
+      name?: string
+      category?: MaterialCategory
+    }
+
+    if (!body.name?.trim()) {
+      return NextResponse.json({ error: "Name fehlt." }, { status: 400 })
+    }
+
+    const category =
+      body.category && ["filament", "lasermaterial", "sonstiges"].includes(body.category)
+        ? body.category
+        : "filament"
+
+    const base = createMaterialInput({
+      name: body.name,
+      category,
+      stockUnit: body.stockUnit,
+    })
+
+    const material = normalizeMaterialItem({
+      ...base,
+      ...body,
+      id: base.id,
+      name: body.name.trim(),
+    })
+
+    const saved = await upsertMaterial(material)
+    return NextResponse.json({ material: saved }, { status: 201 })
+  } catch (error) {
+    console.error("Admin-API: Material konnte nicht erstellt werden.", error)
+    return NextResponse.json(
+      { error: "Material konnte nicht erstellt werden." },
+      { status: 500 }
+    )
+  }
+}

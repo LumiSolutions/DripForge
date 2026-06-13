@@ -2,8 +2,8 @@ import { NextResponse } from "next/server"
 import {
   getOrderById,
   updateOrderProductionStatus,
-  updateOrderStatus,
 } from "@/lib/admin/db"
+import { updateOrderStatusWithInventory } from "@/lib/admin/order-inventory-hook"
 import { isProductionStatus } from "@/lib/admin/production-status"
 import {
   isAuthError,
@@ -70,7 +70,7 @@ export async function PATCH(request: Request, context: RouteContext) {
         { status: 400 }
       )
     }
-    const order = await updateOrderStatus(id, body.status)
+    const order = await updateOrderStatusWithInventory(id, body.status)
     if (!order) {
       return NextResponse.json(
         { error: "Bestellung nicht gefunden." },

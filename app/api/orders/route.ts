@@ -5,6 +5,7 @@ import { grantAiCreditsForPaidOrder } from "@/lib/konto/ai-credits"
 import type { OrderPayload } from "@/lib/dripforge/submit-order"
 import { processOrderPayload } from "@/lib/shop/order-processing"
 import { upsertCustomerFromOrder, getSettings } from "@/lib/admin/db"
+import { applyInventoryReservationForOrder } from "@/lib/admin/order-inventory-hook"
 import { processOrderInvoice } from "@/lib/invoices/process-order-invoice"
 
 export async function POST(request: Request) {
@@ -52,6 +53,8 @@ export async function POST(request: Request) {
       ...order,
       kundennummer: customer.kundennummer,
     }
+
+    await applyInventoryReservationForOrder(orderWithCustomer)
 
     try {
       await processOrderInvoice(orderWithCustomer, settings)

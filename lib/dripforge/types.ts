@@ -49,6 +49,8 @@ export type Product = {
   gewicht?: number
   /** Varianten-Stichworte (Admin: kommagetrennt, z. B. "Echtleder Braun, Echtleder Schwarz") */
   varianten?: string[]
+  /** Verknüpfung zu Rohmaterialien (Lagerverwaltung) */
+  materialLinks?: import("@/lib/admin/material-types").ProductMaterialLink[]
   /** Sichtbarkeit im Shop (false = ausgeblendet) */
   istAktiv?: boolean
   /** Produkt-Galerie (Admin) */

@@ -57,6 +57,10 @@ export type StoredOrder = {
   stripeSessionId?: string | null
   /** Zahlung bestätigt (false = wartet auf Stripe-Webhook) */
   paymentConfirmed?: boolean
+  /** Lager: reserviert / verbraucht / freigegeben */
+  inventoryState?: import("@/lib/admin/material-types").OrderInventoryState
+  /** Reservierte Materialmengen pro Bestellung */
+  materialReservations?: import("@/lib/admin/material-types").OrderMaterialReservation[]
 }
 
 export type CompanySettings = {

@@ -92,6 +92,7 @@ export function normalizeAdminProductInput(
         ? Number(input.gewicht)
         : existing?.gewicht,
     varianten,
+    materialLinks: input.materialLinks ?? existing?.materialLinks ?? [],
     updatedAt: new Date().toISOString(),
   }
 }
