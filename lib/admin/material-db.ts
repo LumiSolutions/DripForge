@@ -9,11 +9,9 @@ import {
 } from "@/lib/admin/cosmos-materials"
 import {
   createMaterialId,
-  createMaterialVariantId,
   MATERIAL_DOC_TYPE,
   type MaterialCategory,
   type MaterialItem,
-  type MaterialVariant,
 } from "@/lib/admin/material-types"
 import { withCosmosFallback } from "@/lib/admin/storage-bridge"
 import { logCosmosError } from "@/lib/cosmos/log-error"
@@ -119,9 +117,6 @@ export function createMaterialInput(input: {
     stockUnit: input.stockUnit ?? (input.category === "filament" ? "gram" : "piece"),
     stockAvailable: 0,
     stockReserved: 0,
-    variants: [],
-    vorteile: [],
-    hinweise: [],
     updatedAt: now,
   })
 }

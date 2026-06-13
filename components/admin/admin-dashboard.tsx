@@ -28,6 +28,7 @@ import { AdminSettingsTab } from "@/components/admin/admin-settings-tab"
 import { AdminSiteTextsTab } from "@/components/admin/admin-site-texts-tab"
 import { AdminCouponsTab } from "@/components/admin/admin-coupons-tab"
 import { AdminMaterialsTab } from "@/components/admin/admin-materials-tab"
+import { AdminMaterialStatsSection } from "@/components/admin/admin-material-stats-section"
 import { AdminProductionTab } from "@/components/admin/admin-production-tab"
 import { AdminStatsTab } from "@/components/admin/admin-stats-tab"
 import { StaffAuthFlow } from "@/components/admin/staff-auth-flow"
@@ -49,10 +50,11 @@ type AdminTab =
   | "filaments"
   | "ai-settings"
 
-type InventorySubTab = MaterialCategory
+type InventorySubTab = MaterialCategory | "material-types"
 
 const INVENTORY_SUB: { id: InventorySubTab; label: string }[] = [
-  { id: "filament", label: "Filament" },
+  { id: "filament", label: "Filament-Lager" },
+  { id: "material-types", label: "Material-Arten" },
   { id: "lasermaterial", label: "Lasermaterial" },
 ]
 
@@ -241,7 +243,11 @@ export function AdminDashboard() {
                 </button>
               ))}
             </div>
-            <AdminMaterialsTab category={inventorySub} />
+            {inventorySub === "material-types" ? (
+              <AdminMaterialStatsSection />
+            ) : (
+              <AdminMaterialsTab category={inventorySub} />
+            )}
           </div>
         )}
         {tab === "coupons" && <AdminCouponsTab />}

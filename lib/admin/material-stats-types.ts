@@ -14,8 +14,13 @@ export type MaterialCategoryStat = {
   strength: number
   flexibility: number
   heatResistance: number
+  /** Optik (1–5) */
+  appearance: number
   easeOfUse: number
   surfaceFinish: FilamentSurfaceFinish
+  vorteile: string[]
+  hinweise: string[]
+  idealFuer?: string
 }
 
 export type MaterialStatsMap = Record<FilamentMaterialType, MaterialCategoryStat>
@@ -60,8 +65,12 @@ function defaultStatForType(type: FilamentMaterialType): MaterialCategoryStat {
     strength: percentToRating(strengthPct),
     flexibility: percentToRating(flexibilityPct),
     heatResistance: percentToRating(heatPct),
+    appearance: 3,
     easeOfUse: Math.min(100, Math.max(0, Math.round(easeOfUse))),
     surfaceFinish: "matt",
+    vorteile: [],
+    hinweise: [],
+    idealFuer: undefined,
   }
 }
 
@@ -96,8 +105,16 @@ export function normalizeMaterialCategoryStat(
     strength: clampStat(input?.strength ?? fallback.strength),
     flexibility: clampStat(input?.flexibility ?? fallback.flexibility),
     heatResistance: clampStat(input?.heatResistance ?? fallback.heatResistance),
+    appearance: clampStat(input?.appearance ?? fallback.appearance),
     easeOfUse,
     surfaceFinish,
+    vorteile: Array.isArray(input?.vorteile)
+      ? input.vorteile.map((s) => String(s).trim()).filter(Boolean)
+      : fallback.vorteile,
+    hinweise: Array.isArray(input?.hinweise)
+      ? input.hinweise.map((s) => String(s).trim()).filter(Boolean)
+      : fallback.hinweise,
+    idealFuer: input?.idealFuer?.trim() || fallback.idealFuer,
   }
 }
 

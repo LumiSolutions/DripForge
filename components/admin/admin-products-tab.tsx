@@ -90,10 +90,9 @@ function emptyMaterialLink(): ProductMaterialLink {
   return { materialId: "", consumptionGrams: 0 }
 }
 
-function materialLabel(item: MaterialItem, variantId?: string): string {
-  if (!variantId) return item.name
-  const variant = item.variants.find((v) => v.id === variantId)
-  return variant?.farbe ? `${item.name} — ${variant.farbe}` : item.name
+function materialLabel(item: MaterialItem): string {
+  const parts = [item.manufacturer, item.name, item.farbe].filter(Boolean)
+  return parts.join(" — ") || item.name
 }
 
 export function AdminProductsTab() {
@@ -277,9 +276,6 @@ export function AdminProductsTab() {
     const links = [...(form.materialLinks ?? [])]
     const prev = links[index]
     const next = { ...prev, ...patch }
-    if (patch.materialId !== undefined && patch.materialId !== prev.materialId) {
-      next.variantId = undefined
-    }
     links[index] = next
     updateField("materialLinks", links)
   }
@@ -733,39 +729,12 @@ export function AdminProductsTab() {
                             <option value="">— Material wählen —</option>
                             {materialCatalog.map((m) => (
                               <option key={m.id} value={m.id}>
-                                {m.name}
-                                {m.category === "filament" ? " (Filament)" : m.category === "lasermaterial" ? " (Laser)" : ""}
+                                {materialLabel(m)}
+                                {m.materialType ? ` [${m.materialType}]` : ""}
                               </option>
                             ))}
                           </select>
                         </div>
-
-                        {selectedMaterial && selectedMaterial.variants.length > 0 && (
-                          <div className="space-y-1.5 sm:col-span-2">
-                            <Label className={cn("text-xs", adminUi.labelMuted)}>
-                              Variante (Farbe)
-                            </Label>
-                            <select
-                              value={link.variantId ?? ""}
-                              onChange={(e) =>
-                                updateMaterialLink(index, {
-                                  variantId: e.target.value || undefined,
-                                })
-                              }
-                              className={cn(
-                                "h-10 w-full rounded-md border px-3 text-sm",
-                                adminUi.select
-                              )}
-                            >
-                              <option value="">— Gesamtbestand —</option>
-                              {selectedMaterial.variants.map((v) => (
-                                <option key={v.id} value={v.id}>
-                                  {v.farbe || v.id}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                        )}
 
                         <div className="space-y-1.5">
                           <Label className={cn("text-xs", adminUi.labelMuted)}>
@@ -828,7 +797,7 @@ export function AdminProductsTab() {
 
                         {selectedMaterial && (
                           <p className={cn("text-xs sm:col-span-2", adminUi.muted)}>
-                            → {materialLabel(selectedMaterial, link.variantId)}
+                            → {materialLabel(selectedMaterial)}
                           </p>
                         )}
 

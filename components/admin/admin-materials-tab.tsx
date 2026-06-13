@@ -10,7 +10,6 @@ import {
   Save,
   Trash2,
   Upload,
-  X,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -23,18 +22,16 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { createEmptyVariant } from "@/lib/admin/material-types"
-import type { MaterialCategory } from "@/lib/admin/material-types"
+import { FILAMENT_MATERIAL_TYPES } from "@/lib/admin/filament-types"
+import type { MaterialCategory, MaterialItem } from "@/lib/admin/material-types"
 import {
   formatGramStockDisplay,
   formatStockForUnit,
 } from "@/lib/admin/material-stock-utils"
 import {
+  formatMaterialStockLabel,
   getEffectiveMaterialStock,
   isMaterialLowStock,
-  type MaterialItem,
-  type MaterialScaleRating,
-  type MaterialVariant,
 } from "@/lib/admin/material-types"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
 import { cn } from "@/lib/utils"
@@ -43,22 +40,21 @@ type AdminMaterialsTabProps = {
   category: MaterialCategory
 }
 
-function emptyScale(): MaterialScaleRating {
-  return { flexibility: 3, strength: 3, heatResistance: 3, appearance: 3 }
-}
-
 function StockDisplay({ material }: { material: MaterialItem }) {
   const stock = getEffectiveMaterialStock(material)
   const display =
-    material.stockUnit === "gram"
-      ? formatGramStockDisplay(stock.stockTotal)
-      : null
+    material.stockUnit === "gram" ? formatGramStockDisplay(stock.stockTotal) : null
 
   return (
     <div className="space-y-1 text-sm">
+      {display?.label && (
+        <p className={cn("font-medium", adminUi.heading)}>{display.label}</p>
+      )}
       <p>
         <span className={adminUi.muted}>Verfügbar: </span>
-        <span className="font-medium">{formatStockForUnit(stock.stockAvailable, material.stockUnit)}</span>
+        <span className="font-medium">
+          {formatStockForUnit(stock.stockAvailable, material.stockUnit)}
+        </span>
       </p>
       <p>
         <span className={adminUi.muted}>Reserviert: </span>
@@ -88,7 +84,12 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
   const [partialGrams, setPartialGrams] = useState("")
 
   const categoryLabel = useMemo(
-    () => (category === "filament" ? "Filament" : category === "lasermaterial" ? "Lasermaterial" : "Sonstiges"),
+    () =>
+      category === "filament"
+        ? "Filament-Lager"
+        : category === "lasermaterial"
+          ? "Lasermaterial"
+          : "Sonstiges",
     [category]
   )
 
@@ -120,22 +121,19 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
       docType: "material",
       category,
       name: "",
+      materialType: category === "filament" ? "PLA" : undefined,
       stockUnit: category === "filament" ? "gram" : "piece",
       stockAvailable: 0,
       stockReserved: 0,
-      variants: [],
-      vorteile: [],
-      hinweise: [],
-      skala: category === "filament" ? emptyScale() : undefined,
       updatedAt: new Date().toISOString(),
     })
     setAddRolls("0")
-    setPartialGrams("")
+    setPartialGrams("0")
     setEditorOpen(true)
   }
 
   const openEdit = (material: MaterialItem) => {
-    setDraft({ ...material, skala: material.skala ?? emptyScale() })
+    setDraft({ ...material })
     const stock = getEffectiveMaterialStock(material)
     const partial =
       material.stockUnit === "gram" ? stock.stockTotal % 1000 : stock.stockAvailable
@@ -171,17 +169,19 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
         if (Number.isFinite(partial) && draft.stockUnit === "gram") {
           patchBody.setPartialGrams = partial
         }
-        const patchRes = await fetch(
-          `/api/admin/materials/${encodeURIComponent(saved.id)}`,
-          {
-            method: "PATCH",
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(patchBody),
-          }
-        )
-        const patchData = await patchRes.json()
-        if (patchRes.ok) saved = patchData.material
+        if (Object.keys(patchBody).length > 0) {
+          const patchRes = await fetch(
+            `/api/admin/materials/${encodeURIComponent(saved.id)}`,
+            {
+              method: "PATCH",
+              credentials: "include",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(patchBody),
+            }
+          )
+          const patchData = await patchRes.json()
+          if (patchRes.ok) saved = patchData.material
+        }
       }
 
       setEditorOpen(false)
@@ -195,7 +195,7 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
   }
 
   const deleteMaterial = async (id: string) => {
-    if (!confirm("Material wirklich löschen?")) return
+    if (!confirm("Lagerartikel wirklich löschen?")) return
     await fetch(`/api/admin/materials/${encodeURIComponent(id)}`, {
       method: "DELETE",
       credentials: "include",
@@ -203,7 +203,7 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
     await load()
   }
 
-  const uploadColorImage = async (variantId: string, file: File) => {
+  const uploadColorImage = async (file: File) => {
     if (!draft) return
     const formData = new FormData()
     formData.append("materialId", draft.id || "temp")
@@ -217,20 +217,7 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
     })
     const data = await res.json()
     if (!res.ok) throw new Error(data.error ?? "Upload fehlgeschlagen")
-    setDraft({
-      ...draft,
-      variants: draft.variants.map((v) =>
-        v.id === variantId ? { ...v, farbeBildUrl: data.url } : v
-      ),
-    })
-  }
-
-  const updateVariant = (variantId: string, patch: Partial<MaterialVariant>) => {
-    if (!draft) return
-    setDraft({
-      ...draft,
-      variants: draft.variants.map((v) => (v.id === variantId ? { ...v, ...patch } : v)),
-    })
+    setDraft({ ...draft, farbeBildUrl: data.url })
   }
 
   if (loading) {
@@ -248,7 +235,7 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
         <div>
           <h2 className={cn("text-xl font-bold", adminUi.heading)}>{categoryLabel}</h2>
           <p className={cn("text-sm", adminUi.muted)}>
-            Rohmaterial mit Varianten, Gramm-Bestand und Skala-Werten
+            Einzelne Lagerartikel pro Farbe — Materialeigenschaften unter «Material-Arten»
           </p>
         </div>
         <div className="flex gap-2">
@@ -258,7 +245,7 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
           </Button>
           <Button type="button" className={adminUi.primaryBtn} onClick={openCreate}>
             <Plus className="mr-2 h-4 w-4" />
-            Neues Material
+            Neuer Lagerartikel
           </Button>
         </div>
       </div>
@@ -267,7 +254,7 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
 
       {materials.length === 0 ? (
         <p className={cn("rounded-xl border p-8 text-center text-sm", adminUi.section, adminUi.muted)}>
-          Noch keine Materialien in «{categoryLabel}».
+          Noch keine Lagerartikel in «{categoryLabel}».
         </p>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -281,12 +268,36 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
               )}
             >
               <div className="mb-3 flex items-start justify-between gap-2">
-                <div>
-                  <h3 className={cn("font-semibold", adminUi.heading)}>{material.name}</h3>
-                  {material.manufacturer && (
-                    <p className={cn("text-xs", adminUi.muted)}>{material.manufacturer}</p>
+                <div className="min-w-0 flex-1">
+                  {material.materialType && (
+                    <Badge variant="secondary" className="mb-1 text-xs">
+                      {material.materialType}
+                    </Badge>
+                  )}
+                  <h3 className={cn("font-semibold", adminUi.heading)}>
+                    {formatMaterialStockLabel(material)}
+                  </h3>
+                  {material.manufacturer && material.name && (
+                    <p className={cn("text-xs", adminUi.muted)}>
+                      {material.manufacturer} · {material.name}
+                    </p>
                   )}
                 </div>
+                {material.farbeBildUrl && (
+                  <div
+                    className={cn(
+                      "h-12 w-12 shrink-0 overflow-hidden rounded-lg border",
+                      adminUi.thumbnail
+                    )}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={material.farbeBildUrl}
+                      alt={material.farbe ?? "Farbmuster"}
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
+                )}
                 {isMaterialLowStock(material) && (
                   <Badge variant="outline" className="border-amber-500/50 text-amber-600">
                     <AlertTriangle className="mr-1 h-3 w-3" />
@@ -295,11 +306,6 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
                 )}
               </div>
               <StockDisplay material={material} />
-              {material.variants.length > 0 && (
-                <p className={cn("mt-2 text-xs", adminUi.muted)}>
-                  {material.variants.length} Variante{material.variants.length === 1 ? "" : "n"}
-                </p>
-              )}
               <div className="mt-4 flex gap-2">
                 <Button
                   type="button"
@@ -327,9 +333,11 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
       )}
 
       <Dialog open={editorOpen} onOpenChange={setEditorOpen}>
-        <DialogContent className={cn("max-h-[90vh] overflow-y-auto sm:max-w-2xl", adminUi.card)}>
+        <DialogContent className={cn("max-h-[90vh] overflow-y-auto sm:max-w-lg", adminUi.card)}>
           <DialogHeader>
-            <DialogTitle>{draft?.id ? "Material bearbeiten" : "Neues Material"}</DialogTitle>
+            <DialogTitle>
+              {draft?.id ? "Lagerartikel bearbeiten" : "Neuer Lagerartikel"}
+            </DialogTitle>
           </DialogHeader>
           {draft && (
             <form
@@ -339,27 +347,95 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
                 void saveDraft()
               }}
             >
-              <div className="grid gap-4 sm:grid-cols-2">
+              {category === "filament" && (
                 <div className="space-y-2">
-                  <Label>Name</Label>
-                  <Input
-                    value={draft.name}
-                    onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-                    className={adminUi.input}
-                    required
-                  />
+                  <Label>Material-Art</Label>
+                  <select
+                    value={draft.materialType ?? "PLA"}
+                    onChange={(e) =>
+                      setDraft({
+                        ...draft,
+                        materialType: e.target.value as MaterialItem["materialType"],
+                      })
+                    }
+                    className={cn("h-10 w-full rounded-md border px-3 text-sm", adminUi.select)}
+                  >
+                    {FILAMENT_MATERIAL_TYPES.map((type) => (
+                      <option key={type} value={type}>
+                        {type}
+                      </option>
+                    ))}
+                  </select>
+                  <p className={cn("text-xs", adminUi.muted)}>
+                    Skala, Vorteile und Hinweise werden zentral unter «Material-Arten» gepflegt.
+                  </p>
                 </div>
+              )}
+
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label>Hersteller</Label>
                   <Input
                     value={draft.manufacturer ?? ""}
                     onChange={(e) => setDraft({ ...draft, manufacturer: e.target.value })}
+                    placeholder="z. B. Bambu Lab"
+                    className={adminUi.input}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Produktlinie / Name</Label>
+                  <Input
+                    value={draft.name}
+                    onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+                    placeholder="PLA Basic"
+                    className={adminUi.input}
+                    required
+                  />
+                </div>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label>Farbe</Label>
+                  <Input
+                    value={draft.farbe ?? ""}
+                    onChange={(e) => setDraft({ ...draft, farbe: e.target.value })}
+                    placeholder="Black"
                     className={adminUi.input}
                   />
                 </div>
               </div>
 
-              {draft.stockUnit === "gram" && (
+              <div className={cn("space-y-3 rounded-xl border p-4", adminUi.section)}>
+                <Label>Farbmuster-Bild</Label>
+                <label className="flex cursor-pointer items-center gap-2 text-sm">
+                  <Upload className="h-4 w-4" />
+                  Bild hochladen
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (file) void uploadColorImage(file)
+                    }}
+                  />
+                </label>
+                {draft.farbeBildUrl && (
+                  <div
+                    className={cn(
+                      "h-20 w-20 overflow-hidden rounded-lg border",
+                      adminUi.thumbnail
+                    )}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={draft.farbeBildUrl}
+                      alt={draft.farbe ?? "Farbmuster"}
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {draft.stockUnit === "gram" ? (
                 <div className={cn("space-y-3 rounded-xl border p-4", adminUi.section)}>
                   <p className={cn("text-sm font-semibold", adminUi.accentTitle)}>Bestand (Gramm)</p>
                   <StockDisplay material={draft} />
@@ -385,7 +461,7 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>Verfügbar (g) — direkt</Label>
+                      <Label>Verfügbar (g)</Label>
                       <Input
                         type="number"
                         min={0}
@@ -400,7 +476,54 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
                       />
                     </div>
                     <div className="space-y-2">
+                      <Label>Reserviert (g)</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        value={draft.stockReserved}
+                        readOnly
+                        className={cn(adminUi.input, "opacity-70")}
+                      />
+                    </div>
+                    <div className="space-y-2 sm:col-span-2">
                       <Label>Mindestbestand (g)</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        value={draft.mindestbestand ?? 0}
+                        onChange={(e) =>
+                          setDraft({
+                            ...draft,
+                            mindestbestand: Math.max(0, Number(e.target.value) || 0),
+                          })
+                        }
+                        className={adminUi.input}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className={cn("space-y-3 rounded-xl border p-4", adminUi.section)}>
+                  <p className={cn("text-sm font-semibold", adminUi.accentTitle)}>Bestand (Stück)</p>
+                  <StockDisplay material={draft} />
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>Verfügbar</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        value={draft.stockAvailable}
+                        onChange={(e) =>
+                          setDraft({
+                            ...draft,
+                            stockAvailable: Math.max(0, Number(e.target.value) || 0),
+                          })
+                        }
+                        className={adminUi.input}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Mindestbestand</Label>
                       <Input
                         type="number"
                         min={0}
@@ -418,123 +541,13 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
                 </div>
               )}
 
-              {category === "filament" && draft.skala && (
-                <div className={cn("space-y-3 rounded-xl border p-4", adminUi.section)}>
-                  <p className={cn("text-sm font-semibold", adminUi.accentTitle)}>Skala (1–5)</p>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {(
-                      [
-                        ["flexibility", "Flexibilität"],
-                        ["strength", "Belastbarkeit"],
-                        ["heatResistance", "Hitzebeständigkeit"],
-                        ["appearance", "Optik"],
-                      ] as const
-                    ).map(([key, label]) => (
-                      <div key={key} className="space-y-1">
-                        <Label>{label}</Label>
-                        <Input
-                          type="number"
-                          min={1}
-                          max={5}
-                          value={draft.skala![key]}
-                          onChange={(e) =>
-                            setDraft({
-                              ...draft,
-                              skala: {
-                                ...draft.skala!,
-                                [key]: Math.min(5, Math.max(1, Number(e.target.value) || 3)),
-                              },
-                            })
-                          }
-                          className={adminUi.input}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label>Varianten (Farben)</Label>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className={adminUi.outlineBtn}
-                    onClick={() =>
-                      setDraft({ ...draft, variants: [...draft.variants, createEmptyVariant()] })
-                    }
-                  >
-                    <Plus className="mr-1 h-3 w-3" />
-                    Variante
-                  </Button>
-                </div>
-                {draft.variants.map((variant) => (
-                  <div
-                    key={variant.id}
-                    className={cn("grid gap-2 rounded-lg border p-3 sm:grid-cols-2", adminUi.section)}
-                  >
-                    <Input
-                      placeholder="Farbe"
-                      value={variant.farbe ?? ""}
-                      onChange={(e) => updateVariant(variant.id, { farbe: e.target.value })}
-                      className={adminUi.input}
-                    />
-                    <Input
-                      type="number"
-                      placeholder="Verfügbar (g)"
-                      value={variant.stockAvailable}
-                      onChange={(e) =>
-                        updateVariant(variant.id, {
-                          stockAvailable: Math.max(0, Number(e.target.value) || 0),
-                        })
-                      }
-                      className={adminUi.input}
-                    />
-                    <label className="flex cursor-pointer items-center gap-2 text-xs">
-                      <Upload className="h-3 w-3" />
-                      Farbbild
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0]
-                          if (file) void uploadColorImage(variant.id, file)
-                        }}
-                      />
-                    </label>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      onClick={() =>
-                        setDraft({
-                          ...draft,
-                          variants: draft.variants.filter((v) => v.id !== variant.id),
-                        })
-                      }
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-
-              <div className="space-y-2">
-                <Label>Bemerkungen</Label>
+                <Label>Bemerkungen (nur dieser Lagerartikel)</Label>
                 <Textarea
                   value={draft.bemerkungen ?? ""}
                   onChange={(e) => setDraft({ ...draft, bemerkungen: e.target.value })}
-                  className={adminUi.input}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Ideal für</Label>
-                <Input
-                  value={draft.idealFuer ?? ""}
-                  onChange={(e) => setDraft({ ...draft, idealFuer: e.target.value })}
+                  rows={3}
+                  placeholder="z. B. Charge, Lagerplatz, Qualitätsnotiz…"
                   className={adminUi.input}
                 />
               </div>
@@ -544,7 +557,11 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
                   Abbrechen
                 </Button>
                 <Button type="submit" className={adminUi.primaryBtn} disabled={saving}>
-                  {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                  {saving ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Save className="mr-2 h-4 w-4" />
+                  )}
                   Speichern
                 </Button>
               </div>

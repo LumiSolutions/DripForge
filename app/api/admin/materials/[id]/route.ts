@@ -53,46 +53,22 @@ export async function PATCH(request: Request, context: RouteContext) {
       setPartialGrams?: number
       adjustAvailable?: number
       stockTotal?: number
-      variantId?: string
-      variantAdjustAvailable?: number
     }
 
     let next = normalizeMaterialItem({ ...current, ...body, id: materialId })
 
     if (typeof body.addRolls === "number" && body.addRolls !== 0) {
       const delta = addFullRollsToGrams(body.addRolls)
-      if (body.variantId && next.variants.length > 0) {
-        next = {
-          ...next,
-          variants: next.variants.map((v) =>
-            v.id === body.variantId
-              ? { ...v, stockAvailable: Math.max(0, v.stockAvailable + delta) }
-              : v
-          ),
-        }
-      } else {
-        next = {
-          ...next,
-          stockAvailable: Math.max(0, next.stockAvailable + delta),
-        }
+      next = {
+        ...next,
+        stockAvailable: Math.max(0, next.stockAvailable + delta),
       }
     }
 
     if (typeof body.setPartialGrams === "number" && body.setPartialGrams >= 0) {
       const partial = Math.round(body.setPartialGrams)
-      if (body.variantId && next.variants.length > 0) {
-        next = {
-          ...next,
-          variants: next.variants.map((v) => {
-            if (v.id !== body.variantId) return v
-            const full = Math.floor(v.stockAvailable / 1000) * 1000
-            return { ...v, stockAvailable: full + partial }
-          }),
-        }
-      } else {
-        const full = Math.floor(next.stockAvailable / 1000) * 1000
-        next = { ...next, stockAvailable: full + partial }
-      }
+      const full = Math.floor(next.stockAvailable / 1000) * 1000
+      next = { ...next, stockAvailable: full + partial }
     }
 
     if (typeof body.adjustAvailable === "number" && body.adjustAvailable !== 0) {
@@ -102,28 +78,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       }
     }
 
-    if (
-      body.variantId &&
-      typeof body.variantAdjustAvailable === "number" &&
-      body.variantAdjustAvailable !== 0
-    ) {
-      next = {
-        ...next,
-        variants: next.variants.map((v) =>
-          v.id === body.variantId
-            ? {
-                ...v,
-                stockAvailable: Math.max(
-                  0,
-                  v.stockAvailable + Math.round(body.variantAdjustAvailable!)
-                ),
-              }
-            : v
-        ),
-      }
-    }
-
-    if (body.stockTotal != null && body.stockAvailable == null && !body.variants?.length) {
+    if (body.stockTotal != null && body.stockAvailable == null) {
       const reserved = next.stockReserved
       const total = Math.max(0, Math.round(Number(body.stockTotal)))
       next = { ...next, stockAvailable: Math.max(0, total - reserved) }

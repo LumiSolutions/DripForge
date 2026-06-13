@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import {
   Select,
   SelectContent,
@@ -157,10 +158,10 @@ export function AdminMaterialStatsSection() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className={cn("text-xl font-semibold", adminUi.heading)}>Material-Kategorien</h2>
+        <h2 className={cn("text-xl font-semibold", adminUi.heading)}>Material-Arten</h2>
         <p className={cn("mt-2 text-sm", adminUi.muted)}>
-          Stabilität, Flexibilität und Hitzebeständigkeit gelten zentral pro Material-Typ (PLA, PETG, …)
-          und werden automatisch für alle Farben dieses Typs im Shop und Konfigurator angezeigt.
+          Skala, Vorteile, Hinweise und «Ideal für» gelten zentral pro Filament-Typ (PLA, PETG, …)
+          und werden auf der Homepage für alle Farben dieses Typs angezeigt — unabhängig vom Lagerbestand.
         </p>
       </div>
 
@@ -192,7 +193,7 @@ export function AdminMaterialStatsSection() {
                 </span>
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-3">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <StarRatingInput
                   label="Stabilität"
                   hint={`≈ ${ratingToPercent(stats.strength)}%`}
@@ -212,6 +213,12 @@ export function AdminMaterialStatsSection() {
                   onChange={(value) =>
                     updateCategory(type, { heatResistance: value })
                   }
+                />
+                <StarRatingInput
+                  label="Optik"
+                  hint={`≈ ${ratingToPercent(stats.appearance)}%`}
+                  value={stats.appearance}
+                  onChange={(value) => updateCategory(type, { appearance: value })}
                 />
               </div>
 
@@ -253,6 +260,51 @@ export function AdminMaterialStatsSection() {
                   </Select>
                 </div>
               </div>
+
+              <div className="space-y-2">
+                <Label>Vorteile (eine Zeile pro Punkt)</Label>
+                <Textarea
+                  rows={3}
+                  value={stats.vorteile.join("\n")}
+                  onChange={(e) =>
+                    updateCategory(type, {
+                      vorteile: e.target.value
+                        .split("\n")
+                        .map((s) => s.trim())
+                        .filter(Boolean),
+                    })
+                  }
+                  placeholder="Leicht zu drucken&#10;Gute Detailtreue"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Hinweise (eine Zeile pro Punkt)</Label>
+                <Textarea
+                  rows={3}
+                  value={stats.hinweise.join("\n")}
+                  onChange={(e) =>
+                    updateCategory(type, {
+                      hinweise: e.target.value
+                        .split("\n")
+                        .map((s) => s.trim())
+                        .filter(Boolean),
+                    })
+                  }
+                  placeholder="Nicht für Außenbereiche&#10;Empfindlich gegen Feuchtigkeit"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Ideal für</Label>
+                <Input
+                  value={stats.idealFuer ?? ""}
+                  onChange={(e) =>
+                    updateCategory(type, { idealFuer: e.target.value || undefined })
+                  }
+                  placeholder="z. B. Prototypen, Deko, Alltagsgegenstände"
+                />
+              </div>
             </div>
           )
         })}
@@ -261,7 +313,7 @@ export function AdminMaterialStatsSection() {
       <div className="flex justify-end">
         <Button type="button" onClick={() => void saveStats()} disabled={saving}>
           {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          Material-Kategorien speichern
+          Material-Arten speichern
         </Button>
       </div>
     </div>

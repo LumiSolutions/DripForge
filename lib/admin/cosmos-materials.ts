@@ -1,26 +1,42 @@
 import { getInventoryContainer } from "@/lib/cosmos/client"
 import { logCosmosError } from "@/lib/cosmos/log-error"
 import {
+  FILAMENT_MATERIAL_TYPES,
+  type FilamentMaterialType,
+} from "@/lib/admin/filament-types"
+import {
   MATERIAL_DOC_TYPE,
-  normalizeMaterialScale,
   type MaterialCategory,
   type MaterialItem,
   type MaterialVariant,
 } from "@/lib/admin/material-types"
 
-type CosmosMaterialDoc = MaterialItem & { id: string }
+type CosmosMaterialDoc = MaterialItem & {
+  id: string
+  /** Legacy-Feld */
+  variants?: MaterialVariant[]
+  imageUrl?: string
+}
 
-function normalizeVariant(raw: Partial<MaterialVariant>): MaterialVariant {
+function migrateLegacyVariantFields(raw: CosmosMaterialDoc): Partial<MaterialItem> {
+  const legacyVariants = Array.isArray(raw.variants) ? raw.variants : []
+  const first = legacyVariants[0]
+
   return {
-    id: String(raw.id ?? ""),
-    farbe: raw.farbe?.trim() || undefined,
-    farbeBildUrl: raw.farbeBildUrl?.trim() || undefined,
-    groesse: raw.groesse?.trim() || undefined,
-    dicke: raw.dicke?.trim() || undefined,
-    gewichtGramm:
-      raw.gewichtGramm != null ? Math.max(0, Math.round(Number(raw.gewichtGramm))) : undefined,
-    stockAvailable: Math.max(0, Math.round(Number(raw.stockAvailable) || 0)),
-    stockReserved: Math.max(0, Math.round(Number(raw.stockReserved) || 0)),
+    farbe: raw.farbe?.trim() || first?.farbe?.trim() || undefined,
+    farbeBildUrl:
+      raw.farbeBildUrl?.trim() ||
+      first?.farbeBildUrl?.trim() ||
+      raw.imageUrl?.trim() ||
+      undefined,
+    stockAvailable:
+      legacyVariants.length > 0
+        ? legacyVariants.reduce((sum, v) => sum + Math.max(0, Number(v.stockAvailable) || 0), 0)
+        : undefined,
+    stockReserved:
+      legacyVariants.length > 0
+        ? legacyVariants.reduce((sum, v) => sum + Math.max(0, Number(v.stockReserved) || 0), 0)
+        : undefined,
   }
 }
 
@@ -31,30 +47,35 @@ export function normalizeMaterialItem(raw: Partial<MaterialItem> & { id: string 
     ? (raw.category as MaterialCategory)
     : "filament"
 
+  const legacy = migrateLegacyVariantFields(raw as CosmosMaterialDoc)
+
+  const materialType = FILAMENT_MATERIAL_TYPES.includes(
+    raw.materialType as FilamentMaterialType
+  )
+    ? (raw.materialType as FilamentMaterialType)
+    : undefined
+
   return {
     id: raw.id,
     docType: MATERIAL_DOC_TYPE,
     category,
     name: String(raw.name ?? "").trim() || "Unbenannt",
     manufacturer: raw.manufacturer?.trim() || undefined,
+    materialType: category === "filament" ? materialType : undefined,
+    farbe: legacy.farbe ?? (raw.farbe?.trim() || undefined),
+    farbeBildUrl: legacy.farbeBildUrl ?? (raw.farbeBildUrl?.trim() || undefined),
     stockUnit: raw.stockUnit === "piece" ? "piece" : "gram",
-    stockAvailable: Math.max(0, Math.round(Number(raw.stockAvailable) || 0)),
-    stockReserved: Math.max(0, Math.round(Number(raw.stockReserved) || 0)),
-    variants: Array.isArray(raw.variants)
-      ? raw.variants.map((v) => normalizeVariant(v)).filter((v) => v.id)
-      : [],
+    stockAvailable: Math.max(
+      0,
+      Math.round(Number(legacy.stockAvailable ?? raw.stockAvailable) || 0)
+    ),
+    stockReserved: Math.max(
+      0,
+      Math.round(Number(legacy.stockReserved ?? raw.stockReserved) || 0)
+    ),
     bemerkungen: raw.bemerkungen?.trim() || undefined,
-    vorteile: Array.isArray(raw.vorteile)
-      ? raw.vorteile.map((s) => String(s).trim()).filter(Boolean)
-      : [],
-    hinweise: Array.isArray(raw.hinweise)
-      ? raw.hinweise.map((s) => String(s).trim()).filter(Boolean)
-      : [],
-    idealFuer: raw.idealFuer?.trim() || undefined,
-    skala: raw.skala ? normalizeMaterialScale(raw.skala) : undefined,
     mindestbestand:
       raw.mindestbestand != null ? Math.max(0, Math.round(Number(raw.mindestbestand))) : undefined,
-    imageUrl: raw.imageUrl?.trim() || undefined,
     lieferant: raw.lieferant?.trim() || undefined,
     updatedAt: raw.updatedAt ?? new Date().toISOString(),
   }

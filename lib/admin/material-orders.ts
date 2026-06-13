@@ -2,7 +2,6 @@ import { getMaterialById, upsertMaterial } from "@/lib/admin/material-db"
 import {
   getEffectiveMaterialStock,
   type MaterialItem,
-  type MaterialVariant,
   type OrderMaterialReservation,
   type ProductMaterialLink,
 } from "@/lib/admin/material-types"
@@ -59,7 +58,6 @@ export async function computeOrderMaterialReservations(
 
       reservations.push({
         materialId: link.materialId,
-        variantId: link.variantId,
         quantity: amount,
         stockUnit: material.stockUnit,
       })
@@ -69,69 +67,14 @@ export async function computeOrderMaterialReservations(
   return reservations
 }
 
-function applyReserveToVariant(
-  variant: MaterialVariant,
-  amount: number
-): MaterialVariant | null {
-  if (amount <= 0) return variant
-  if (variant.stockAvailable < amount) return null
-  return {
-    ...variant,
-    stockAvailable: variant.stockAvailable - amount,
-    stockReserved: variant.stockReserved + amount,
-  }
-}
-
-function applyConsumeFromVariant(
-  variant: MaterialVariant,
-  amount: number
-): MaterialVariant | null {
-  if (amount <= 0) return variant
-  if (variant.stockReserved < amount) return null
-  return {
-    ...variant,
-    stockReserved: variant.stockReserved - amount,
-  }
-}
-
-function applyReleaseToVariant(
-  variant: MaterialVariant,
-  amount: number
-): MaterialVariant | null {
-  if (amount <= 0) return variant
-  if (variant.stockReserved < amount) return null
-  return {
-    ...variant,
-    stockAvailable: variant.stockAvailable + amount,
-    stockReserved: variant.stockReserved - amount,
-  }
-}
-
 type StockMutation = "reserve" | "consume" | "release"
 
 function mutateMaterialStock(
   material: MaterialItem,
-  variantId: string | undefined,
   amount: number,
   mode: StockMutation
 ): MaterialItem | null {
   if (amount <= 0) return material
-
-  if (variantId && material.variants.length > 0) {
-    const index = material.variants.findIndex((v) => v.id === variantId)
-    if (index < 0) return null
-    const current = material.variants[index]
-    const nextVariant =
-      mode === "reserve"
-        ? applyReserveToVariant(current, amount)
-        : mode === "consume"
-          ? applyConsumeFromVariant(current, amount)
-          : applyReleaseToVariant(current, amount)
-    if (!nextVariant) return null
-    const variants = [...material.variants]
-    variants[index] = nextVariant
-    return { ...material, variants }
-  }
 
   if (mode === "reserve") {
     if (material.stockAvailable < amount) return null
@@ -166,12 +109,7 @@ async function applyReservations(
       continue
     }
 
-    const updated = mutateMaterialStock(
-      material,
-      reservation.variantId,
-      reservation.quantity,
-      mode
-    )
+    const updated = mutateMaterialStock(material, reservation.quantity, mode)
 
     if (!updated) {
       const stock = getEffectiveMaterialStock(material)
