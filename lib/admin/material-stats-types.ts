@@ -3,7 +3,6 @@ import {
   FILAMENT_MATERIAL_TYPES,
   FILAMENT_SURFACE_FINISHES,
   clampStat,
-  type FilamentMaterialType,
   type FilamentSurfaceFinish,
 } from "@/lib/admin/filament-types"
 
@@ -14,7 +13,6 @@ export type MaterialCategoryStat = {
   strength: number
   flexibility: number
   heatResistance: number
-  /** Optik (1–5) */
   appearance: number
   easeOfUse: number
   surfaceFinish: FilamentSurfaceFinish
@@ -23,13 +21,21 @@ export type MaterialCategoryStat = {
   idealFuer?: string
 }
 
-export type MaterialStatsMap = Record<FilamentMaterialType, MaterialCategoryStat>
+export type MaterialTypeDefinition = MaterialCategoryStat & {
+  /** Stabiler Slug, z. B. "pla", "petg-cf" */
+  id: string
+  /** Anzeigename, z. B. "PLA", "PETG-CF" */
+  name: string
+  isActive: boolean
+  /** Manuelle Homepage-Reihenfolge (kleiner = weiter oben) */
+  sortOrder: number
+}
+
+/** @deprecated Legacy-Map — nutze MaterialTypeDefinition[] */
+export type MaterialStatsMap = Record<string, MaterialCategoryStat & Partial<Pick<MaterialTypeDefinition, "isActive" | "sortOrder" | "name">>>
 
 const LEGACY_PERCENT: Partial<
-  Record<
-    FilamentMaterialType,
-    Pick<MaterialCategoryStat, "strength" | "flexibility" | "heatResistance" | "easeOfUse">
-  >
+  Record<string, Pick<MaterialCategoryStat, "strength" | "flexibility" | "heatResistance" | "easeOfUse">>
 > = {
   PLA: { strength: 60, flexibility: 30, heatResistance: 40, easeOfUse: 95 },
   PETG: { strength: 75, flexibility: 50, heatResistance: 70, easeOfUse: 80 },
@@ -43,19 +49,41 @@ function percentToRating(percent: number): number {
   return clampStat(Math.round(percent / 20), 3)
 }
 
-function legacyIdToType(id: string): FilamentMaterialType {
-  const upper = id.toUpperCase()
-  if (FILAMENT_MATERIAL_TYPES.includes(upper as FilamentMaterialType)) {
-    return upper as FilamentMaterialType
-  }
-  return "PLA"
+export function createMaterialTypeId(name: string): string {
+  const slug = name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+  return slug || `type-${Date.now().toString(36)}`
 }
 
-function defaultStatForType(type: FilamentMaterialType): MaterialCategoryStat {
+export function normalizeMaterialTypeKey(key: string): string {
+  const trimmed = key.trim()
+  if (!trimmed) return "pla"
+  if (trimmed.toLowerCase() === "nylon") return "nylon"
+  return trimmed.toLowerCase()
+}
+
+function defaultStatFields(): MaterialCategoryStat {
+  return {
+    strength: 3,
+    flexibility: 3,
+    heatResistance: 3,
+    appearance: 3,
+    easeOfUse: 75,
+    surfaceFinish: "matt",
+    vorteile: [],
+    hinweise: [],
+    idealFuer: undefined,
+  }
+}
+
+function defaultStatForLegacyName(name: string): MaterialCategoryStat {
   const legacyMaterial = materials3D.find(
-    (material) => legacyIdToType(material.id) === type
+    (material) => material.id.toLowerCase() === name.toLowerCase() || material.name.toUpperCase() === name.toUpperCase()
   )
-  const legacy = LEGACY_PERCENT[type]
+  const legacy = LEGACY_PERCENT[name] ?? LEGACY_PERCENT[name.toUpperCase()]
   const strengthPct = legacyMaterial?.strength ?? legacy?.strength ?? 60
   const flexibilityPct = legacyMaterial?.flexibility ?? legacy?.flexibility ?? 30
   const heatPct = legacyMaterial?.heatResistance ?? legacy?.heatResistance ?? 40
@@ -74,11 +102,14 @@ function defaultStatForType(type: FilamentMaterialType): MaterialCategoryStat {
   }
 }
 
-export function buildDefaultMaterialStats(): MaterialStatsMap {
-  return FILAMENT_MATERIAL_TYPES.reduce((acc, type) => {
-    acc[type] = defaultStatForType(type)
-    return acc
-  }, {} as MaterialStatsMap)
+export function buildDefaultMaterialTypes(): MaterialTypeDefinition[] {
+  return FILAMENT_MATERIAL_TYPES.map((name, index) => ({
+    id: normalizeMaterialTypeKey(name),
+    name,
+    isActive: true,
+    sortOrder: index,
+    ...defaultStatForLegacyName(name),
+  }))
 }
 
 export function ratingToPercent(rating: number): number {
@@ -87,9 +118,9 @@ export function ratingToPercent(rating: number): number {
 
 export function normalizeMaterialCategoryStat(
   input: Partial<MaterialCategoryStat> | undefined,
-  type: FilamentMaterialType
+  fallbackName = "PLA"
 ): MaterialCategoryStat {
-  const fallback = defaultStatForType(type)
+  const fallback = defaultStatForLegacyName(fallbackName)
   const surfaceFinish = FILAMENT_SURFACE_FINISHES.includes(
     input?.surfaceFinish as FilamentSurfaceFinish
   )
@@ -118,21 +149,182 @@ export function normalizeMaterialCategoryStat(
   }
 }
 
-export function mergeMaterialStats(
-  stored: Partial<Record<FilamentMaterialType, Partial<MaterialCategoryStat>>> | null | undefined
-): MaterialStatsMap {
-  const defaults = buildDefaultMaterialStats()
-  const merged = { ...defaults }
+export function normalizeMaterialTypeDefinition(
+  input: Partial<MaterialTypeDefinition>,
+  existing?: MaterialTypeDefinition
+): MaterialTypeDefinition {
+  const name = String(input.name ?? existing?.name ?? "Neues Material").trim() || "Neues Material"
+  const id = (input.id ?? existing?.id ?? createMaterialTypeId(name)).trim()
+  const stats = normalizeMaterialCategoryStat(input, name)
 
-  for (const type of FILAMENT_MATERIAL_TYPES) {
-    merged[type] = normalizeMaterialCategoryStat(stored?.[type], type)
+  return {
+    id,
+    name,
+    isActive: input.isActive !== undefined ? Boolean(input.isActive) : existing?.isActive !== false,
+    sortOrder:
+      input.sortOrder != null
+        ? Math.max(0, Math.round(Number(input.sortOrder)))
+        : existing?.sortOrder ?? 0,
+    ...stats,
   }
-
-  return merged
 }
 
-export function sanitizeMaterialStatsInput(
-  input: Partial<Record<FilamentMaterialType, Partial<MaterialCategoryStat>>>
+export function migrateLegacyCategoriesToTypes(
+  categories: Partial<Record<string, Partial<MaterialCategoryStat>>> | null | undefined
+): MaterialTypeDefinition[] {
+  const defaults = buildDefaultMaterialTypes()
+  const byId = new Map(defaults.map((type) => [type.id, { ...type }]))
+
+  if (categories) {
+    for (const [key, stat] of Object.entries(categories)) {
+      const id = normalizeMaterialTypeKey(key)
+      const name =
+        FILAMENT_MATERIAL_TYPES.find((t) => normalizeMaterialTypeKey(t) === id) ??
+        key.toUpperCase()
+      const existing = byId.get(id)
+      const normalizedStats = normalizeMaterialCategoryStat(stat, name)
+      if (existing) {
+        byId.set(id, { ...existing, ...normalizedStats, name: existing.name })
+      } else {
+        byId.set(id, {
+          id,
+          name: key,
+          isActive: true,
+          sortOrder: byId.size,
+          ...normalizedStats,
+        })
+      }
+    }
+  }
+
+  return Array.from(byId.values()).sort((a, b) => a.sortOrder - b.sortOrder)
+}
+
+export function mergeMaterialTypes(
+  stored:
+    | MaterialTypeDefinition[]
+    | Partial<Record<string, Partial<MaterialCategoryStat>>>
+    | null
+    | undefined
+): MaterialTypeDefinition[] {
+  if (Array.isArray(stored)) {
+    const defaults = buildDefaultMaterialTypes()
+    const byId = new Map(defaults.map((type) => [type.id, { ...type }]))
+    for (const raw of stored) {
+      const normalized = normalizeMaterialTypeDefinition(raw, byId.get(raw.id ?? ""))
+      byId.set(normalized.id, normalized)
+    }
+    return Array.from(byId.values()).sort((a, b) => a.sortOrder - b.sortOrder)
+  }
+
+  return migrateLegacyCategoriesToTypes(stored)
+}
+
+export function sanitizeMaterialTypesInput(
+  input: MaterialTypeDefinition[]
+): MaterialTypeDefinition[] {
+  const seen = new Set<string>()
+  return input
+    .map((raw, index) => {
+      const name = String(raw.name ?? "").trim() || "Neues Material"
+      const id =
+        raw.id.startsWith("type-") && name !== "Neues Material"
+          ? createMaterialTypeId(name)
+          : raw.id.trim() || createMaterialTypeId(name)
+      return normalizeMaterialTypeDefinition(
+        { ...raw, id, name, sortOrder: raw.sortOrder ?? index },
+        undefined
+      )
+    })
+    .filter((type) => {
+      if (seen.has(type.id)) return false
+      seen.add(type.id)
+      return true
+    })
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+}
+
+/** @deprecated Nutze mergeMaterialTypes */
+export function mergeMaterialStats(
+  stored: Partial<Record<string, Partial<MaterialCategoryStat>>> | null | undefined
 ): MaterialStatsMap {
-  return mergeMaterialStats(input)
+  return typesToLegacyMap(mergeMaterialTypes(stored))
+}
+
+/** @deprecated */
+export function buildDefaultMaterialStats(): MaterialStatsMap {
+  return typesToLegacyMap(buildDefaultMaterialTypes())
+}
+
+/** @deprecated */
+export function sanitizeMaterialStatsInput(
+  input: Partial<Record<string, Partial<MaterialCategoryStat>>>
+): MaterialStatsMap {
+  return typesToLegacyMap(mergeMaterialTypes(input))
+}
+
+export function typesToLegacyMap(types: MaterialTypeDefinition[]): MaterialStatsMap {
+  const map: MaterialStatsMap = {}
+  for (const type of types) {
+    const { id, name, isActive, sortOrder, ...stats } = type
+    const entry = { ...stats, isActive, sortOrder, name }
+    map[id] = entry
+    map[name] = entry
+    map[name.toUpperCase()] = entry
+  }
+  return map
+}
+
+export function getActiveMaterialTypes(
+  types: MaterialTypeDefinition[]
+): MaterialTypeDefinition[] {
+  return types.filter((type) => type.isActive).sort((a, b) => a.sortOrder - b.sortOrder)
+}
+
+export function findMaterialType(
+  types: MaterialTypeDefinition[],
+  ref: string | undefined
+): MaterialTypeDefinition | undefined {
+  if (!ref?.trim()) return undefined
+  const normalized = normalizeMaterialTypeKey(ref)
+  const upper = ref.trim().toUpperCase()
+  return types.find(
+    (type) =>
+      type.id === normalized ||
+      type.id === ref ||
+      type.name.toLowerCase() === normalized ||
+      type.name.toUpperCase() === upper
+  )
+}
+
+export function materialTypeMatchesRef(
+  materialTypeRef: string | undefined,
+  type: MaterialTypeDefinition
+): boolean {
+  if (!materialTypeRef?.trim()) return false
+  const found = findMaterialType([type], materialTypeRef)
+  return found?.id === type.id
+}
+
+export type MaterialTypeSortMode = "manual" | "name-asc"
+
+export function sortMaterialTypes(
+  types: MaterialTypeDefinition[],
+  mode: MaterialTypeSortMode
+): MaterialTypeDefinition[] {
+  const copy = [...types]
+  if (mode === "name-asc") {
+    return copy.sort((a, b) => a.name.localeCompare(b.name, "de"))
+  }
+  return copy.sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, "de"))
+}
+
+export function createEmptyMaterialType(sortOrder: number): MaterialTypeDefinition {
+  return {
+    id: createMaterialTypeId(`type-${Date.now()}`),
+    name: "",
+    isActive: true,
+    sortOrder,
+    ...defaultStatFields(),
+  }
 }

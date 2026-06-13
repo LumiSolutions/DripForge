@@ -1,7 +1,7 @@
 import { getSettingsContainer } from "@/lib/cosmos/client"
 import { logCosmosError } from "@/lib/cosmos/log-error"
 import { normalizeAdminFilament, type AdminFilament } from "@/lib/admin/filament-types"
-import { cosmosGetMaterialStats } from "@/lib/admin/cosmos-material-stats"
+import { cosmosGetMaterialTypes } from "@/lib/admin/cosmos-material-stats"
 import {
   groupFilamentsForConfigurator,
   seedFilamentsFromLegacyMaterials,
@@ -95,9 +95,9 @@ export async function cosmosDeleteFilament(id: string): Promise<boolean> {
 }
 
 export async function cosmosGetFilamentMaterials() {
-  const [filaments, statsMap] = await Promise.all([
+  const [filaments, materialTypes] = await Promise.all([
     cosmosGetFilaments(),
-    cosmosGetMaterialStats(),
+    cosmosGetMaterialTypes(),
   ])
-  return groupFilamentsForConfigurator(filaments, statsMap)
+  return groupFilamentsForConfigurator(filaments, materialTypes)
 }

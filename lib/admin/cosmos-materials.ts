@@ -1,15 +1,12 @@
 import { getInventoryContainer } from "@/lib/cosmos/client"
 import { logCosmosError } from "@/lib/cosmos/log-error"
 import {
-  FILAMENT_MATERIAL_TYPES,
-  type FilamentMaterialType,
-} from "@/lib/admin/filament-types"
-import {
   MATERIAL_DOC_TYPE,
   type MaterialCategory,
   type MaterialItem,
   type MaterialVariant,
 } from "@/lib/admin/material-types"
+import { normalizeMaterialTypeKey } from "@/lib/admin/material-stats-types"
 
 type CosmosMaterialDoc = MaterialItem & {
   id: string
@@ -49,10 +46,8 @@ export function normalizeMaterialItem(raw: Partial<MaterialItem> & { id: string 
 
   const legacy = migrateLegacyVariantFields(raw as CosmosMaterialDoc)
 
-  const materialType = FILAMENT_MATERIAL_TYPES.includes(
-    raw.materialType as FilamentMaterialType
-  )
-    ? (raw.materialType as FilamentMaterialType)
+  const materialType = raw.materialType?.trim()
+    ? normalizeMaterialTypeKey(raw.materialType)
     : undefined
 
   return {

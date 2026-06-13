@@ -68,6 +68,8 @@ export function normalizeAdminProductInput(
     }
   }
 
+  const now = new Date().toISOString()
+
   return {
     id: input.id ?? existing?.id ?? `p-${Date.now()}`,
     name: input.name?.trim() ?? existing?.name ?? "Neues Produkt",
@@ -93,7 +95,8 @@ export function normalizeAdminProductInput(
         : existing?.gewicht,
     varianten,
     materialLinks: input.materialLinks ?? existing?.materialLinks ?? [],
-    updatedAt: new Date().toISOString(),
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: now,
   }
 }
 

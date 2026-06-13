@@ -14,6 +14,13 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import type { AdminProduct } from "@/lib/admin/types"
 import { formatVariantenForAdmin } from "@/lib/dripforge/product-varianten"
 import {
@@ -25,6 +32,7 @@ import {
 } from "@/lib/dripforge/product-sale"
 import type { LaserMaterialId, Product } from "@/lib/dripforge/types"
 import type { MaterialItem, ProductMaterialLink } from "@/lib/admin/material-types"
+import { sortProducts, type ProductSortMode } from "@/lib/admin/list-sort-utils"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
 import { cn } from "@/lib/utils"
 
@@ -107,6 +115,7 @@ export function AdminProductsTab() {
   )
   const [imageUrlInput, setImageUrlInput] = useState("")
   const [materialCatalog, setMaterialCatalog] = useState<MaterialItem[]>([])
+  const [productSort, setProductSort] = useState<ProductSortMode>("name-asc")
 
   const loadMaterials = useCallback(async () => {
     try {
@@ -290,6 +299,11 @@ export function AdminProductsTab() {
     updateField("materialLinks", links)
   }
 
+  const sortedProducts = useMemo(
+    () => sortProducts(products, productSort),
+    [products, productSort]
+  )
+
   const salePreview = useMemo(() => {
     const basis = Number(form.basisPreis) || 0
     if (!form.sale || basis <= 0) return null
@@ -381,21 +395,38 @@ export function AdminProductsTab() {
           <h2 className={cn("text-xl font-bold", adminUi.heading)}>Produkt-Management</h2>
           <p className={cn("text-sm", adminUi.muted)}>{products.length} Produkte</p>
         </div>
-        <Button
-          type="button"
-          size="sm"
-          onClick={startCreate}
-          className={adminUi.primaryBtn}
-        >
+        <div className="flex flex-wrap items-center gap-2">
+          <Select
+            value={productSort}
+            onValueChange={(v) => setProductSort(v as ProductSortMode)}
+          >
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Sortierung" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="name-asc">Name (A–Z)</SelectItem>
+              <SelectItem value="price-asc">Preis (aufsteigend)</SelectItem>
+              <SelectItem value="price-desc">Preis (absteigend)</SelectItem>
+              <SelectItem value="created-desc">Neueste zuerst</SelectItem>
+              <SelectItem value="created-asc">Älteste zuerst</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button
+            type="button"
+            size="sm"
+            onClick={startCreate}
+            className={adminUi.primaryBtn}
+          >
           <Plus className="mr-1.5 h-4 w-4" />
           Neu
         </Button>
+        </div>
       </div>
 
       {error && !isEditing && <p className={adminUi.error}>{error}</p>}
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {products.map((product) => (
+        {sortedProducts.map((product) => (
           <button
             key={product.id}
             type="button"

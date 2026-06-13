@@ -3,51 +3,67 @@ import { logCosmosError } from "@/lib/cosmos/log-error"
 import {
   MATERIAL_STATS_DOC_ID,
   MATERIAL_STATS_DOC_TYPE,
-  mergeMaterialStats,
-  sanitizeMaterialStatsInput,
+  mergeMaterialTypes,
+  sanitizeMaterialTypesInput,
+  typesToLegacyMap,
   type MaterialStatsMap,
+  type MaterialTypeDefinition,
 } from "@/lib/admin/material-stats-types"
-import type { FilamentMaterialType } from "@/lib/admin/filament-types"
 
 type MaterialStatsCosmosDoc = {
   id: string
   docType: string
-  categories: Partial<
-    Record<FilamentMaterialType, Partial<MaterialStatsMap[FilamentMaterialType]>>
-  >
+  types?: MaterialTypeDefinition[]
+  categories?: Partial<Record<string, Partial<MaterialTypeDefinition>>>
   updatedAt: string
 }
 
-export async function cosmosGetMaterialStats(): Promise<MaterialStatsMap> {
+export async function cosmosGetMaterialTypes(): Promise<MaterialTypeDefinition[]> {
   const container = await getSettingsContainer()
   try {
     const { resource } = await container
       .item(MATERIAL_STATS_DOC_ID, MATERIAL_STATS_DOC_ID)
       .read<MaterialStatsCosmosDoc>()
     if (resource?.docType === MATERIAL_STATS_DOC_TYPE) {
-      return mergeMaterialStats(resource.categories)
+      if (Array.isArray(resource.types)) {
+        return mergeMaterialTypes(resource.types)
+      }
+      return mergeMaterialTypes(resource.categories)
     }
   } catch (error) {
     const code = (error as { code?: number }).code
     if (code !== 404) {
-      logCosmosError("cosmosGetMaterialStats", error)
+      logCosmosError("cosmosGetMaterialTypes", error)
       throw error
     }
   }
-  return mergeMaterialStats(null)
+  return mergeMaterialTypes(null)
+}
+
+export async function cosmosGetMaterialStats(): Promise<MaterialStatsMap> {
+  const types = await cosmosGetMaterialTypes()
+  return typesToLegacyMap(types)
+}
+
+export async function cosmosSaveMaterialTypes(
+  types: MaterialTypeDefinition[]
+): Promise<MaterialTypeDefinition[]> {
+  const container = await getSettingsContainer()
+  const sanitized = sanitizeMaterialTypesInput(types)
+  const doc: MaterialStatsCosmosDoc = {
+    id: MATERIAL_STATS_DOC_ID,
+    docType: MATERIAL_STATS_DOC_TYPE,
+    types: sanitized,
+    updatedAt: new Date().toISOString(),
+  }
+  await container.items.upsert(doc)
+  return sanitized
 }
 
 export async function cosmosSaveMaterialStats(
   categories: MaterialStatsMap
 ): Promise<MaterialStatsMap> {
-  const container = await getSettingsContainer()
-  const sanitized = sanitizeMaterialStatsInput(categories)
-  const doc: MaterialStatsCosmosDoc = {
-    id: MATERIAL_STATS_DOC_ID,
-    docType: MATERIAL_STATS_DOC_TYPE,
-    categories: sanitized,
-    updatedAt: new Date().toISOString(),
-  }
-  await container.items.upsert(doc)
-  return sanitized
+  const types = mergeMaterialTypes(categories)
+  const saved = await cosmosSaveMaterialTypes(types)
+  return typesToLegacyMap(saved)
 }

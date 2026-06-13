@@ -1,5 +1,3 @@
-import type { FilamentMaterialType } from "@/lib/admin/filament-types"
-
 export const MATERIAL_DOC_TYPE = "material" as const
 
 /** Gramm pro voller Filament-Rolle (1 kg) */
@@ -38,8 +36,8 @@ export type MaterialItem = {
   /** Produktlinie / Bezeichnung ohne Farbe */
   name: string
   manufacturer?: string
-  /** Filament-Material-Art (PLA, PETG, …) — verknüpft mit Material-Kategorien */
-  materialType?: FilamentMaterialType
+  /** Filament-Material-Art-ID (Slug) — verknüpft mit Material-Arten */
+  materialType?: string
   /** Farbname dieses Lagerartikels */
   farbe?: string
   /** Farbmuster-Bild für diese eine Farbe */

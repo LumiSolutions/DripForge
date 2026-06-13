@@ -1,36 +1,23 @@
 import { materials3D } from "@/lib/dripforge/data"
-import type { AdminFilament, FilamentMaterialType } from "@/lib/admin/filament-types"
+import type { AdminFilament } from "@/lib/admin/filament-types"
 import {
-  buildDefaultMaterialStats,
+  buildDefaultMaterialTypes,
+  findMaterialType,
+  getActiveMaterialTypes,
+  normalizeMaterialTypeKey,
   type MaterialCategoryStat,
-  type MaterialStatsMap,
+  type MaterialTypeDefinition,
 } from "@/lib/admin/material-stats-types"
 import type { FilamentColor, FilamentMaterial } from "@/lib/dripforge/types"
 
-const TYPE_ORDER: FilamentMaterialType[] = [
-  "PLA",
-  "PETG",
-  "ABS",
-  "ASA",
-  "TPU",
-  "Nylon",
-]
-
-function legacyTypeToFilamentType(id: string): FilamentMaterialType {
-  const upper = id.toUpperCase()
-  if (upper === "PLA") return "PLA"
-  if (upper === "PETG") return "PETG"
-  if (upper === "ABS") return "ABS"
-  if (upper === "ASA") return "ASA"
-  if (upper === "TPU") return "TPU"
-  if (upper === "NYLON") return "Nylon"
-  return "PLA"
+function legacyTypeToId(id: string): string {
+  return normalizeMaterialTypeKey(id)
 }
 
 export function seedFilamentsFromLegacyMaterials(): AdminFilament[] {
   const filaments: AdminFilament[] = []
   for (const material of materials3D) {
-    const materialType = legacyTypeToFilamentType(material.id)
+    const materialType = legacyTypeToId(material.id)
     for (const color of material.colors) {
       filaments.push({
         id: color.id,
@@ -86,43 +73,54 @@ export function filamentToColor(
 
 export function groupFilamentsForConfigurator(
   filaments: AdminFilament[],
-  statsMap: MaterialStatsMap = buildDefaultMaterialStats()
+  materialTypes: MaterialTypeDefinition[] = buildDefaultMaterialTypes(),
+  options?: { includeInactive?: boolean }
 ): FilamentMaterial[] {
-  const groups = new Map<FilamentMaterialType, AdminFilament[]>()
+  const includeInactive = options?.includeInactive ?? false
+  const orderedTypes = includeInactive
+    ? [...materialTypes].sort((a, b) => a.sortOrder - b.sortOrder)
+    : getActiveMaterialTypes(materialTypes)
+
+  const groups = new Map<string, AdminFilament[]>()
 
   for (const filament of filaments) {
-    const list = groups.get(filament.materialType) ?? []
+    const typeDef = findMaterialType(materialTypes, filament.materialType)
+    if (!typeDef) continue
+    if (!includeInactive && !typeDef.isActive) continue
+    const list = groups.get(typeDef.id) ?? []
     list.push(filament)
-    groups.set(filament.materialType, list)
+    groups.set(typeDef.id, list)
   }
 
-  return TYPE_ORDER.filter((type) => groups.has(type)).map((type) => {
-    const stats = statsMap[type]
-    return {
-      id: type.toLowerCase(),
-      name: type,
-      strength: stats.strength,
-      flexibility: stats.flexibility,
-      heatResistance: stats.heatResistance,
-      easeOfUse: stats.easeOfUse,
-      colors: (groups.get(type) ?? []).map((filament) => filamentToColor(filament, stats)),
-    }
-  })
+  return orderedTypes
+    .filter((type) => groups.has(type.id))
+    .map((type) => ({
+      id: type.id,
+      name: type.name,
+      strength: type.strength,
+      flexibility: type.flexibility,
+      heatResistance: type.heatResistance,
+      easeOfUse: type.easeOfUse,
+      colors: (groups.get(type.id) ?? []).map((filament) => filamentToColor(filament, type)),
+    }))
 }
 
 export function legacyMaterialsFallback(
-  statsMap: MaterialStatsMap = buildDefaultMaterialStats()
+  materialTypes: MaterialTypeDefinition[] = buildDefaultMaterialTypes()
 ): FilamentMaterial[] {
-  return materials3D.map((material) => {
-    const materialType = legacyTypeToFilamentType(material.id)
-    const stats = statsMap[materialType]
-    return {
+  const activeTypes = getActiveMaterialTypes(materialTypes)
+  const result: FilamentMaterial[] = []
+  for (const material of materials3D) {
+    const materialType = legacyTypeToId(material.id)
+    const typeDef = findMaterialType(activeTypes, materialType)
+    if (!typeDef) continue
+    result.push({
       id: material.id,
       name: material.name,
-      strength: stats.strength,
-      flexibility: stats.flexibility,
-      heatResistance: stats.heatResistance,
-      easeOfUse: stats.easeOfUse,
+      strength: typeDef.strength,
+      flexibility: typeDef.flexibility,
+      heatResistance: typeDef.heatResistance,
+      easeOfUse: typeDef.easeOfUse,
       colors: material.colors.map((color) =>
         applyCategoryStats(
           {
@@ -133,9 +131,10 @@ export function legacyMaterialsFallback(
             image: color.image,
             printedExample: color.printedExample ?? null,
           },
-          stats
+          typeDef
         )
       ),
-    }
-  })
+    })
+  }
+  return result
 }

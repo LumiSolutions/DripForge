@@ -57,8 +57,7 @@ import { LaserProcessStep } from "@/components/dripforge/shared/laser-process-st
 import { IndividualProcessBar } from "@/components/dripforge/shared/individual-process-bar"
 import { materials3D, laserMaterials, processSteps, products } from "@/lib/dripforge/data"
 import { useFilamentCatalog } from "@/hooks/use-filament-catalog"
-import { ratingToPercent } from "@/lib/admin/material-stats-types"
-import type { FilamentMaterialType } from "@/lib/admin/filament-types"
+import { findMaterialType, ratingToPercent } from "@/lib/admin/material-stats-types"
 
 export function Page3DDruck({ 
   selectedMaterial, 
@@ -69,10 +68,11 @@ export function Page3DDruck({
   setSelectedMaterial: (m: string) => void
   setCurrentView: (view: string) => void
 }) {
-  const { materials: filamentMaterials, materialStats } = useFilamentCatalog()
-  const material = materials3D.find(m => m.id === selectedMaterial) || materials3D[0]
-  const statsType = selectedMaterial.toUpperCase() as FilamentMaterialType
-  const categoryStats = materialStats[statsType]
+  const { materials: filamentMaterials, materialTypes } = useFilamentCatalog()
+  const activeMaterial =
+    filamentMaterials.find((m) => m.id === selectedMaterial) ?? filamentMaterials[0]
+  const material = materials3D.find((m) => m.id === selectedMaterial) ?? materials3D[0]
+  const categoryStats = findMaterialType(materialTypes, selectedMaterial)
   const displayStats = categoryStats
     ? [
         { label: "Festigkeit", value: ratingToPercent(categoryStats.strength) },
@@ -80,7 +80,14 @@ export function Page3DDruck({
         { label: "Hitzebeständigkeit", value: ratingToPercent(categoryStats.heatResistance) },
         { label: "Verarbeitung", value: categoryStats.easeOfUse },
       ]
-    : [
+    : activeMaterial
+      ? [
+          { label: "Festigkeit", value: ratingToPercent(activeMaterial.strength ?? 3) },
+          { label: "Flexibilität", value: ratingToPercent(activeMaterial.flexibility ?? 3) },
+          { label: "Hitzebeständigkeit", value: ratingToPercent(activeMaterial.heatResistance ?? 3) },
+          { label: "Verarbeitung", value: activeMaterial.easeOfUse ?? 75 },
+        ]
+      : [
         { label: "Festigkeit", value: material.strength },
         { label: "Flexibilität", value: material.flexibility },
         { label: "Hitzebeständigkeit", value: material.heatResistance },
@@ -143,8 +150,8 @@ export function Page3DDruck({
 
           {/* Material Tabs */}
           <div className="mb-8 flex justify-center">
-            <div className="inline-flex rounded-xl bg-secondary p-1">
-              {materials3D.map((m) => (
+            <div className="inline-flex flex-wrap justify-center gap-1 rounded-xl bg-secondary p-1">
+              {filamentMaterials.map((m) => (
                 <button
                   key={m.id}
                   onClick={() => setSelectedMaterial(m.id)}

@@ -22,8 +22,20 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { FILAMENT_MATERIAL_TYPES } from "@/lib/admin/filament-types"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import type { MaterialCategory, MaterialItem } from "@/lib/admin/material-types"
+import {
+  findMaterialType,
+  getActiveMaterialTypes,
+  type MaterialTypeDefinition,
+} from "@/lib/admin/material-stats-types"
+import { sortStockItems, type StockSortMode } from "@/lib/admin/list-sort-utils"
 import {
   formatGramStockDisplay,
   formatStockForUnit,
@@ -75,6 +87,8 @@ function StockDisplay({ material }: { material: MaterialItem }) {
 
 export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
   const [materials, setMaterials] = useState<MaterialItem[]>([])
+  const [materialTypes, setMaterialTypes] = useState<MaterialTypeDefinition[]>([])
+  const [sortMode, setSortMode] = useState<StockSortMode>("stock-asc")
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [editorOpen, setEditorOpen] = useState(false)
@@ -93,17 +107,41 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
     [category]
   )
 
+  const activeMaterialTypes = useMemo(
+    () => getActiveMaterialTypes(materialTypes),
+    [materialTypes]
+  )
+
+  const sortedMaterials = useMemo(
+    () => sortStockItems(materials, sortMode, materialTypes),
+    [materials, sortMode, materialTypes]
+  )
+
+  const materialTypeLabel = useCallback(
+    (ref?: string) => findMaterialType(materialTypes, ref)?.name ?? ref ?? "—",
+    [materialTypes]
+  )
+
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch(`/api/admin/materials?category=${category}`, {
+      const materialsRes = await fetch(`/api/admin/materials?category=${category}`, {
         cache: "no-store",
         credentials: "include",
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? "Laden fehlgeschlagen")
-      setMaterials(data.materials ?? [])
+      const materialsData = await materialsRes.json()
+      if (!materialsRes.ok) throw new Error(materialsData.error ?? "Laden fehlgeschlagen")
+      setMaterials(materialsData.materials ?? [])
+
+      if (category === "filament") {
+        const typesRes = await fetch("/api/admin/material-stats", {
+          cache: "no-store",
+          credentials: "include",
+        })
+        const typesData = await typesRes.json()
+        if (typesRes.ok) setMaterialTypes(typesData.materialTypes ?? [])
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Materialien konnten nicht geladen werden.")
     } finally {
@@ -121,7 +159,7 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
       docType: "material",
       category,
       name: "",
-      materialType: category === "filament" ? "PLA" : undefined,
+      materialType: category === "filament" ? activeMaterialTypes[0]?.id ?? "pla" : undefined,
       stockUnit: category === "filament" ? "gram" : "piece",
       stockAvailable: 0,
       stockReserved: 0,
@@ -239,6 +277,17 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
           </p>
         </div>
         <div className="flex gap-2">
+          <Select value={sortMode} onValueChange={(v) => setSortMode(v as StockSortMode)}>
+            <SelectTrigger className="w-[210px]">
+              <SelectValue placeholder="Sortierung" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="stock-asc">Bestand (kritisch zuerst)</SelectItem>
+              <SelectItem value="material-type">Material-Art</SelectItem>
+              <SelectItem value="manufacturer">Hersteller</SelectItem>
+              <SelectItem value="color-asc">Farbe (A–Z)</SelectItem>
+            </SelectContent>
+          </Select>
           <Button type="button" variant="outline" className={adminUi.outlineBtn} onClick={() => void load()}>
             <RefreshCw className="mr-2 h-4 w-4" />
             Aktualisieren
@@ -252,13 +301,13 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
 
       {error && <p className={adminUi.errorLg}>{error}</p>}
 
-      {materials.length === 0 ? (
+      {sortedMaterials.length === 0 ? (
         <p className={cn("rounded-xl border p-8 text-center text-sm", adminUi.section, adminUi.muted)}>
           Noch keine Lagerartikel in «{categoryLabel}».
         </p>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {materials.map((material) => (
+          {sortedMaterials.map((material) => (
             <div
               key={material.id}
               className={cn(
@@ -271,7 +320,7 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
                 <div className="min-w-0 flex-1">
                   {material.materialType && (
                     <Badge variant="secondary" className="mb-1 text-xs">
-                      {material.materialType}
+                      {materialTypeLabel(material.materialType)}
                     </Badge>
                   )}
                   <h3 className={cn("font-semibold", adminUi.heading)}>
@@ -351,18 +400,18 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
                 <div className="space-y-2">
                   <Label>Material-Art</Label>
                   <select
-                    value={draft.materialType ?? "PLA"}
+                    value={draft.materialType ?? activeMaterialTypes[0]?.id ?? "pla"}
                     onChange={(e) =>
                       setDraft({
                         ...draft,
-                        materialType: e.target.value as MaterialItem["materialType"],
+                        materialType: e.target.value,
                       })
                     }
                     className={cn("h-10 w-full rounded-md border px-3 text-sm", adminUi.select)}
                   >
-                    {FILAMENT_MATERIAL_TYPES.map((type) => (
-                      <option key={type} value={type}>
-                        {type}
+                    {activeMaterialTypes.map((type) => (
+                      <option key={type.id} value={type.id}>
+                        {type.name}
                       </option>
                     ))}
                   </select>

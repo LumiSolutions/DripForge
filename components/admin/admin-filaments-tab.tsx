@@ -24,15 +24,17 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { AdminMaterialStatsSection } from "@/components/admin/admin-material-stats-section"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
 import {
-  FILAMENT_MATERIAL_TYPES,
   normalizeAdminFilament,
   type AdminFilament,
-  type FilamentMaterialType,
 } from "@/lib/admin/filament-types"
+import {
+  getActiveMaterialTypes,
+  type MaterialTypeDefinition,
+} from "@/lib/admin/material-stats-types"
 import { cn } from "@/lib/utils"
 
 const EMPTY_FORM: Partial<AdminFilament> = {
-  materialType: "PLA",
+  materialType: "pla",
   manufacturer: "",
   name: "",
   colorName: "",
@@ -49,6 +51,17 @@ export function AdminFilamentsTab() {
   const [form, setForm] = useState<Partial<AdminFilament>>(EMPTY_FORM)
   const [isEditing, setIsEditing] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [materialTypes, setMaterialTypes] = useState<MaterialTypeDefinition[]>([])
+
+  const typeOptions = useMemo(
+    () => getActiveMaterialTypes(materialTypes),
+    [materialTypes]
+  )
+
+  const typeLabel = useCallback(
+    (id: string) => typeOptions.find((t) => t.id === id)?.name ?? id,
+    [typeOptions]
+  )
 
   const sortedFilaments = useMemo(
     () =>
@@ -64,10 +77,15 @@ export function AdminFilamentsTab() {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch("/api/admin/filaments", { cache: "no-store" })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? "Laden fehlgeschlagen")
+      const [filRes, typesRes] = await Promise.all([
+        fetch("/api/admin/filaments", { cache: "no-store" }),
+        fetch("/api/admin/material-stats", { cache: "no-store", credentials: "include" }),
+      ])
+      const data = await filRes.json()
+      const typesData = await typesRes.json()
+      if (!filRes.ok) throw new Error(data.error ?? "Laden fehlgeschlagen")
       setFilaments(Array.isArray(data.filaments) ? data.filaments : [])
+      if (typesRes.ok) setMaterialTypes(typesData.materialTypes ?? [])
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Filamente konnten nicht geladen werden."
@@ -206,7 +224,7 @@ export function AdminFilamentsTab() {
                       sortedFilaments.map((filament) => (
                         <tr key={filament.id} className="border-b last:border-b-0">
                           <td className="px-4 py-3">
-                            <Badge variant="secondary">{filament.materialType}</Badge>
+                            <Badge variant="secondary">{typeLabel(filament.materialType)}</Badge>
                           </td>
                           <td className="px-4 py-3">
                             <p className="font-medium">{filament.manufacturer}</p>
@@ -280,11 +298,11 @@ export function AdminFilamentsTab() {
             <div className="space-y-2 sm:col-span-2">
               <Label>Material-Typ</Label>
               <Select
-                value={form.materialType ?? "PLA"}
+                value={form.materialType ?? typeOptions[0]?.id ?? "pla"}
                 onValueChange={(value) =>
                   setForm((prev) => ({
                     ...prev,
-                    materialType: value as FilamentMaterialType,
+                    materialType: value,
                   }))
                 }
               >
@@ -292,9 +310,9 @@ export function AdminFilamentsTab() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {FILAMENT_MATERIAL_TYPES.map((type) => (
-                    <SelectItem key={type} value={type}>
-                      {type}
+                  {typeOptions.map((type) => (
+                    <SelectItem key={type.id} value={type.id}>
+                      {type.name}
                     </SelectItem>
                   ))}
                 </SelectContent>

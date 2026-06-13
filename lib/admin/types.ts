@@ -126,6 +126,7 @@ export type AdminSettings = {
 }
 
 export type AdminProduct = Product & {
+  createdAt?: string
   updatedAt?: string
 }
 

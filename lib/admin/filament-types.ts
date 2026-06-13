@@ -1,3 +1,5 @@
+import { normalizeMaterialTypeKey } from "@/lib/admin/material-stats-types"
+
 export const FILAMENT_MATERIAL_TYPES = [
   "PLA",
   "PETG",
@@ -15,7 +17,8 @@ export type FilamentSurfaceFinish = (typeof FILAMENT_SURFACE_FINISHES)[number]
 
 export type AdminFilament = {
   id: string
-  materialType: FilamentMaterialType
+  /** Material-Art-ID (Slug), z. B. "pla", "petg-cf" */
+  materialType: string
   manufacturer: string
   name: string
   colorName: string
@@ -40,11 +43,9 @@ export function normalizeAdminFilament(
   },
   existing?: AdminFilament
 ): AdminFilament {
-  const materialType = FILAMENT_MATERIAL_TYPES.includes(
-    input.materialType as FilamentMaterialType
-  )
-    ? (input.materialType as FilamentMaterialType)
-    : existing?.materialType ?? "PLA"
+  const materialType = input.materialType?.trim()
+    ? normalizeMaterialTypeKey(input.materialType)
+    : existing?.materialType ?? "pla"
 
   return {
     id: input.id?.trim() || existing?.id || `fil-${Date.now()}`,
