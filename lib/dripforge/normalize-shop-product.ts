@@ -1,5 +1,6 @@
 import type { Product, ProductDimensionsMm } from "@/lib/dripforge/types"
 import { PRODUCT_DOC_TYPE } from "@/lib/cosmos/products-container"
+import { normalizeProductTagIds } from "@/lib/admin/product-tags"
 
 const PLACEHOLDER_IMAGE = "/filaments/printed-pla-schwarz.png"
 
@@ -194,6 +195,7 @@ export function normalizeShopProduct(
         typeof source.createdAt === "string" && source.createdAt.trim()
           ? source.createdAt.trim()
           : undefined,
+      tags: normalizeProductTagIds(source.tags),
     }
   } catch (error) {
     console.error("Shop: normalizeShopProduct fehlgeschlagen.", error, raw)
@@ -207,6 +209,7 @@ export function normalizeShopProduct(
       sale: false,
       images: [PLACEHOLDER_IMAGE],
       galerieBilder: [PLACEHOLDER_IMAGE],
+      tags: [],
       istAktiv: true,
     }
   }

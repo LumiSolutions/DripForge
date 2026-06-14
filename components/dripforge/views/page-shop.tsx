@@ -10,7 +10,6 @@ import {
   ArrowRight,
   ArrowLeft,
   Sparkles,
-  Tag,
   Minus,
   Plus,
   ShoppingCart,
@@ -54,13 +53,10 @@ import { ProductShopPrice } from "@/components/dripforge/shared/product-shop-pri
 import type { CartItem, Product, ProductDimensionsMm } from "@/lib/dripforge/types"
 import type { ServiceVisibilitySettings } from "@/lib/admin/types"
 import { getSaleBadgePercent } from "@/lib/dripforge/product-sale"
-import {
-  buildShopFilterOptions,
-  filterProductsByShopFilter,
-  isShopFilterId,
-  type ShopFilterId,
-  type ShopFilterOption,
-} from "@/lib/dripforge/shop-filters"
+import { isProductOnSale } from "@/lib/dripforge/shop-filters"
+import { filterProductsByShopTags } from "@/lib/dripforge/shop-tag-filters"
+import { ShopTagFilterPanel } from "@/components/dripforge/shared/shop-tag-filter-panel"
+import type { ProductTag } from "@/lib/admin/product-tags"
 import { normalizeShopProduct } from "@/lib/dripforge/normalize-shop-product"
 import { ProductDetailErrorBoundary } from "@/components/dripforge/product-detail-error-boundary"
 import { useSiteTexts } from "@/components/dripforge/site-texts-provider"
@@ -85,8 +81,6 @@ const Product3DPreview = dynamic(
 )
 
 type PageShopProps = {
-  shopFilter: string
-  setShopFilter: (f: string) => void
   setCurrentView: (view: string) => void
   selectedProduct: Product | null
   setSelectedProduct: (product: Product | null) => void
@@ -95,19 +89,6 @@ type PageShopProps = {
 }
 
 type ShopSortMode = "price-asc" | "price-desc" | "newest" | "popular"
-
-function shopFilterIcon(id: ShopFilterId) {
-  switch (id) {
-    case "3d":
-      return Printer
-    case "laser":
-      return Zap
-    case "sale":
-      return Tag
-    default:
-      return null
-  }
-}
 
 function sortShopProducts(products: Product[], sortMode: ShopSortMode): Product[] {
   const list = [...products]
@@ -134,8 +115,6 @@ function sortShopProducts(products: Product[], sortMode: ShopSortMode): Product[
 }
 
 export function PageShop({
-  shopFilter,
-  setShopFilter,
   setCurrentView,
   selectedProduct,
   setSelectedProduct,
@@ -163,28 +142,17 @@ export function PageShop({
   const product3dCanvasRef = useRef<HTMLCanvasElement>(null)
   const laserPreviewRef = useRef<HTMLDivElement>(null)
   const [shopProducts, setShopProducts] = useState<Product[]>(staticProducts)
-  const [shopFilterOptions, setShopFilterOptions] = useState<ShopFilterOption[]>([
-    { id: "all", label: "Alle" },
-  ])
+  const [productTags, setProductTags] = useState<ProductTag[]>([])
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([])
+  const [saleOnly, setSaleOnly] = useState(false)
   const [sortMode, setSortMode] = useState<ShopSortMode>("newest")
-
-  useEffect(() => {
-    if (isShopFilterId(shopFilter, shopFilterOptions)) return
-    setShopFilter("all")
-  }, [shopFilter, shopFilterOptions, setShopFilter])
 
   useEffect(() => {
     void fetch("/api/products", { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (Array.isArray(data?.products)) {
-          const products = data.products.map((p: Product) => normalizeShopProduct(p))
-          setShopProducts(products)
-          if (Array.isArray(data.filters) && data.filters.length > 0) {
-            setShopFilterOptions(data.filters as ShopFilterOption[])
-          } else {
-            setShopFilterOptions(buildShopFilterOptions(products, services))
-          }
+          setShopProducts(data.products.map((p: Product) => normalizeShopProduct(p)))
         }
       })
       .catch(() => {
@@ -193,17 +161,41 @@ export function PageShop({
   }, [])
 
   useEffect(() => {
-    setShopFilterOptions(buildShopFilterOptions(shopProducts, services))
-  }, [shopProducts, services])
+    void fetch("/api/product-tags", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (Array.isArray(data?.tags)) {
+          setProductTags(data.tags as ProductTag[])
+        }
+      })
+      .catch(() => {
+        console.warn("Shop: Produkt-Tags konnten nicht geladen werden.")
+      })
+  }, [])
 
-  const activeFilterId: ShopFilterId = isShopFilterId(shopFilter, shopFilterOptions)
-    ? shopFilter
-    : "all"
+  const showSaleFilter = useMemo(
+    () => shopProducts.some((product) => isProductOnSale(product)),
+    [shopProducts]
+  )
 
   const displayedProducts = useMemo(() => {
-    const filtered = filterProductsByShopFilter(shopProducts, activeFilterId)
+    const filtered = filterProductsByShopTags(shopProducts, {
+      selectedTagIds,
+      saleOnly,
+    })
     return sortShopProducts(filtered, sortMode)
-  }, [shopProducts, activeFilterId, sortMode])
+  }, [shopProducts, selectedTagIds, saleOnly, sortMode])
+
+  const toggleTagFilter = (tagId: string, checked: boolean) => {
+    setSelectedTagIds((prev) =>
+      checked ? [...new Set([...prev, tagId])] : prev.filter((id) => id !== tagId)
+    )
+  }
+
+  const clearTagFilters = () => {
+    setSelectedTagIds([])
+    setSaleOnly(false)
+  }
 
   const customCardCount = [showCustom3d, showCustomLaser, showAiKonfigurator].filter(
     Boolean
@@ -862,47 +854,41 @@ export function PageShop({
       )}
 
       <section className="mx-auto max-w-7xl px-4">
-        <div className="mb-8 flex flex-col gap-4 border-b border-border/50 pb-6 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
-            {shopFilterOptions.map((filter) => {
-              const Icon = shopFilterIcon(filter.id)
-              return (
-                <button
-                  key={filter.id}
-                  type="button"
-                  onClick={() => setShopFilter(filter.id)}
-                  className={cn(
-                    "inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-colors",
-                    activeFilterId === filter.id
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-secondary text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  {Icon && <Icon className="h-4 w-4" />}
-                  {filter.label}
-                </button>
-              )
-            })}
-          </div>
+        <div className="flex flex-col gap-8 lg:flex-row lg:items-start">
+          <ShopTagFilterPanel
+            className="w-full lg:sticky lg:top-24 lg:w-64 lg:shrink-0"
+            tags={productTags}
+            selectedTagIds={selectedTagIds}
+            saleOnly={saleOnly}
+            showSaleFilter={showSaleFilter}
+            onToggleTag={toggleTagFilter}
+            onToggleSale={setSaleOnly}
+            onClear={clearTagFilters}
+          />
 
-          <div className="flex items-center justify-center gap-2 sm:justify-end">
-            <ArrowUpDown className="hidden h-4 w-4 text-muted-foreground sm:block" />
-            <Select
-              value={sortMode}
-              onValueChange={(value) => setSortMode(value as ShopSortMode)}
-            >
-              <SelectTrigger className="w-full min-w-[220px] sm:w-[240px]">
-                <SelectValue placeholder="Sortieren" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="price-asc">Preis: aufsteigend</SelectItem>
-                <SelectItem value="price-desc">Preis: absteigend</SelectItem>
-                <SelectItem value="popular">Beliebtheit</SelectItem>
-                <SelectItem value="newest">Neueste zuerst</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
+          <div className="min-w-0 flex-1">
+            <div className="mb-6 flex flex-col gap-4 border-b border-border/50 pb-6 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-muted-foreground">
+                {displayedProducts.length} Produkt{displayedProducts.length === 1 ? "" : "e"}
+              </p>
+              <div className="flex items-center justify-center gap-2 sm:justify-end">
+                <ArrowUpDown className="hidden h-4 w-4 text-muted-foreground sm:block" />
+                <Select
+                  value={sortMode}
+                  onValueChange={(value) => setSortMode(value as ShopSortMode)}
+                >
+                  <SelectTrigger className="w-full min-w-[220px] sm:w-[240px]">
+                    <SelectValue placeholder="Sortieren" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="price-asc">Preis: aufsteigend</SelectItem>
+                    <SelectItem value="price-desc">Preis: absteigend</SelectItem>
+                    <SelectItem value="popular">Beliebtheit</SelectItem>
+                    <SelectItem value="newest">Neueste zuerst</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
 
         {displayedProducts.length === 0 ? (
           <Card className="border-border/50 bg-card/50">
@@ -971,6 +957,8 @@ export function PageShop({
             ))}
           </div>
         )}
+          </div>
+        </div>
       </section>
     </div>
   )

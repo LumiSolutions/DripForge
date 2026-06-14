@@ -35,6 +35,11 @@ import type { MaterialItem, ProductMaterialLink } from "@/lib/admin/material-typ
 import { sortProducts, type ProductSortMode } from "@/lib/admin/list-sort-utils"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
 import { cn } from "@/lib/utils"
+import {
+  AdminProductTagCheckboxes,
+  AdminProductTagsSection,
+} from "@/components/admin/admin-product-tags-section"
+import type { ProductTag } from "@/lib/admin/product-tags"
 
 type ProductFormState = Partial<AdminProduct> & {
   variantenText?: string
@@ -62,6 +67,7 @@ const EMPTY_FORM: ProductFormState = {
   modellDateiUrl: "",
   variantenText: "",
   materialLinks: [],
+  tags: [],
 }
 
 type MediaUploadCategory = "gallery" | "customization" | "model"
@@ -116,6 +122,7 @@ export function AdminProductsTab() {
   const [imageUrlInput, setImageUrlInput] = useState("")
   const [materialCatalog, setMaterialCatalog] = useState<MaterialItem[]>([])
   const [productSort, setProductSort] = useState<ProductSortMode>("name-asc")
+  const [productTags, setProductTags] = useState<ProductTag[]>([])
 
   const loadMaterials = useCallback(async () => {
     try {
@@ -183,6 +190,7 @@ export function AdminProductsTab() {
       modellDateiUrl: product.modellDateiUrl ?? product.modelUrl ?? "",
       variantenText: formatVariantenForAdmin(product.varianten ?? []),
       materialLinks: product.materialLinks ?? [],
+      tags: product.tags ?? [],
     })
     setIsEditing(true)
   }
@@ -425,6 +433,8 @@ export function AdminProductsTab() {
 
       {error && !isEditing && <p className={adminUi.error}>{error}</p>}
 
+      <AdminProductTagsSection onTagsChange={setProductTags} />
+
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {sortedProducts.map((product) => (
           <button
@@ -606,6 +616,18 @@ export function AdminProductsTab() {
                     ) : null}
                   </div>
                 )}
+              </div>
+
+              <div className={cn("space-y-3 rounded-xl border p-4", adminUi.section)}>
+                <h4 className={cn("text-sm font-semibold", adminUi.accentTitle)}>Shop-Tags</h4>
+                <p className={cn("text-xs", adminUi.muted)}>
+                  Tags steuern die Filter-Kategorien im Shop (Mehrfachauswahl möglich).
+                </p>
+                <AdminProductTagCheckboxes
+                  tags={productTags}
+                  selectedTagIds={form.tags ?? []}
+                  onChange={(tagIds) => updateField("tags", tagIds)}
+                />
               </div>
 
               {form.type === "3d" && (

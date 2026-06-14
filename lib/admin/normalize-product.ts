@@ -7,6 +7,7 @@ import {
 } from "@/lib/dripforge/product-sale"
 import type { AdminProduct } from "@/lib/admin/types"
 import type { Product } from "@/lib/dripforge/types"
+import { normalizeProductTagIds } from "@/lib/admin/product-tags"
 
 export function normalizeAdminProductInput(
   input: Partial<AdminProduct> & { variantenText?: string; basisPreis?: number },
@@ -95,6 +96,7 @@ export function normalizeAdminProductInput(
         : existing?.gewicht,
     varianten,
     materialLinks: input.materialLinks ?? existing?.materialLinks ?? [],
+    tags: normalizeProductTagIds(input.tags ?? existing?.tags),
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   }

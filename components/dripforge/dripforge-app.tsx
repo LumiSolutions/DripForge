@@ -39,7 +39,6 @@ import { useAiPublicSettings } from "@/hooks/use-ai-public-settings"
 export default function DripForgeApp() {
   const [currentView, setCurrentView] = useState("home")
   const [selectedMaterial, setSelectedMaterial] = useState("pla")
-  const [shopFilter, setShopFilter] = useState("all")
   const [chatOpen, setChatOpen] = useState(false)
   const [cart, setCart] = useState<CartItem[]>([])
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
@@ -180,8 +179,6 @@ export default function DripForgeApp() {
         )}
         {currentView === "shop" && (
           <PageShop
-            shopFilter={shopFilter}
-            setShopFilter={setShopFilter}
             setCurrentView={setCurrentView}
             selectedProduct={selectedProduct}
             setSelectedProduct={setSelectedProduct}

@@ -61,6 +61,8 @@ export type Product = {
   modellDateiUrl?: string
   /** Erstellungszeitpunkt (Admin / Cosmos) */
   createdAt?: string
+  /** Zugewiesene Produkt-Tag-IDs (Shop-Filter) */
+  tags?: string[]
 }
 
 export type LayoutPosition = {
