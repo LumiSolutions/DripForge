@@ -3,9 +3,7 @@ import { logCosmosError } from "@/lib/cosmos/log-error"
 import { normalizeAdminFilament, type AdminFilament } from "@/lib/admin/filament-types"
 import { cosmosGetMaterialTypes } from "@/lib/admin/cosmos-material-stats"
 import {
-  buildInventoryColorEnrichmentMap,
-  groupFilamentsForConfigurator,
-  seedFilamentsFromLegacyMaterials,
+  groupInventoryForConfigurator,
 } from "@/lib/dripforge/filament-catalog"
 import { cosmosGetMaterials } from "@/lib/admin/cosmos-materials"
 
@@ -36,16 +34,7 @@ export async function cosmosGetFilaments(): Promise<AdminFilament[]> {
     .map((doc) => mapFilamentDoc(doc))
     .filter((f): f is AdminFilament => f != null)
 
-  if (filaments.length > 0) return filaments
-
-  const seeded = seedFilamentsFromLegacyMaterials()
-  for (const filament of seeded) {
-    await container.items.upsert({
-      ...filament,
-      docType: FILAMENT_DOC_TYPE,
-    })
-  }
-  return seeded
+  return filaments
 }
 
 export async function cosmosGetFilamentById(
@@ -97,11 +86,9 @@ export async function cosmosDeleteFilament(id: string): Promise<boolean> {
 }
 
 export async function cosmosGetFilamentMaterials() {
-  const [filaments, materialTypes, inventoryItems] = await Promise.all([
-    cosmosGetFilaments(),
+  const [materialTypes, inventoryItems] = await Promise.all([
     cosmosGetMaterialTypes(),
     cosmosGetMaterials("filament"),
   ])
-  const inventoryEnrichment = buildInventoryColorEnrichmentMap(inventoryItems)
-  return groupFilamentsForConfigurator(filaments, materialTypes, { inventoryEnrichment })
+  return groupInventoryForConfigurator(inventoryItems, materialTypes)
 }

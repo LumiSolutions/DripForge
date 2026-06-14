@@ -31,6 +31,98 @@ export function formatPublicFilamentDisplayName(
   return `${name} ${color}`.trim()
 }
 
+const FILAMENT_COLOR_HEX: Record<string, string> = {
+  schwarz: "#1a1a1a",
+  black: "#1a1a1a",
+  weiss: "#ffffff",
+  weiß: "#ffffff",
+  white: "#ffffff",
+  rot: "#dc2626",
+  red: "#dc2626",
+  blau: "#2563eb",
+  blue: "#2563eb",
+  gruen: "#16a34a",
+  grün: "#16a34a",
+  green: "#16a34a",
+  gelb: "#eab308",
+  yellow: "#eab308",
+  orange: "#ea580c",
+  pink: "#ec4899",
+  lila: "#9333ea",
+  purple: "#9333ea",
+  grau: "#6b7280",
+  gray: "#6b7280",
+  grey: "#6b7280",
+  silber: "#a8a29e",
+  silver: "#a8a29e",
+  transparent: "#e5e7eb",
+  gold: "#ca8a04",
+}
+
+export function inferFilamentColorHex(farbe?: string): string {
+  if (!farbe?.trim()) return "#888888"
+  const key = farbe
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+  return FILAMENT_COLOR_HEX[key] ?? "#888888"
+}
+
+export function materialItemToColor(
+  item: MaterialItem,
+  stats: MaterialCategoryStat
+): FilamentColor {
+  const colorName = item.farbe?.trim() || "—"
+
+  return applyCategoryStats(
+    {
+      id: item.id,
+      name: colorName,
+      hex: inferFilamentColorHex(item.farbe),
+      inStock: item.stockAvailable > 0,
+      image: item.spuleBildUrl?.trim() || null,
+      printedExample: item.printBildUrl?.trim() || null,
+      displayName: formatPublicFilamentDisplayName({
+        name: item.name,
+        colorName,
+      }),
+      priceSurchargeChf: 0,
+    },
+    stats
+  )
+}
+
+/** Shop-Katalog ausschliesslich aus Lagerverwaltung (Cosmos inventory). */
+export function groupInventoryForConfigurator(
+  items: MaterialItem[],
+  materialTypes: MaterialTypeDefinition[] = buildDefaultMaterialTypes()
+): FilamentMaterial[] {
+  const activeTypes = getActiveMaterialTypes(materialTypes)
+  const groups = new Map<string, MaterialItem[]>()
+
+  for (const item of items) {
+    if (item.category !== "filament") continue
+    const typeDef = findMaterialType(materialTypes, item.materialType ?? "pla")
+    if (!typeDef?.isActive) continue
+    const list = groups.get(typeDef.id) ?? []
+    list.push(item)
+    groups.set(typeDef.id, list)
+  }
+
+  return activeTypes
+    .filter((type) => groups.has(type.id))
+    .map((type) => ({
+      id: type.id,
+      name: type.name,
+      strength: type.strength,
+      flexibility: type.flexibility,
+      heatResistance: type.heatResistance,
+      easeOfUse: type.easeOfUse,
+      colors: (groups.get(type.id) ?? []).map((item) => materialItemToColor(item, type)),
+    }))
+}
+
 export function buildInventoryColorEnrichmentMap(
   items: MaterialItem[]
 ): Map<string, InventoryColorEnrichment> {

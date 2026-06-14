@@ -60,10 +60,11 @@ export function FilamentColorPicker({
     Object.fromEntries(materials.map((m) => [m.id, m.colors.find((c) => c.inStock)?.id ?? ""]))
   )
 
-  const currentMaterial = materials.find((m) => m.id === activeTab)!
+  const currentMaterial = materials.find((m) => m.id === activeTab)
   const selectedColor = currentMaterial?.colors.find((c) => c.id === selectedColors[activeTab])
 
   useEffect(() => {
+    if (materials.length === 0) return
     setSelectedColors(
       Object.fromEntries(
         materials.map((m) => [
@@ -85,6 +86,22 @@ export function FilamentColorPicker({
       inStock: selectedColor.inStock,
     })
   }, [activeTab, selectedColors, currentMaterial, selectedColor, onSelectionChange])
+
+  if (materials.length === 0) {
+    return (
+      <div className={cn("border-t border-border/50 pt-12", className ?? "mt-16")}>
+        <div className="rounded-2xl border border-dashed border-border/50 bg-card/30 p-10 text-center">
+          <p className="text-sm text-muted-foreground">
+            Aktuell sind keine Filament-Farben hinterlegt.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!currentMaterial) {
+    return null
+  }
 
   return (
     <div className={cn("border-t border-border/50 pt-12", className ?? "mt-16")}>

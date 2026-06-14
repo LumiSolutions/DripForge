@@ -28,7 +28,7 @@ import {
   LaserDesignerStudio,
   type LaserDesignerState,
 } from "@/components/dripforge/shared/laser-designer-studio"
-import { materials3D, products as staticProducts } from "@/lib/dripforge/data"
+import { products as staticProducts } from "@/lib/dripforge/data"
 import { useFilamentMaterials } from "@/hooks/use-filament-materials"
 import { useAiPublicSettings } from "@/hooks/use-ai-public-settings"
 import { getLaserMaterialForProduct } from "@/lib/dripforge/laser"
@@ -90,6 +90,14 @@ export function PageShop({
 }: PageShopProps) {
   const { t } = useSiteTexts()
   const filamentMaterials = useFilamentMaterials()
+
+  useEffect(() => {
+    if (filamentMaterials.length === 0) return
+    setFilamentTab((prev) =>
+      filamentMaterials.some((m) => m.id === prev) ? prev : filamentMaterials[0]!.id
+    )
+  }, [filamentMaterials])
+
   const aiPublic = useAiPublicSettings()
   const showCustom3d = services.druck3d
   const showCustomLaser = services.lasergravur

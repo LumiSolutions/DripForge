@@ -84,10 +84,7 @@ import {
   type MaterialTypeDefinition,
 } from "@/lib/admin/material-stats-types"
 import {
-  buildInventoryColorEnrichmentMap,
-  groupFilamentsForConfigurator,
-  legacyMaterialsFallback,
-  seedFilamentsFromLegacyMaterials,
+  groupInventoryForConfigurator,
 } from "@/lib/dripforge/filament-catalog"
 import type { FilamentMaterial } from "@/lib/dripforge/types"
 import { getMaterials } from "@/lib/admin/material-db"
@@ -640,16 +637,11 @@ export async function getFilamentMaterials(): Promise<FilamentMaterial[]> {
     "getFilamentMaterials",
     cosmosGetFilamentMaterials,
     async () => {
-      const [stored, types, inventoryItems] = await Promise.all([
-        readJsonFile<AdminFilament[] | null>(FILAMENTS_FILE, null),
+      const [types, inventoryItems] = await Promise.all([
         getMaterialTypes(),
         getMaterials("filament"),
       ])
-      const inventoryEnrichment = buildInventoryColorEnrichmentMap(inventoryItems)
-      if (stored?.length) {
-        return groupFilamentsForConfigurator(stored, types, { inventoryEnrichment })
-      }
-      return legacyMaterialsFallback(types)
+      return groupInventoryForConfigurator(inventoryItems, types)
     }
   )
 }
@@ -661,7 +653,7 @@ export async function getFilamentsForStorefront(): Promise<AdminFilament[]> {
     async () => {
       const stored = await readJsonFile<AdminFilament[] | null>(FILAMENTS_FILE, null)
       if (stored?.length) return stored
-      return seedFilamentsFromLegacyMaterials()
+      return []
     }
   )
 }

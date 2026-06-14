@@ -5,7 +5,6 @@ import {
   getActiveMaterialTypes,
   typesToLegacyMap,
 } from "@/lib/admin/material-stats-types"
-import { legacyMaterialsFallback } from "@/lib/dripforge/filament-catalog"
 import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
 import { formatCosmosError } from "@/lib/cosmos/log-error"
 
@@ -32,11 +31,14 @@ export async function GET() {
     const materialTypes = getActiveMaterialTypes(buildDefaultMaterialTypes())
     return NextResponse.json(
       {
-        materials: legacyMaterialsFallback(materialTypes),
+        materials: [],
         materialTypes,
         materialStats: typesToLegacyMap(materialTypes),
       },
-      { headers: { "Cache-Control": "no-store, max-age=0" } }
+      {
+        status: 503,
+        headers: { "Cache-Control": "no-store, max-age=0", "X-DripForge-Degraded": "1" },
+      }
     )
   }
 }
