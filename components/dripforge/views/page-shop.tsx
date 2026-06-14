@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import dynamic from "next/dynamic"
 import Link from "next/link"
 import {
@@ -10,14 +10,21 @@ import {
   ArrowRight,
   ArrowLeft,
   Sparkles,
-  Tag,
   Minus,
   Plus,
   ShoppingCart,
+  ArrowUpDown,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 import {
   FilamentColorPicker,
@@ -79,6 +86,37 @@ type PageShopProps = {
   services: ServiceVisibilitySettings
 }
 
+type ShopCategoryFilter = "all" | "3d" | "laser"
+type ShopSortMode = "price-asc" | "price-desc" | "newest" | "popular"
+
+function isShopCategoryFilter(value: string): value is ShopCategoryFilter {
+  return value === "all" || value === "3d" || value === "laser"
+}
+
+function sortShopProducts(products: Product[], sortMode: ShopSortMode): Product[] {
+  const list = [...products]
+  switch (sortMode) {
+    case "price-asc":
+      return list.sort((a, b) => a.price - b.price)
+    case "price-desc":
+      return list.sort((a, b) => b.price - a.price)
+    case "newest":
+      return list.sort((a, b) => {
+        const aTime = a.createdAt ? Date.parse(a.createdAt) : 0
+        const bTime = b.createdAt ? Date.parse(b.createdAt) : 0
+        return bTime - aTime
+      })
+    case "popular":
+      return list.sort((a, b) => {
+        const saleDiff = Number(b.sale) - Number(a.sale)
+        if (saleDiff !== 0) return saleDiff
+        return a.name.localeCompare(b.name, "de")
+      })
+    default:
+      return list
+  }
+}
+
 export function PageShop({
   shopFilter,
   setShopFilter,
@@ -109,6 +147,13 @@ export function PageShop({
   const product3dCanvasRef = useRef<HTMLCanvasElement>(null)
   const laserPreviewRef = useRef<HTMLDivElement>(null)
   const [shopProducts, setShopProducts] = useState<Product[]>(staticProducts)
+  const [sortMode, setSortMode] = useState<ShopSortMode>("newest")
+
+  useEffect(() => {
+    if (!isShopCategoryFilter(shopFilter)) {
+      setShopFilter("all")
+    }
+  }, [shopFilter, setShopFilter])
 
   useEffect(() => {
     void fetch("/api/products", { cache: "no-store" })
@@ -123,14 +168,21 @@ export function PageShop({
       })
   }, [])
 
-  const filteredProducts =
-    shopFilter === "all"
-      ? shopProducts
-      : shopFilter === "sale"
-        ? shopProducts.filter((p) => p.sale)
-        : shopFilter === "custom"
-          ? []
-          : shopProducts.filter((p) => p.type === shopFilter)
+  const categoryFilter: ShopCategoryFilter = isShopCategoryFilter(shopFilter)
+    ? shopFilter
+    : "all"
+
+  const displayedProducts = useMemo(() => {
+    let list = shopProducts.filter((p) => p.istAktiv !== false)
+
+    if (categoryFilter === "3d") {
+      list = list.filter((p) => p.type === "3d")
+    } else if (categoryFilter === "laser") {
+      list = list.filter((p) => p.type === "laser")
+    }
+
+    return sortShopProducts(list, sortMode)
+  }, [shopProducts, categoryFilter, sortMode])
 
   const applySelectedProduct = (product: Product) => {
     const normalized = normalizeShopProduct(product)
@@ -692,107 +744,56 @@ export function PageShop({
         </p>
       </section>
 
-      <section className="mx-auto max-w-7xl px-4">
-        <div className="mb-8 text-center">
-          <h2 className="text-2xl font-bold">
-            <span className="text-foreground">Erschaffen Sie etwas </span>
-            <span className="bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent">
-              {t("shop_custom_section_title")}
-            </span>
-          </h2>
-          <p className="mt-2 text-muted-foreground">
-            {t("shop_custom_section_subtitle")}
-          </p>
-        </div>
-
-        <div
-          className={cn(
-            "grid gap-6",
-            [showCustom3d, showCustomLaser, showAiKonfigurator].filter(Boolean).length >= 2
-              ? "md:grid-cols-2 lg:grid-cols-3"
-              : "mx-auto max-w-md md:grid-cols-1"
-          )}
-        >
-          {showCustom3d && (
-          <Card className="border-border/50 bg-card/50 transition-colors hover:border-primary/50">
-            <CardContent className="p-8">
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/20">
-                <Printer className="h-6 w-6 text-primary" />
-              </div>
-              <h3 className="mb-2 text-lg font-bold">{t("shop_custom_3d_title")}</h3>
-              <p className="mb-6 text-sm text-muted-foreground">
-                {t("shop_custom_3d_description")}
-              </p>
+      {(showCustom3d || showCustomLaser || showAiKonfigurator) && (
+        <section className="mx-auto w-full max-w-7xl px-4 py-10 sm:py-12">
+          <div className="mx-auto flex max-w-3xl flex-col items-center justify-center gap-4 sm:flex-row sm:gap-6">
+            {showCustom3d && (
               <Button
-                variant="link"
+                size="lg"
                 onClick={() => setCurrentView("individual-3d")}
-                className="h-auto p-0 text-foreground hover:text-primary"
+                className="h-auto w-full min-w-0 px-8 py-6 text-base sm:w-auto sm:min-w-[280px]"
               >
-                Jetzt Erstellen
-                <ArrowRight className="ml-1 h-4 w-4" />
+                <Printer className="mr-2 h-5 w-5 shrink-0" />
+                Individuell 3D-Druck erstellen
               </Button>
-            </CardContent>
-          </Card>
-          )}
-
-          {showAiKonfigurator && (
-          <Card className="border-border/50 bg-card/50 transition-colors hover:border-violet-500/50">
-            <CardContent className="p-8">
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-violet-500/20">
-                <Sparkles className="h-6 w-6 text-violet-400" />
-              </div>
-              <h3 className="mb-2 text-lg font-bold">KI-Modell erstellen</h3>
-              <p className="mb-6 text-sm text-muted-foreground">
-                Beschreibe dein Wunschmodell per Text oder Bild — unsere KI generiert
-                druckbare 3D-Geometrie nach euren technischen Vorgaben.
-              </p>
+            )}
+            {showCustomLaser && (
               <Button
-                variant="link"
-                onClick={() => setCurrentView("ai-konfigurator")}
-                className="h-auto p-0 text-foreground hover:text-violet-400"
+                size="lg"
+                variant="outline"
+                onClick={() => setCurrentView("individual-laser")}
+                className="h-auto w-full min-w-0 border-cyan-500/40 px-8 py-6 text-base hover:bg-cyan-500/10 sm:w-auto sm:min-w-[280px]"
               >
+                <Zap className="mr-2 h-5 w-5 shrink-0 text-cyan-400" />
+                Individuell Laserprodukt erstellen
+              </Button>
+            )}
+          </div>
+          {showAiKonfigurator && (
+            <div className="mt-6 flex justify-center">
+              <Button
+                variant="ghost"
+                onClick={() => setCurrentView("ai-konfigurator")}
+                className="text-violet-400 hover:bg-violet-500/10 hover:text-violet-300"
+              >
+                <Sparkles className="mr-2 h-4 w-4" />
                 KI-Konfigurator öffnen
                 <ArrowRight className="ml-1 h-4 w-4" />
               </Button>
-            </CardContent>
-          </Card>
+            </div>
           )}
-
-          {showCustomLaser && (
-          <Card className="border-border/50 bg-card/50 transition-colors hover:border-cyan-500/50">
-            <CardContent className="p-8">
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-cyan-500/20">
-                <Zap className="h-6 w-6 text-cyan-400" />
-              </div>
-              <h3 className="mb-2 text-lg font-bold">{t("shop_custom_laser_title")}</h3>
-              <p className="mb-6 text-sm text-muted-foreground">
-                {t("shop_custom_laser_description")}
-              </p>
-              <Button
-                variant="link"
-                onClick={() => setCurrentView("individual-laser")}
-                className="h-auto p-0 text-foreground hover:text-primary"
-              >
-                Jetzt Erstellen
-                <ArrowRight className="ml-1 h-4 w-4" />
-              </Button>
-            </CardContent>
-          </Card>
-          )}
-        </div>
-      </section>
+        </section>
+      )}
 
       <section className="mx-auto max-w-7xl px-4">
-        <div className="mb-8 flex justify-center">
-          <div className="inline-flex flex-wrap gap-2">
+        <div className="mb-8 flex flex-col gap-4 border-b border-border/50 pb-6 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
             {[
-              { id: "all", label: "Alle Produkte" },
-              { id: "sale", label: "Rabatt", icon: Tag },
-              ...(showCustom3d || showCustomLaser
-                ? [{ id: "custom", label: "Individuell", icon: Sparkles }]
+              { id: "all" as const, label: "Alle" },
+              ...(showCustom3d ? [{ id: "3d" as const, label: "3D-Druck", icon: Printer }] : []),
+              ...(showCustomLaser
+                ? [{ id: "laser" as const, label: "Laser-Gravur", icon: Zap }]
                 : []),
-              ...(showCustom3d ? [{ id: "3d", label: "3D-Druck", icon: Printer }] : []),
-              ...(showCustomLaser ? [{ id: "laser", label: "Laser", icon: Zap }] : []),
             ].map((filter) => (
               <button
                 key={filter.id}
@@ -800,19 +801,37 @@ export function PageShop({
                 onClick={() => setShopFilter(filter.id)}
                 className={cn(
                   "inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-colors",
-                  shopFilter === filter.id
+                  categoryFilter === filter.id
                     ? "bg-primary text-primary-foreground"
                     : "bg-secondary text-muted-foreground hover:text-foreground"
                 )}
               >
-                {filter.icon && <filter.icon className="h-4 w-4" />}
+                {"icon" in filter && filter.icon && <filter.icon className="h-4 w-4" />}
                 {filter.label}
               </button>
             ))}
           </div>
+
+          <div className="flex items-center justify-center gap-2 sm:justify-end">
+            <ArrowUpDown className="hidden h-4 w-4 text-muted-foreground sm:block" />
+            <Select
+              value={sortMode}
+              onValueChange={(value) => setSortMode(value as ShopSortMode)}
+            >
+              <SelectTrigger className="w-full min-w-[220px] sm:w-[240px]">
+                <SelectValue placeholder="Sortieren" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="price-asc">Preis: aufsteigend</SelectItem>
+                <SelectItem value="price-desc">Preis: absteigend</SelectItem>
+                <SelectItem value="popular">Beliebtheit</SelectItem>
+                <SelectItem value="newest">Neueste zuerst</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
-        {filteredProducts.length === 0 ? (
+        {displayedProducts.length === 0 ? (
           <Card className="border-border/50 bg-card/50">
             <CardContent className="py-16 text-center">
               <p className="text-muted-foreground">{t("shop_empty_category")}</p>
@@ -820,7 +839,7 @@ export function PageShop({
           </Card>
         ) : (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {filteredProducts.map((product) => (
+            {displayedProducts.map((product) => (
               <Card
                 key={product.id}
                 role="button"

@@ -190,6 +190,10 @@ export function normalizeShopProduct(
         typeof source.individualisierungsBild === "string"
           ? source.individualisierungsBild.trim() || undefined
           : undefined,
+      createdAt:
+        typeof source.createdAt === "string" && source.createdAt.trim()
+          ? source.createdAt.trim()
+          : undefined,
     }
   } catch (error) {
     console.error("Shop: normalizeShopProduct fehlgeschlagen.", error, raw)

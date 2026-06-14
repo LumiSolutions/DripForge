@@ -59,6 +59,8 @@ export type Product = {
   individualisierungsBild?: string
   /** Fest verknuepfte 3D-Basisgeometrie */
   modellDateiUrl?: string
+  /** Erstellungszeitpunkt (Admin / Cosmos) */
+  createdAt?: string
 }
 
 export type LayoutPosition = {
