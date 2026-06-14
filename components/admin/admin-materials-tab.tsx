@@ -335,7 +335,10 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
     }
   }
 
-  const uploadColorImage = async (file: File) => {
+  const uploadMaterialImage = async (
+    file: File,
+    field: "spuleBildUrl" | "printBildUrl"
+  ) => {
     if (!draft) return
     const formData = new FormData()
     formData.append("materialId", draft.id || "temp")
@@ -349,7 +352,7 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
     })
     const data = await res.json()
     if (!res.ok) throw new Error(data.error ?? "Upload fehlgeschlagen")
-    setDraft({ ...draft, farbeBildUrl: data.url })
+    setDraft({ ...draft, [field]: data.url })
   }
 
   if (loading) {
@@ -426,7 +429,7 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
                     </p>
                   )}
                 </div>
-                {material.farbeBildUrl && (
+                {(material.spuleBildUrl ?? material.printBildUrl) && (
                   <div
                     className={cn(
                       "h-12 w-12 shrink-0 overflow-hidden rounded-lg border",
@@ -435,8 +438,8 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={material.farbeBildUrl}
-                      alt={material.farbe ?? "Farbmuster"}
+                      src={material.spuleBildUrl ?? material.printBildUrl}
+                      alt={material.farbe ?? "Filamentbild"}
                       className="h-full w-full object-cover"
                     />
                   </div>
@@ -565,37 +568,83 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
                 </div>
               </div>
 
-              <div className={cn("space-y-3 rounded-xl border p-4", adminUi.section)}>
-                <Label>Farbmuster-Bild</Label>
-                <label className="flex cursor-pointer items-center gap-2 text-sm">
-                  <Upload className="h-4 w-4" />
-                  Bild hochladen
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0]
-                      if (file) void uploadColorImage(file)
-                    }}
-                  />
-                </label>
-                {draft.farbeBildUrl && (
-                  <div
-                    className={cn(
-                      "h-20 w-20 overflow-hidden rounded-lg border",
-                      adminUi.thumbnail
+              {category === "filament" && (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className={cn("space-y-3 rounded-xl border p-4", adminUi.section)}>
+                    <Label>Spulen-Bild</Label>
+                    <p className={cn("text-xs", adminUi.muted)}>
+                      Filament-Spule — erscheint links im Shop.
+                    </p>
+                    <label className="flex cursor-pointer items-center gap-2 text-sm">
+                      <Upload className="h-4 w-4" />
+                      Bild hochladen
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0]
+                          if (file) void uploadMaterialImage(file, "spuleBildUrl")
+                        }}
+                      />
+                    </label>
+                    {draft.spuleBildUrl ? (
+                      <div
+                        className={cn(
+                          "h-20 w-20 overflow-hidden rounded-lg border",
+                          adminUi.thumbnail
+                        )}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={draft.spuleBildUrl}
+                          alt={draft.farbe ?? "Spulen-Bild"}
+                          className="h-full w-full object-cover"
+                        />
+                      </div>
+                    ) : (
+                      <p className={cn("text-xs", adminUi.muted)}>Noch kein Spulen-Bild</p>
                     )}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={draft.farbeBildUrl}
-                      alt={draft.farbe ?? "Farbmuster"}
-                      className="h-full w-full object-cover"
-                    />
                   </div>
-                )}
-              </div>
+
+                  <div className={cn("space-y-3 rounded-xl border p-4", adminUi.section)}>
+                    <Label>Beispiel Print-Bild (Farbmuster)</Label>
+                    <p className={cn("text-xs", adminUi.muted)}>
+                      Gedrucktes Farbmuster — erscheint rechts im Shop.
+                    </p>
+                    <label className="flex cursor-pointer items-center gap-2 text-sm">
+                      <Upload className="h-4 w-4" />
+                      Bild hochladen
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0]
+                          if (file) void uploadMaterialImage(file, "printBildUrl")
+                        }}
+                      />
+                    </label>
+                    {draft.printBildUrl ? (
+                      <div
+                        className={cn(
+                          "h-20 w-20 overflow-hidden rounded-lg border",
+                          adminUi.thumbnail
+                        )}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={draft.printBildUrl}
+                          alt={draft.farbe ?? "Print-Beispiel"}
+                          className="h-full w-full object-cover"
+                        />
+                      </div>
+                    ) : (
+                      <p className={cn("text-xs", adminUi.muted)}>Noch kein Print-Beispiel</p>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {draft.stockUnit === "gram" ? (
                 <div className={cn("space-y-3 rounded-xl border p-4", adminUi.section)}>

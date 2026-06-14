@@ -16,7 +16,8 @@ function normalizeFilamentMatchKey(value: string): string {
 }
 
 export type InventoryColorEnrichment = {
-  farbeBildUrl?: string
+  spuleBildUrl?: string
+  printBildUrl?: string
 }
 
 /** Öffentlicher Titel ohne Hersteller / internen Filamentcode */
@@ -37,14 +38,18 @@ export function buildInventoryColorEnrichmentMap(
 
   for (const item of items) {
     if (item.category !== "filament") continue
-    const url = item.farbeBildUrl?.trim()
-    if (!url) continue
+    const spuleBildUrl = item.spuleBildUrl?.trim()
+    const printBildUrl = item.printBildUrl?.trim()
+    if (!spuleBildUrl && !printBildUrl) continue
 
     const materialType = normalizeMaterialTypeKey(item.materialType ?? "pla")
     const name = normalizeFilamentMatchKey(item.name)
     const color = normalizeFilamentMatchKey(item.farbe ?? "")
     const manufacturer = normalizeFilamentMatchKey(item.manufacturer ?? "")
-    const payload: InventoryColorEnrichment = { farbeBildUrl: url }
+    const payload: InventoryColorEnrichment = {
+      ...(spuleBildUrl ? { spuleBildUrl } : {}),
+      ...(printBildUrl ? { printBildUrl } : {}),
+    }
 
     if (manufacturer) map.set(`${materialType}|${name}|${color}|${manufacturer}`, payload)
     map.set(`${materialType}|${name}|${color}`, payload)
@@ -118,7 +123,8 @@ export function filamentToColor(
   stats: MaterialCategoryStat,
   inventory?: InventoryColorEnrichment
 ): FilamentColor {
-  const swatchUrl = inventory?.farbeBildUrl?.trim() || null
+  const spuleUrl = inventory?.spuleBildUrl?.trim() || null
+  const printUrl = inventory?.printBildUrl?.trim() || null
 
   return applyCategoryStats(
     {
@@ -126,8 +132,8 @@ export function filamentToColor(
       name: filament.colorName,
       hex: filament.colorHex,
       inStock: filament.inStock,
-      image: swatchUrl,
-      printedExample: swatchUrl,
+      image: spuleUrl,
+      printedExample: printUrl,
       displayName: formatPublicFilamentDisplayName(filament),
       priceSurchargeChf: filament.priceSurchargeChf,
     },

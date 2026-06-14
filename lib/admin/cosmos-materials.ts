@@ -13,6 +13,8 @@ type CosmosMaterialDoc = MaterialItem & {
   /** Legacy-Feld */
   variants?: MaterialVariant[]
   imageUrl?: string
+  /** @deprecated — wird beim Lesen nach printBildUrl migriert */
+  farbeBildUrl?: string
 }
 
 function migrateLegacyVariantFields(raw: CosmosMaterialDoc): Partial<MaterialItem> {
@@ -21,11 +23,6 @@ function migrateLegacyVariantFields(raw: CosmosMaterialDoc): Partial<MaterialIte
 
   return {
     farbe: raw.farbe?.trim() || first?.farbe?.trim() || undefined,
-    farbeBildUrl:
-      raw.farbeBildUrl?.trim() ||
-      first?.farbeBildUrl?.trim() ||
-      raw.imageUrl?.trim() ||
-      undefined,
     stockAvailable:
       legacyVariants.length > 0
         ? legacyVariants.reduce((sum, v) => sum + Math.max(0, Number(v.stockAvailable) || 0), 0)
@@ -37,6 +34,24 @@ function migrateLegacyVariantFields(raw: CosmosMaterialDoc): Partial<MaterialIte
   }
 }
 
+function resolveMaterialImageUrls(raw: CosmosMaterialDoc): {
+  spuleBildUrl?: string
+  printBildUrl?: string
+} {
+  const legacyVariants = Array.isArray(raw.variants) ? raw.variants : []
+  const first = legacyVariants[0]
+  const legacyFarbeBildUrl =
+    raw.farbeBildUrl?.trim() ||
+    first?.farbeBildUrl?.trim() ||
+    raw.imageUrl?.trim() ||
+    undefined
+
+  const spuleBildUrl = raw.spuleBildUrl?.trim() || undefined
+  const printBildUrl = raw.printBildUrl?.trim() || legacyFarbeBildUrl || undefined
+
+  return { spuleBildUrl, printBildUrl }
+}
+
 export function normalizeMaterialItem(raw: Partial<MaterialItem> & { id: string }): MaterialItem {
   const category = (["filament", "lasermaterial", "sonstiges"] as MaterialCategory[]).includes(
     raw.category as MaterialCategory
@@ -45,6 +60,7 @@ export function normalizeMaterialItem(raw: Partial<MaterialItem> & { id: string 
     : "filament"
 
   const legacy = migrateLegacyVariantFields(raw as CosmosMaterialDoc)
+  const imageUrls = resolveMaterialImageUrls(raw as CosmosMaterialDoc)
 
   const materialType = raw.materialType?.trim()
     ? normalizeMaterialTypeKey(raw.materialType)
@@ -59,7 +75,8 @@ export function normalizeMaterialItem(raw: Partial<MaterialItem> & { id: string 
     materialType: category === "filament" ? materialType : undefined,
     farbe: legacy.farbe ?? (raw.farbe?.trim() || undefined),
     filamentCode: raw.filamentCode?.trim() || undefined,
-    farbeBildUrl: legacy.farbeBildUrl ?? (raw.farbeBildUrl?.trim() || undefined),
+    spuleBildUrl: imageUrls.spuleBildUrl,
+    printBildUrl: imageUrls.printBildUrl,
     stockUnit: raw.stockUnit === "piece" ? "piece" : "gram",
     stockAvailable: Math.max(
       0,

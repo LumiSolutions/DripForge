@@ -42,8 +42,10 @@ export type MaterialItem = {
   farbe?: string
   /** Hersteller-Filamentcode / Farbcode (z. B. Bambu Lab «10100») */
   filamentCode?: string
-  /** Farbmuster-Bild für diese eine Farbe */
-  farbeBildUrl?: string
+  /** Filament-Spule (Shop: linker Bild-Slot) */
+  spuleBildUrl?: string
+  /** Beispiel-Druck / Farbmuster (Shop: rechter Bild-Slot) */
+  printBildUrl?: string
   stockUnit: MaterialStockUnit
   stockAvailable: number
   stockReserved: number

@@ -16,6 +16,32 @@ export type FilamentSelection = {
   inStock: boolean
 }
 
+function FilamentImageSlot({
+  src,
+  alt,
+}: {
+  src?: string | null
+  alt: string
+}) {
+  return (
+    <div className="relative h-36 w-full">
+      {src ? (
+        <Image
+          key={src}
+          src={src}
+          alt={alt}
+          fill
+          className="object-contain drop-shadow-2xl transition-opacity duration-300"
+        />
+      ) : (
+        <div className="flex h-36 w-full items-center justify-center rounded-xl border-2 border-dashed border-border bg-secondary/30">
+          <span className="text-xs text-muted-foreground">Kein Bild</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function FilamentColorPicker({
   materials,
   activeTab,
@@ -96,50 +122,21 @@ export function FilamentColorPicker({
           <div className="flex flex-1 gap-1">
             {/* Filament roll */}
             <div className="flex flex-1 flex-col items-center">
-              <div className="relative h-36 w-full">
-                {selectedColor?.image ? (
-                  <Image
-                    key={selectedColor.image}
-                    src={selectedColor.image}
-                    alt={`${selectedColor.name} Filament`}
-                    fill
-                    className="object-contain drop-shadow-2xl transition-opacity duration-300"
-                  />
-                ) : (
-                  <div
-                    className="mx-auto h-36 w-36 rounded-full border-4 border-border shadow-2xl"
-                    style={{ backgroundColor: selectedColor?.hex ?? "#888" }}
-                  />
-                )}
-              </div>
+              <FilamentImageSlot
+                src={selectedColor?.image}
+                alt={`${selectedColor?.name ?? "Filament"} Spule`}
+              />
             </div>
 
             {/* Divider */}
             <div className="w-px bg-border/50" />
 
-            {/* Printed example / Farbmuster */}
+            {/* Printed example */}
             <div className="flex flex-1 flex-col items-center">
-              <div className="relative h-36 w-full">
-                {(selectedColor?.printedExample ?? selectedColor?.image) ? (
-                  <Image
-                    key={selectedColor.printedExample ?? selectedColor.image ?? ""}
-                    src={selectedColor.printedExample ?? selectedColor.image ?? ""}
-                    alt={`${selectedColor.name} Beispiel`}
-                    fill
-                    className="object-contain drop-shadow-2xl transition-opacity duration-300"
-                  />
-                ) : (
-                  <div className="flex h-36 w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border bg-secondary/30 px-3">
-                    <div
-                      className="h-12 w-12 rounded-full border-2 border-border/60 shadow-inner"
-                      style={{ backgroundColor: selectedColor?.hex ?? "#888" }}
-                    />
-                    <span className="text-center text-xs text-muted-foreground">
-                      Farbmuster folgt
-                    </span>
-                  </div>
-                )}
-              </div>
+              <FilamentImageSlot
+                src={selectedColor?.printedExample}
+                alt={`${selectedColor?.name ?? "Filament"} Beispiel`}
+              />
             </div>
           </div>
 
