@@ -40,6 +40,8 @@ export type MaterialItem = {
   materialType?: string
   /** Farbname dieses Lagerartikels */
   farbe?: string
+  /** Hersteller-Filamentcode / Farbcode (z. B. Bambu Lab «10100») */
+  filamentCode?: string
   /** Farbmuster-Bild für diese eine Farbe */
   farbeBildUrl?: string
   stockUnit: MaterialStockUnit
@@ -97,6 +99,20 @@ export function getEffectiveMaterialStock(material: MaterialItem): {
   const stockAvailable = Math.max(0, material.stockAvailable)
   const stockReserved = Math.max(0, material.stockReserved)
   return { stockAvailable, stockReserved, stockTotal: stockAvailable + stockReserved }
+}
+
+export function formatMaterialFarbeDisplay(material: MaterialItem): string | null {
+  if (!material.farbe?.trim() && !material.filamentCode?.trim()) return null
+  const color = material.farbe?.trim() || "—"
+  if (material.filamentCode?.trim()) {
+    return `${color} (Code: ${material.filamentCode.trim()})`
+  }
+  return color
+}
+
+export function formatMaterialCardTitle(material: MaterialItem): string {
+  const parts = [material.manufacturer, material.name].filter(Boolean)
+  return parts.join(" · ") || material.name
 }
 
 export function formatMaterialStockLabel(material: MaterialItem): string {

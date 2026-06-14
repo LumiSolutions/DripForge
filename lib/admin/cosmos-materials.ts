@@ -58,6 +58,7 @@ export function normalizeMaterialItem(raw: Partial<MaterialItem> & { id: string 
     manufacturer: raw.manufacturer?.trim() || undefined,
     materialType: category === "filament" ? materialType : undefined,
     farbe: legacy.farbe ?? (raw.farbe?.trim() || undefined),
+    filamentCode: raw.filamentCode?.trim() || undefined,
     farbeBildUrl: legacy.farbeBildUrl ?? (raw.farbeBildUrl?.trim() || undefined),
     stockUnit: raw.stockUnit === "piece" ? "piece" : "gram",
     stockAvailable: Math.max(

@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react"
 import {
   AlertTriangle,
   Loader2,
+  Minus,
   Pencil,
   Plus,
   RefreshCw,
@@ -41,8 +42,10 @@ import {
   formatStockForUnit,
 } from "@/lib/admin/material-stock-utils"
 import {
-  formatMaterialStockLabel,
+  formatMaterialCardTitle,
+  formatMaterialFarbeDisplay,
   getEffectiveMaterialStock,
+  GRAMS_PER_FULL_SPOOL,
   isMaterialLowStock,
 } from "@/lib/admin/material-types"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
@@ -52,22 +55,64 @@ type AdminMaterialsTabProps = {
   category: MaterialCategory
 }
 
-function StockDisplay({ material }: { material: MaterialItem }) {
+function StockDisplay({
+  material,
+  onAdjustAvailable,
+  adjusting,
+}: {
+  material: MaterialItem
+  onAdjustAvailable?: (delta: number) => void
+  adjusting?: boolean
+}) {
   const stock = getEffectiveMaterialStock(material)
   const display =
     material.stockUnit === "gram" ? formatGramStockDisplay(stock.stockTotal) : null
+  const showQuickAdjust =
+    material.stockUnit === "gram" && onAdjustAvailable != null
 
   return (
     <div className="space-y-1 text-sm">
       {display?.label && (
         <p className={cn("font-medium", adminUi.heading)}>{display.label}</p>
       )}
-      <p>
-        <span className={adminUi.muted}>Verfügbar: </span>
-        <span className="font-medium">
-          {formatStockForUnit(stock.stockAvailable, material.stockUnit)}
-        </span>
-      </p>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <p className="min-w-0 flex-1">
+          <span className={adminUi.muted}>Verfügbar: </span>
+          <span className="font-medium">
+            {formatStockForUnit(stock.stockAvailable, material.stockUnit)}
+          </span>
+        </p>
+        {showQuickAdjust && (
+          <div className="flex shrink-0 items-center gap-0.5">
+            <Button
+              type="button"
+              size="icon"
+              variant="outline"
+              className="h-7 w-7"
+              disabled={adjusting}
+              aria-label="1 Rolle abziehen (−1000g)"
+              onClick={() => onAdjustAvailable(-GRAMS_PER_FULL_SPOOL)}
+            >
+              <Minus className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              type="button"
+              size="icon"
+              variant="outline"
+              className="h-7 w-7"
+              disabled={adjusting}
+              aria-label="1 Rolle hinzufügen (+1000g)"
+              onClick={() => onAdjustAvailable(GRAMS_PER_FULL_SPOOL)}
+            >
+              {adjusting ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Plus className="h-3.5 w-3.5" />
+              )}
+            </Button>
+          </div>
+        )}
+      </div>
       <p>
         <span className={adminUi.muted}>Reserviert: </span>
         {formatStockForUnit(stock.stockReserved, material.stockUnit)}
@@ -96,6 +141,7 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
   const [draft, setDraft] = useState<MaterialItem | null>(null)
   const [addRolls, setAddRolls] = useState("0")
   const [partialGrams, setPartialGrams] = useState("")
+  const [adjustingStockId, setAdjustingStockId] = useState<string | null>(null)
 
   const categoryLabel = useMemo(
     () =>
@@ -241,6 +287,54 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
     await load()
   }
 
+  const adjustStockQuick = async (materialId: string, delta: number) => {
+    if (delta === 0) return
+
+    let snapshot: MaterialItem[] = []
+    setMaterials((items) => {
+      snapshot = items
+      return items.map((item) =>
+        item.id === materialId
+          ? {
+              ...item,
+              stockAvailable: Math.max(0, item.stockAvailable + delta),
+            }
+          : item
+      )
+    })
+    setAdjustingStockId(materialId)
+    setError(null)
+
+    try {
+      const res = await fetch(
+        `/api/admin/materials/${encodeURIComponent(materialId)}`,
+        {
+          method: "PATCH",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ adjustAvailable: delta }),
+        }
+      )
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? "Bestand konnte nicht angepasst werden.")
+
+      const saved = data.material as MaterialItem
+      setMaterials((items) =>
+        items.map((item) => (item.id === saved.id ? saved : item))
+      )
+      if (draft?.id === saved.id) {
+        setDraft(saved)
+      }
+    } catch (err) {
+      setMaterials(snapshot)
+      setError(
+        err instanceof Error ? err.message : "Bestand konnte nicht angepasst werden."
+      )
+    } finally {
+      setAdjustingStockId(null)
+    }
+  }
+
   const uploadColorImage = async (file: File) => {
     if (!draft) return
     const formData = new FormData()
@@ -324,11 +418,11 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
                     </Badge>
                   )}
                   <h3 className={cn("font-semibold", adminUi.heading)}>
-                    {formatMaterialStockLabel(material)}
+                    {formatMaterialCardTitle(material)}
                   </h3>
-                  {material.manufacturer && material.name && (
-                    <p className={cn("text-xs", adminUi.muted)}>
-                      {material.manufacturer} · {material.name}
+                  {formatMaterialFarbeDisplay(material) && (
+                    <p className={cn("text-xs text-muted-foreground", adminUi.muted)}>
+                      {formatMaterialFarbeDisplay(material)}
                     </p>
                   )}
                 </div>
@@ -354,7 +448,15 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
                   </Badge>
                 )}
               </div>
-              <StockDisplay material={material} />
+              <StockDisplay
+                material={material}
+                adjusting={adjustingStockId === material.id}
+                onAdjustAvailable={
+                  material.stockUnit === "gram"
+                    ? (delta) => void adjustStockQuick(material.id, delta)
+                    : undefined
+                }
+              />
               <div className="mt-4 flex gap-2">
                 <Button
                   type="button"
@@ -441,12 +543,23 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
                     required
                   />
                 </div>
-                <div className="space-y-2 sm:col-span-2">
+                <div className="space-y-2">
                   <Label>Farbe</Label>
                   <Input
                     value={draft.farbe ?? ""}
                     onChange={(e) => setDraft({ ...draft, farbe: e.target.value })}
                     placeholder="Black"
+                    className={adminUi.input}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Filamentcode / Farbcode</Label>
+                  <Input
+                    value={draft.filamentCode ?? ""}
+                    onChange={(e) =>
+                      setDraft({ ...draft, filamentCode: e.target.value || undefined })
+                    }
+                    placeholder="z. B. 10100"
                     className={adminUi.input}
                   />
                 </div>
