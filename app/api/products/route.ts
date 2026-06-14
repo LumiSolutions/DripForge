@@ -5,6 +5,7 @@ import { formatCosmosError } from "@/lib/cosmos/log-error"
 import { isProductActive } from "@/lib/admin/normalize-product"
 import { getSafeServiceVisibility } from "@/lib/admin/safe-defaults"
 import { normalizeShopProducts } from "@/lib/dripforge/normalize-shop-product"
+import { buildShopFilterOptions } from "@/lib/dripforge/shop-filters"
 
 export const dynamic = "force-dynamic"
 
@@ -19,8 +20,12 @@ export async function GET() {
       if (p.type === "laser" && !services.lasergravur) return false
       return true
     })
+    const normalized = normalizeShopProducts(activeProducts)
     return NextResponse.json(
-      { products: normalizeShopProducts(activeProducts) },
+      {
+        products: normalized,
+        filters: buildShopFilterOptions(normalized, services),
+      },
       {
         headers: {
           "Cache-Control": "no-store, max-age=0",
@@ -29,6 +34,6 @@ export async function GET() {
     )
   } catch (error) {
     console.error("Products API: Laden fehlgeschlagen.", formatCosmosError(error))
-    return NextResponse.json({ products: [] })
+    return NextResponse.json({ products: [], filters: [{ id: "all", label: "Alle" }] })
   }
 }
