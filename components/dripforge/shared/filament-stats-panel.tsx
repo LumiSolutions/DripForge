@@ -41,7 +41,7 @@ export function FilamentStatsPanel({ color }: { color: FilamentColor | undefined
       {color.displayName && (
         <p className="text-sm font-semibold">{color.displayName}</p>
       )}
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="flex flex-col gap-2">
         <StatBar label="Stabilität" value={color.strength ?? 0} icon={Shield} />
         <StatBar label="Flexibilität" value={color.flexibility ?? 0} icon={Wind} />
         <StatBar

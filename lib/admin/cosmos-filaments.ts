@@ -3,9 +3,11 @@ import { logCosmosError } from "@/lib/cosmos/log-error"
 import { normalizeAdminFilament, type AdminFilament } from "@/lib/admin/filament-types"
 import { cosmosGetMaterialTypes } from "@/lib/admin/cosmos-material-stats"
 import {
+  buildInventoryColorEnrichmentMap,
   groupFilamentsForConfigurator,
   seedFilamentsFromLegacyMaterials,
 } from "@/lib/dripforge/filament-catalog"
+import { cosmosGetMaterials } from "@/lib/admin/cosmos-materials"
 
 export const FILAMENT_DOC_TYPE = "filament"
 
@@ -95,9 +97,11 @@ export async function cosmosDeleteFilament(id: string): Promise<boolean> {
 }
 
 export async function cosmosGetFilamentMaterials() {
-  const [filaments, materialTypes] = await Promise.all([
+  const [filaments, materialTypes, inventoryItems] = await Promise.all([
     cosmosGetFilaments(),
     cosmosGetMaterialTypes(),
+    cosmosGetMaterials("filament"),
   ])
-  return groupFilamentsForConfigurator(filaments, materialTypes)
+  const inventoryEnrichment = buildInventoryColorEnrichmentMap(inventoryItems)
+  return groupFilamentsForConfigurator(filaments, materialTypes, { inventoryEnrichment })
 }

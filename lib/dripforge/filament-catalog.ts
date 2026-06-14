@@ -1,5 +1,6 @@
 import { materials3D } from "@/lib/dripforge/data"
 import type { AdminFilament } from "@/lib/admin/filament-types"
+import type { MaterialItem } from "@/lib/admin/material-types"
 import {
   buildDefaultMaterialTypes,
   findMaterialType,
@@ -9,6 +10,67 @@ import {
   type MaterialTypeDefinition,
 } from "@/lib/admin/material-stats-types"
 import type { FilamentColor, FilamentMaterial } from "@/lib/dripforge/types"
+
+function normalizeFilamentMatchKey(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, " ")
+}
+
+export type InventoryColorEnrichment = {
+  farbeBildUrl?: string
+}
+
+/** Öffentlicher Titel ohne Hersteller / internen Filamentcode */
+export function formatPublicFilamentDisplayName(
+  filament: Pick<AdminFilament, "name" | "colorName">
+): string {
+  const name = filament.name.trim()
+  const color = filament.colorName.trim()
+  if (!color) return name
+  if (name.toLowerCase().includes(color.toLowerCase())) return name
+  return `${name} ${color}`.trim()
+}
+
+export function buildInventoryColorEnrichmentMap(
+  items: MaterialItem[]
+): Map<string, InventoryColorEnrichment> {
+  const map = new Map<string, InventoryColorEnrichment>()
+
+  for (const item of items) {
+    if (item.category !== "filament") continue
+    const url = item.farbeBildUrl?.trim()
+    if (!url) continue
+
+    const materialType = normalizeMaterialTypeKey(item.materialType ?? "pla")
+    const name = normalizeFilamentMatchKey(item.name)
+    const color = normalizeFilamentMatchKey(item.farbe ?? "")
+    const manufacturer = normalizeFilamentMatchKey(item.manufacturer ?? "")
+    const payload: InventoryColorEnrichment = { farbeBildUrl: url }
+
+    if (manufacturer) map.set(`${materialType}|${name}|${color}|${manufacturer}`, payload)
+    map.set(`${materialType}|${name}|${color}`, payload)
+    if (color) map.set(`${materialType}|${color}`, payload)
+  }
+
+  return map
+}
+
+export function findInventoryColorEnrichment(
+  filament: AdminFilament,
+  enrichment: Map<string, InventoryColorEnrichment>
+): InventoryColorEnrichment | undefined {
+  const materialType = normalizeMaterialTypeKey(filament.materialType)
+  const name = normalizeFilamentMatchKey(filament.name)
+  const color = normalizeFilamentMatchKey(filament.colorName)
+  const manufacturer = normalizeFilamentMatchKey(filament.manufacturer)
+
+  return (
+    (manufacturer
+      ? enrichment.get(`${materialType}|${name}|${color}|${manufacturer}`)
+      : undefined) ??
+    enrichment.get(`${materialType}|${name}|${color}`) ??
+    enrichment.get(`${materialType}|${color}`)
+  )
+}
 
 function legacyTypeToId(id: string): string {
   return normalizeMaterialTypeKey(id)
@@ -53,18 +115,20 @@ function applyCategoryStats(
 
 export function filamentToColor(
   filament: AdminFilament,
-  stats: MaterialCategoryStat
+  stats: MaterialCategoryStat,
+  inventory?: InventoryColorEnrichment
 ): FilamentColor {
+  const swatchUrl = inventory?.farbeBildUrl?.trim() || null
+
   return applyCategoryStats(
     {
       id: filament.id,
       name: filament.colorName,
       hex: filament.colorHex,
       inStock: filament.inStock,
-      image: null,
-      printedExample: null,
-      manufacturer: filament.manufacturer,
-      displayName: [filament.manufacturer, filament.name].filter(Boolean).join(" ").trim(),
+      image: swatchUrl,
+      printedExample: swatchUrl,
+      displayName: formatPublicFilamentDisplayName(filament),
       priceSurchargeChf: filament.priceSurchargeChf,
     },
     stats
@@ -74,9 +138,13 @@ export function filamentToColor(
 export function groupFilamentsForConfigurator(
   filaments: AdminFilament[],
   materialTypes: MaterialTypeDefinition[] = buildDefaultMaterialTypes(),
-  options?: { includeInactive?: boolean }
+  options?: {
+    includeInactive?: boolean
+    inventoryEnrichment?: Map<string, InventoryColorEnrichment>
+  }
 ): FilamentMaterial[] {
   const includeInactive = options?.includeInactive ?? false
+  const inventoryEnrichment = options?.inventoryEnrichment
   const orderedTypes = includeInactive
     ? [...materialTypes].sort((a, b) => a.sortOrder - b.sortOrder)
     : getActiveMaterialTypes(materialTypes)
@@ -101,7 +169,15 @@ export function groupFilamentsForConfigurator(
       flexibility: type.flexibility,
       heatResistance: type.heatResistance,
       easeOfUse: type.easeOfUse,
-      colors: (groups.get(type.id) ?? []).map((filament) => filamentToColor(filament, type)),
+      colors: (groups.get(type.id) ?? []).map((filament) =>
+        filamentToColor(
+          filament,
+          type,
+          inventoryEnrichment
+            ? findInventoryColorEnrichment(filament, inventoryEnrichment)
+            : undefined
+        )
+      ),
     }))
 }
 

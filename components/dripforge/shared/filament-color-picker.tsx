@@ -117,20 +117,26 @@ export function FilamentColorPicker({
             {/* Divider */}
             <div className="w-px bg-border/50" />
 
-            {/* Printed example */}
+            {/* Printed example / Farbmuster */}
             <div className="flex flex-1 flex-col items-center">
               <div className="relative h-36 w-full">
-                {selectedColor?.printedExample ? (
+                {(selectedColor?.printedExample ?? selectedColor?.image) ? (
                   <Image
-                    key={selectedColor.printedExample}
-                    src={selectedColor.printedExample}
+                    key={selectedColor.printedExample ?? selectedColor.image ?? ""}
+                    src={selectedColor.printedExample ?? selectedColor.image ?? ""}
                     alt={`${selectedColor.name} Beispiel`}
                     fill
                     className="object-contain drop-shadow-2xl transition-opacity duration-300"
                   />
                 ) : (
-                  <div className="flex h-36 w-full items-center justify-center rounded-xl border-2 border-dashed border-border bg-secondary/30">
-                    <span className="text-xs text-muted-foreground">Kein Beispiel</span>
+                  <div className="flex h-36 w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border bg-secondary/30 px-3">
+                    <div
+                      className="h-12 w-12 rounded-full border-2 border-border/60 shadow-inner"
+                      style={{ backgroundColor: selectedColor?.hex ?? "#888" }}
+                    />
+                    <span className="text-center text-xs text-muted-foreground">
+                      Farbmuster folgt
+                    </span>
                   </div>
                 )}
               </div>
