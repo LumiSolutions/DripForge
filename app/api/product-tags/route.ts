@@ -4,6 +4,7 @@ import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
 import { formatCosmosError } from "@/lib/cosmos/log-error"
 
 export const dynamic = "force-dynamic"
+export const runtime = "nodejs"
 
 export async function GET() {
   try {

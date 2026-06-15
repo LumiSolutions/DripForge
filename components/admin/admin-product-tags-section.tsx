@@ -1,6 +1,6 @@
 "use client"
 
-import { FormEvent, useCallback, useEffect, useState } from "react"
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react"
 import { Loader2, Pencil, Plus, Save, Trash2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -20,6 +20,16 @@ export function AdminProductTagsSection({ onTagsChange }: AdminProductTagsSectio
   const [creating, setCreating] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editName, setEditName] = useState("")
+  const onTagsChangeRef = useRef(onTagsChange)
+
+  useEffect(() => {
+    onTagsChangeRef.current = onTagsChange
+  }, [onTagsChange])
+
+  const applyTags = useCallback((next: ProductTag[]) => {
+    setTags(next)
+    onTagsChangeRef.current?.(next)
+  }, [])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -32,14 +42,13 @@ export function AdminProductTagsSection({ onTagsChange }: AdminProductTagsSectio
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? "Tags konnten nicht geladen werden.")
       const next = Array.isArray(data.tags) ? (data.tags as ProductTag[]) : []
-      setTags(next)
-      onTagsChange?.(next)
+      applyTags(next)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Tags konnten nicht geladen werden.")
     } finally {
       setLoading(false)
     }
-  }, [onTagsChange])
+  }, [applyTags])
 
   useEffect(() => {
     void load()
@@ -60,6 +69,16 @@ export function AdminProductTagsSection({ onTagsChange }: AdminProductTagsSectio
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? "Tag konnte nicht erstellt werden.")
+      if (data.tag) {
+        const created = data.tag as ProductTag
+        setTags((prev) => {
+          const next = [...prev.filter((tag) => tag.id !== created.id), created].sort(
+            (a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, "de")
+          )
+          onTagsChangeRef.current?.(next)
+          return next
+        })
+      }
       setNewTagName("")
       await load()
     } catch (err) {

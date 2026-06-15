@@ -164,10 +164,26 @@ export function AdminProductsTab() {
     }
   }, [])
 
+  const loadProductTags = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/product-tags", {
+        credentials: "include",
+        cache: "no-store",
+      })
+      const data = await res.json()
+      if (res.ok && Array.isArray(data.tags)) {
+        setProductTags(data.tags as ProductTag[])
+      }
+    } catch {
+      /* optional — Tag-Sektion lädt ebenfalls */
+    }
+  }, [])
+
   useEffect(() => {
     void loadProducts()
     void loadMaterials()
-  }, [loadProducts, loadMaterials])
+    void loadProductTags()
+  }, [loadProducts, loadMaterials, loadProductTags])
 
   const startCreate = () => {
     setForm({

@@ -58,10 +58,7 @@ import {
   isShopFilterId,
   type ShopFilterId,
 } from "@/lib/dripforge/shop-filters"
-import {
-  filterProductsByShopTags,
-  getTagsForCategoryScope,
-} from "@/lib/dripforge/shop-tag-filters"
+import { filterProductsByShopTags } from "@/lib/dripforge/shop-tag-filters"
 import { ShopTagFilterPanel } from "@/components/dripforge/shared/shop-tag-filter-panel"
 import { ShopMainFilterTabs } from "@/components/dripforge/shared/shop-main-filter-tabs"
 import type { ProductTag } from "@/lib/admin/product-tags"
@@ -191,19 +188,6 @@ export function PageShop({
     setCategoryFilter("all")
     setSelectedTagIds([])
   }, [categoryFilter, mainFilterOptions])
-
-  const availableTags = useMemo(
-    () => getTagsForCategoryScope(shopProducts, productTags, categoryFilter),
-    [shopProducts, productTags, categoryFilter]
-  )
-
-  useEffect(() => {
-    const availableIds = new Set(availableTags.map((tag) => tag.id))
-    setSelectedTagIds((prev) => {
-      const next = prev.filter((id) => availableIds.has(id))
-      return next.length === prev.length ? prev : next
-    })
-  }, [availableTags])
 
   const displayedProducts = useMemo(() => {
     const filtered = filterProductsByShopTags(shopProducts, {
@@ -894,7 +878,7 @@ export function PageShop({
         <div className="flex flex-col gap-8 lg:flex-row lg:items-start">
           <ShopTagFilterPanel
             className="w-full lg:sticky lg:top-24 lg:w-64 lg:shrink-0"
-            tags={availableTags}
+            tags={productTags}
             selectedTagIds={selectedTagIds}
             onToggleTag={toggleTagFilter}
             onClear={clearTagFilters}
