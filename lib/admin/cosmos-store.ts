@@ -262,11 +262,11 @@ export async function cosmosSaveProducts(
 
 function mapCosmosProductDoc(
   doc: (CosmosDoc<AdminProduct> & { docType?: string }) | null | undefined,
-  mode: "dedicated" | "shared"
+  _mode: "dedicated" | "shared"
 ): AdminProduct | null {
   if (!doc?.id) return null
   if (doc.id === SETTINGS_DOC_ID) return null
-  if (mode === "shared" && doc.docType !== PRODUCT_DOC_TYPE) return null
+  if (doc.docType != null && doc.docType !== PRODUCT_DOC_TYPE) return null
   return {
     ...(stripCosmosId(doc) as Omit<AdminProduct, "id">),
     id: doc.id,

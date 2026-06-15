@@ -38,9 +38,10 @@ export async function resolveProductsContainer(): Promise<ProductsContainerState
 }
 
 export function productsQuerySql(mode: ProductsStorageMode): string {
-  return mode === "shared"
-    ? `SELECT * FROM c WHERE c.docType = '${PRODUCT_DOC_TYPE}'`
-    : "SELECT * FROM c"
+  if (mode === "shared") {
+    return `SELECT * FROM c WHERE c.docType = '${PRODUCT_DOC_TYPE}'`
+  }
+  return `SELECT * FROM c WHERE (NOT IS_DEFINED(c.docType) OR c.docType = '${PRODUCT_DOC_TYPE}')`
 }
 
 export function toProductCosmosDoc<T extends { id: string }>(
