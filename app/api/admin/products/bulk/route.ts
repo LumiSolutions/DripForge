@@ -7,7 +7,13 @@ import {
 } from "@/lib/admin/db"
 import { normalizeAdminProductInput } from "@/lib/admin/normalize-product"
 import { normalizeProductTagIds } from "@/lib/admin/product-tags"
-import { inferSaleRabattFromProduct } from "@/lib/dripforge/product-sale"
+import {
+  inferSaleRabattFromProduct,
+  resolveProductBasisPreis,
+  validateSaleDiscount,
+  calculateSalePrice,
+  type SaleRabattTyp,
+} from "@/lib/dripforge/product-sale"
 import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
 import {
   isAuthError,
@@ -21,6 +27,8 @@ export const runtime = "nodejs"
 type ProductBulkPatch = {
   istAktiv?: boolean
   sale?: boolean
+  saleRabattTyp?: SaleRabattTyp
+  saleRabattWert?: number
   tagsAdd?: string[]
   tagsRemove?: string[]
 }
@@ -61,12 +69,25 @@ async function applyPatchToProduct(
 
   if (patch.sale !== undefined) {
     input.sale = patch.sale
-    if (patch.sale && !existing.sale) {
-      const inferred = inferSaleRabattFromProduct(existing)
-      input.saleRabattTyp = inferred.typ
-      input.saleRabattWert = inferred.wert
-      input.basisPreis =
-        existing.basisPreis ?? existing.originalPrice ?? existing.price
+    const basisPreis =
+      existing.basisPreis ?? existing.originalPrice ?? existing.price
+    input.basisPreis = basisPreis
+
+    if (patch.sale) {
+      const typ = patch.saleRabattTyp
+      const wert = patch.saleRabattWert
+      if (typ && wert != null) {
+        const validation = validateSaleDiscount(basisPreis, typ, wert)
+        if (validation) {
+          throw new Error(validation)
+        }
+        input.saleRabattTyp = typ
+        input.saleRabattWert = wert
+      } else if (!existing.sale) {
+        const inferred = inferSaleRabattFromProduct(existing)
+        input.saleRabattTyp = inferred.typ
+        input.saleRabattWert = inferred.wert
+      }
     }
   }
 
@@ -118,6 +139,17 @@ export async function PATCH(request: Request) {
 
     const updated = await Promise.all(
       targets.map(async (existing) => {
+        if (patch.sale && patch.saleRabattTyp && patch.saleRabattWert != null) {
+          const basis = resolveProductBasisPreis(existing)
+          const validation = validateSaleDiscount(
+            basis,
+            patch.saleRabattTyp,
+            patch.saleRabattWert
+          )
+          if (validation) {
+            throw new Error(`${existing.name}: ${validation}`)
+          }
+        }
         const next = await applyPatchToProduct(existing, patch)
         return upsertProduct(next)
       })

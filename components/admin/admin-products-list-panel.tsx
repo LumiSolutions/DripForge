@@ -1,7 +1,8 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import {
+  Filter,
   Loader2,
   Pencil,
   Tag,
@@ -13,6 +14,13 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -20,6 +28,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
@@ -38,6 +48,10 @@ import {
 import type { AdminProduct } from "@/lib/admin/types"
 import type { ProductTag } from "@/lib/admin/product-tags"
 import { sortProducts, type ProductSortMode } from "@/lib/admin/list-sort-utils"
+import {
+  calculateSalePrice,
+  type SaleRabattTyp,
+} from "@/lib/dripforge/product-sale"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
 import { cn } from "@/lib/utils"
 
@@ -51,6 +65,9 @@ type AdminProductsListPanelProps = {
   onRefresh: () => Promise<void>
 }
 
+type TypeFilter = "all" | "3d" | "laser"
+type StatusFilter = "all" | "active" | "inactive" | "sale"
+
 export function AdminProductsListPanel({
   products,
   productTags,
@@ -63,20 +80,48 @@ export function AdminProductsListPanel({
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [bulkBusy, setBulkBusy] = useState(false)
   const [bulkError, setBulkError] = useState<string | null>(null)
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>("all")
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all")
+  const [tagFilter, setTagFilter] = useState<string>("all")
+  const [saleDialogOpen, setSaleDialogOpen] = useState(false)
+  const [saleRabattTyp, setSaleRabattTyp] = useState<SaleRabattTyp>("percent")
+  const [saleRabattWert, setSaleRabattWert] = useState("10")
+  const [saleFormError, setSaleFormError] = useState<string | null>(null)
+
+  const filteredProducts = useMemo(() => {
+    return products.filter((product) => {
+      if (typeFilter !== "all" && product.type !== typeFilter) return false
+      if (statusFilter === "active" && product.istAktiv === false) return false
+      if (statusFilter === "inactive" && product.istAktiv !== false) return false
+      if (statusFilter === "sale" && !product.sale) return false
+      if (tagFilter !== "all" && !(product.tags ?? []).includes(tagFilter)) return false
+      return true
+    })
+  }, [products, typeFilter, statusFilter, tagFilter])
 
   const sortedProducts = useMemo(
-    () => sortProducts(products, productSort),
-    [products, productSort]
+    () => sortProducts(filteredProducts, productSort),
+    [filteredProducts, productSort]
   )
+
+  const visibleIds = useMemo(
+    () => new Set(sortedProducts.map((product) => product.id)),
+    [sortedProducts]
+  )
+
+  useEffect(() => {
+    setSelectedIds((prev) => prev.filter((id) => visibleIds.has(id)))
+  }, [visibleIds])
 
   const tagNameById = useMemo(
     () => new Map(productTags.map((tag) => [tag.id, tag.name])),
     [productTags]
   )
 
+  const selectedVisibleCount = selectedIds.filter((id) => visibleIds.has(id)).length
   const allSelected =
-    sortedProducts.length > 0 && selectedIds.length === sortedProducts.length
-  const someSelected = selectedIds.length > 0 && !allSelected
+    sortedProducts.length > 0 && selectedVisibleCount === sortedProducts.length
+  const someSelected = selectedVisibleCount > 0 && !allSelected
 
   const toggleAll = (checked: boolean) => {
     setSelectedIds(checked ? sortedProducts.map((p) => p.id) : [])
@@ -88,7 +133,7 @@ export function AdminProductsListPanel({
     )
   }
 
-  const runBulk = async (body: Record<string, unknown>) => {
+  const runBulk = async (body: Record<string, unknown>, options?: { clearSelection?: boolean }) => {
     setBulkBusy(true)
     setBulkError(null)
     try {
@@ -100,7 +145,9 @@ export function AdminProductsListPanel({
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? "Bulk-Aktion fehlgeschlagen")
-      setSelectedIds([])
+      if (options?.clearSelection !== false) {
+        setSelectedIds([])
+      }
       await onRefresh()
     } catch (err) {
       setBulkError(err instanceof Error ? err.message : "Bulk-Aktion fehlgeschlagen")
@@ -127,27 +174,129 @@ export function AdminProductsListPanel({
     })
   }
 
+  const openSaleDialog = () => {
+    setSaleRabattTyp("percent")
+    setSaleRabattWert("10")
+    setSaleFormError(null)
+    setSaleDialogOpen(true)
+  }
+
+  const applyBulkSale = async () => {
+    const wert = Number(saleRabattWert)
+    if (!Number.isFinite(wert) || wert <= 0) {
+      setSaleFormError("Der Rabatt-Wert muss größer als 0 sein.")
+      return
+    }
+    if (saleRabattTyp === "percent" && wert >= 100) {
+      setSaleFormError("Prozent-Rabatt muss unter 100% liegen.")
+      return
+    }
+
+    setSaleFormError(null)
+    await runBulk({
+      patch: {
+        sale: true,
+        saleRabattTyp,
+        saleRabattWert: wert,
+      },
+    })
+    setSaleDialogOpen(false)
+  }
+
+  const salePreviewEnd =
+    saleRabattTyp === "percent"
+      ? calculateSalePrice(100, "percent", Number(saleRabattWert) || 0)
+      : calculateSalePrice(100, "fixed", Number(saleRabattWert) || 0)
+
+  const hasActiveFilters =
+    typeFilter !== "all" || statusFilter !== "all" || tagFilter !== "all"
+
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className={cn("text-sm", adminUi.muted)}>
-          {products.length} Produkte im Shop
-        </p>
-        <Select
-          value={productSort}
-          onValueChange={(v) => onProductSortChange(v as ProductSortMode)}
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className={cn("text-sm", adminUi.muted)}>
+            {filteredProducts.length === products.length
+              ? `${products.length} Produkte im Shop`
+              : `${filteredProducts.length} von ${products.length} Produkten angezeigt`}
+          </p>
+          <Select
+            value={productSort}
+            onValueChange={(v) => onProductSortChange(v as ProductSortMode)}
+          >
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Sortierung" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="name-asc">Name (A–Z)</SelectItem>
+              <SelectItem value="price-asc">Preis (aufsteigend)</SelectItem>
+              <SelectItem value="price-desc">Preis (absteigend)</SelectItem>
+              <SelectItem value="created-desc">Neueste zuerst</SelectItem>
+              <SelectItem value="created-asc">Älteste zuerst</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div
+          className={cn(
+            "flex flex-wrap items-center gap-2 rounded-xl border px-3 py-2.5",
+            adminUi.section
+          )}
         >
-          <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="Sortierung" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="name-asc">Name (A–Z)</SelectItem>
-            <SelectItem value="price-asc">Preis (aufsteigend)</SelectItem>
-            <SelectItem value="price-desc">Preis (absteigend)</SelectItem>
-            <SelectItem value="created-desc">Neueste zuerst</SelectItem>
-            <SelectItem value="created-asc">Älteste zuerst</SelectItem>
-          </SelectContent>
-        </Select>
+          <Filter className={cn("h-4 w-4 shrink-0", adminUi.muted)} />
+          <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as TypeFilter)}>
+            <SelectTrigger className="w-[150px]">
+              <SelectValue placeholder="Typ" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Alle Typen</SelectItem>
+              <SelectItem value="3d">3D-Druck</SelectItem>
+              <SelectItem value="laser">Laser</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select
+            value={statusFilter}
+            onValueChange={(v) => setStatusFilter(v as StatusFilter)}
+          >
+            <SelectTrigger className="w-[150px]">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Alle Status</SelectItem>
+              <SelectItem value="active">Aktiv</SelectItem>
+              <SelectItem value="inactive">Inaktiv</SelectItem>
+              <SelectItem value="sale">Im Sale</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={tagFilter} onValueChange={setTagFilter}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Tag" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Alle Tags</SelectItem>
+              {productTags.map((tag) => (
+                <SelectItem key={tag.id} value={tag.id}>
+                  {tag.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {hasActiveFilters && (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className={cn("text-xs", adminUi.muted)}
+              onClick={() => {
+                setTypeFilter("all")
+                setStatusFilter("all")
+                setTagFilter("all")
+              }}
+            >
+              Filter zurücksetzen
+            </Button>
+          )}
+        </div>
       </div>
 
       {bulkError && <p className={cn("text-sm", adminUi.error)}>{bulkError}</p>}
@@ -220,9 +369,9 @@ export function AdminProductsListPanel({
                 Inaktiv setzen
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => void runBulk({ patch: { sale: true } })}>
+              <DropdownMenuItem onClick={openSaleDialog}>
                 <Percent className="mr-2 h-4 w-4" />
-                Sale aktivieren
+                Sale aktivieren…
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => void runBulk({ patch: { sale: false } })}>
                 Sale deaktivieren
@@ -259,6 +408,74 @@ export function AdminProductsListPanel({
         </div>
       )}
 
+      <Dialog open={saleDialogOpen} onOpenChange={setSaleDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Sale für {selectedIds.length} Produkt(e)</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className={cn("text-sm", adminUi.muted)}>
+              Rabatt wird für alle ausgewählten Produkte gleich angewendet. Der Basispreis
+              jedes Produkts bleibt erhalten.
+            </p>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className={adminUi.label}>Rabatt-Typ</Label>
+                <select
+                  value={saleRabattTyp}
+                  onChange={(e) => setSaleRabattTyp(e.target.value as SaleRabattTyp)}
+                  className={cn("h-10 w-full rounded-md border px-3 text-sm", adminUi.select)}
+                >
+                  <option value="percent">Prozent (%)</option>
+                  <option value="fixed">Fixer Betrag (CHF)</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label className={adminUi.label}>Rabatt-Wert</Label>
+                <Input
+                  type="number"
+                  step={saleRabattTyp === "fixed" ? "0.01" : "1"}
+                  min="0"
+                  value={saleRabattWert}
+                  onChange={(e) => setSaleRabattWert(e.target.value)}
+                  placeholder={saleRabattTyp === "fixed" ? "5.00" : "20"}
+                  className={adminUi.input}
+                />
+              </div>
+            </div>
+            {saleFormError && (
+              <p className="text-sm text-red-600 dark:text-red-400">{saleFormError}</p>
+            )}
+            <p className={cn("text-xs", adminUi.muted)}>
+              Beispiel: CHF 100.00 → CHF {salePreviewEnd.toFixed(2)} Endpreis
+            </p>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              className={adminUi.outlineBtn}
+              onClick={() => setSaleDialogOpen(false)}
+            >
+              Abbrechen
+            </Button>
+            <Button
+              type="button"
+              className={adminUi.primaryBtn}
+              disabled={bulkBusy}
+              onClick={() => void applyBulkSale()}
+            >
+              {bulkBusy ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Percent className="mr-2 h-4 w-4" />
+              )}
+              Sale anwenden
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <div className={cn("overflow-hidden rounded-xl border", adminUi.section)}>
         <Table>
           <TableHeader>
@@ -267,7 +484,7 @@ export function AdminProductsListPanel({
                 <Checkbox
                   checked={allSelected ? true : someSelected ? "indeterminate" : false}
                   onCheckedChange={(checked) => toggleAll(checked === true)}
-                  aria-label="Alle Produkte auswählen"
+                  aria-label="Alle sichtbaren Produkte auswählen"
                 />
               </TableHead>
               <TableHead>Produkt</TableHead>
@@ -282,7 +499,9 @@ export function AdminProductsListPanel({
             {sortedProducts.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={7} className={cn("py-10 text-center text-sm", adminUi.muted)}>
-                  Noch keine Produkte vorhanden.
+                  {products.length === 0
+                    ? "Noch keine Produkte vorhanden."
+                    : "Keine Produkte entsprechen den Filtern."}
                 </TableCell>
               </TableRow>
             ) : (
@@ -318,6 +537,11 @@ export function AdminProductsListPanel({
                     </TableCell>
                     <TableCell className="text-sm tabular-nums">
                       CHF {product.price.toFixed(2)}
+                      {product.sale && product.originalPrice != null && (
+                        <span className={cn("ml-1 text-xs line-through", adminUi.muted)}>
+                          {product.originalPrice.toFixed(2)}
+                        </span>
+                      )}
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
