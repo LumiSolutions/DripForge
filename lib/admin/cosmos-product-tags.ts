@@ -9,9 +9,11 @@ import {
 type ProductTagCosmosDoc = ProductTag & { docType: string }
 
 function sortProductTags(tags: ProductTag[]): ProductTag[] {
-  return [...tags].sort(
-    (a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, "de")
-  )
+  return [...tags].sort((a, b) => {
+    const groupCmp = (a.group || "Allgemein").localeCompare(b.group || "Allgemein", "de")
+    if (groupCmp !== 0) return groupCmp
+    return a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, "de")
+  })
 }
 
 function mapProductTagDoc(

@@ -31,7 +31,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       return NextResponse.json({ error: "Tag nicht gefunden." }, { status: 404 })
     }
 
-    const body = (await request.json()) as { name?: string; sortOrder?: number }
+    const body = (await request.json()) as { name?: string; sortOrder?: number; group?: string }
     const saved = await upsertProductTag(
       normalizeProductTag({ ...current, ...body, id: current.id }, current)
     )

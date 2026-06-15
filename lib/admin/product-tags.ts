@@ -1,9 +1,20 @@
 export const PRODUCT_TAG_DOC_TYPE = "productTag" as const
 
+export const PRODUCT_TAG_GROUPS = [
+  "Allgemein",
+  "Deko",
+  "Figur",
+  "3D-Druck",
+  "Laser",
+] as const
+
+export type ProductTagGroup = (typeof PRODUCT_TAG_GROUPS)[number]
+
 export type ProductTag = {
   id: string
   docType: typeof PRODUCT_TAG_DOC_TYPE
   name: string
+  group: string
   sortOrder: number
   updatedAt: string
 }
@@ -22,10 +33,13 @@ export function normalizeProductTag(
   existing?: ProductTag
 ): ProductTag {
   const name = input.name?.trim() || existing?.name || "Neuer Tag"
+  const group =
+    input.group?.trim() || existing?.group?.trim() || PRODUCT_TAG_GROUPS[0]
   return {
     id: input.id?.trim() || existing?.id || createProductTagId(name),
     docType: PRODUCT_TAG_DOC_TYPE,
     name,
+    group,
     sortOrder:
       input.sortOrder != null
         ? Math.max(0, Math.round(Number(input.sortOrder)))

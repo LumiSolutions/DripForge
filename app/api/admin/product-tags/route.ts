@@ -32,7 +32,7 @@ export async function POST(request: Request) {
 
   try {
     await warmCosmosInfrastructure()
-    const body = (await request.json()) as { name?: string; sortOrder?: number }
+    const body = (await request.json()) as { name?: string; sortOrder?: number; group?: string }
     const name = body.name?.trim()
     if (!name) {
       return NextResponse.json({ error: "Tag-Name fehlt." }, { status: 400 })
@@ -42,6 +42,7 @@ export async function POST(request: Request) {
       id: createProductTagId(name),
       name,
       sortOrder: body.sortOrder,
+      group: body.group,
     })
     const saved = await upsertProductTag(tag)
     const tags = await getProductTags()

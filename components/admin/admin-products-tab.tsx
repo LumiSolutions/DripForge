@@ -1,9 +1,9 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Loader2, Pencil, Plus, Save, Trash2, X } from "lucide-react"
-import { Badge } from "@/components/ui/badge"
+import { Loader2, Plus, Save, Trash2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Dialog,
   DialogContent,
@@ -32,13 +32,14 @@ import {
 } from "@/lib/dripforge/product-sale"
 import type { LaserMaterialId, Product } from "@/lib/dripforge/types"
 import type { MaterialItem, ProductMaterialLink } from "@/lib/admin/material-types"
-import { sortProducts, type ProductSortMode } from "@/lib/admin/list-sort-utils"
+import { type ProductSortMode } from "@/lib/admin/list-sort-utils"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
 import { cn } from "@/lib/utils"
 import {
   AdminProductTagCheckboxes,
   AdminProductTagsSection,
 } from "@/components/admin/admin-product-tags-section"
+import { AdminProductsListPanel } from "@/components/admin/admin-products-list-panel"
 import type { ProductTag } from "@/lib/admin/product-tags"
 
 type ProductFormState = Partial<AdminProduct> & {
@@ -327,11 +328,6 @@ export function AdminProductsTab() {
     updateField("materialLinks", links)
   }
 
-  const sortedProducts = useMemo(
-    () => sortProducts(products, productSort),
-    [products, productSort]
-  )
-
   const salePreview = useMemo(() => {
     const basis = Number(form.basisPreis) || 0
     if (!form.sale || basis <= 0) return null
@@ -421,79 +417,45 @@ export function AdminProductsTab() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className={cn("text-xl font-bold", adminUi.heading)}>Produkt-Management</h2>
-          <p className={cn("text-sm", adminUi.muted)}>{products.length} Produkte</p>
+          <p className={cn("text-sm", adminUi.muted)}>
+            Produkte und Shop-Tags zentral verwalten
+          </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Select
-            value={productSort}
-            onValueChange={(v) => setProductSort(v as ProductSortMode)}
-          >
-            <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder="Sortierung" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="name-asc">Name (A–Z)</SelectItem>
-              <SelectItem value="price-asc">Preis (aufsteigend)</SelectItem>
-              <SelectItem value="price-desc">Preis (absteigend)</SelectItem>
-              <SelectItem value="created-desc">Neueste zuerst</SelectItem>
-              <SelectItem value="created-asc">Älteste zuerst</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button
-            type="button"
-            size="sm"
-            onClick={startCreate}
-            className={adminUi.primaryBtn}
-          >
+        <Button
+          type="button"
+          size="sm"
+          onClick={startCreate}
+          className={adminUi.primaryBtn}
+        >
           <Plus className="mr-1.5 h-4 w-4" />
-          Neu
+          Neues Produkt
         </Button>
-        </div>
       </div>
 
       {error && !isEditing && <p className={adminUi.error}>{error}</p>}
 
-      <AdminProductTagsSection onTagsChange={setProductTags} />
+      <Tabs defaultValue="products" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="products">Produkte verwalten</TabsTrigger>
+          <TabsTrigger value="tags">Produkt-Tags verwalten</TabsTrigger>
+        </TabsList>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {sortedProducts.map((product) => (
-          <button
-            key={product.id}
-            type="button"
-            onClick={() => startEdit(product)}
-            className={cn(
-              "flex w-full items-start justify-between gap-3 rounded-xl border p-4 text-left transition-colors",
-              form.id === product.id && isEditing
-                ? adminUi.listItemActive
-                : adminUi.listItem
-            )}
-          >
-              <div>
-                <p className={cn("font-semibold", adminUi.heading)}>{product.name}</p>
-                <p className={cn("text-xs", adminUi.muted)}>
-                  {product.type === "3d" ? "3D-Druck" : "Laser"} · CHF{" "}
-                  {product.price.toFixed(2)}
-                  {product.sale && product.originalPrice ? (
-                    <span className={cn("ml-1 line-through", adminUi.tableCellMuted)}>
-                      {product.originalPrice.toFixed(2)}
-                    </span>
-                  ) : null}
-                </p>
-              </div>
-              <div className="flex gap-1">
-                {product.istAktiv === false && (
-                  <Badge variant="outline" className={adminUi.badgeInactive}>
-                    Inaktiv
-                  </Badge>
-                )}
-                {product.sale && (
-                  <Badge className="bg-orange-500/20 text-orange-300">Sale</Badge>
-                )}
-                <Pencil className={cn("h-4 w-4", adminUi.muted)} />
-              </div>
-          </button>
-        ))}
-      </div>
+        <TabsContent value="products" className="space-y-4">
+          <AdminProductsListPanel
+            products={products}
+            productTags={productTags}
+            productSort={productSort}
+            onProductSortChange={setProductSort}
+            activeProductId={isEditing ? form.id : undefined}
+            onEdit={startEdit}
+            onRefresh={loadProducts}
+          />
+        </TabsContent>
+
+        <TabsContent value="tags">
+          <AdminProductTagsSection onTagsChange={setProductTags} />
+        </TabsContent>
+      </Tabs>
 
       <Dialog
         open={isEditing}

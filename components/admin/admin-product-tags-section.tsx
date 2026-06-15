@@ -1,10 +1,35 @@
 "use client"
 
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react"
-import { Loader2, Pencil, Plus, Save, Trash2, X } from "lucide-react"
+import { FolderInput, Loader2, Pencil, Plus, Save, Trash2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
-import type { ProductTag } from "@/lib/admin/product-tags"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import {
+  PRODUCT_TAG_GROUPS,
+  type ProductTag,
+} from "@/lib/admin/product-tags"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
 import { cn } from "@/lib/utils"
 
@@ -21,9 +46,11 @@ type TagsApiPayload = {
 }
 
 function sortTags(tags: ProductTag[]): ProductTag[] {
-  return [...tags].sort(
-    (a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, "de")
-  )
+  return [...tags].sort((a, b) => {
+    const groupCmp = (a.group || "Allgemein").localeCompare(b.group || "Allgemein", "de")
+    if (groupCmp !== 0) return groupCmp
+    return a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, "de")
+  })
 }
 
 function reportTagApiError(action: string, status: number, payload: unknown, message: string) {
@@ -70,9 +97,13 @@ export function AdminProductTagsSection({ onTagsChange }: AdminProductTagsSectio
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [newTagName, setNewTagName] = useState("")
+  const [newTagGroup, setNewTagGroup] = useState<string>(PRODUCT_TAG_GROUPS[0])
   const [creating, setCreating] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editName, setEditName] = useState("")
+  const [editGroup, setEditGroup] = useState<string>(PRODUCT_TAG_GROUPS[0])
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [bulkBusy, setBulkBusy] = useState(false)
   const onTagsChangeRef = useRef(onTagsChange)
 
   useEffect(() => {
@@ -118,6 +149,43 @@ export function AdminProductTagsSection({ onTagsChange }: AdminProductTagsSectio
     void load()
   }, [load])
 
+  const allSelected = tags.length > 0 && selectedIds.length === tags.length
+  const someSelected = selectedIds.length > 0 && !allSelected
+
+  const toggleAll = (checked: boolean) => {
+    setSelectedIds(checked ? tags.map((tag) => tag.id) : [])
+  }
+
+  const toggleOne = (id: string, checked: boolean) => {
+    setSelectedIds((prev) =>
+      checked ? [...new Set([...prev, id])] : prev.filter((entry) => entry !== id)
+    )
+  }
+
+  const runTagBulk = async (body: Record<string, unknown>) => {
+    setBulkBusy(true)
+    setError(null)
+    try {
+      const res = await fetch("/api/admin/product-tags/bulk", {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: selectedIds, ...body }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? "Bulk-Aktion fehlgeschlagen")
+      setSelectedIds([])
+      await load({ silent: true })
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Bulk-Aktion fehlgeschlagen."
+      setError(message)
+      alert(`Produkt-Tags: ${message}`)
+    } finally {
+      setBulkBusy(false)
+    }
+  }
+
   const createTag = async (e: FormEvent) => {
     e.preventDefault()
     const name = newTagName.trim()
@@ -130,7 +198,7 @@ export function AdminProductTagsSection({ onTagsChange }: AdminProductTagsSectio
       const data = await requestAdminTags("Erstellen", ADMIN_TAGS_API, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, sortOrder: tags.length }),
+        body: JSON.stringify({ name, sortOrder: tags.length, group: newTagGroup }),
       })
 
       if (Array.isArray(data.tags) && data.tags.length > 0) {
@@ -160,7 +228,7 @@ export function AdminProductTagsSection({ onTagsChange }: AdminProductTagsSectio
       const data = await requestAdminTags("Umbenennen", `${ADMIN_TAGS_API}/${encodeURIComponent(id)}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ name, group: editGroup }),
       })
 
       if (data.tag) {
@@ -187,6 +255,7 @@ export function AdminProductTagsSection({ onTagsChange }: AdminProductTagsSectio
         method: "DELETE",
       })
       applyTags(tags.filter((tag) => tag.id !== id))
+      setSelectedIds((prev) => prev.filter((entry) => entry !== id))
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Tag konnte nicht gelöscht werden."
@@ -194,13 +263,21 @@ export function AdminProductTagsSection({ onTagsChange }: AdminProductTagsSectio
     }
   }
 
+  if (initialLoading) {
+    return (
+      <p className={cn("flex items-center gap-2 py-12 text-sm", adminUi.muted)}>
+        <Loader2 className="h-4 w-4 animate-spin" />
+        Tags werden geladen…
+      </p>
+    )
+  }
+
   return (
-    <div className={cn("rounded-xl border p-4", adminUi.section)}>
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h3 className={cn("text-base font-semibold", adminUi.heading)}>Produkt-Tags</h3>
           <p className={cn("text-sm", adminUi.muted)}>
-            Tags steuern die Filter im Shop — z. B. Figur, Deko, Untersetzer.
+            {tags.length} Tags — steuern die Filter im Shop
           </p>
         </div>
         {refreshing && (
@@ -211,9 +288,9 @@ export function AdminProductTagsSection({ onTagsChange }: AdminProductTagsSectio
         )}
       </div>
 
-      {error && <p className={cn("mb-3 text-sm", adminUi.errorLg)}>{error}</p>}
+      {error && <p className={cn("text-sm", adminUi.errorLg)}>{error}</p>}
 
-      <form onSubmit={(e) => void createTag(e)} className="mb-4 flex flex-wrap gap-2">
+      <form onSubmit={(e) => void createTag(e)} className="flex flex-wrap gap-2">
         <Input
           value={newTagName}
           onChange={(e) => setNewTagName(e.target.value)}
@@ -221,11 +298,19 @@ export function AdminProductTagsSection({ onTagsChange }: AdminProductTagsSectio
           className={cn("min-w-[200px] flex-1", adminUi.input)}
           disabled={creating}
         />
-        <Button
-          type="submit"
-          disabled={creating || !newTagName.trim()}
-          className={adminUi.primaryBtn}
-        >
+        <Select value={newTagGroup} onValueChange={setNewTagGroup}>
+          <SelectTrigger className="w-[160px]">
+            <SelectValue placeholder="Gruppe" />
+          </SelectTrigger>
+          <SelectContent>
+            {PRODUCT_TAG_GROUPS.map((group) => (
+              <SelectItem key={group} value={group}>
+                {group}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button type="submit" disabled={creating || !newTagName.trim()} className={adminUi.primaryBtn}>
           {creating ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           ) : (
@@ -235,74 +320,197 @@ export function AdminProductTagsSection({ onTagsChange }: AdminProductTagsSectio
         </Button>
       </form>
 
-      {initialLoading ? (
-        <p className={cn("flex items-center gap-2 text-sm", adminUi.muted)}>
-          <Loader2 className="h-4 w-4 animate-spin" />
-          Tags werden geladen…
-        </p>
-      ) : tags.length === 0 ? (
-        <p className={cn("text-sm", adminUi.muted)}>Noch keine Tags angelegt.</p>
-      ) : (
-        <ul className="space-y-2">
-          {tags.map((tag) => (
-            <li
-              key={tag.id}
-              className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/50 px-3 py-2"
-            >
-              {editingId === tag.id ? (
-                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-                  <Input
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    className={cn("min-w-[160px] flex-1", adminUi.input)}
-                  />
-                  <Button type="button" size="sm" onClick={() => void saveRename(tag.id)}>
-                    <Save className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => {
-                      setEditingId(null)
-                      setEditName("")
-                    }}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-              ) : (
-                <>
-                  <span className={cn("font-medium", adminUi.heading)}>{tag.name}</span>
-                  <div className="flex gap-1">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className={adminUi.outlineBtn}
-                      onClick={() => {
-                        setEditingId(tag.id)
-                        setEditName(tag.name)
-                      }}
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className={adminUi.outlineBtn}
-                      onClick={() => void removeTag(tag.id)}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                </>
-              )}
-            </li>
-          ))}
-        </ul>
+      {selectedIds.length > 0 && (
+        <div
+          className={cn(
+            "flex flex-wrap items-center gap-2 rounded-xl border px-4 py-3",
+            adminUi.section
+          )}
+        >
+          <span className={cn("text-sm font-medium", adminUi.heading)}>
+            {selectedIds.length} Tags ausgewählt
+          </span>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className={adminUi.outlineBtn}
+                disabled={bulkBusy}
+              >
+                <FolderInput className="mr-1.5 h-4 w-4" />
+                Gruppe zuweisen
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              {PRODUCT_TAG_GROUPS.map((group) => (
+                <DropdownMenuItem
+                  key={group}
+                  onClick={() => void runTagBulk({ group })}
+                >
+                  {group}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="border-red-500/40 text-red-500 hover:bg-red-500/10"
+            disabled={bulkBusy}
+            onClick={() => {
+              if (
+                !confirm(
+                  `${selectedIds.length} Tag(s) wirklich löschen? Sie werden von allen Produkten entfernt.`
+                )
+              ) {
+                return
+              }
+              void runTagBulk({ action: "delete" })
+            }}
+          >
+            {bulkBusy ? (
+              <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+            ) : (
+              <Trash2 className="mr-1.5 h-4 w-4" />
+            )}
+            Löschen
+          </Button>
+
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className={adminUi.muted}
+            disabled={bulkBusy}
+            onClick={() => setSelectedIds([])}
+          >
+            Auswahl aufheben
+          </Button>
+        </div>
       )}
+
+      <div className={cn("overflow-hidden rounded-xl border", adminUi.section)}>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-10">
+                <Checkbox
+                  checked={allSelected ? true : someSelected ? "indeterminate" : false}
+                  onCheckedChange={(checked) => toggleAll(checked === true)}
+                  aria-label="Alle Tags auswählen"
+                />
+              </TableHead>
+              <TableHead>Name</TableHead>
+              <TableHead>Gruppe</TableHead>
+              <TableHead className="w-24" />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {tags.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={4} className={cn("py-10 text-center text-sm", adminUi.muted)}>
+                  Noch keine Tags angelegt.
+                </TableCell>
+              </TableRow>
+            ) : (
+              tags.map((tag) => (
+                <TableRow key={tag.id} className={selectedIds.includes(tag.id) ? "bg-muted/30" : ""}>
+                  <TableCell>
+                    <Checkbox
+                      checked={selectedIds.includes(tag.id)}
+                      onCheckedChange={(value) => toggleOne(tag.id, value === true)}
+                      aria-label={`${tag.name} auswählen`}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    {editingId === tag.id ? (
+                      <Input
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        className={cn("max-w-xs", adminUi.input)}
+                      />
+                    ) : (
+                      <span className={cn("font-medium", adminUi.heading)}>{tag.name}</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {editingId === tag.id ? (
+                      <Select value={editGroup} onValueChange={setEditGroup}>
+                        <SelectTrigger className="w-[140px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {PRODUCT_TAG_GROUPS.map((group) => (
+                            <SelectItem key={group} value={group}>
+                              {group}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <span className={cn("text-sm", adminUi.muted)}>
+                        {tag.group || "Allgemein"}
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex justify-end gap-1">
+                      {editingId === tag.id ? (
+                        <>
+                          <Button type="button" size="sm" onClick={() => void saveRename(tag.id)}>
+                            <Save className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setEditingId(null)
+                              setEditName("")
+                            }}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className={adminUi.outlineBtn}
+                            onClick={() => {
+                              setEditingId(tag.id)
+                              setEditName(tag.name)
+                              setEditGroup(tag.group || PRODUCT_TAG_GROUPS[0])
+                            }}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className={adminUi.outlineBtn}
+                            onClick={() => void removeTag(tag.id)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   )
 }
@@ -319,7 +527,7 @@ export function AdminProductTagCheckboxes({
   if (tags.length === 0) {
     return (
       <p className={cn("text-sm", adminUi.muted)}>
-        Noch keine Tags vorhanden — oben im Tag-Manager anlegen.
+        Noch keine Tags vorhanden — unter „Produkt-Tags verwalten“ anlegen.
       </p>
     )
   }
@@ -331,22 +539,48 @@ export function AdminProductTagCheckboxes({
     onChange(next)
   }
 
+  const grouped = PRODUCT_TAG_GROUPS.map((group) => ({
+    group,
+    items: tags.filter((tag) => (tag.group || "Allgemein") === group),
+  })).filter((entry) => entry.items.length > 0)
+
+  const ungrouped = tags.filter(
+    (tag) => !PRODUCT_TAG_GROUPS.includes((tag.group || "Allgemein") as (typeof PRODUCT_TAG_GROUPS)[number])
+  )
+
+  const renderTag = (tag: ProductTag) => (
+    <label
+      key={tag.id}
+      className="flex cursor-pointer items-center gap-2 rounded-md border border-border/50 px-3 py-2 text-sm"
+    >
+      <input
+        type="checkbox"
+        className="h-4 w-4 rounded border-border"
+        checked={selectedTagIds.includes(tag.id)}
+        onChange={(e) => toggle(tag.id, e.target.checked)}
+      />
+      {tag.name}
+    </label>
+  )
+
   return (
-    <div className="grid gap-2 sm:grid-cols-2">
-      {tags.map((tag) => (
-        <label
-          key={tag.id}
-          className="flex cursor-pointer items-center gap-2 rounded-md border border-border/50 px-3 py-2 text-sm"
-        >
-          <input
-            type="checkbox"
-            className="h-4 w-4 rounded border-border"
-            checked={selectedTagIds.includes(tag.id)}
-            onChange={(e) => toggle(tag.id, e.target.checked)}
-          />
-          {tag.name}
-        </label>
+    <div className="space-y-4">
+      {grouped.map(({ group, items }) => (
+        <div key={group} className="space-y-2">
+          <p className={cn("text-xs font-semibold uppercase tracking-wide", adminUi.muted)}>
+            {group}
+          </p>
+          <div className="grid gap-2 sm:grid-cols-2">{items.map(renderTag)}</div>
+        </div>
       ))}
+      {ungrouped.length > 0 && (
+        <div className="space-y-2">
+          <p className={cn("text-xs font-semibold uppercase tracking-wide", adminUi.muted)}>
+            Sonstige
+          </p>
+          <div className="grid gap-2 sm:grid-cols-2">{ungrouped.map(renderTag)}</div>
+        </div>
+      )}
     </div>
   )
 }
