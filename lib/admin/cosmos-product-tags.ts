@@ -8,6 +8,12 @@ import {
 
 type ProductTagCosmosDoc = ProductTag & { docType: string }
 
+function sortProductTags(tags: ProductTag[]): ProductTag[] {
+  return [...tags].sort(
+    (a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, "de")
+  )
+}
+
 function mapProductTagDoc(
   doc: (ProductTagCosmosDoc & { id?: string }) | null | undefined
 ): ProductTag | null {
@@ -20,14 +26,16 @@ async function queryProductTagsFromContainer(
 ): Promise<ProductTag[]> {
   const { resources } = await container.items
     .query<ProductTagCosmosDoc>({
-      query: `SELECT * FROM c WHERE c.docType = @docType ORDER BY c.sortOrder ASC, c.name ASC`,
+      query: `SELECT * FROM c WHERE c.docType = @docType`,
       parameters: [{ name: "@docType", value: PRODUCT_TAG_DOC_TYPE }],
     })
     .fetchAll()
 
-  return resources
-    .map((doc) => mapProductTagDoc(doc))
-    .filter((tag): tag is ProductTag => tag != null)
+  return sortProductTags(
+    resources
+      .map((doc) => mapProductTagDoc(doc))
+      .filter((tag): tag is ProductTag => tag != null)
+  )
 }
 
 /** Liest verwaiste Tags aus dem settings-Container (Legacy) und migriert sie. */
@@ -44,9 +52,11 @@ async function migrateLegacySettingsTags(
       })
       .fetchAll()
 
-    const legacy = resources
-      .map((doc) => mapProductTagDoc(doc))
-      .filter((tag): tag is ProductTag => tag != null)
+    const legacy = sortProductTags(
+      resources
+        .map((doc) => mapProductTagDoc(doc))
+        .filter((tag): tag is ProductTag => tag != null)
+    )
 
     if (legacy.length === 0) return []
 

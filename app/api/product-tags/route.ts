@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
+import { resolveCosmosApiError } from "@/lib/admin/api-errors"
 import { getProductTags } from "@/lib/admin/product-tag-db"
 import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
-import { formatCosmosError } from "@/lib/cosmos/log-error"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -15,7 +15,8 @@ export async function GET() {
       { headers: { "Cache-Control": "no-store, max-age=0" } }
     )
   } catch (error) {
-    console.error("Product-Tags API: Laden fehlgeschlagen.", formatCosmosError(error))
-    return NextResponse.json({ tags: [] })
+    console.error("URSACHE COSMOS FEHLER (product-tags GET):", error)
+    const { message, status } = resolveCosmosApiError(error)
+    return NextResponse.json({ tags: [], error: message }, { status })
   }
 }

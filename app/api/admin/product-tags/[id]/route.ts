@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { adminDatabaseErrorResponse } from "@/lib/admin/api-errors"
+import { resolveCosmosApiError } from "@/lib/admin/api-errors"
 import {
   deleteProductTag,
   getProductTagById,
@@ -37,9 +37,9 @@ export async function PATCH(request: Request, context: RouteContext) {
     )
     return NextResponse.json({ tag: saved })
   } catch (error) {
-    const dbResponse = adminDatabaseErrorResponse(error)
-    if (dbResponse) return dbResponse
-    return NextResponse.json({ error: "Tag konnte nicht aktualisiert werden." }, { status: 500 })
+    console.error("URSACHE COSMOS FEHLER (admin product-tags PATCH):", error)
+    const { message, status } = resolveCosmosApiError(error)
+    return NextResponse.json({ error: message }, { status })
   }
 }
 
@@ -70,8 +70,8 @@ export async function DELETE(request: Request, context: RouteContext) {
 
     return NextResponse.json({ ok: true })
   } catch (error) {
-    const dbResponse = adminDatabaseErrorResponse(error)
-    if (dbResponse) return dbResponse
-    return NextResponse.json({ error: "Tag konnte nicht gelöscht werden." }, { status: 500 })
+    console.error("URSACHE COSMOS FEHLER (admin product-tags DELETE):", error)
+    const { message, status } = resolveCosmosApiError(error)
+    return NextResponse.json({ error: message }, { status })
   }
 }
