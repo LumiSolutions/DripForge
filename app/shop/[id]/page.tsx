@@ -18,7 +18,7 @@ export default async function ShopProductDeepLinkPage({ params }: PageProps) {
     const productId = decodeURIComponent(id).trim()
 
     if (!productId) {
-      redirect("/?view=shop")
+      redirect("/shop")
     }
 
     await warmCosmosInfrastructure()
@@ -37,7 +37,7 @@ export default async function ShopProductDeepLinkPage({ params }: PageProps) {
     }
 
     const product = normalizeShopProduct(raw)
-    redirect(`/?view=shop&product=${encodeURIComponent(product.id)}`)
+    redirect(`/shop?product=${encodeURIComponent(product.id)}`)
   } catch (error) {
     console.error("Fehler beim Laden des Produkts:", error)
     notFound()

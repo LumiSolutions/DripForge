@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import {
   Box,
   Heart,
@@ -24,7 +24,7 @@ import {
   normalizeServiceVisibility,
 } from "@/lib/dripforge/service-visibility"
 import type { ServiceVisibilitySettings } from "@/lib/admin/types"
-import { shopCartHref, shopViewHref } from "@/lib/dripforge/shop-routes"
+import { shopCartHref, shopNavHref, shopViewHref } from "@/lib/dripforge/shop-routes"
 import { SupportMissionLink, SUPPORT_ROUTE, HEADER_ICON_BTN_CLASS } from "@/components/dripforge/support-nav-link"
 import { useSupportPageSettings } from "@/hooks/use-support-page-active"
 
@@ -45,6 +45,7 @@ export type ShopHeaderProps = SpaNavProps | LinkNavProps
 
 export function ShopHeader(props: ShopHeaderProps) {
   const pathname = usePathname()
+  const router = useRouter()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
@@ -124,7 +125,9 @@ export function ShopHeader(props: ShopHeaderProps) {
 
   const isNavActive = (viewId: string) => {
     if (props.mode === "spa") return props.currentView === viewId
-    return false
+    const href = shopNavHref(viewId)
+    if (href === "/") return pathname === "/"
+    return pathname === href || pathname.startsWith(`${href}/`)
   }
 
   const handleSpaNav = (viewId: string) => {
@@ -190,8 +193,13 @@ export function ShopHeader(props: ShopHeaderProps) {
             ) : (
               <Link
                 key={item.id}
-                href={shopViewHref(item.id)}
-                className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary/50 hover:text-foreground"
+                href={shopNavHref(item.id)}
+                className={cn(
+                  "flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors",
+                  isNavActive(item.id)
+                    ? "bg-secondary text-foreground"
+                    : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
+                )}
               >
                 <item.icon className="h-4 w-4" />
                 {item.label}
@@ -217,8 +225,7 @@ export function ShopHeader(props: ShopHeaderProps) {
             {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
           </button>
 
-          {props.mode === "spa" && (
-            <div ref={searchRef} className="relative">
+          <div ref={searchRef} className="relative">
               {searchOpen ? (
                 <div className="flex items-center gap-2 rounded-lg border border-border bg-secondary/80 px-3 py-1.5">
                   <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -273,6 +280,10 @@ export function ShopHeader(props: ShopHeaderProps) {
                               onClick={() => {
                                 if (props.mode === "spa") {
                                   props.onNavigate("shop")
+                                } else {
+                                  router.push(
+                                    `/shop?product=${encodeURIComponent(p.id)}`
+                                  )
                                 }
                                 setSearchOpen(false)
                                 setSearchQuery("")
@@ -306,7 +317,6 @@ export function ShopHeader(props: ShopHeaderProps) {
                 </div>
               )}
             </div>
-          )}
 
           {props.mode === "spa" ? (
             <Button
@@ -317,7 +327,7 @@ export function ShopHeader(props: ShopHeaderProps) {
             </Button>
           ) : (
             <Button asChild className="hidden bg-primary text-primary-foreground hover:bg-primary/90 md:flex">
-              <Link href={shopViewHref("shop")}>Jetzt Erstellen</Link>
+              <Link href={shopNavHref("shop")}>Jetzt Erstellen</Link>
             </Button>
           )}
 
@@ -420,9 +430,14 @@ export function ShopHeader(props: ShopHeaderProps) {
               ) : (
                 <Link
                   key={item.id}
-                  href={shopViewHref(item.id)}
+                  href={shopNavHref(item.id)}
                   onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary/50"
+                  className={cn(
+                    "flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors",
+                    isNavActive(item.id)
+                      ? "bg-secondary text-foreground"
+                      : "text-muted-foreground hover:bg-secondary/50"
+                  )}
                 >
                   <item.icon className="h-5 w-5" />
                   {item.label}

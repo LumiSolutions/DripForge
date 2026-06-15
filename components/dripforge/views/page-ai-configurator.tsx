@@ -235,7 +235,7 @@ export function PageAiConfigurator({
                   </Button>
                 ) : (
                   <Link
-                    href="/?view=shop"
+                    href="/shop"
                     className="mt-1 block font-medium underline underline-offset-2"
                   >
                     Zum Shop →

@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react"
 import Image from "next/image"
+import Link from "next/link"
 import {
   Home,
   Printer,
@@ -60,6 +61,7 @@ import type { CartItem } from "@/lib/dripforge/types"
 import type { ServiceVisibilitySettings } from "@/lib/admin/types"
 import { useSiteTexts } from "@/components/dripforge/site-texts-provider"
 import { useAiPublicSettings } from "@/hooks/use-ai-public-settings"
+import { SHOP_ROUTES } from "@/lib/dripforge/shop-routes"
 
 export function HomePage({
   setCurrentView,
@@ -93,14 +95,16 @@ export function HomePage({
               <div className="mt-8 flex flex-wrap gap-4">
                 <Button 
                   size="lg" 
-                  onClick={() => setCurrentView("shop")}
+                  asChild
                   className="bg-primary text-primary-foreground hover:bg-primary/90"
                 >
-                  {t("landingpage_hero_cta_primary")}
-                  <ArrowRight className="ml-2 h-4 w-4" />
+                  <Link href={SHOP_ROUTES.shop}>
+                    {t("landingpage_hero_cta_primary")}
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Link>
                 </Button>
-                <Button size="lg" variant="outline" onClick={() => setCurrentView("shop")}>
-                  {t("landingpage_hero_cta_secondary")}
+                <Button size="lg" variant="outline" asChild>
+                  <Link href={SHOP_ROUTES.shop}>{t("landingpage_hero_cta_secondary")}</Link>
                 </Button>
               </div>
             </div>
@@ -155,13 +159,13 @@ export function HomePage({
                     <p className="mb-6 text-sm text-muted-foreground">
                       Präzise additive Fertigung mit Premium-Filamenten. Von Prototypen bis zu fertigen Produkten.
                     </p>
-                    <button 
-                      onClick={() => setCurrentView("3d-druck")}
+                    <Link
+                      href={SHOP_ROUTES["3d-druck"]}
                       className="inline-flex items-center text-sm font-medium text-foreground hover:text-primary"
                     >
                       Mehr erfahren
                       <ArrowRight className="ml-1 h-4 w-4" />
-                    </button>
+                    </Link>
                   </div>
                   <div className="relative ml-4 h-40 w-40 opacity-50">
                     <Image
@@ -188,13 +192,13 @@ export function HomePage({
                     <p className="mb-6 text-sm text-muted-foreground">
                       Hochpräzises Laserschneiden und Gravieren auf Holz, Acryl, Leder und mehr.
                     </p>
-                    <button 
-                      onClick={() => setCurrentView("laser")}
+                    <Link
+                      href={SHOP_ROUTES.laser}
                       className="inline-flex items-center text-sm font-medium text-foreground hover:text-primary"
                     >
                       Mehr erfahren
                       <ArrowRight className="ml-1 h-4 w-4" />
-                    </button>
+                    </Link>
                   </div>
                   <div className="relative ml-4 h-40 w-40 opacity-50">
                     <Image
@@ -230,11 +234,13 @@ export function HomePage({
               </div>
               <Button
                 size="lg"
-                onClick={() => setCurrentView("ai-konfigurator")}
+                asChild
                 className="bg-violet-600 text-white hover:bg-violet-500"
               >
-                KI-Konfigurator starten
-                <ArrowRight className="ml-2 h-4 w-4" />
+                <Link href={SHOP_ROUTES.aiKonfigurator}>
+                  KI-Konfigurator starten
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
               </Button>
             </CardContent>
           </Card>
@@ -299,14 +305,16 @@ export function HomePage({
               <div className="flex flex-wrap justify-center gap-4">
                 <Button 
                   size="lg" 
-                  onClick={() => setCurrentView("shop")}
+                  asChild
                   className="bg-primary text-primary-foreground hover:bg-primary/90"
                 >
-                  {t("landingpage_cta_button_upload")}
-                  <ArrowRight className="ml-2 h-4 w-4" />
+                  <Link href={SHOP_ROUTES.shop}>
+                    {t("landingpage_cta_button_upload")}
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Link>
                 </Button>
-                <Button size="lg" variant="outline" onClick={() => setCurrentView("kontakt")}>
-                  {t("landingpage_cta_button_contact")}
+                <Button size="lg" variant="outline" asChild>
+                  <Link href={SHOP_ROUTES.kontakt}>{t("landingpage_cta_button_contact")}</Link>
                 </Button>
               </div>
               <div className="mt-8 flex flex-wrap justify-center gap-6 text-sm text-muted-foreground">

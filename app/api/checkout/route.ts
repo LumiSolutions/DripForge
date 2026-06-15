@@ -93,8 +93,8 @@ export async function POST(request: Request) {
         customerEmail: billingEmail,
         totalChf: order.totals.total.toFixed(2),
       },
-      success_url: `${origin}/?view=home&order_success=1&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${origin}/?view=checkout&canceled=1`,
+      success_url: `${origin}/checkout?order_success=1&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${origin}/checkout?canceled=1`,
     })
 
     if (!session.url) {
