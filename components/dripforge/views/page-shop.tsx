@@ -53,9 +53,17 @@ import { ProductShopPrice } from "@/components/dripforge/shared/product-shop-pri
 import type { CartItem, Product, ProductDimensionsMm } from "@/lib/dripforge/types"
 import type { ServiceVisibilitySettings } from "@/lib/admin/types"
 import { getSaleBadgePercent } from "@/lib/dripforge/product-sale"
-import { isProductOnSale } from "@/lib/dripforge/shop-filters"
-import { filterProductsByShopTags } from "@/lib/dripforge/shop-tag-filters"
+import {
+  buildShopFilterOptions,
+  isShopFilterId,
+  type ShopFilterId,
+} from "@/lib/dripforge/shop-filters"
+import {
+  filterProductsByShopTags,
+  getTagsForCategoryScope,
+} from "@/lib/dripforge/shop-tag-filters"
 import { ShopTagFilterPanel } from "@/components/dripforge/shared/shop-tag-filter-panel"
+import { ShopMainFilterTabs } from "@/components/dripforge/shared/shop-main-filter-tabs"
 import type { ProductTag } from "@/lib/admin/product-tags"
 import { normalizeShopProduct } from "@/lib/dripforge/normalize-shop-product"
 import { ProductDetailErrorBoundary } from "@/components/dripforge/product-detail-error-boundary"
@@ -144,7 +152,7 @@ export function PageShop({
   const [shopProducts, setShopProducts] = useState<Product[]>(staticProducts)
   const [productTags, setProductTags] = useState<ProductTag[]>([])
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([])
-  const [saleOnly, setSaleOnly] = useState(false)
+  const [categoryFilter, setCategoryFilter] = useState<ShopFilterId>("all")
   const [sortMode, setSortMode] = useState<ShopSortMode>("newest")
 
   useEffect(() => {
@@ -173,18 +181,42 @@ export function PageShop({
       })
   }, [])
 
-  const showSaleFilter = useMemo(
-    () => shopProducts.some((product) => isProductOnSale(product)),
-    [shopProducts]
+  const mainFilterOptions = useMemo(
+    () => buildShopFilterOptions(shopProducts, services),
+    [shopProducts, services]
   )
+
+  useEffect(() => {
+    if (isShopFilterId(categoryFilter, mainFilterOptions)) return
+    setCategoryFilter("all")
+    setSelectedTagIds([])
+  }, [categoryFilter, mainFilterOptions])
+
+  const availableTags = useMemo(
+    () => getTagsForCategoryScope(shopProducts, productTags, categoryFilter),
+    [shopProducts, productTags, categoryFilter]
+  )
+
+  useEffect(() => {
+    const availableIds = new Set(availableTags.map((tag) => tag.id))
+    setSelectedTagIds((prev) => {
+      const next = prev.filter((id) => availableIds.has(id))
+      return next.length === prev.length ? prev : next
+    })
+  }, [availableTags])
 
   const displayedProducts = useMemo(() => {
     const filtered = filterProductsByShopTags(shopProducts, {
+      categoryFilter,
       selectedTagIds,
-      saleOnly,
     })
     return sortShopProducts(filtered, sortMode)
-  }, [shopProducts, selectedTagIds, saleOnly, sortMode])
+  }, [shopProducts, categoryFilter, selectedTagIds, sortMode])
+
+  const handleCategoryChange = (next: ShopFilterId) => {
+    setCategoryFilter(next)
+    setSelectedTagIds([])
+  }
 
   const toggleTagFilter = (tagId: string, checked: boolean) => {
     setSelectedTagIds((prev) =>
@@ -194,7 +226,6 @@ export function PageShop({
 
   const clearTagFilters = () => {
     setSelectedTagIds([])
-    setSaleOnly(false)
   }
 
   const customCardCount = [showCustom3d, showCustomLaser, showAiKonfigurator].filter(
@@ -853,16 +884,19 @@ export function PageShop({
         </section>
       )}
 
-      <section className="mx-auto max-w-7xl px-4">
+      <section className="mx-auto max-w-7xl px-4 space-y-6">
+        <ShopMainFilterTabs
+          options={mainFilterOptions}
+          activeId={categoryFilter}
+          onChange={handleCategoryChange}
+        />
+
         <div className="flex flex-col gap-8 lg:flex-row lg:items-start">
           <ShopTagFilterPanel
             className="w-full lg:sticky lg:top-24 lg:w-64 lg:shrink-0"
-            tags={productTags}
+            tags={availableTags}
             selectedTagIds={selectedTagIds}
-            saleOnly={saleOnly}
-            showSaleFilter={showSaleFilter}
             onToggleTag={toggleTagFilter}
-            onToggleSale={setSaleOnly}
             onClear={clearTagFilters}
           />
 
