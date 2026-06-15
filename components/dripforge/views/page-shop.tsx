@@ -63,6 +63,7 @@ import { ShopTagFilterPanel } from "@/components/dripforge/shared/shop-tag-filte
 import { ShopMainFilterTabs } from "@/components/dripforge/shared/shop-main-filter-tabs"
 import type { ProductTag } from "@/lib/admin/product-tags"
 import { normalizeShopProduct } from "@/lib/dripforge/normalize-shop-product"
+import { shopViewHref } from "@/lib/dripforge/shop-routes"
 import { ProductDetailErrorBoundary } from "@/components/dripforge/product-detail-error-boundary"
 import { useSiteTexts } from "@/components/dripforge/site-texts-provider"
 import {
@@ -777,7 +778,7 @@ export function PageShop({
       </section>
 
       {(showCustom3d || showCustomLaser || showAiKonfigurator) && (
-        <section className="mx-auto max-w-7xl px-4">
+        <section className="relative z-10 mx-auto max-w-7xl px-4">
           <div className="mb-10 text-center">
             <h2 className="text-2xl font-bold md:text-3xl">
               <span className="text-foreground">Erschaffen Sie etwas </span>
@@ -799,76 +800,91 @@ export function PageShop({
             )}
           >
             {showCustom3d && (
-              <Card className="border-border/50 bg-card/50 transition-colors hover:border-primary/50">
-                <CardContent className="flex h-full flex-col p-8">
-                  <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/20">
-                    <Printer className="h-6 w-6 text-primary" />
-                  </div>
-                  <h3 className="mb-2 text-lg font-bold">{t("shop_custom_3d_title")}</h3>
-                  <p className="mb-6 flex-1 text-sm text-muted-foreground">
-                    {t("shop_custom_3d_description")}
-                  </p>
-                  <Button
-                    variant="link"
-                    onClick={() => setCurrentView("individual-3d")}
-                    className="h-auto justify-start p-0 text-foreground hover:text-primary"
-                  >
-                    Jetzt Erstellen
-                    <ArrowRight className="ml-1 h-4 w-4" />
-                  </Button>
-                </CardContent>
-              </Card>
+              <Link
+                href={shopViewHref("individual-3d")}
+                onClick={(e) => {
+                  e.preventDefault()
+                  setCurrentView("individual-3d")
+                }}
+                className="group relative z-10 block h-full rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              >
+                <Card className="h-full border-border/50 bg-card/50 transition-colors group-hover:border-primary/50">
+                  <CardContent className="flex h-full flex-col p-8">
+                    <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/20">
+                      <Printer className="h-6 w-6 text-primary" />
+                    </div>
+                    <h3 className="mb-2 text-lg font-bold">{t("shop_custom_3d_title")}</h3>
+                    <p className="mb-6 flex-1 text-sm text-muted-foreground">
+                      {t("shop_custom_3d_description")}
+                    </p>
+                    <span className="inline-flex items-center text-sm font-medium text-foreground group-hover:text-primary">
+                      Jetzt Erstellen
+                      <ArrowRight className="ml-1 h-4 w-4" />
+                    </span>
+                  </CardContent>
+                </Card>
+              </Link>
             )}
 
             {showAiKonfigurator && (
-              <Card className="border-border/50 bg-card/50 transition-colors hover:border-violet-500/50">
-                <CardContent className="flex h-full flex-col p-8">
-                  <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-violet-500/20">
-                    <Sparkles className="h-6 w-6 text-violet-400" />
-                  </div>
-                  <h3 className="mb-2 text-lg font-bold">KI-Modell erstellen</h3>
-                  <p className="mb-6 flex-1 text-sm text-muted-foreground">
-                    Beschreibe dein Wunschmodell per Text oder Bild — unsere KI generiert
-                    druckbare 3D-Geometrie nach euren technischen Vorgaben.
-                  </p>
-                  <Button
-                    variant="link"
-                    onClick={() => setCurrentView("ai-konfigurator")}
-                    className="h-auto justify-start p-0 text-foreground hover:text-violet-400"
-                  >
-                    KI-Konfigurator öffnen
-                    <ArrowRight className="ml-1 h-4 w-4" />
-                  </Button>
-                </CardContent>
-              </Card>
+              <Link
+                href={shopViewHref("ai-konfigurator")}
+                onClick={(e) => {
+                  e.preventDefault()
+                  setCurrentView("ai-konfigurator")
+                }}
+                className="group relative z-10 block h-full rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              >
+                <Card className="h-full border-border/50 bg-card/50 transition-colors group-hover:border-violet-500/50">
+                  <CardContent className="flex h-full flex-col p-8">
+                    <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-violet-500/20">
+                      <Sparkles className="h-6 w-6 text-violet-400" />
+                    </div>
+                    <h3 className="mb-2 text-lg font-bold">KI-Modell erstellen</h3>
+                    <p className="mb-6 flex-1 text-sm text-muted-foreground">
+                      Beschreibe dein Wunschmodell per Text oder Bild — unsere KI generiert
+                      druckbare 3D-Geometrie nach euren technischen Vorgaben.
+                    </p>
+                    <span className="inline-flex items-center text-sm font-medium text-foreground group-hover:text-violet-400">
+                      KI-Konfigurator öffnen
+                      <ArrowRight className="ml-1 h-4 w-4" />
+                    </span>
+                  </CardContent>
+                </Card>
+              </Link>
             )}
 
             {showCustomLaser && (
-              <Card className="border-border/50 bg-card/50 transition-colors hover:border-cyan-500/50">
-                <CardContent className="flex h-full flex-col p-8">
-                  <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-cyan-500/20">
-                    <Zap className="h-6 w-6 text-cyan-400" />
-                  </div>
-                  <h3 className="mb-2 text-lg font-bold">{t("shop_custom_laser_title")}</h3>
-                  <p className="mb-6 flex-1 text-sm text-muted-foreground">
-                    {t("shop_custom_laser_description")}
-                  </p>
-                  <Button
-                    variant="link"
-                    onClick={() => setCurrentView("individual-laser")}
-                    className="h-auto justify-start p-0 text-foreground hover:text-primary"
-                  >
-                    Jetzt Erstellen
-                    <ArrowRight className="ml-1 h-4 w-4" />
-                  </Button>
-                </CardContent>
-              </Card>
+              <Link
+                href={shopViewHref("individual-laser")}
+                onClick={(e) => {
+                  e.preventDefault()
+                  setCurrentView("individual-laser")
+                }}
+                className="group relative z-10 block h-full rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              >
+                <Card className="h-full border-border/50 bg-card/50 transition-colors group-hover:border-cyan-500/50">
+                  <CardContent className="flex h-full flex-col p-8">
+                    <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-cyan-500/20">
+                      <Zap className="h-6 w-6 text-cyan-400" />
+                    </div>
+                    <h3 className="mb-2 text-lg font-bold">{t("shop_custom_laser_title")}</h3>
+                    <p className="mb-6 flex-1 text-sm text-muted-foreground">
+                      {t("shop_custom_laser_description")}
+                    </p>
+                    <span className="inline-flex items-center text-sm font-medium text-foreground group-hover:text-primary">
+                      Jetzt Erstellen
+                      <ArrowRight className="ml-1 h-4 w-4" />
+                    </span>
+                  </CardContent>
+                </Card>
+              </Link>
             )}
           </div>
         </section>
       )}
 
-      <section className="mx-auto max-w-7xl px-4 space-y-6">
+      <section className="relative z-0 mx-auto max-w-7xl px-4 space-y-6">
         <ShopMainFilterTabs
           options={mainFilterOptions}
           activeId={categoryFilter}
