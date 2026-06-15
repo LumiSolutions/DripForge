@@ -30,7 +30,8 @@ export function ShopMainFilterTabs({
   onChange,
   className,
 }: ShopMainFilterTabsProps) {
-  if (options.length <= 1) return null
+  const safeOptions = options ?? []
+  if (safeOptions.length <= 1) return null
 
   return (
     <nav
@@ -40,7 +41,7 @@ export function ShopMainFilterTabs({
         className
       )}
     >
-      {options.map((option) => {
+      {safeOptions.map((option) => {
         const Icon = shopFilterIcon(option.id)
         const isActive = activeId === option.id
         const isSale = option.id === "sale"

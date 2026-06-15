@@ -31,17 +31,17 @@ export function buildShopFilterOptions(
 ): ShopFilterOption[] {
   const label = (id: ShopFilterId) => labels[id]?.trim() || DEFAULT_FILTER_LABELS[id]
 
-  const activeProducts = products.filter((p) => p.istAktiv !== false)
+  const activeProducts = (products ?? []).filter((p) => p?.istAktiv !== false)
   const has3dProducts = activeProducts.some((p) => p.type === "3d")
   const hasLaserProducts = activeProducts.some((p) => p.type === "laser")
   const hasSaleProducts = activeProducts.some(isProductOnSale)
 
   const filters: ShopFilterOption[] = [{ id: "all", label: label("all") }]
 
-  if (services.druck3d && has3dProducts) {
+  if (services?.druck3d && has3dProducts) {
     filters.push({ id: "3d", label: label("3d") })
   }
-  if (services.lasergravur && hasLaserProducts) {
+  if (services?.lasergravur && hasLaserProducts) {
     filters.push({ id: "laser", label: label("laser") })
   }
   if (hasSaleProducts) {
@@ -52,7 +52,7 @@ export function buildShopFilterOptions(
 }
 
 export function isShopFilterId(value: string, options: ShopFilterOption[]): value is ShopFilterId {
-  return options.some((option) => option.id === value)
+  return (options ?? []).some((option) => option.id === value)
 }
 
 export function filterProductsByShopFilter(

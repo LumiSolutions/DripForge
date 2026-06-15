@@ -21,9 +21,11 @@ export function ShopTagFilterPanel({
   onClear,
   className,
 }: ShopTagFilterPanelProps) {
-  const hasActiveTagFilters = selectedTagIds.length > 0
+  const safeTags = tags ?? []
+  const safeSelectedTagIds = selectedTagIds ?? []
+  const hasActiveTagFilters = safeSelectedTagIds.length > 0
 
-  if (tags.length === 0) return null
+  if (safeTags.length === 0) return null
 
   return (
     <aside
@@ -50,18 +52,23 @@ export function ShopTagFilterPanel({
       <div className="space-y-2">
         <Label className="text-xs text-muted-foreground">Verfeinern</Label>
         <div className="space-y-2">
-          {tags.map((tag) => (
+          {safeTags.map((tag) => {
+            const tagId = tag?.id
+            if (!tagId) return null
+
+            return (
             <label
-              key={tag.id}
+              key={tagId}
               className="flex cursor-pointer items-center gap-3 rounded-lg px-1 py-1.5 text-sm hover:bg-secondary/40"
             >
               <Checkbox
-                checked={selectedTagIds.includes(tag.id)}
-                onCheckedChange={(checked) => onToggleTag(tag.id, checked === true)}
+                checked={safeSelectedTagIds.includes(tagId)}
+                onCheckedChange={(checked) => onToggleTag(tagId, checked === true)}
               />
-              <span>{tag.name}</span>
+              <span>{tag?.name ?? "Tag"}</span>
             </label>
-          ))}
+            )
+          })}
         </div>
       </div>
     </aside>

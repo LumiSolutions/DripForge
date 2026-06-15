@@ -14,15 +14,17 @@ export function filterProductsByShopTags(
   products: Product[],
   { categoryFilter, selectedTagIds }: ShopCombinedFilterState
 ): Product[] {
-  let list = filterProductsByShopFilter(products, categoryFilter)
+  const safeProducts = products ?? []
+  const safeTagIds = selectedTagIds ?? []
+  let list = filterProductsByShopFilter(safeProducts, categoryFilter)
 
-  if (selectedTagIds.length === 0) {
+  if (safeTagIds.length === 0) {
     return list
   }
 
   return list.filter((product) => {
-    const productTags = product.tags ?? []
-    return selectedTagIds.every((tagId) => productTags.includes(tagId))
+    const productTags = product?.tags ?? []
+    return safeTagIds.every((tagId) => productTags.includes(tagId))
   })
 }
 
@@ -32,7 +34,7 @@ export function getTagsForCategoryScope(
   allTags: ProductTag[],
   categoryFilter: ShopFilterId
 ): ProductTag[] {
-  const scopedProducts = filterProductsByShopFilter(products, categoryFilter)
+  const scopedProducts = filterProductsByShopFilter(products ?? [], categoryFilter)
   const tagIdsInScope = new Set<string>()
 
   for (const product of scopedProducts) {
@@ -41,7 +43,7 @@ export function getTagsForCategoryScope(
     }
   }
 
-  return allTags.filter((tag) => tagIdsInScope.has(tag.id))
+  return (allTags ?? []).filter((tag) => tag?.id && tagIdsInScope.has(tag.id))
 }
 
 export { isProductOnSale } from "@/lib/dripforge/shop-filters"

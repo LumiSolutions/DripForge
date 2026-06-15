@@ -58,7 +58,7 @@ import {
   isShopFilterId,
   type ShopFilterId,
 } from "@/lib/dripforge/shop-filters"
-import { filterProductsByShopTags } from "@/lib/dripforge/shop-tag-filters"
+import { filterProductsByShopTags, getTagsForCategoryScope } from "@/lib/dripforge/shop-tag-filters"
 import { ShopTagFilterPanel } from "@/components/dripforge/shared/shop-tag-filter-panel"
 import { ShopMainFilterTabs } from "@/components/dripforge/shared/shop-main-filter-tabs"
 import type { ProductTag } from "@/lib/admin/product-tags"
@@ -120,6 +120,16 @@ function sortShopProducts(products: Product[], sortMode: ShopSortMode): Product[
   }
 }
 
+function openShopConfiguratorView(
+  setCurrentView: PageShopProps["setCurrentView"],
+  view: string
+) {
+  setCurrentView(view)
+  if (typeof window !== "undefined") {
+    window.history.replaceState({}, "", shopViewHref(view))
+  }
+}
+
 export function PageShop({
   setCurrentView,
   selectedProduct,
@@ -138,9 +148,9 @@ export function PageShop({
   }, [filamentMaterials])
 
   const aiPublic = useAiPublicSettings()
-  const showCustom3d = services.druck3d
-  const showCustomLaser = services.lasergravur
-  const showAiKonfigurator = showCustom3d && aiPublic.enabled
+  const showCustom3d = Boolean(services?.druck3d)
+  const showCustomLaser = Boolean(services?.lasergravur)
+  const showAiKonfigurator = showCustom3d && Boolean(aiPublic?.enabled)
   const [filamentTab, setFilamentTab] = useState("pla")
   const [filamentSelection, setFilamentSelection] = useState<FilamentSelection | null>(null)
   const [laserDesign, setLaserDesign] = useState<LaserDesignerState | null>(null)
@@ -180,20 +190,26 @@ export function PageShop({
   }, [])
 
   const mainFilterOptions = useMemo(
-    () => buildShopFilterOptions(shopProducts, services),
+    () => buildShopFilterOptions(shopProducts ?? [], services),
     [shopProducts, services]
   )
 
+  const visibleProductTags = useMemo(
+    () =>
+      getTagsForCategoryScope(shopProducts ?? [], productTags ?? [], categoryFilter),
+    [shopProducts, productTags, categoryFilter]
+  )
+
   useEffect(() => {
-    if (isShopFilterId(categoryFilter, mainFilterOptions)) return
+    if (isShopFilterId(categoryFilter, mainFilterOptions ?? [])) return
     setCategoryFilter("all")
     setSelectedTagIds([])
   }, [categoryFilter, mainFilterOptions])
 
   const displayedProducts = useMemo(() => {
-    const filtered = filterProductsByShopTags(shopProducts, {
+    const filtered = filterProductsByShopTags(shopProducts ?? [], {
       categoryFilter,
-      selectedTagIds,
+      selectedTagIds: selectedTagIds ?? [],
     })
     return sortShopProducts(filtered, sortMode)
   }, [shopProducts, categoryFilter, selectedTagIds, sortMode])
@@ -800,85 +816,91 @@ export function PageShop({
             )}
           >
             {showCustom3d && (
-              <Link
-                href={shopViewHref("individual-3d")}
-                onClick={(e) => {
-                  e.preventDefault()
-                  setCurrentView("individual-3d")
+              <Card
+                role="link"
+                tabIndex={0}
+                onClick={() => openShopConfiguratorView(setCurrentView, "individual-3d")}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault()
+                    openShopConfiguratorView(setCurrentView, "individual-3d")
+                  }
                 }}
-                className="group relative z-10 block h-full rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                className="relative z-10 h-full cursor-pointer border-border/50 bg-card/50 transition-colors hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
               >
-                <Card className="h-full border-border/50 bg-card/50 transition-colors group-hover:border-primary/50">
-                  <CardContent className="flex h-full flex-col p-8">
-                    <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/20">
-                      <Printer className="h-6 w-6 text-primary" />
-                    </div>
-                    <h3 className="mb-2 text-lg font-bold">{t("shop_custom_3d_title")}</h3>
-                    <p className="mb-6 flex-1 text-sm text-muted-foreground">
-                      {t("shop_custom_3d_description")}
-                    </p>
-                    <span className="inline-flex items-center text-sm font-medium text-foreground group-hover:text-primary">
-                      Jetzt Erstellen
-                      <ArrowRight className="ml-1 h-4 w-4" />
-                    </span>
-                  </CardContent>
-                </Card>
-              </Link>
+                <CardContent className="flex h-full flex-col p-8">
+                  <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/20">
+                    <Printer className="h-6 w-6 text-primary" />
+                  </div>
+                  <h3 className="mb-2 text-lg font-bold">{t("shop_custom_3d_title")}</h3>
+                  <p className="mb-6 flex-1 text-sm text-muted-foreground">
+                    {t("shop_custom_3d_description")}
+                  </p>
+                  <span className="inline-flex items-center text-sm font-medium text-foreground group-hover:text-primary">
+                    Jetzt Erstellen
+                    <ArrowRight className="ml-1 h-4 w-4" />
+                  </span>
+                </CardContent>
+              </Card>
             )}
 
             {showAiKonfigurator && (
-              <Link
-                href={shopViewHref("ai-konfigurator")}
-                onClick={(e) => {
-                  e.preventDefault()
-                  setCurrentView("ai-konfigurator")
+              <Card
+                role="link"
+                tabIndex={0}
+                onClick={() => openShopConfiguratorView(setCurrentView, "ai-konfigurator")}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault()
+                    openShopConfiguratorView(setCurrentView, "ai-konfigurator")
+                  }
                 }}
-                className="group relative z-10 block h-full rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                className="relative z-10 h-full cursor-pointer border-border/50 bg-card/50 transition-colors hover:border-violet-500/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
               >
-                <Card className="h-full border-border/50 bg-card/50 transition-colors group-hover:border-violet-500/50">
-                  <CardContent className="flex h-full flex-col p-8">
-                    <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-violet-500/20">
-                      <Sparkles className="h-6 w-6 text-violet-400" />
-                    </div>
-                    <h3 className="mb-2 text-lg font-bold">KI-Modell erstellen</h3>
-                    <p className="mb-6 flex-1 text-sm text-muted-foreground">
-                      Beschreibe dein Wunschmodell per Text oder Bild — unsere KI generiert
-                      druckbare 3D-Geometrie nach euren technischen Vorgaben.
-                    </p>
-                    <span className="inline-flex items-center text-sm font-medium text-foreground group-hover:text-violet-400">
-                      KI-Konfigurator öffnen
-                      <ArrowRight className="ml-1 h-4 w-4" />
-                    </span>
-                  </CardContent>
-                </Card>
-              </Link>
+                <CardContent className="flex h-full flex-col p-8">
+                  <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-violet-500/20">
+                    <Sparkles className="h-6 w-6 text-violet-400" />
+                  </div>
+                  <h3 className="mb-2 text-lg font-bold">KI-Modell erstellen</h3>
+                  <p className="mb-6 flex-1 text-sm text-muted-foreground">
+                    Beschreibe dein Wunschmodell per Text oder Bild — unsere KI generiert
+                    druckbare 3D-Geometrie nach euren technischen Vorgaben.
+                  </p>
+                  <span className="inline-flex items-center text-sm font-medium text-foreground">
+                    KI-Konfigurator öffnen
+                    <ArrowRight className="ml-1 h-4 w-4" />
+                  </span>
+                </CardContent>
+              </Card>
             )}
 
             {showCustomLaser && (
-              <Link
-                href={shopViewHref("individual-laser")}
-                onClick={(e) => {
-                  e.preventDefault()
-                  setCurrentView("individual-laser")
+              <Card
+                role="link"
+                tabIndex={0}
+                onClick={() => openShopConfiguratorView(setCurrentView, "individual-laser")}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault()
+                    openShopConfiguratorView(setCurrentView, "individual-laser")
+                  }
                 }}
-                className="group relative z-10 block h-full rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                className="relative z-10 h-full cursor-pointer border-border/50 bg-card/50 transition-colors hover:border-cyan-500/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
               >
-                <Card className="h-full border-border/50 bg-card/50 transition-colors group-hover:border-cyan-500/50">
-                  <CardContent className="flex h-full flex-col p-8">
-                    <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-cyan-500/20">
-                      <Zap className="h-6 w-6 text-cyan-400" />
-                    </div>
-                    <h3 className="mb-2 text-lg font-bold">{t("shop_custom_laser_title")}</h3>
-                    <p className="mb-6 flex-1 text-sm text-muted-foreground">
-                      {t("shop_custom_laser_description")}
-                    </p>
-                    <span className="inline-flex items-center text-sm font-medium text-foreground group-hover:text-primary">
-                      Jetzt Erstellen
-                      <ArrowRight className="ml-1 h-4 w-4" />
-                    </span>
-                  </CardContent>
-                </Card>
-              </Link>
+                <CardContent className="flex h-full flex-col p-8">
+                  <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-cyan-500/20">
+                    <Zap className="h-6 w-6 text-cyan-400" />
+                  </div>
+                  <h3 className="mb-2 text-lg font-bold">{t("shop_custom_laser_title")}</h3>
+                  <p className="mb-6 flex-1 text-sm text-muted-foreground">
+                    {t("shop_custom_laser_description")}
+                  </p>
+                  <span className="inline-flex items-center text-sm font-medium text-foreground">
+                    Jetzt Erstellen
+                    <ArrowRight className="ml-1 h-4 w-4" />
+                  </span>
+                </CardContent>
+              </Card>
             )}
           </div>
         </section>
@@ -886,7 +908,7 @@ export function PageShop({
 
       <section className="relative z-0 mx-auto max-w-7xl px-4 space-y-6">
         <ShopMainFilterTabs
-          options={mainFilterOptions}
+          options={mainFilterOptions ?? []}
           activeId={categoryFilter}
           onChange={handleCategoryChange}
         />
@@ -894,7 +916,7 @@ export function PageShop({
         <div className="flex flex-col gap-8 lg:flex-row lg:items-start">
           <ShopTagFilterPanel
             className="w-full lg:sticky lg:top-24 lg:w-64 lg:shrink-0"
-            tags={productTags}
+            tags={visibleProductTags ?? []}
             selectedTagIds={selectedTagIds}
             onToggleTag={toggleTagFilter}
             onClear={clearTagFilters}
