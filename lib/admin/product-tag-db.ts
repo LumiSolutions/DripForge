@@ -7,7 +7,7 @@ import {
   cosmosUpsertProductTag,
 } from "@/lib/admin/cosmos-product-tags"
 import { normalizeProductTag, type ProductTag } from "@/lib/admin/product-tags"
-import { withCosmosFallback, withCosmosRequired } from "@/lib/admin/storage-bridge"
+import { withCosmosRequired } from "@/lib/admin/storage-bridge"
 import { isCosmosConfigured } from "@/lib/cosmos/client"
 import { logCosmosError } from "@/lib/cosmos/log-error"
 
@@ -49,24 +49,27 @@ async function deleteProductTagFile(id: string): Promise<boolean> {
   return true
 }
 
+/** Liest Tags — bei Cosmos-Konfiguration nur aus Cosmos (kein leerer Datei-Fallback). */
 export async function getProductTags(): Promise<ProductTag[]> {
+  if (!isCosmosConfigured()) {
+    return readTagsFile()
+  }
+
   try {
-    return await withCosmosFallback("getProductTags", cosmosGetProductTags, readTagsFile)
+    return await withCosmosRequired("getProductTags", cosmosGetProductTags)
   } catch (error) {
     logCosmosError("getProductTags:total-failure", error)
-    return readTagsFile().catch(() => [])
+    throw error
   }
 }
 
 export async function getProductTagById(id: string): Promise<ProductTag | null> {
-  return withCosmosFallback(
-    "getProductTagById",
-    () => cosmosGetProductTagById(id),
-    async () => {
-      const tags = await readTagsFile()
-      return tags.find((tag) => tag.id === id) ?? null
-    }
-  )
+  if (!isCosmosConfigured()) {
+    const tags = await readTagsFile()
+    return tags.find((tag) => tag.id === id) ?? null
+  }
+
+  return withCosmosRequired("getProductTagById", () => cosmosGetProductTagById(id))
 }
 
 export async function upsertProductTag(tag: ProductTag): Promise<ProductTag> {

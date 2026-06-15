@@ -49,7 +49,12 @@ export async function cosmosUpsertProductTag(tag: ProductTag): Promise<ProductTa
   const container = await getSettingsContainer()
   const doc: ProductTagCosmosDoc = { ...tag, docType: PRODUCT_TAG_DOC_TYPE }
   await container.items.upsert(doc)
-  return tag
+
+  const verified = await cosmosGetProductTagById(tag.id)
+  if (!verified) {
+    throw new Error(`Tag "${tag.id}" konnte nach dem Speichern nicht gelesen werden.`)
+  }
+  return verified
 }
 
 export async function cosmosDeleteProductTag(id: string): Promise<boolean> {

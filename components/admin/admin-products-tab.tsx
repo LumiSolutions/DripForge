@@ -171,11 +171,15 @@ export function AdminProductsTab() {
         cache: "no-store",
       })
       const data = await res.json()
-      if (res.ok && Array.isArray(data.tags)) {
+      if (!res.ok) {
+        console.error("[Admin Produkte] Tags laden fehlgeschlagen:", res.status, data)
+        return
+      }
+      if (Array.isArray(data.tags)) {
         setProductTags(data.tags as ProductTag[])
       }
-    } catch {
-      /* optional — Tag-Sektion lädt ebenfalls */
+    } catch (err) {
+      console.error("[Admin Produkte] Tags laden fehlgeschlagen:", err)
     }
   }, [])
 

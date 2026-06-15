@@ -8,13 +8,66 @@ import type { ProductTag } from "@/lib/admin/product-tags"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
 import { cn } from "@/lib/utils"
 
+const ADMIN_TAGS_API = "/api/admin/product-tags"
+
 type AdminProductTagsSectionProps = {
   onTagsChange?: (tags: ProductTag[]) => void
 }
 
+type TagsApiPayload = {
+  tags?: ProductTag[]
+  tag?: ProductTag
+  error?: string
+}
+
+function sortTags(tags: ProductTag[]): ProductTag[] {
+  return [...tags].sort(
+    (a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, "de")
+  )
+}
+
+function reportTagApiError(action: string, status: number, payload: unknown, message: string) {
+  console.error(`[Admin Produkt-Tags] ${action} fehlgeschlagen`, {
+    status,
+    payload,
+    message,
+  })
+  alert(`Produkt-Tags: ${message}`)
+}
+
+async function requestAdminTags(
+  action: string,
+  url: string,
+  init?: RequestInit
+): Promise<TagsApiPayload> {
+  const res = await fetch(url, {
+    cache: "no-store",
+    credentials: "include",
+    ...init,
+  })
+
+  let payload: TagsApiPayload = {}
+  try {
+    payload = (await res.json()) as TagsApiPayload
+  } catch {
+    const message = `Ungültige Server-Antwort (HTTP ${res.status}).`
+    reportTagApiError(action, res.status, null, message)
+    throw new Error(message)
+  }
+
+  if (!res.ok) {
+    const message = payload.error ?? `Anfrage fehlgeschlagen (HTTP ${res.status}).`
+    reportTagApiError(action, res.status, payload, message)
+    throw new Error(message)
+  }
+
+  return payload
+}
+
 export function AdminProductTagsSection({ onTagsChange }: AdminProductTagsSectionProps) {
   const [tags, setTags] = useState<ProductTag[]>([])
-  const [loading, setLoading] = useState(true)
+  const [initialLoading, setInitialLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [newTagName, setNewTagName] = useState("")
   const [creating, setCreating] = useState(false)
@@ -27,28 +80,39 @@ export function AdminProductTagsSection({ onTagsChange }: AdminProductTagsSectio
   }, [onTagsChange])
 
   const applyTags = useCallback((next: ProductTag[]) => {
-    setTags(next)
-    onTagsChangeRef.current?.(next)
+    const sorted = sortTags(next)
+    setTags(sorted)
+    onTagsChangeRef.current?.(sorted)
   }, [])
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const res = await fetch("/api/admin/product-tags", {
-        cache: "no-store",
-        credentials: "include",
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? "Tags konnten nicht geladen werden.")
-      const next = Array.isArray(data.tags) ? (data.tags as ProductTag[]) : []
-      applyTags(next)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Tags konnten nicht geladen werden.")
-    } finally {
-      setLoading(false)
-    }
-  }, [applyTags])
+  const load = useCallback(
+    async (options?: { silent?: boolean }) => {
+      const silent = options?.silent ?? false
+      if (silent) {
+        setRefreshing(true)
+      } else {
+        setInitialLoading(true)
+      }
+      setError(null)
+
+      try {
+        const data = await requestAdminTags("Laden", ADMIN_TAGS_API, { method: "GET" })
+        const next = Array.isArray(data.tags) ? data.tags : []
+        applyTags(next)
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "Tags konnten nicht geladen werden."
+        setError(message)
+      } finally {
+        if (silent) {
+          setRefreshing(false)
+        } else {
+          setInitialLoading(false)
+        }
+      }
+    },
+    [applyTags]
+  )
 
   useEffect(() => {
     void load()
@@ -58,31 +122,30 @@ export function AdminProductTagsSection({ onTagsChange }: AdminProductTagsSectio
     e.preventDefault()
     const name = newTagName.trim()
     if (!name) return
+
     setCreating(true)
     setError(null)
+
     try {
-      const res = await fetch("/api/admin/product-tags", {
+      const data = await requestAdminTags("Erstellen", ADMIN_TAGS_API, {
         method: "POST",
-        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, sortOrder: tags.length }),
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? "Tag konnte nicht erstellt werden.")
-      if (data.tag) {
-        const created = data.tag as ProductTag
-        setTags((prev) => {
-          const next = [...prev.filter((tag) => tag.id !== created.id), created].sort(
-            (a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, "de")
-          )
-          onTagsChangeRef.current?.(next)
-          return next
-        })
+
+      if (Array.isArray(data.tags) && data.tags.length > 0) {
+        applyTags(data.tags)
+      } else if (data.tag) {
+        applyTags([...tags.filter((tag) => tag.id !== data.tag!.id), data.tag])
+      } else {
+        throw new Error("Server hat keinen Tag zurückgegeben.")
       }
+
       setNewTagName("")
-      await load()
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Tag konnte nicht erstellt werden.")
+      const message =
+        err instanceof Error ? err.message : "Tag konnte nicht erstellt werden."
+      setError(message)
     } finally {
       setCreating(false)
     }
@@ -92,36 +155,42 @@ export function AdminProductTagsSection({ onTagsChange }: AdminProductTagsSectio
     const name = editName.trim()
     if (!name) return
     setError(null)
+
     try {
-      const res = await fetch(`/api/admin/product-tags/${encodeURIComponent(id)}`, {
+      const data = await requestAdminTags("Umbenennen", `${ADMIN_TAGS_API}/${encodeURIComponent(id)}`, {
         method: "PATCH",
-        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name }),
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? "Tag konnte nicht umbenannt werden.")
+
+      if (data.tag) {
+        applyTags(tags.map((tag) => (tag.id === id ? data.tag! : tag)))
+      } else {
+        await load({ silent: true })
+      }
+
       setEditingId(null)
       setEditName("")
-      await load()
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Tag konnte nicht umbenannt werden.")
+      const message =
+        err instanceof Error ? err.message : "Tag konnte nicht umbenannt werden."
+      setError(message)
     }
   }
 
   const removeTag = async (id: string) => {
     if (!confirm("Tag wirklich löschen? Er wird auch von allen Produkten entfernt.")) return
     setError(null)
+
     try {
-      const res = await fetch(`/api/admin/product-tags/${encodeURIComponent(id)}`, {
+      await requestAdminTags("Löschen", `${ADMIN_TAGS_API}/${encodeURIComponent(id)}`, {
         method: "DELETE",
-        credentials: "include",
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? "Tag konnte nicht gelöscht werden.")
-      await load()
+      applyTags(tags.filter((tag) => tag.id !== id))
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Tag konnte nicht gelöscht werden.")
+      const message =
+        err instanceof Error ? err.message : "Tag konnte nicht gelöscht werden."
+      setError(message)
     }
   }
 
@@ -134,6 +203,12 @@ export function AdminProductTagsSection({ onTagsChange }: AdminProductTagsSectio
             Tags steuern die Filter im Shop — z. B. Figur, Deko, Untersetzer.
           </p>
         </div>
+        {refreshing && (
+          <span className={cn("flex items-center gap-1 text-xs", adminUi.muted)}>
+            <Loader2 className="h-3 w-3 animate-spin" />
+            Aktualisiere…
+          </span>
+        )}
       </div>
 
       {error && <p className={cn("mb-3 text-sm", adminUi.errorLg)}>{error}</p>}
@@ -144,8 +219,13 @@ export function AdminProductTagsSection({ onTagsChange }: AdminProductTagsSectio
           onChange={(e) => setNewTagName(e.target.value)}
           placeholder="Neuer Tag, z. B. Deko"
           className={cn("min-w-[200px] flex-1", adminUi.input)}
+          disabled={creating}
         />
-        <Button type="submit" disabled={creating || !newTagName.trim()} className={adminUi.primaryBtn}>
+        <Button
+          type="submit"
+          disabled={creating || !newTagName.trim()}
+          className={adminUi.primaryBtn}
+        >
           {creating ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           ) : (
@@ -155,7 +235,7 @@ export function AdminProductTagsSection({ onTagsChange }: AdminProductTagsSectio
         </Button>
       </form>
 
-      {loading ? (
+      {initialLoading ? (
         <p className={cn("flex items-center gap-2 text-sm", adminUi.muted)}>
           <Loader2 className="h-4 w-4 animate-spin" />
           Tags werden geladen…
