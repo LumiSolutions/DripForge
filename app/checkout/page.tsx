@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { PageCheckout } from "@/components/dripforge/views/page-checkout"
 import { useCart } from "@/components/dripforge/cart-provider"
+import { StorefrontLayoutWrapper } from "@/components/dripforge/storefront-layout-wrapper"
 import { useShopNavigate } from "@/hooks/use-shop-navigate"
 
 function CheckoutPageInner() {
@@ -59,14 +60,16 @@ function CheckoutPageInner() {
 
 export default function CheckoutPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="py-24 text-center text-muted-foreground">
-          Checkout wird geladen…
-        </div>
-      }
-    >
-      <CheckoutPageInner />
-    </Suspense>
+    <StorefrontLayoutWrapper>
+      <Suspense
+        fallback={
+          <div className="py-24 text-center text-muted-foreground">
+            Checkout wird geladen…
+          </div>
+        }
+      >
+        <CheckoutPageInner />
+      </Suspense>
+    </StorefrontLayoutWrapper>
   )
 }

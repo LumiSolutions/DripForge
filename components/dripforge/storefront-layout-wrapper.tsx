@@ -1,9 +1,8 @@
+"use client"
+
+import type { ReactNode } from "react"
 import { StorefrontLaunchLayout } from "@/components/dripforge/storefront-launch-layout"
 
-export default function StorefrontLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+export function StorefrontLayoutWrapper({ children }: { children: ReactNode }) {
   return <StorefrontLaunchLayout>{children}</StorefrontLaunchLayout>
 }

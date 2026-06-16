@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { PageShop } from "@/components/dripforge/views/page-shop"
 import { useCart } from "@/components/dripforge/cart-provider"
+import { StorefrontLayoutWrapper } from "@/components/dripforge/storefront-layout-wrapper"
 import { useShopNavigate } from "@/hooks/use-shop-navigate"
 import { useServiceVisibility } from "@/hooks/use-service-visibility"
 import type { Product } from "@/lib/dripforge/types"
@@ -50,14 +51,16 @@ function ShopPageInner() {
 
 export default function ShopPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="py-24 text-center text-muted-foreground">
-          Shop wird geladen…
-        </div>
-      }
-    >
-      <ShopPageInner />
-    </Suspense>
+    <StorefrontLayoutWrapper>
+      <Suspense
+        fallback={
+          <div className="py-24 text-center text-muted-foreground">
+            Shop wird geladen…
+          </div>
+        }
+      >
+        <ShopPageInner />
+      </Suspense>
+    </StorefrontLayoutWrapper>
   )
 }
