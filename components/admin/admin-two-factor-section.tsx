@@ -1,6 +1,6 @@
 "use client"
 
-import { FormEvent, useCallback, useEffect, useState } from "react"
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react"
 import { KeyRound, Loader2, ShieldCheck, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -14,6 +14,9 @@ export function AdminTwoFactorSection() {
   const [loading, setLoading] = useState(true)
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
   const [secretBase32, setSecretBase32] = useState<string | null>(null)
+  const setupMaterialRef = useRef<{ qrDataUrl: string; secretBase32: string } | null>(
+    null
+  )
   const [code, setCode] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
@@ -56,8 +59,14 @@ export function AdminTwoFactorSection() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? "Setup fehlgeschlagen")
-      setQrDataUrl(data.qrDataUrl ?? null)
-      setSecretBase32(data.secretBase32 ?? null)
+      if (data.qrDataUrl && data.secretBase32) {
+        setupMaterialRef.current = {
+          qrDataUrl: data.qrDataUrl,
+          secretBase32: data.secretBase32,
+        }
+      }
+      setQrDataUrl(setupMaterialRef.current?.qrDataUrl ?? null)
+      setSecretBase32(setupMaterialRef.current?.secretBase32 ?? null)
       if (force) setTotpEnabled(false)
       setCode("")
       setSuccess(data.message ?? "QR-Code bereit.")
@@ -107,6 +116,7 @@ export function AdminTwoFactorSection() {
       setTotpEnabled(false)
       setQrDataUrl(null)
       setSecretBase32(null)
+      setupMaterialRef.current = null
       setCode("")
       setSuccess(data.message ?? "2FA zurueckgesetzt.")
     } catch (err) {
@@ -122,17 +132,24 @@ export function AdminTwoFactorSection() {
     setError(null)
     setSuccess(null)
     try {
+      const activeSecret =
+        secretBase32 ?? setupMaterialRef.current?.secretBase32 ?? ""
+      if (!activeSecret) {
+        throw new Error("2FA-Secret fehlt. Bitte Setup erneut starten.")
+      }
+
       const res = await fetch("/api/admin/auth/activate-totp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ code }),
+        body: JSON.stringify({ code, secretBase32: activeSecret }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? "Aktivierung fehlgeschlagen")
       setTotpEnabled(true)
       setQrDataUrl(null)
       setSecretBase32(null)
+      setupMaterialRef.current = null
       setCode("")
       setSuccess(data.message ?? "2FA ist aktiv.")
     } catch (err) {

@@ -1,6 +1,6 @@
 "use client"
 
-import { FormEvent, useState } from "react"
+import { FormEvent, useRef, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { KeyRound, Loader2, Lock, ShieldCheck } from "lucide-react"
@@ -41,6 +41,9 @@ export function StaffAuthFlow({
   const [code, setCode] = useState("")
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
   const [secretBase32, setSecretBase32] = useState<string | null>(null)
+  const setupMaterialRef = useRef<{ qrDataUrl: string; secretBase32: string } | null>(
+    null
+  )
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -60,16 +63,24 @@ export function StaffAuthFlow({
       if (!res.ok) throw new Error(data.error ?? "Anmeldung fehlgeschlagen")
 
       if (data.step === "setup") {
-        const setupRes = await fetch("/api/admin/auth/setup-totp", {
-          method: "POST",
-          credentials: "include",
-        })
-        const setupData = await setupRes.json()
-        if (!setupRes.ok) {
-          throw new Error(setupData.error ?? "2FA-Einrichtung fehlgeschlagen")
+        if (!setupMaterialRef.current) {
+          const setupRes = await fetch("/api/admin/auth/setup-totp", {
+            method: "POST",
+            credentials: "include",
+          })
+          const setupData = await setupRes.json()
+          if (!setupRes.ok) {
+            throw new Error(setupData.error ?? "2FA-Einrichtung fehlgeschlagen")
+          }
+          if (setupData.qrDataUrl && setupData.secretBase32) {
+            setupMaterialRef.current = {
+              qrDataUrl: setupData.qrDataUrl,
+              secretBase32: setupData.secretBase32,
+            }
+          }
         }
-        setQrDataUrl(setupData.qrDataUrl ?? null)
-        setSecretBase32(setupData.secretBase32 ?? null)
+        setQrDataUrl(setupMaterialRef.current?.qrDataUrl ?? null)
+        setSecretBase32(setupMaterialRef.current?.secretBase32 ?? null)
         setStep("setup")
       } else {
         setStep("totp")
@@ -94,11 +105,20 @@ export function StaffAuthFlow({
         ? "/api/admin/auth/confirm-totp"
         : "/api/admin/auth/verify-totp"
 
+      const activeSecret =
+        secretBase32 ?? setupMaterialRef.current?.secretBase32 ?? ""
+
+      if (isSetup && !activeSecret) {
+        throw new Error("2FA-Secret fehlt. Bitte Setup erneut starten.")
+      }
+
       const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ code }),
+        body: JSON.stringify(
+          isSetup ? { code, secretBase32: activeSecret } : { code }
+        ),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? "Verifizierung fehlgeschlagen")

@@ -3,8 +3,9 @@ import { completeTotpVerification } from "@/lib/admin/staff-auth"
 
 export async function POST(request: Request) {
   try {
-    const body = (await request.json()) as { code?: string }
+    const body = (await request.json()) as { code?: string; secretBase32?: string }
     const code = body.code?.trim() ?? ""
+    const secretBase32 = body.secretBase32?.trim() ?? ""
 
     if (!code) {
       return NextResponse.json(
@@ -13,8 +14,16 @@ export async function POST(request: Request) {
       )
     }
 
+    if (!secretBase32) {
+      return NextResponse.json(
+        { error: "2FA-Secret fehlt. Bitte Setup erneut starten." },
+        { status: 400 }
+      )
+    }
+
     return await completeTotpVerification(request, code, {
       enableOnConfirm: true,
+      secretBase32,
     })
   } catch (error) {
     console.error("Admin-Auth: 2FA-Bestaetigung fehlgeschlagen.", error)

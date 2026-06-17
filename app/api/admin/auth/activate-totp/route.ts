@@ -4,7 +4,7 @@ import {
   requireAdminSession,
 } from "@/lib/admin/require-admin-session"
 import { getStaffById, saveStaff } from "@/lib/admin/staff-db"
-import { decryptTotpSecret } from "@/lib/admin/totp-crypto"
+import { encryptTotpSecret } from "@/lib/admin/totp-crypto"
 import { verifyTotpCode } from "@/lib/admin/totp"
 
 /** 2FA nach Profil-Reset mit Code aus der App aktivieren. */
@@ -13,8 +13,9 @@ export async function POST(request: Request) {
   if (isAuthError(auth)) return auth
 
   try {
-    const body = (await request.json()) as { code?: string }
+    const body = (await request.json()) as { code?: string; secretBase32?: string }
     const code = body.code?.trim() ?? ""
+    const secretBase32 = body.secretBase32?.replace(/\s/g, "") ?? ""
 
     if (!code) {
       return NextResponse.json(
@@ -23,16 +24,22 @@ export async function POST(request: Request) {
       )
     }
 
-    const account = await getStaffById(auth.userId)
-    if (!account?.totpSecretEncrypted) {
+    if (!secretBase32) {
       return NextResponse.json(
-        { error: "2FA-Setup wurde noch nicht gestartet." },
+        { error: "2FA-Secret fehlt. Bitte Setup erneut starten." },
         { status: 400 }
       )
     }
 
-    const secret = decryptTotpSecret(account.totpSecretEncrypted)
-    if (!secret || !verifyTotpCode(secret, code)) {
+    const account = await getStaffById(auth.userId)
+    if (!account) {
+      return NextResponse.json(
+        { error: "Benutzer nicht gefunden." },
+        { status: 404 }
+      )
+    }
+
+    if (!verifyTotpCode(secretBase32, code)) {
       return NextResponse.json(
         { error: "Ungueltiger Verifizierungscode." },
         { status: 401 }
@@ -41,6 +48,7 @@ export async function POST(request: Request) {
 
     await saveStaff({
       ...account,
+      totpSecretEncrypted: encryptTotpSecret(secretBase32),
       totpEnabled: true,
     })
 

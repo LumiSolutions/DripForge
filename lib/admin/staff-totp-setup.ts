@@ -12,9 +12,10 @@ export type TotpSetupMaterial = {
 /** Liefert QR + Base32; erzeugt das Secret nur beim allerersten Setup (oder bei forceNew). */
 export async function getTotpSetupMaterial(
   account: StaffAccount,
-  options?: { forceNew?: boolean }
+  options?: { forceNew?: boolean; persist?: boolean }
 ): Promise<{ account: StaffAccount; material: TotpSetupMaterial }> {
   const forceNew = options?.forceNew === true
+  const persist = options?.persist !== false
 
   if (!forceNew && account.totpSecretEncrypted) {
     const existing = decryptTotpSecret(account.totpSecretEncrypted)
@@ -32,12 +33,24 @@ export async function getTotpSetupMaterial(
   }
 
   const secret = generateTotpSecret()
+  const qrDataUrl = await createTotpQrDataUrl(account.role, secret)
+
+  if (!persist) {
+    return {
+      account,
+      material: {
+        qrDataUrl,
+        secretBase32: secret,
+        isNewSecret: true,
+      },
+    }
+  }
+
   const updated = await saveStaff({
     ...account,
     totpSecretEncrypted: encryptTotpSecret(secret),
     totpEnabled: false,
   })
-  const qrDataUrl = await createTotpQrDataUrl(updated.role, secret)
   return {
     account: updated,
     material: {

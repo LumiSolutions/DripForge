@@ -12,7 +12,7 @@ import {
 } from "@/lib/admin/admin-session"
 import { getStaffById, saveStaff } from "@/lib/admin/staff-db"
 import { getTotpSetupMaterial } from "@/lib/admin/staff-totp-setup"
-import { decryptTotpSecret } from "@/lib/admin/totp-crypto"
+import { decryptTotpSecret, encryptTotpSecret } from "@/lib/admin/totp-crypto"
 import { verifyTotpCode } from "@/lib/admin/totp"
 import type { StaffAccount, StaffAuthIntent, StaffRole } from "@/lib/admin/staff-types"
 
@@ -68,7 +68,7 @@ export async function setupTotpForPending(
     )
   }
 
-  const { material } = await getTotpSetupMaterial(account)
+  const { material } = await getTotpSetupMaterial(account, { persist: false })
 
   return NextResponse.json({
     success: true,
@@ -84,7 +84,7 @@ export async function setupTotpForPending(
 export async function completeTotpVerification(
   request: Request,
   code: string,
-  options?: { enableOnConfirm?: boolean }
+  options?: { enableOnConfirm?: boolean; secretBase32?: string }
 ): Promise<NextResponse> {
   const pending = getAdminPendingFromRequest(request)
   if (!pending) {
@@ -95,15 +95,30 @@ export async function completeTotpVerification(
   }
 
   const account = await getStaffById(pending.userId)
-  if (!account?.totpSecretEncrypted) {
+  if (!account) {
+    return NextResponse.json(
+      { error: "Benutzer nicht gefunden." },
+      { status: 404 }
+    )
+  }
+
+  const providedSecret = options?.secretBase32?.replace(/\s/g, "") ?? ""
+  let secret: string | null = null
+
+  if (providedSecret) {
+    secret = providedSecret
+  } else if (account.totpSecretEncrypted) {
+    secret = decryptTotpSecret(account.totpSecretEncrypted)
+  }
+
+  if (!secret) {
     return NextResponse.json(
       { error: "2FA ist noch nicht eingerichtet." },
       { status: 400 }
     )
   }
 
-  const secret = decryptTotpSecret(account.totpSecretEncrypted)
-  if (!secret || !verifyTotpCode(secret, code)) {
+  if (!verifyTotpCode(secret, code)) {
     return NextResponse.json(
       { error: "Ungueltiger Verifizierungscode." },
       { status: 401 }
@@ -111,9 +126,10 @@ export async function completeTotpVerification(
   }
 
   const enableOnConfirm = options?.enableOnConfirm ?? !account.totpEnabled
-  if (enableOnConfirm && !account.totpEnabled) {
+  if (enableOnConfirm) {
     await saveStaff({
       ...account,
+      totpSecretEncrypted: encryptTotpSecret(secret),
       totpEnabled: true,
     })
   }

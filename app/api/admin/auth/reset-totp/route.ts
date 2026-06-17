@@ -43,7 +43,10 @@ export async function POST(request: Request) {
       }
     }
 
-    const { material } = await getTotpSetupMaterial(account, { forceNew })
+    const { material } = await getTotpSetupMaterial(account, {
+      forceNew,
+      persist: false,
+    })
 
     return NextResponse.json({
       success: true,
