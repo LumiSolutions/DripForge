@@ -1,11 +1,13 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
+import Link from "next/link"
 import {
   Send,
   MessageCircle,
   User,
   Bot,
+  Heart,
   X,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -15,6 +17,8 @@ import { ShopHeader } from "@/components/dripforge/shop-header"
 import { ShopFooter } from "@/components/dripforge/shop-footer"
 import { useCart } from "@/components/dripforge/cart-provider"
 import { useShopNavigate } from "@/hooks/use-shop-navigate"
+import { useSupportPageSettings } from "@/hooks/use-support-page-active"
+import { SUPPORT_ROUTE } from "@/components/dripforge/support-nav-link"
 
 type ChatMessage = {
   id: string
@@ -25,6 +29,7 @@ type ChatMessage = {
 export function StorefrontShell({ children }: { children: React.ReactNode }) {
   const { cart } = useCart()
   const navigate = useShopNavigate()
+  const { showSupportOnMainSite: supportPageVisible } = useSupportPageSettings()
   const [chatOpen, setChatOpen] = useState(false)
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
     {
@@ -72,6 +77,18 @@ export function StorefrontShell({ children }: { children: React.ReactNode }) {
       <main>{children}</main>
 
       <ShopFooter />
+
+      {supportPageVisible && (
+        <Link
+          href={SUPPORT_ROUTE}
+          prefetch
+          className="fixed bottom-24 right-7 z-50 flex h-12 w-12 items-center justify-center rounded-full border border-primary/30 bg-background/90 text-primary shadow-lg transition-transform hover:scale-105 hover:bg-primary/10"
+          title="Unsere Mission"
+          aria-label="Unsere Mission unterstützen"
+        >
+          <Heart className="h-5 w-5 fill-primary/20 text-primary" />
+        </Link>
+      )}
 
       <button
         type="button"

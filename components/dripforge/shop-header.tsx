@@ -6,7 +6,6 @@ import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import {
   Box,
-  Heart,
   Menu,
   Moon,
   Search,
@@ -25,8 +24,7 @@ import {
 } from "@/lib/dripforge/service-visibility"
 import type { ServiceVisibilitySettings } from "@/lib/admin/types"
 import { shopCartHref, shopNavHref } from "@/lib/dripforge/shop-routes"
-import { SupportMissionLink, SUPPORT_ROUTE, HEADER_ICON_BTN_CLASS } from "@/components/dripforge/support-nav-link"
-import { useSupportPageSettings } from "@/hooks/use-support-page-active"
+import { HEADER_ICON_BTN_CLASS } from "@/components/dripforge/support-nav-link"
 
 type SpaNavProps = {
   mode: "spa"
@@ -59,9 +57,6 @@ export function ShopHeader(props: ShopHeaderProps) {
   const cartCount = props.mode === "spa" ? props.cartCount : (props.cartCount ?? 0)
   const kontoActive =
     props.mode === "link" ? pathname.startsWith("/konto") : false
-  const supportActive =
-    pathname === SUPPORT_ROUTE || pathname.startsWith(`${SUPPORT_ROUTE}/`)
-  const { showSupportOnMainSite: supportPageVisible } = useSupportPageSettings()
   const kontoHref = kontoLoggedIn ? "/konto" : "/konto/login"
 
   useEffect(() => {
@@ -209,13 +204,6 @@ export function ShopHeader(props: ShopHeaderProps) {
               </Link>
             )
           )}
-          {supportPageVisible && (
-            <SupportMissionLink
-              active={supportActive}
-              variant="main"
-              display="desktop"
-            />
-          )}
         </nav>
 
         <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
@@ -336,14 +324,6 @@ export function ShopHeader(props: ShopHeaderProps) {
             </Button>
           )}
 
-          {supportPageVisible && (
-            <SupportMissionLink
-              active={supportActive}
-              variant="main"
-              display="mobile"
-            />
-          )}
-
           <Link
             href={kontoHref}
             prefetch
@@ -451,22 +431,6 @@ export function ShopHeader(props: ShopHeaderProps) {
                   {item.label}
                 </Link>
               )
-            )}
-            {supportPageVisible && (
-              <Link
-                href={SUPPORT_ROUTE}
-                prefetch
-                onClick={() => setMobileMenuOpen(false)}
-                className={cn(
-                  "flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors",
-                  supportActive
-                    ? "bg-primary/15 text-primary"
-                    : "text-muted-foreground hover:bg-secondary/50"
-                )}
-              >
-                <Heart className="h-5 w-5 fill-primary/20 text-primary" />
-                Unsere Mission
-              </Link>
             )}
             <Link
               href={kontoHref}
