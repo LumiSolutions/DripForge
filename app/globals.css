@@ -1,5 +1,4 @@
 @import "tailwindcss";
-@import "../styles/particle.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -108,46 +107,6 @@
 .reveal.visible {
   opacity: 1;
   transform: translateY(0);
-}
-
-/* Globaler Partikel-Hintergrund (Shop, Portal, Landing) */
-@keyframes particle-float {
-  0% {
-    opacity: 0;
-    transform: translate3d(0, 16px, 0) scale(0.45);
-  }
-  10% {
-    opacity: var(--particle-peak-opacity, 0.9);
-  }
-  50% {
-    opacity: calc(var(--particle-peak-opacity, 0.9) * 0.85);
-  }
-  100% {
-    opacity: 0;
-    transform: translate3d(
-        var(--particle-drift-x, 0px),
-        var(--particle-rise, -200px),
-        0
-      )
-      scale(0.15);
-  }
-}
-
-.particle-ember {
-  animation-name: particle-float;
-  animation-duration: var(--particle-duration, 5s);
-  animation-timing-function: ease-in-out;
-  animation-iteration-count: infinite;
-  animation-delay: var(--particle-delay, 0s);
-  animation-fill-mode: both;
-  will-change: transform, opacity;
-  backface-visibility: hidden;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .particle-field {
-    display: none;
-  }
 }
 
 /* Coming Soon — industrielles Launch-Design */
