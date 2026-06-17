@@ -99,7 +99,7 @@ export function FilamentMultiColorPicker({
     return initial
   })
 
-  const currentMaterial = materials.find((m) => m.id === activeTab)!
+  const currentMaterial = materials.find((m) => m.id === activeTab)
   const currentSlots = slots[activeTab] ?? []
   const currentSlotIds = slotIds[activeTab] ?? [1]
 
@@ -122,8 +122,8 @@ export function FilamentMultiColorPicker({
     }
   }, [selection, onSelectionChange])
 
-  const assignColor = (color: (typeof currentMaterial.colors)[number]) => {
-    if (!color.inStock) return
+  const assignColor = (color: { id: string; name: string; hex: string; inStock: boolean }) => {
+    if (!color.inStock || !currentMaterial) return
 
     setSlots((prev) => {
       const list = [...(prev[activeTab] ?? [])]
@@ -306,19 +306,19 @@ export function FilamentMultiColorPicker({
             {primaryColor?.colorName ?? "—"}
           </p>
           <p className="text-center text-xs text-muted-foreground">
-            {currentMaterial.name} · {currentSlots.length} Farbe
-            {currentSlots.length === 1 ? "" : "n"} gewaehlt
+            {currentMaterial?.name ?? "Lädt..."} · {currentSlots?.length ?? 0} Farbe
+            {(currentSlots?.length ?? 0) === 1 ? "" : "n"} gewaehlt
           </p>
         </div>
 
         <div className="rounded-2xl border border-border/50 bg-card/50 p-4">
           <p className="mb-3 text-sm text-muted-foreground">
-            {currentMaterial.colors.filter((c) => c.inStock).length} Farben auf
+            {currentMaterial?.colors?.filter((c) => c.inStock).length ?? 0} Farben auf
             Lager
           </p>
           <div className="grid grid-cols-4 gap-2 sm:grid-cols-5">
-            {currentMaterial.colors.map((color) => {
-              const inSelection = currentSlots.some((c) => c.colorId === color.id)
+            {(currentMaterial?.colors ?? []).map((color) => {
+              const inSelection = currentSlots?.some((c) => c.colorId === color.id)
               return (
                 <button
                   key={color.id}
