@@ -24,7 +24,7 @@ import {
   normalizeServiceVisibility,
 } from "@/lib/dripforge/service-visibility"
 import type { ServiceVisibilitySettings } from "@/lib/admin/types"
-import { shopCartHref, shopNavHref, shopViewHref } from "@/lib/dripforge/shop-routes"
+import { shopCartHref, shopNavHref } from "@/lib/dripforge/shop-routes"
 import { SupportMissionLink, SUPPORT_ROUTE, HEADER_ICON_BTN_CLASS } from "@/components/dripforge/support-nav-link"
 import { useSupportPageSettings } from "@/hooks/use-support-page-active"
 
@@ -156,52 +156,55 @@ export function ShopHeader(props: ShopHeaderProps) {
     </>
   )
 
+  const navLinkClass = (active: boolean) =>
+    cn(
+      "inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-colors sm:px-4",
+      active
+        ? "bg-secondary text-foreground"
+        : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
+    )
+
   return (
     <header className="sticky top-0 z-50 border-b border-border/50 bg-background/80 backdrop-blur-xl">
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4">
+      <div className="mx-auto flex h-16 max-w-7xl items-center gap-3 px-4 sm:gap-4">
         {props.mode === "spa" ? (
           <button
             type="button"
             onClick={() => handleSpaNav("home")}
-            className="flex items-center gap-2"
+            className="relative z-20 flex shrink-0 items-center gap-2 pr-2 sm:pr-4"
           >
             {logo}
           </button>
         ) : (
-          <Link href="/" className="flex items-center gap-2">
+          <Link
+            href="/"
+            prefetch
+            className="relative z-20 flex shrink-0 items-center gap-2 pr-2 sm:pr-4"
+          >
             {logo}
           </Link>
         )}
 
-        <nav className="hidden items-center gap-1 md:flex">
+        <nav className="hidden min-w-0 flex-1 items-center justify-center gap-0.5 md:flex">
           {visibleNavItems.map((item) =>
             props.mode === "spa" ? (
               <button
                 key={item.id}
                 type="button"
                 onClick={() => handleSpaNav(item.id)}
-                className={cn(
-                  "flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors",
-                  isNavActive(item.id)
-                    ? "bg-secondary text-foreground"
-                    : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
-                )}
+                className={navLinkClass(isNavActive(item.id))}
               >
-                <item.icon className="h-4 w-4" />
+                <item.icon className="h-4 w-4 shrink-0" />
                 {item.label}
               </button>
             ) : (
               <Link
                 key={item.id}
                 href={shopNavHref(item.id)}
-                className={cn(
-                  "flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors",
-                  isNavActive(item.id)
-                    ? "bg-secondary text-foreground"
-                    : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
-                )}
+                prefetch
+                className={navLinkClass(isNavActive(item.id))}
               >
-                <item.icon className="h-4 w-4" />
+                <item.icon className="h-4 w-4 shrink-0" />
                 {item.label}
               </Link>
             )
@@ -215,7 +218,7 @@ export function ShopHeader(props: ShopHeaderProps) {
           )}
         </nav>
 
-        <div className="flex shrink-0 items-center gap-3">
+        <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
           <button
             type="button"
             onClick={toggleTheme}
@@ -327,7 +330,9 @@ export function ShopHeader(props: ShopHeaderProps) {
             </Button>
           ) : (
             <Button asChild className="hidden bg-primary text-primary-foreground hover:bg-primary/90 md:flex">
-              <Link href={shopNavHref("shop")}>Jetzt Erstellen</Link>
+              <Link href={shopNavHref("shop")} prefetch>
+                Jetzt Erstellen
+              </Link>
             </Button>
           )}
 
@@ -341,6 +346,7 @@ export function ShopHeader(props: ShopHeaderProps) {
 
           <Link
             href={kontoHref}
+            prefetch
             className={cn(
               "flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm font-medium transition-colors",
               kontoActive || (props.mode === "spa" && kontoLoggedIn)
@@ -386,6 +392,7 @@ export function ShopHeader(props: ShopHeaderProps) {
           ) : (
             <Link
               href={shopCartHref()}
+              prefetch
               className={cn(HEADER_ICON_BTN_CLASS, "relative hover:text-primary")}
               title="Warenkorb"
             >
@@ -431,9 +438,10 @@ export function ShopHeader(props: ShopHeaderProps) {
                 <Link
                   key={item.id}
                   href={shopNavHref(item.id)}
+                  prefetch
                   onClick={() => setMobileMenuOpen(false)}
                   className={cn(
-                    "flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors",
+                    "inline-flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors",
                     isNavActive(item.id)
                       ? "bg-secondary text-foreground"
                       : "text-muted-foreground hover:bg-secondary/50"
@@ -447,6 +455,7 @@ export function ShopHeader(props: ShopHeaderProps) {
             {supportPageVisible && (
               <Link
                 href={SUPPORT_ROUTE}
+                prefetch
                 onClick={() => setMobileMenuOpen(false)}
                 className={cn(
                   "flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors",
@@ -461,6 +470,7 @@ export function ShopHeader(props: ShopHeaderProps) {
             )}
             <Link
               href={kontoHref}
+              prefetch
               onClick={() => setMobileMenuOpen(false)}
               className={cn(
                 "flex items-center gap-3 rounded-lg border border-primary/20 px-4 py-3 text-sm font-medium",
