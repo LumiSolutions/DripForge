@@ -4,10 +4,11 @@ import {
   requireAdminSession,
 } from "@/lib/admin/require-admin-session"
 import { getStaffById, saveStaff } from "@/lib/admin/staff-db"
+import { loadStaffTotpSecret } from "@/lib/admin/staff-totp-setup"
 import { encryptTotpSecret } from "@/lib/admin/totp-crypto"
 import { verifyTotpCode } from "@/lib/admin/totp"
 
-/** 2FA nach Profil-Reset mit Code aus der App aktivieren. */
+/** 2FA nach Profil-Setup mit Code aus der App aktivieren. */
 export async function POST(request: Request) {
   const auth = requireAdminSession(request)
   if (isAuthError(auth)) return auth
@@ -15,18 +16,11 @@ export async function POST(request: Request) {
   try {
     const body = (await request.json()) as { code?: string; secretBase32?: string }
     const code = body.code?.trim() ?? ""
-    const secretBase32 = body.secretBase32?.replace(/\s/g, "") ?? ""
+    const secretFromBody = body.secretBase32?.replace(/\s/g, "") ?? ""
 
     if (!code) {
       return NextResponse.json(
         { error: "Verifizierungscode erforderlich." },
-        { status: 400 }
-      )
-    }
-
-    if (!secretBase32) {
-      return NextResponse.json(
-        { error: "2FA-Secret fehlt. Bitte Setup erneut starten." },
         { status: 400 }
       )
     }
@@ -39,7 +33,15 @@ export async function POST(request: Request) {
       )
     }
 
-    if (!verifyTotpCode(secretBase32, code)) {
+    const secret = loadStaffTotpSecret(account) ?? secretFromBody
+    if (!secret) {
+      return NextResponse.json(
+        { error: "2FA-Secret fehlt in der Datenbank. Bitte Setup erneut starten." },
+        { status: 400 }
+      )
+    }
+
+    if (!verifyTotpCode(secret, code)) {
       return NextResponse.json(
         { error: "Ungueltiger Verifizierungscode." },
         { status: 401 }
@@ -48,7 +50,7 @@ export async function POST(request: Request) {
 
     await saveStaff({
       ...account,
-      totpSecretEncrypted: encryptTotpSecret(secretBase32),
+      totpSecretEncrypted: encryptTotpSecret(secret),
       totpEnabled: true,
     })
 

@@ -64,24 +64,22 @@ export function StaffAuthFlow({
       if (!res.ok) throw new Error(data.error ?? "Anmeldung fehlgeschlagen")
 
       if (data.step === "setup") {
-        if (!setupMaterialRef.current) {
-          const setupRes = await fetch("/api/admin/auth/setup-totp", {
-            method: "POST",
-            credentials: "include",
-          })
-          const setupData = await setupRes.json()
-          if (!setupRes.ok) {
-            throw new Error(setupData.error ?? "2FA-Einrichtung fehlgeschlagen")
-          }
-          if (setupData.qrDataUrl && setupData.secretBase32) {
-            setupMaterialRef.current = {
-              qrDataUrl: setupData.qrDataUrl,
-              secretBase32: setupData.secretBase32,
-            }
-          }
+        const setupRes = await fetch("/api/admin/auth/setup-totp", {
+          method: "POST",
+          credentials: "include",
+        })
+        const setupData = await setupRes.json()
+        if (!setupRes.ok) {
+          throw new Error(setupData.error ?? "2FA-Einrichtung fehlgeschlagen")
         }
-        setQrDataUrl(setupMaterialRef.current?.qrDataUrl ?? null)
-        setSecretBase32(setupMaterialRef.current?.secretBase32 ?? null)
+        if (setupData.qrDataUrl && setupData.secretBase32) {
+          setupMaterialRef.current = {
+            qrDataUrl: setupData.qrDataUrl,
+            secretBase32: setupData.secretBase32,
+          }
+          setQrDataUrl(setupData.qrDataUrl)
+          setSecretBase32(setupData.secretBase32)
+        }
         setStep("setup")
       } else {
         setStep("totp")
@@ -106,20 +104,11 @@ export function StaffAuthFlow({
         ? "/api/admin/auth/confirm-totp"
         : "/api/admin/auth/verify-totp"
 
-      const activeSecret =
-        secretBase32 ?? setupMaterialRef.current?.secretBase32 ?? ""
-
-      if (isSetup && !activeSecret) {
-        throw new Error("2FA-Secret fehlt. Bitte Setup erneut starten.")
-      }
-
       const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify(
-          isSetup ? { code, secretBase32: activeSecret } : { code }
-        ),
+        body: JSON.stringify({ code }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? "Verifizierung fehlgeschlagen")

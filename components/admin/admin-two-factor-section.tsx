@@ -132,17 +132,11 @@ export function AdminTwoFactorSection() {
     setError(null)
     setSuccess(null)
     try {
-      const activeSecret =
-        secretBase32 ?? setupMaterialRef.current?.secretBase32 ?? ""
-      if (!activeSecret) {
-        throw new Error("2FA-Secret fehlt. Bitte Setup erneut starten.")
-      }
-
       const res = await fetch("/api/admin/auth/activate-totp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ code, secretBase32: activeSecret }),
+        body: JSON.stringify({ code }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? "Aktivierung fehlgeschlagen")

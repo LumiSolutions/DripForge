@@ -1,7 +1,11 @@
 import { promises as fs } from "fs"
 import path from "path"
+import { isCosmosConfigured } from "@/lib/cosmos/client"
 import { hashPassword, verifyPassword } from "@/lib/konto/password"
-import { withCosmosFallback } from "@/lib/admin/storage-bridge"
+import {
+  withCosmosFallback,
+  withCosmosRequired,
+} from "@/lib/admin/storage-bridge"
 import { getStaffPasswordFromEnv } from "@/lib/admin/staff-passwords"
 import {
   cosmosGetStaffById,
@@ -29,6 +33,10 @@ async function writeStaffFile(accounts: StaffAccount[]): Promise<void> {
 }
 
 export async function getStaffById(id: StaffRole): Promise<StaffAccount | null> {
+  if (isCosmosConfigured()) {
+    return withCosmosRequired("getStaffById", () => cosmosGetStaffById(id))
+  }
+
   return withCosmosFallback(
     "getStaffById",
     () => cosmosGetStaffById(id),
@@ -45,6 +53,13 @@ export async function saveStaff(account: StaffAccount): Promise<StaffAccount> {
     id: account.role,
     role: account.role,
     updatedAt: new Date().toISOString(),
+  }
+
+  if (isCosmosConfigured()) {
+    await withCosmosRequired("saveStaff", async () => {
+      await cosmosUpsertStaff(next)
+    })
+    return next
   }
 
   await withCosmosFallback(

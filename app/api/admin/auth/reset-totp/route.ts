@@ -4,7 +4,7 @@ import {
   requireAdminSession,
 } from "@/lib/admin/require-admin-session"
 import { getStaffById } from "@/lib/admin/staff-db"
-import { getTotpSetupMaterial } from "@/lib/admin/staff-totp-setup"
+import { getTotpSetupMaterial, TotpSecretError } from "@/lib/admin/staff-totp-setup"
 
 /** 2FA-Einrichtung im Profil: bestehendes Secret wiederverwenden oder bei force neu erzeugen. */
 export async function POST(request: Request) {
@@ -45,7 +45,6 @@ export async function POST(request: Request) {
 
     const { material } = await getTotpSetupMaterial(account, {
       forceNew,
-      persist: false,
     })
 
     return NextResponse.json({
@@ -58,6 +57,9 @@ export async function POST(request: Request) {
         : "Bestehender QR-Code. Beide Geraete koennen nacheinander scannen oder den Schluessel manuell eintragen.",
     })
   } catch (error) {
+    if (error instanceof TotpSecretError) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
     console.error("Admin-Auth: 2FA-Reset fehlgeschlagen.", error)
     return NextResponse.json(
       { error: "2FA konnte nicht zurueckgesetzt werden." },

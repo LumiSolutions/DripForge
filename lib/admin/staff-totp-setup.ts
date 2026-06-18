@@ -9,13 +9,28 @@ export type TotpSetupMaterial = {
   isNewSecret: boolean
 }
 
-/** Liefert QR + Base32; erzeugt das Secret nur beim allerersten Setup (oder bei forceNew). */
+export class TotpSecretError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = "TotpSecretError"
+  }
+}
+
+/** Prüft, ob ein entschlüsselbares TOTP-Secret in Cosmos hinterlegt ist. */
+export function staffHasPersistedTotpSecret(account: StaffAccount): boolean {
+  if (!account.totpSecretEncrypted) return false
+  return decryptTotpSecret(account.totpSecretEncrypted) !== null
+}
+
+/**
+ * Liefert QR + Base32. Erzeugt das Secret nur beim allerersten Setup (oder bei forceNew)
+ * und speichert es sofort in CosmosDB.
+ */
 export async function getTotpSetupMaterial(
   account: StaffAccount,
-  options?: { forceNew?: boolean; persist?: boolean }
+  options?: { forceNew?: boolean }
 ): Promise<{ account: StaffAccount; material: TotpSetupMaterial }> {
   const forceNew = options?.forceNew === true
-  const persist = options?.persist !== false
 
   if (!forceNew && account.totpSecretEncrypted) {
     const existing = decryptTotpSecret(account.totpSecretEncrypted)
@@ -30,27 +45,21 @@ export async function getTotpSetupMaterial(
         },
       }
     }
+
+    throw new TotpSecretError(
+      "Gespeichertes 2FA-Secret konnte nicht gelesen werden. Bitte ADMIN_2FA_ENCRYPTION_KEY pruefen oder 2FA im Portal zuruecksetzen."
+    )
   }
 
   const secret = generateTotpSecret()
   const qrDataUrl = await createTotpQrDataUrl(account.role, secret)
-
-  if (!persist) {
-    return {
-      account,
-      material: {
-        qrDataUrl,
-        secretBase32: secret,
-        isNewSecret: true,
-      },
-    }
-  }
 
   const updated = await saveStaff({
     ...account,
     totpSecretEncrypted: encryptTotpSecret(secret),
     totpEnabled: false,
   })
+
   return {
     account: updated,
     material: {
@@ -80,4 +89,10 @@ export async function clearAllStaff2fa(): Promise<{ cleared: StaffRole[] }> {
     if (result) cleared.push(role)
   }
   return { cleared }
+}
+
+/** Lädt das gespeicherte TOTP-Secret für die Code-Validierung. */
+export function loadStaffTotpSecret(account: StaffAccount): string | null {
+  if (!account.totpSecretEncrypted) return null
+  return decryptTotpSecret(account.totpSecretEncrypted)
 }

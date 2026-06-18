@@ -11,8 +11,12 @@ import {
   getAdminPendingFromRequest,
 } from "@/lib/admin/admin-session"
 import { getStaffById, saveStaff } from "@/lib/admin/staff-db"
-import { getTotpSetupMaterial } from "@/lib/admin/staff-totp-setup"
-import { decryptTotpSecret, encryptTotpSecret } from "@/lib/admin/totp-crypto"
+import {
+  getTotpSetupMaterial,
+  loadStaffTotpSecret,
+  staffHasPersistedTotpSecret,
+} from "@/lib/admin/staff-totp-setup"
+import { encryptTotpSecret } from "@/lib/admin/totp-crypto"
 import { verifyTotpCode } from "@/lib/admin/totp"
 import type { StaffAccount, StaffAuthIntent, StaffRole } from "@/lib/admin/staff-types"
 
@@ -27,6 +31,7 @@ export function staffLoginStepResponse(
     step: account.totpEnabled ? "totp" : "setup",
     role: account.role,
     totpEnabled: account.totpEnabled,
+    needsTotpSetup: !account.totpEnabled && !staffHasPersistedTotpSecret(account),
   })
 
   response.cookies.set(
@@ -68,7 +73,7 @@ export async function setupTotpForPending(
     )
   }
 
-  const { material } = await getTotpSetupMaterial(account, { persist: false })
+  const { material } = await getTotpSetupMaterial(account)
 
   return NextResponse.json({
     success: true,
@@ -103,17 +108,15 @@ export async function completeTotpVerification(
   }
 
   const providedSecret = options?.secretBase32?.replace(/\s/g, "") ?? ""
-  let secret: string | null = null
+  let secret = loadStaffTotpSecret(account)
 
-  if (providedSecret) {
+  if (!secret && providedSecret) {
     secret = providedSecret
-  } else if (account.totpSecretEncrypted) {
-    secret = decryptTotpSecret(account.totpSecretEncrypted)
   }
 
   if (!secret) {
     return NextResponse.json(
-      { error: "2FA ist noch nicht eingerichtet." },
+      { error: "2FA ist noch nicht eingerichtet. Bitte QR-Code scannen und Setup abschliessen." },
       { status: 400 }
     )
   }
