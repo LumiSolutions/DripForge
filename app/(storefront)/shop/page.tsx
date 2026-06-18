@@ -12,7 +12,7 @@ import { normalizeShopProduct } from "@/lib/dripforge/normalize-shop-product"
 function ShopPageInner() {
   const navigate = useShopNavigate()
   const { addToCart } = useCart()
-  const services = useServiceVisibility()
+  const { services, isLoaded: servicesLoaded } = useServiceVisibility()
   const searchParams = useSearchParams()
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
 
@@ -44,6 +44,7 @@ function ShopPageInner() {
       setSelectedProduct={setSelectedProduct}
       addToCart={addToCart}
       services={services}
+      servicesLoaded={servicesLoaded}
     />
   )
 }

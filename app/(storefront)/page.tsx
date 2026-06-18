@@ -6,7 +6,7 @@ import { useServiceVisibility } from "@/hooks/use-service-visibility"
 
 export default function HomeRoutePage() {
   const navigate = useShopNavigate()
-  const services = useServiceVisibility()
+  const { services } = useServiceVisibility()
 
   return <HomePage setCurrentView={navigate} services={services} />
 }

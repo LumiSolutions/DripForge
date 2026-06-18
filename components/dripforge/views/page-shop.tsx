@@ -92,6 +92,8 @@ type PageShopProps = {
   setSelectedProduct: (product: Product | null) => void
   addToCart: (item: CartItem) => void
   services: ServiceVisibilitySettings
+  /** false bis /api/settings/services geantwortet hat — Teaser-Karten optimistisch anzeigen */
+  servicesLoaded?: boolean
 }
 
 type ShopSortMode = "price-asc" | "price-desc" | "newest" | "popular"
@@ -126,6 +128,7 @@ export function PageShop({
   setSelectedProduct,
   addToCart,
   services,
+  servicesLoaded = false,
 }: PageShopProps) {
   const { t } = useSiteTexts()
   const filamentMaterials = useFilamentMaterials()
@@ -138,8 +141,8 @@ export function PageShop({
   }, [filamentMaterials])
 
   const aiPublic = useAiPublicSettings()
-  const showCustom3d = Boolean(services?.druck3d)
-  const showCustomLaser = Boolean(services?.lasergravur)
+  const showCustom3d = servicesLoaded ? Boolean(services.druck3d) : true
+  const showCustomLaser = servicesLoaded ? Boolean(services.lasergravur) : true
   const showAiKonfigurator = showCustom3d && Boolean(aiPublic?.enabled)
   const [filamentTab, setFilamentTab] = useState("pla")
   const [filamentSelection, setFilamentSelection] = useState<FilamentSelection | null>(null)
