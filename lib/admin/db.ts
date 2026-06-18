@@ -73,6 +73,14 @@ import {
   cosmosGetAiSettings,
   cosmosSaveAiSettings,
 } from "@/lib/admin/cosmos-ai-settings"
+import {
+  cosmosGetPrintCalculatorSettings,
+  cosmosSavePrintCalculatorSettings,
+} from "@/lib/admin/cosmos-print-calculator"
+import {
+  mergePrintCalculatorSettings,
+  type PrintCalculatorSettings,
+} from "@/lib/admin/print-calculator-types"
 import { mergeAiSettings, type AiSettingsDocument } from "@/lib/ai/ai-settings-types"
 import { mergeSiteTexts, type SiteTexts } from "@/lib/admin/site-texts"
 import type { AdminFilament } from "@/lib/admin/filament-types"
@@ -98,6 +106,7 @@ const SITE_TEXTS_FILE = "site-texts.json"
 const FILAMENTS_FILE = "filaments.json"
 const MATERIAL_STATS_FILE = "material-stats.json"
 const AI_SETTINGS_FILE = "ai-settings.json"
+const PRINT_CALCULATOR_FILE = "print-calculator-settings.json"
 const CUSTOMERS_FILE = "customers.json"
 
 async function ensureDataDir(): Promise<void> {
@@ -626,6 +635,28 @@ export async function saveAiSettings(
   settings: AiSettingsDocument
 ): Promise<AiSettingsDocument> {
   return withCosmosRequired("saveAiSettings", () => cosmosSaveAiSettings(settings))
+}
+
+export async function getPrintCalculatorSettings(): Promise<PrintCalculatorSettings> {
+  return withCosmosFallback(
+    "getPrintCalculatorSettings",
+    cosmosGetPrintCalculatorSettings,
+    async () => {
+      const stored = await readJsonFile<Partial<PrintCalculatorSettings> | null>(
+        PRINT_CALCULATOR_FILE,
+        null
+      )
+      return mergePrintCalculatorSettings(stored)
+    }
+  )
+}
+
+export async function savePrintCalculatorSettings(
+  settings: PrintCalculatorSettings
+): Promise<PrintCalculatorSettings> {
+  return withCosmosRequired("savePrintCalculatorSettings", () =>
+    cosmosSavePrintCalculatorSettings(settings)
+  )
 }
 
 export async function getAdminFilaments(): Promise<AdminFilament[]> {

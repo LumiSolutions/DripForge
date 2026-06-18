@@ -34,7 +34,10 @@ import {
   type LoadedIndividualModel,
   type ModelMeshPart,
 } from "@/lib/dripforge/load-3d-geometry"
-import { calculate3DPrintPrice } from "@/lib/dripforge/calculate-3d-print-price"
+import {
+  calculate3DPrintPriceLegacy,
+  type PrintPriceBreakdown,
+} from "@/lib/dripforge/calculate-3d-print-price"
 import {
   getLongestAxisAtScale,
   getRealDimensionsMm,
@@ -42,10 +45,6 @@ import {
   scalePercentFromLongestAxis,
 } from "@/lib/dripforge/model-scale"
 import { exceedsMaxPrintVolume } from "@/lib/dripforge/print-limits"
-import {
-  DEFAULT_PRICING_CONFIG,
-  type PricingConfig,
-} from "@/lib/dripforge/pricing-config"
 import { PrintVolumeWarning } from "@/components/dripforge/shared/print-volume-warning"
 import { useFilamentMaterials } from "@/hooks/use-filament-materials"
 import { capture3dPreviewLeitbild } from "@/lib/dripforge/capture-leitbild"
@@ -102,8 +101,11 @@ export function PageIndividual3D({
   >(null)
   const [quantity, setQuantity] = useState(1)
   const [scale, setScale] = useState(100)
-  /** Spaeter: per fetch aus Admin-Portal / Datenbank befuellen */
-  const [pricingConfig] = useState<PricingConfig>(DEFAULT_PRICING_CONFIG)
+  const [priceBreakdown, setPriceBreakdown] = useState<PrintPriceBreakdown | null>(
+    null
+  )
+  const [priceLoading, setPriceLoading] = useState(false)
+  const [multiColorSurchargePercent, setMultiColorSurchargePercent] = useState(15)
   const previewCanvasRef = useRef<HTMLCanvasElement>(null)
   const filamentMaterials = useFilamentMaterials()
 
@@ -134,15 +136,64 @@ export function PageIndividual3D({
   const allColorsInStock =
     multiColorSelection?.colors.every((c) => c.inStock) ?? false
 
-  const priceBreakdown = useMemo(() => {
+  const priceBreakdownLegacy = useMemo(() => {
     if (!dimensions) return null
-    return calculate3DPrintPrice(
-      dimensions.volume,
-      quantity,
-      pricingConfig,
-      colorCount
-    )
-  }, [dimensions, quantity, pricingConfig, colorCount])
+    return calculate3DPrintPriceLegacy(dimensions.volume, quantity, undefined, colorCount)
+  }, [dimensions, quantity, colorCount])
+
+  useEffect(() => {
+    void fetch("/api/settings/print-pricing", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { multiColorSurchargePercentPerExtra?: number } | null) => {
+        if (data?.multiColorSurchargePercentPerExtra != null) {
+          setMultiColorSurchargePercent(data.multiColorSurchargePercentPerExtra)
+        }
+      })
+      .catch(() => {
+        /* Fallback bleibt 15 % */
+      })
+  }, [])
+
+  useEffect(() => {
+    if (!dimensions || dimensions.volume <= 0) {
+      setPriceBreakdown(null)
+      return
+    }
+
+    const controller = new AbortController()
+    setPriceLoading(true)
+
+    void fetch("/api/settings/print-pricing", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        volumeCm3: dimensions.volume,
+        quantity,
+        colorCount,
+      }),
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        const data = (await res.json()) as {
+          breakdown?: PrintPriceBreakdown
+          error?: string
+        }
+        if (!res.ok || !data.breakdown) {
+          setPriceBreakdown(priceBreakdownLegacy)
+          return
+        }
+        setPriceBreakdown(data.breakdown)
+      })
+      .catch((err) => {
+        if (err instanceof Error && err.name === "AbortError") return
+        setPriceBreakdown(priceBreakdownLegacy)
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setPriceLoading(false)
+      })
+
+    return () => controller.abort()
+  }, [dimensions, quantity, colorCount, priceBreakdownLegacy])
 
   const previewMeshParts = useMemo((): ColoredMeshPart[] | null => {
     if (meshParts.length === 0) return null
@@ -581,7 +632,14 @@ export function PageIndividual3D({
             {dimensions && priceBreakdown && (
               <Card className="border-primary/30 bg-gradient-to-b from-primary/10 to-transparent">
                 <CardContent className="p-6">
-                  <h3 className="mb-4 font-bold">Preisberechnung</h3>
+                  <h3 className="mb-4 font-bold">
+                    Preisberechnung
+                    {priceLoading && (
+                      <span className="ml-2 text-xs font-normal text-muted-foreground">
+                        wird aktualisiert…
+                      </span>
+                    )}
+                  </h3>
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Abmessungen</span>
@@ -619,8 +677,7 @@ export function PageIndividual3D({
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">
                           Mehrfarben-Aufschlag (
-                          {pricingConfig.multiColorSurchargePercentPerExtra}% pro
-                          Extra-Farbe)
+                          {multiColorSurchargePercent}% pro Extra-Farbe)
                         </span>
                         <span>
                           CHF {priceBreakdown.multiColorSurcharge.toFixed(2)}

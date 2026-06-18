@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import {
+  Calculator,
   ClipboardList,
   Factory,
   LayoutDashboard,
@@ -32,6 +33,7 @@ import { AdminCouponsTab } from "@/components/admin/admin-coupons-tab"
 import { AdminMaterialsTab } from "@/components/admin/admin-materials-tab"
 import { AdminMaterialStatsSection } from "@/components/admin/admin-material-stats-section"
 import { AdminProductionTab } from "@/components/admin/admin-production-tab"
+import { AdminPrintCalculatorTab } from "@/components/admin/admin-print-calculator-tab"
 import { AdminStatsTab } from "@/components/admin/admin-stats-tab"
 import { StaffAuthFlow } from "@/components/admin/staff-auth-flow"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
@@ -50,6 +52,7 @@ type AdminTab =
   | "settings"
   | "site-texts"
   | "filaments"
+  | "print-calculator"
   | "ai-settings"
 
 type InventorySubTab = MaterialCategory | "material-types"
@@ -71,6 +74,7 @@ const NAV: { id: AdminTab; label: string; icon: typeof ClipboardList }[] = [
   { id: "settings", label: "Shop-Einstellungen", icon: Settings },
   { id: "site-texts", label: "Texte & Inhalte", icon: Type },
   { id: "ai-settings", label: "KI-Modell-Konfiguration", icon: Sparkles },
+  { id: "print-calculator", label: "Druck-Kalkulator", icon: Calculator },
   { id: "filaments", label: "Filament-Verwaltung", icon: Layers },
 ]
 
@@ -345,6 +349,7 @@ export function AdminDashboard() {
         {tab === "site-texts" && <AdminSiteTextsTab />}
         {tab === "ai-settings" && <AdminAiSettingsTab />}
         {tab === "filaments" && <AdminFilamentsTab />}
+        {tab === "print-calculator" && <AdminPrintCalculatorTab />}
       </main>
     </div>
   )
