@@ -56,16 +56,25 @@ function isCosmosConfigured() {
 
 async function clearInCosmos(role) {
   const databaseId = process.env.COSMOSDB_DATABASE?.trim() || "dripforge"
-  const containerId =
-    process.env.COSMOSDB_STAFF_CONTAINER?.trim() || "staff-accounts"
 
   const client = new CosmosClient({
     endpoint: process.env.COSMOSDB_ENDPOINT,
     key: process.env.COSMOSDB_KEY,
   })
 
-  const container = client.database(databaseId).container(containerId)
-  const { resource } = await container.item(role, role).read()
+  const container = client.database(databaseId).container("settings")
+  const docId = `staff-${role}`
+  let resource
+  try {
+    const result = await container.item(docId, docId).read()
+    resource = result.resource
+  } catch (err) {
+    if (err.code === 404 || err.statusCode === 404) {
+      console.warn(`[cosmos] Kein Dokument fuer "${role}" gefunden.`)
+      return false
+    }
+    throw err
+  }
   if (!resource) {
     console.warn(`[cosmos] Kein Dokument fuer "${role}" gefunden.`)
     return false
