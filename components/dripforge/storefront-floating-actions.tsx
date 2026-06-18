@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import {
   Send,
   MessageCircle,
@@ -26,6 +26,7 @@ type ChatMessage = {
 
 /** Globale schwebende Aktionen: Support-Herz + Chatbot auf allen Seiten. */
 export function StorefrontFloatingActions() {
+  const pathname = usePathname()
   const router = useRouter()
   const { showSupportOnMainSite: supportPageVisible } = useSupportPageSettings()
   const [chatOpen, setChatOpen] = useState(false)
@@ -60,6 +61,11 @@ export function StorefrontFloatingActions() {
       ])
     }, 1000)
   }, [chatInput])
+
+  // Launch-/Countdown-Startseite: nur Header-Herz, keine schwebenden Overlays unten rechts.
+  if (pathname === "/") {
+    return null
+  }
 
   return (
     <div className="pointer-events-none fixed bottom-6 right-6 z-[100] flex flex-col items-end gap-3">
