@@ -16,10 +16,18 @@ import {
   type StoredOrder,
   type StoredOrderItem,
 } from "@/lib/admin/types"
-import { calculateCheckoutTotalsWithCoupon } from "@/lib/dripforge/coupon-checkout"
+import { calculateCheckoutTotalsWithCoupon, calculateCheckoutTotalsWithDiscounts } from "@/lib/dripforge/coupon-checkout"
 import { getShippingCost } from "@/lib/dripforge/checkout-config"
 import type { OrderPayload } from "@/lib/dripforge/submit-order"
 import { grantAiCreditsForPaidOrder } from "@/lib/konto/ai-credits"
+import { getAccountByEmail } from "@/lib/konto/account-db"
+import {
+  grantLoyaltyPointsForPaidOrder,
+  maxRedeemablePoints,
+  normalizeLoyaltyPoints,
+  redeemLoyaltyPointsForOrder,
+  LOYALTY_MIN_GATEWAY_PAYMENT_CHF,
+} from "@/lib/konto/loyalty-points"
 import { applyInventoryReservationForOrder } from "@/lib/admin/order-inventory-hook"
 
 function stripLeitbildPayload(item: StoredOrderItem): StoredOrderItem {
@@ -45,6 +53,8 @@ export async function processOrderPayload(
     orderId?: string
     paymentConfirmed?: boolean
     stripeSessionId?: string | null
+    /** false = volle Punkteeinlösung ohne Gateway-Mindestbetrag (Rechnung) */
+    enforceGatewayMinForPoints?: boolean
   }
 ): Promise<ProcessOrderResult> {
   if (!payload.items?.length || !payload.billing?.email) {
@@ -80,11 +90,14 @@ export async function processOrderPayload(
     }
   }
 
-  const serverTotals = calculateCheckoutTotalsWithCoupon(
+  const serverTotals = calculateCheckoutTotalsWithDiscounts(
     subtotal,
     shippingCost,
     settings.checkout,
-    appliedCoupon
+    {
+      coupon: appliedCoupon,
+      pointsToRedeem: await resolvePointsToRedeem(payload, appliedCoupon, subtotal, shippingCost, settings.checkout, options),
+    }
   )
 
   const itemResults = await Promise.all(
@@ -145,6 +158,50 @@ export async function processOrderPayload(
   }
 }
 
+async function resolvePointsToRedeem(
+  payload: OrderPayload,
+  appliedCoupon: {
+    code: string
+    discountType: "percent" | "fixed"
+    discountValue: number
+  } | null,
+  subtotal: number,
+  shippingCost: number,
+  checkoutConfig: AdminSettings["checkout"],
+  options?: { enforceGatewayMinForPoints?: boolean }
+): Promise<number> {
+  const requested = normalizeLoyaltyPoints(payload.pointsToRedeem ?? 0)
+  if (requested <= 0) return 0
+
+  const account = await getAccountByEmail(payload.billing.email)
+  if (!account) {
+    throw new Error("Treuepunkte können nur mit einem Kundenkonto eingelöst werden.")
+  }
+
+  const beforePoints = calculateCheckoutTotalsWithCoupon(
+    subtotal,
+    shippingCost,
+    checkoutConfig,
+    appliedCoupon
+  )
+  const enforceMin = options?.enforceGatewayMinForPoints !== false
+  const maxPoints = maxRedeemablePoints(
+    normalizeLoyaltyPoints(account.loyaltyPoints),
+    beforePoints.total,
+    enforceMin ? LOYALTY_MIN_GATEWAY_PAYMENT_CHF : 0
+  )
+
+  if (requested > maxPoints) {
+    throw new Error(
+      maxPoints > 0
+        ? `Maximal ${maxPoints} Punkte einlösbar.`
+        : "Keine Punkte für diese Bestellung einlösbar."
+    )
+  }
+
+  return requested
+}
+
 /** Nach Stripe- oder TWINT-Zahlung: Bestellung abschliessen, Rechnung & KI-Credits. */
 export async function fulfillPaidShopOrder(
   orderId: string,
@@ -154,15 +211,15 @@ export async function fulfillPaidShopOrder(
     userId?: string | null
     totalChf?: number
   }
-): Promise<{ fulfilled: boolean; aiCreditsGranted: number }> {
+): Promise<{ fulfilled: boolean; aiCreditsGranted: number; loyaltyPointsGranted: number }> {
   const order = await getOrderById(orderId)
   if (!order) {
     console.warn(`Shop-Fulfillment: Bestellung ${orderId} nicht gefunden.`)
-    return { fulfilled: false, aiCreditsGranted: 0 }
+    return { fulfilled: false, aiCreditsGranted: 0, loyaltyPointsGranted: 0 }
   }
 
   if (order.paymentConfirmed) {
-    return { fulfilled: false, aiCreditsGranted: 0 }
+    return { fulfilled: false, aiCreditsGranted: 0, loyaltyPointsGranted: 0 }
   }
 
   const settings = await getSettings()
@@ -210,18 +267,40 @@ export async function fulfillPaidShopOrder(
     options.totalChf && options.totalChf > 0
       ? options.totalChf
       : order.totals.total
+
+  const pointsRedeemed = normalizeLoyaltyPoints(order.totals.pointsRedeemed ?? 0)
+  if (pointsRedeemed > 0) {
+    const redeem = await redeemLoyaltyPointsForOrder(
+      creditEmail,
+      pointsRedeemed,
+      orderId
+    )
+    if (!redeem.success && redeem.reason !== "already_redeemed") {
+      console.error(
+        `Shop-Fulfillment: Punkteeinlösung fehlgeschlagen (${orderId}, ${redeem.reason}).`
+      )
+    }
+  }
+
   const grant = await grantAiCreditsForPaidOrder(
     creditEmail,
     totalChf,
     paymentRef
   )
 
+  const loyaltyGrant = await grantLoyaltyPointsForPaidOrder(
+    creditEmail,
+    totalChf,
+    orderId
+  )
+
   console.info(
-    `Shop-Fulfillment: ${orderId} bezahlt${grant.granted ? `, +${grant.credits} KI-Credits` : ""}.`
+    `Shop-Fulfillment: ${orderId} bezahlt${grant.granted ? `, +${grant.credits} KI-Credits` : ""}${loyaltyGrant.success ? `, +${loyaltyGrant.points} Treuepunkte` : ""}.`
   )
 
   return {
     fulfilled: true,
     aiCreditsGranted: grant.granted ? grant.credits : 0,
+    loyaltyPointsGranted: loyaltyGrant.success ? loyaltyGrant.points : 0,
   }
 }

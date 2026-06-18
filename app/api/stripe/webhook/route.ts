@@ -12,6 +12,7 @@ import {
 } from "@/lib/support/types"
 import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
 import { fulfillPaidShopOrder } from "@/lib/shop/order-processing"
+import { fulfillPointsPurchase } from "@/lib/shop/points-purchase"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -68,39 +69,6 @@ async function persistCompletedCheckoutSession(
   return cosmosSaveProjectSupporter(supporter)
 }
 
-async function handleShopCheckoutCompleted(
-  session: Stripe.Checkout.Session
-): Promise<void> {
-  if (session.payment_status !== "paid" && session.status !== "complete") {
-    return
-  }
-
-  const purpose = session.metadata?.purpose
-  if (purpose !== "shop-order" && purpose !== "shop-checkout") {
-    return
-  }
-
-  const orderId = session.metadata?.orderId?.trim()
-  if (!orderId) {
-    console.warn("Stripe Webhook: shop-order ohne orderId in metadata.")
-    return
-  }
-
-  const amountCents = session.amount_total ?? 0
-  const totalChf =
-    amountCents > 0
-      ? Math.round(amountCents) / 100
-      : Number(session.metadata?.totalChf ?? 0)
-
-  const userId = session.metadata?.userId?.trim() || null
-
-  await fulfillPaidShopOrder(orderId, {
-    stripeSessionId: session.id,
-    userId,
-    totalChf,
-  })
-}
-
 export async function POST(request: Request) {
   if (!isStripeConfigured()) {
     return NextResponse.json({ error: "Stripe nicht konfiguriert." }, { status: 503 })
@@ -133,10 +101,31 @@ export async function POST(request: Request) {
 
     if (event.type === "checkout.session.completed") {
       const session = event.data.object as Stripe.Checkout.Session
-      if (session.metadata?.purpose === "support-journey") {
+      const purpose = session.metadata?.purpose
+
+      if (purpose === "support-journey") {
         await persistCompletedCheckoutSession(session)
-      } else {
-        await handleShopCheckoutCompleted(session)
+      } else if (purpose === "shop-order") {
+        const orderId = session.metadata?.orderId?.trim()
+        if (orderId) {
+          const amountCents = session.amount_total ?? 0
+          const totalChf =
+            amountCents > 0
+              ? Math.round(amountCents) / 100
+              : Number(session.metadata?.totalChf ?? 0)
+          await fulfillPaidShopOrder(orderId, {
+            stripeSessionId: session.id,
+            userId: session.metadata?.userId?.trim() || null,
+            totalChf,
+          })
+        }
+      } else if (purpose === "points-purchase") {
+        const purchaseId = session.metadata?.purchaseId?.trim()
+        const email = session.metadata?.userId?.trim()
+        const points = Number(session.metadata?.points ?? 0)
+        if (purchaseId && email && points > 0) {
+          await fulfillPointsPurchase(purchaseId, email, points, session.id)
+        }
       }
     }
 

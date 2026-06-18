@@ -1,12 +1,18 @@
 import type { CheckoutRuntimeConfig } from "@/lib/dripforge/checkout-config"
 import { calculateCheckoutTotals } from "@/lib/dripforge/checkout-config"
 import type { CouponDiscountType } from "@/lib/admin/coupon-types"
+import {
+  calculatePointsDiscountChf,
+  normalizeLoyaltyPoints,
+} from "@/lib/konto/loyalty-points-config"
 
 export type CheckoutTotalsWithCoupon = {
   subtotal: number
   shippingCost: number
   discountAmount: number
   couponCode?: string
+  pointsRedeemed?: number
+  pointsDiscountChf?: number
   vat: number
   total: number
   mwstAktiv: boolean
@@ -68,5 +74,53 @@ export function calculateCheckoutTotalsWithCoupon(
     vat,
     total,
     mwstAktiv: config.mwstAktiv,
+  }
+}
+
+/** Gutschein + optionale Treuepunkte auf den Checkout anwenden. */
+export function calculateCheckoutTotalsWithDiscounts(
+  subtotal: number,
+  shippingCost: number,
+  config: Pick<CheckoutRuntimeConfig, "mwstAktiv" | "mwstSatz">,
+  options?: {
+    coupon?: {
+      code: string
+      discountType: CouponDiscountType
+      discountValue: number
+    } | null
+    pointsToRedeem?: number
+  }
+): CheckoutTotalsWithCoupon {
+  const withCoupon = calculateCheckoutTotalsWithCoupon(
+    subtotal,
+    shippingCost,
+    config,
+    options?.coupon ?? null
+  )
+
+  const points = normalizeLoyaltyPoints(options?.pointsToRedeem ?? 0)
+  if (points <= 0) {
+    return withCoupon
+  }
+
+  const pointsDiscountChf = Math.min(
+    withCoupon.total,
+    calculatePointsDiscountChf(points)
+  )
+  const finalTotal = Math.max(
+    0,
+    Math.round((withCoupon.total - pointsDiscountChf) * 100) / 100
+  )
+  const finalVat =
+    withCoupon.total > 0
+      ? Math.round(withCoupon.vat * (finalTotal / withCoupon.total) * 100) / 100
+      : 0
+
+  return {
+    ...withCoupon,
+    pointsRedeemed: points,
+    pointsDiscountChf,
+    vat: finalVat,
+    total: finalTotal,
   }
 }

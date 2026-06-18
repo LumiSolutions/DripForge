@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import {
+  Coins,
   LayoutDashboard,
   LogOut,
   MapPin,
@@ -15,6 +16,7 @@ import { cn } from "@/lib/utils"
 const NAV = [
   { href: "/konto", label: "Übersicht", icon: LayoutDashboard, exact: true },
   { href: "/konto/bestellungen", label: "Bestellungen", icon: Package, exact: false },
+  { href: "/konto/punkte", label: "Treuepunkte", icon: Coins, exact: false },
   { href: "/konto/profil", label: "Profil & Adressen", icon: MapPin, exact: false },
   { href: "/konto/designs", label: "Meine Designs", icon: Palette, exact: false },
 ]

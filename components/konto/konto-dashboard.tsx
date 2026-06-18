@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { Loader2, Package, Palette } from "lucide-react"
+import { Loader2, Package, Palette, Coins } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { KontoShell } from "@/components/konto/konto-shell"
 import { useSiteTexts } from "@/components/dripforge/site-texts-provider"
@@ -13,6 +13,8 @@ type Account = {
   firstName: string
   lastName: string
   kundennummer?: string
+  loyaltyPoints?: number
+  loyaltyBalanceChf?: number
 }
 
 export function KontoDashboard() {
@@ -85,6 +87,25 @@ export function KontoDashboard() {
               <div>
                 <p className="text-2xl font-bold tabular-nums">{orders.length}</p>
                 <p className="text-sm text-muted-foreground">Bestellungen</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="rounded-2xl border-primary/25 bg-primary/5">
+            <CardContent className="flex items-center gap-4 p-6">
+              <Coins className="h-8 w-8 text-primary" />
+              <div>
+                <p className="text-2xl font-bold tabular-nums">
+                  {account?.loyaltyPoints ?? 0} Punkte
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  = CHF {(account?.loyaltyBalanceChf ?? 0).toFixed(2)} Guthaben
+                </p>
+                <Link
+                  href="/konto/punkte"
+                  className="mt-1 inline-block text-sm text-primary hover:underline"
+                >
+                  Punkte kaufen →
+                </Link>
               </div>
             </CardContent>
           </Card>

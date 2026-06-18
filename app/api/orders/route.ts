@@ -2,6 +2,11 @@ import { NextResponse } from "next/server"
 import { isCosmosConfigured } from "@/lib/admin/cosmos-store"
 import { getAccountByEmail } from "@/lib/konto/account-db"
 import { grantAiCreditsForPaidOrder } from "@/lib/konto/ai-credits"
+import {
+  grantLoyaltyPointsForPaidOrder,
+  redeemLoyaltyPointsForOrder,
+  normalizeLoyaltyPoints,
+} from "@/lib/konto/loyalty-points"
 import type { OrderPayload } from "@/lib/dripforge/submit-order"
 import { processOrderPayload } from "@/lib/shop/order-processing"
 import { upsertCustomerFromOrder, getSettings } from "@/lib/admin/db"
@@ -23,6 +28,7 @@ export async function POST(request: Request) {
 
     const { order, itemResults, settings } = await processOrderPayload(payload, {
       paymentConfirmed: true,
+      enforceGatewayMinForPoints: false,
     })
     orderId = order.orderId
 
@@ -35,6 +41,17 @@ export async function POST(request: Request) {
 
     const portalAccount = await getAccountByEmail(order.billing.email)
     let aiCreditsGranted = 0
+    let loyaltyPointsGranted = 0
+
+    const pointsRedeemed = normalizeLoyaltyPoints(order.totals.pointsRedeemed ?? 0)
+    if (pointsRedeemed > 0 && portalAccount) {
+      await redeemLoyaltyPointsForOrder(
+        order.billing.email,
+        pointsRedeemed,
+        order.orderId
+      )
+    }
+
     if (portalAccount) {
       const grant = await grantAiCreditsForPaidOrder(
         order.billing.email,
@@ -46,6 +63,15 @@ export async function POST(request: Request) {
         console.info(
           `Bestell-API: +${grant.credits} KI-Credits für ${order.billing.email} (${orderId}).`
         )
+      }
+
+      const loyaltyGrant = await grantLoyaltyPointsForPaidOrder(
+        order.billing.email,
+        order.totals.total,
+        orderId
+      )
+      if (loyaltyGrant.success) {
+        loyaltyPointsGranted = loyaltyGrant.points
       }
     }
 
@@ -70,6 +96,7 @@ export async function POST(request: Request) {
       orderId,
       kundennummer: customer.kundennummer,
       aiCreditsGranted,
+      loyaltyPointsGranted,
       items: itemResults,
       message: "Bestellung erfolgreich übermittelt.",
     })

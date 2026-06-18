@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useEffect } from "react"
 import {
+  Coins,
   ArrowLeft,
   CreditCard,
   Lock,
@@ -33,8 +34,14 @@ import {
 } from "@/lib/dripforge/checkout-config"
 import {
   calculateCheckoutTotalsWithCoupon,
+  calculateCheckoutTotalsWithDiscounts,
   type CheckoutTotalsWithCoupon,
 } from "@/lib/dripforge/coupon-checkout"
+import {
+  maxRedeemablePoints,
+  loyaltyPointsToChf,
+} from "@/lib/konto/loyalty-points-config"
+import { useCustomerLoyaltyPoints } from "@/hooks/use-customer-loyalty-points"
 import type { CartItem } from "@/lib/dripforge/types"
 import { cn } from "@/lib/utils"
 import { submitOrder, startStripeCheckout, startTwintCheckout, type OrderPayload } from "@/lib/dripforge/submit-order"
@@ -250,22 +257,55 @@ export function PageCheckout({
   const [couponTotals, setCouponTotals] = useState<CheckoutTotalsWithCoupon | null>(
     null
   )
+  const [appliedCouponMeta, setAppliedCouponMeta] = useState<{
+    code: string
+    discountType: "percent" | "fixed"
+    discountValue: number
+  } | null>(null)
   const [stripeConfigured, setStripeConfigured] = useState(false)
   const [payrexxConfigured, setPayrexxConfigured] = useState(false)
+  const [pointsToRedeem, setPointsToRedeem] = useState(0)
+  const { loggedIn, loyaltyPoints, loading: loyaltyLoading } =
+    useCustomerLoyaltyPoints()
 
   const subtotal = useMemo(
     () => cart.reduce((sum, item) => sum + item.price * item.quantity, 0),
     [cart]
   )
   const shippingCost = getShippingCost(shippingMethod)
-  const totals: CheckoutTotalsWithCoupon =
+  const baseTotals =
     couponTotals ??
     calculateCheckoutTotalsWithCoupon(subtotal, shippingCost, checkoutConfig, null)
+  const maxPoints = loggedIn
+    ? maxRedeemablePoints(loyaltyPoints, baseTotals.total)
+    : 0
+  const effectivePoints = Math.min(pointsToRedeem, maxPoints)
+  const totals: CheckoutTotalsWithCoupon = useMemo(() => {
+    if (effectivePoints <= 0) return baseTotals
+    return calculateCheckoutTotalsWithDiscounts(
+      subtotal,
+      shippingCost,
+      checkoutConfig,
+      {
+        coupon: appliedCouponMeta,
+        pointsToRedeem: effectivePoints,
+      }
+    )
+  }, [
+    effectivePoints,
+    subtotal,
+    shippingCost,
+    checkoutConfig,
+    baseTotals,
+    appliedCouponMeta,
+  ])
 
   useEffect(() => {
     setAppliedCouponCode(null)
+    setAppliedCouponMeta(null)
     setCouponTotals(null)
     setCouponError(null)
+    setPointsToRedeem(0)
   }, [subtotal, shippingMethod, checkoutConfig.mwstAktiv, checkoutConfig.mwstSatz])
 
   const applyCoupon = async () => {
@@ -290,6 +330,8 @@ export function PageCheckout({
         valid?: boolean
         error?: string
         code?: string
+        discountType?: "percent" | "fixed"
+        discountValue?: number
         totals?: CheckoutTotalsWithCoupon
       }
       if (!data.valid || !data.totals) {
@@ -300,6 +342,11 @@ export function PageCheckout({
       }
       setCouponTotals(data.totals)
       setAppliedCouponCode(data.code ?? code.toUpperCase())
+      setAppliedCouponMeta({
+        code: data.code ?? code.toUpperCase(),
+        discountType: data.discountType ?? "percent",
+        discountValue: Number(data.discountValue) || 0,
+      })
       setCouponInput(data.code ?? code.toUpperCase())
     } catch {
       setCouponError("Gutschein konnte nicht geprueft werden.")
@@ -311,6 +358,7 @@ export function PageCheckout({
   const removeCoupon = () => {
     setCouponInput("")
     setAppliedCouponCode(null)
+    setAppliedCouponMeta(null)
     setCouponTotals(null)
     setCouponError(null)
   }
@@ -387,11 +435,14 @@ export function PageCheckout({
       paymentMethod,
       items: cart,
       couponCode: appliedCouponCode ?? undefined,
+      pointsToRedeem: effectivePoints > 0 ? effectivePoints : undefined,
       totals: {
         subtotal: totals.subtotal,
         shippingCost: totals.shippingCost,
         discountAmount: totals.discountAmount,
         couponCode: totals.couponCode,
+        pointsRedeemed: totals.pointsRedeemed,
+        pointsDiscountChf: totals.pointsDiscountChf,
         vat: totals.vat,
         total: totals.total,
         mwstAktiv: checkoutConfig.mwstAktiv,
@@ -950,6 +1001,47 @@ export function PageCheckout({
                 )}
               </div>
 
+              {loggedIn && !loyaltyLoading && loyaltyPoints > 0 && (
+                <div className="mb-4 space-y-2 rounded-xl border border-dashed border-amber-500/30 bg-amber-500/5 p-4">
+                  <div className="flex items-center gap-2 text-sm font-semibold">
+                    <Coins className="h-4 w-4 text-amber-600" />
+                    Punkte einlösen
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Verfügbar: {loyaltyPoints} Punkte (CHF{" "}
+                    {loyaltyPointsToChf(loyaltyPoints).toFixed(2)})
+                  </p>
+                  <div className="flex gap-2">
+                    <Input
+                      type="number"
+                      min={0}
+                      max={maxPoints}
+                      value={pointsToRedeem || ""}
+                      onChange={(e) =>
+                        setPointsToRedeem(
+                          Math.max(0, Math.min(maxPoints, Number(e.target.value) || 0))
+                        )
+                      }
+                      placeholder="0"
+                      className="bg-background/80"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setPointsToRedeem(maxPoints)}
+                      disabled={maxPoints <= 0}
+                    >
+                      Max
+                    </Button>
+                  </div>
+                  {effectivePoints > 0 && (
+                    <p className="text-xs text-amber-700 dark:text-amber-300">
+                      − CHF {(totals.pointsDiscountChf ?? 0).toFixed(2)} Rabatt
+                    </p>
+                  )}
+                </div>
+              )}
+
               <div className="mt-6 space-y-2 border-t border-slate-200 pt-4 text-sm dark:border-slate-700">
                 <div className="flex justify-between gap-3">
                   <span className="text-muted-foreground">Zwischensumme</span>
@@ -973,6 +1065,14 @@ export function PageCheckout({
                     </span>
                     <span className="font-medium tabular-nums">
                       − CHF {totals.discountAmount.toFixed(2)}
+                    </span>
+                  </div>
+                )}
+                {(totals.pointsDiscountChf ?? 0) > 0 && (
+                  <div className="flex justify-between gap-3 text-amber-700 dark:text-amber-300">
+                    <span>Treuepunkte ({totals.pointsRedeemed ?? 0})</span>
+                    <span className="font-medium tabular-nums">
+                      − CHF {(totals.pointsDiscountChf ?? 0).toFixed(2)}
                     </span>
                   </div>
                 )}

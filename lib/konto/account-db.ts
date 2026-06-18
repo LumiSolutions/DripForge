@@ -7,8 +7,8 @@ import {
   cosmosUpsertAccount,
 } from "@/lib/konto/cosmos-accounts"
 import type { CustomerAccount } from "@/lib/konto/account-types"
-import { CUSTOMER_DOC_TYPE, normalizeAiCredits } from "@/lib/konto/ai-credits"
 import { withCosmosFallback } from "@/lib/admin/storage-bridge"
+import { normalizeLoyaltyPoints, loyaltyPointsToChf } from "@/lib/konto/loyalty-points-config"
 
 const DATA_DIR = path.join(process.cwd(), "data", "admin")
 const ACCOUNTS_FILE = "customer-accounts.json"
@@ -37,15 +37,6 @@ export async function listAllAccounts(): Promise<CustomerAccount[]> {
   )
 }
 
-function normalizeAccount(account: CustomerAccount): CustomerAccount {
-  return {
-    ...account,
-    docType: account.docType ?? CUSTOMER_DOC_TYPE,
-    aiCredits: normalizeAiCredits(account.aiCredits),
-    aiCreditGrants: account.aiCreditGrants ?? {},
-  }
-}
-
 export async function getAccountByEmail(
   email: string
 ): Promise<CustomerAccount | null> {
@@ -63,15 +54,22 @@ export async function getAccountByEmail(
   return account ? normalizeAccount(account) : null
 }
 
+function normalizeAccount(account: CustomerAccount): CustomerAccount {
+  return {
+    ...account,
+    loyaltyPoints: normalizeLoyaltyPoints(account.loyaltyPoints),
+    loyaltyPointGrants: account.loyaltyPointGrants ?? {},
+    loyaltyPointTransactions: account.loyaltyPointTransactions ?? [],
+  }
+}
+
 export async function saveAccount(account: CustomerAccount): Promise<CustomerAccount> {
-  const next: CustomerAccount = {
+  const next: CustomerAccount = normalizeAccount({
     ...account,
     id: normalizeCustomerEmail(account.email),
     email: normalizeCustomerEmail(account.email),
-    docType: account.docType ?? CUSTOMER_DOC_TYPE,
-    aiCredits: normalizeAiCredits(account.aiCredits),
     updatedAt: new Date().toISOString(),
-  }
+  })
 
   await withCosmosFallback(
     "saveAccount",
@@ -90,6 +88,7 @@ export async function saveAccount(account: CustomerAccount): Promise<CustomerAcc
 }
 
 export function toPublicAccount(account: CustomerAccount) {
+  const loyaltyPoints = normalizeLoyaltyPoints(account.loyaltyPoints)
   return {
     email: account.email,
     firstName: account.firstName,
@@ -99,7 +98,8 @@ export function toPublicAccount(account: CustomerAccount) {
     city: account.city ?? "",
     phone: account.phone ?? "",
     kundennummer: account.kundennummer,
-    aiCredits: normalizeAiCredits(account.aiCredits),
+    loyaltyPoints,
+    loyaltyBalanceChf: loyaltyPointsToChf(loyaltyPoints),
     createdAt: account.createdAt,
   }
 }

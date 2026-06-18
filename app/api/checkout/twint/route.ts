@@ -7,7 +7,7 @@ import {
   createTwintGateway,
   isPayrexxConfigured,
 } from "@/lib/payrexx/client"
-import { createOrderId, processOrderPayload } from "@/lib/shop/order-processing"
+import { createOrderId, fulfillPaidShopOrder, processOrderPayload } from "@/lib/shop/order-processing"
 import { getSiteOrigin } from "@/lib/stripe/client"
 
 export const dynamic = "force-dynamic"
@@ -56,14 +56,20 @@ export async function POST(request: Request) {
     const { order } = await processOrderPayload(payload, {
       orderId,
       paymentConfirmed: false,
+      enforceGatewayMinForPoints: true,
     })
 
     const totalCents = Math.round(order.totals.total * 100)
     if (totalCents < 50) {
-      return NextResponse.json(
-        { error: "Mindestbetrag für TWINT ist 0.50 CHF." },
-        { status: 400 }
-      )
+      await fulfillPaidShopOrder(orderId, {
+        totalChf: order.totals.total,
+      })
+      return NextResponse.json({
+        configured: true,
+        orderId,
+        pointsOnly: true,
+        url: `${getSiteOrigin(request)}/checkout?order_success=1`,
+      })
     }
 
     const origin = getSiteOrigin(request)

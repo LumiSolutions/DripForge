@@ -3,7 +3,7 @@ import { normalizeCustomerEmail } from "@/lib/admin/customers"
 import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
 import type { OrderPayload } from "@/lib/dripforge/submit-order"
 import { getSessionEmailFromRequest } from "@/lib/konto/api-auth"
-import { createOrderId, processOrderPayload } from "@/lib/shop/order-processing"
+import { createOrderId, fulfillPaidShopOrder, processOrderPayload } from "@/lib/shop/order-processing"
 import { getSiteOrigin, getStripe, isStripeConfigured } from "@/lib/stripe/client"
 
 export const dynamic = "force-dynamic"
@@ -62,14 +62,21 @@ export async function POST(request: Request) {
     const { order } = await processOrderPayload(payload, {
       orderId,
       paymentConfirmed: false,
+      enforceGatewayMinForPoints: true,
     })
 
     const totalCents = Math.round(order.totals.total * 100)
     if (totalCents < 50) {
-      return NextResponse.json(
-        { error: "Mindestbetrag für Stripe Checkout ist 0.50 CHF." },
-        { status: 400 }
-      )
+      await fulfillPaidShopOrder(orderId, {
+        userId,
+        totalChf: order.totals.total,
+      })
+      return NextResponse.json({
+        configured: true,
+        orderId,
+        pointsOnly: true,
+        url: `${getSiteOrigin(request)}/checkout?order_success=1`,
+      })
     }
 
     const origin = getSiteOrigin(request)
@@ -99,6 +106,7 @@ export async function POST(request: Request) {
         userId,
         customerEmail: billingEmail,
         totalChf: order.totals.total.toFixed(2),
+        pointsRedeemed: String(order.totals.pointsRedeemed ?? 0),
       },
       success_url: `${origin}/checkout?order_success=1&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/checkout?canceled=1`,

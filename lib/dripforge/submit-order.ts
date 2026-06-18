@@ -19,11 +19,14 @@ export type OrderPayload = {
   paymentMethod: PaymentMethodId
   items: CartItem[]
   couponCode?: string
+  pointsToRedeem?: number
   totals: {
     subtotal: number
     shippingCost: number
     discountAmount?: number
     couponCode?: string
+    pointsRedeemed?: number
+    pointsDiscountChf?: number
     vat: number
     total: number
     mwstAktiv: boolean
@@ -68,6 +71,7 @@ export async function startStripeCheckout(
       url?: string
       sessionId?: string
       orderId?: string
+      pointsOnly?: boolean
       error?: string
     }
 
@@ -108,6 +112,7 @@ export async function startTwintCheckout(
       url?: string
       gatewayHash?: string
       orderId?: string
+      pointsOnly?: boolean
       error?: string
     }
 

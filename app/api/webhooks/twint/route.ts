@@ -2,6 +2,12 @@ import { NextResponse } from "next/server"
 import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
 import { verifyPayrexxWebhookSignature } from "@/lib/payrexx/client"
 import { fulfillPaidShopOrder } from "@/lib/shop/order-processing"
+import { fulfillPointsPurchase } from "@/lib/shop/points-purchase"
+import {
+  deletePendingPointsPurchase,
+  getPendingPointsPurchase,
+} from "@/lib/shop/points-purchase-store"
+import { isPointsPurchaseReference } from "@/lib/konto/loyalty-points"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -94,6 +100,23 @@ export async function POST(request: Request) {
       transaction.amount != null && transaction.amount > 0
         ? Math.round(transaction.amount) / 100
         : 0
+
+    if (isPointsPurchaseReference(orderId)) {
+      const pending = await getPendingPointsPurchase(orderId)
+      if (!pending) {
+        console.warn(`Payrexx Webhook: Punktekauf ${orderId} nicht gefunden.`)
+        return NextResponse.json({ received: true, ignored: true })
+      }
+
+      await fulfillPointsPurchase(
+        orderId,
+        pending.email,
+        pending.points,
+        transaction.uuid ?? orderId
+      )
+      await deletePendingPointsPurchase(orderId)
+      return NextResponse.json({ received: true, purchaseId: orderId })
+    }
 
     await fulfillPaidShopOrder(orderId, {
       payrexxTransactionUuid: transaction.uuid ?? null,

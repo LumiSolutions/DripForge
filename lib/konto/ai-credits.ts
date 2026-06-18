@@ -75,7 +75,6 @@ export async function grantAiCreditsForPaidOrder(
 
   await saveAccount({
     ...account,
-    docType: CUSTOMER_DOC_TYPE,
     aiCredits: newBalance,
     aiCreditGrants: grants,
   })
@@ -112,7 +111,6 @@ export async function consumeAiCredit(email: string): Promise<ConsumeAiCreditRes
   const remaining = balance - 1
   await saveAccount({
     ...account,
-    docType: CUSTOMER_DOC_TYPE,
     aiCredits: remaining,
   })
 
@@ -129,7 +127,6 @@ export async function refundAiCredit(email: string): Promise<number> {
   const remaining = normalizeAiCredits(account.aiCredits) + 1
   await saveAccount({
     ...account,
-    docType: CUSTOMER_DOC_TYPE,
     aiCredits: remaining,
   })
   return remaining

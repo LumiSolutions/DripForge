@@ -1,15 +1,14 @@
 import { getCustomerAccountsContainer } from "@/lib/cosmos/client"
 import { logCosmosError } from "@/lib/cosmos/log-error"
 import type { CustomerAccount } from "@/lib/konto/account-types"
-import { CUSTOMER_DOC_TYPE, normalizeAiCredits } from "@/lib/konto/ai-credits"
 import { normalizeCustomerEmail } from "@/lib/admin/customers"
+import { normalizeLoyaltyPoints } from "@/lib/konto/loyalty-points-config"
 
-type CosmosDoc<T> = T & { id: string; docType?: string }
+type CosmosDoc<T> = T & { id: string }
 
 function mapCosmosAccount(doc: CosmosDoc<CustomerAccount>): CustomerAccount {
   return {
     id: doc.id,
-    docType: CUSTOMER_DOC_TYPE,
     email: doc.email,
     passwordHash: doc.passwordHash,
     firstName: doc.firstName,
@@ -19,8 +18,11 @@ function mapCosmosAccount(doc: CosmosDoc<CustomerAccount>): CustomerAccount {
     city: doc.city ?? "",
     phone: doc.phone ?? "",
     kundennummer: doc.kundennummer,
-    aiCredits: normalizeAiCredits(doc.aiCredits),
+    aiCredits: normalizeLoyaltyPoints(doc.aiCredits),
     aiCreditGrants: doc.aiCreditGrants ?? {},
+    loyaltyPoints: normalizeLoyaltyPoints(doc.loyaltyPoints),
+    loyaltyPointGrants: doc.loyaltyPointGrants ?? {},
+    loyaltyPointTransactions: doc.loyaltyPointTransactions ?? [],
     passwordResetTokenHash: doc.passwordResetTokenHash ?? null,
     passwordResetExpiresAt: doc.passwordResetExpiresAt ?? null,
     createdAt: doc.createdAt,
@@ -61,12 +63,6 @@ export async function cosmosUpsertAccount(
   account: CustomerAccount
 ): Promise<CustomerAccount> {
   const container = await getCustomerAccountsContainer()
-  const doc = {
-    ...account,
-    id: account.id,
-    docType: CUSTOMER_DOC_TYPE,
-    aiCredits: normalizeAiCredits(account.aiCredits),
-  }
-  await container.items.upsert(doc)
+  await container.items.upsert({ ...account, id: account.id })
   return account
 }
