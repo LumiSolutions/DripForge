@@ -17,6 +17,8 @@ export async function GET() {
       multiColorSurchargePercentPerExtra:
         settings.global.multiColorSurchargePercentPerExtra,
       setupFeeChf: settings.global.setupFeeChf,
+      defaultInfillFactor: settings.global.defaultInfillFactor,
+      defaultPrintGramsPerHour: settings.global.defaultPrintGramsPerHour,
       materials: settings.materials.map((m) => ({
         id: m.id,
         name: m.name,
@@ -33,6 +35,8 @@ export async function GET() {
       multiColorSurchargePercentPerExtra:
         defaults.global.multiColorSurchargePercentPerExtra,
       setupFeeChf: defaults.global.setupFeeChf,
+      defaultInfillFactor: defaults.global.defaultInfillFactor,
+      defaultPrintGramsPerHour: defaults.global.defaultPrintGramsPerHour,
       materials: defaults.materials.map((m) => ({
         id: m.id,
         name: m.name,

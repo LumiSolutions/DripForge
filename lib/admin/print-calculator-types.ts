@@ -25,6 +25,8 @@ export type PrintCalculatorGlobalParams = {
   laborCostChfPerHour: number
   /** Automatische Kunden-Offerte: Druckgeschwindigkeit */
   defaultPrintGramsPerHour: number
+  /** Auto-Offerte: Infill-Anteil (0–1, z. B. 0.15 = 15 % Infill) */
+  defaultInfillFactor: number
   /** Vorbereitung/Nacharbeit fuer Auto-Offerte (Minuten) */
   defaultPrepPostMinutes: number
   setupFeeChf: number
@@ -103,6 +105,7 @@ export function createDefaultPrintCalculatorSettings(): PrintCalculatorSettings 
       markupMultiplier: 2,
       laborCostChfPerHour: 45,
       defaultPrintGramsPerHour: 12,
+      defaultInfillFactor: 0.15,
       defaultPrepPostMinutes: 15,
       setupFeeChf: 5,
       multiColorSurchargePercentPerExtra: 15,
@@ -155,6 +158,10 @@ export function sanitizePrintCalculatorSettings(
       markupMultiplier: clampMin(num(g.markupMultiplier, 2), 1),
       laborCostChfPerHour: clampMin(num(g.laborCostChfPerHour), 0),
       defaultPrintGramsPerHour: clampMin(num(g.defaultPrintGramsPerHour, 12), 0.1),
+      defaultInfillFactor: Math.min(
+        1,
+        clampMin(num(g.defaultInfillFactor, 0.15), 0.01)
+      ),
       defaultPrepPostMinutes: clampMin(num(g.defaultPrepPostMinutes, 15), 0),
       setupFeeChf: clampMin(num(g.setupFeeChf, 5), 0),
       multiColorSurchargePercentPerExtra: clampMin(

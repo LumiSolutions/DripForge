@@ -116,9 +116,20 @@ export function buildAutoQuoteInput(
   }
 }
 
+/** Geschätztes Filamentgewicht aus Bounding-Box-Volumen (Infill berücksichtigt). */
 export function weightFromVolumeCm3(
   volumeCm3: number,
-  densityGPerCm3: number
+  densityGPerCm3: number,
+  infillFactor = 0.15
 ): number {
-  return Math.max(0, volumeCm3 * densityGPerCm3)
+  const safeInfill = Math.min(1, Math.max(0.01, infillFactor))
+  return Math.max(0, volumeCm3 * densityGPerCm3 * safeInfill)
+}
+
+export function estimatePrintTimeHours(
+  weightGrams: number,
+  gramsPerHour: number
+): number {
+  if (gramsPerHour <= 0) return 0
+  return Math.max(0, weightGrams) / gramsPerHour
 }

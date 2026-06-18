@@ -381,6 +381,25 @@ export function AdminPrintCalculatorTab() {
               />
             </div>
             <div className="space-y-2">
+              <Label>Auto-Offerte: Infill-Faktor (0–1)</Label>
+              <Input
+                type="number"
+                step={0.01}
+                min={0.01}
+                max={1}
+                value={settings.global.defaultInfillFactor}
+                onChange={(e) =>
+                  updateGlobal({
+                    defaultInfillFactor: Math.min(
+                      1,
+                      Math.max(0.01, Number(e.target.value) || 0.15)
+                    ),
+                  })
+                }
+                className={adminUi.input}
+              />
+            </div>
+            <div className="space-y-2">
               <Label>Auto-Offerte: Vorbereitung (Min.)</Label>
               <Input
                 type="number"

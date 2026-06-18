@@ -13,7 +13,12 @@ import {
 export type PrintPriceBreakdown = {
   volumeCm3: number
   calculatedWeightG: number
+  /** Infill-Faktor der Gewichtsschätzung (0–1) */
+  infillFactor: number
+  /** Geschätzte reine Druckzeit (ohne Vorbereitung), in Stunden */
+  estimatedPrintTimeHours: number
   materialCost: number
+  machineCost: number
   setupFee: number
   electricityCost: number
   depreciationCost: number
@@ -39,7 +44,8 @@ export function calculate3DPrintPriceLegacy(
   config: PricingConfig = DEFAULT_PRICING_CONFIG,
   colorCount = 1
 ): PrintPriceBreakdown {
-  const calculatedWeightG = volumeCm3 * config.densityPLA
+  const calculatedWeightG =
+    volumeCm3 * config.densityPLA * config.infillFactor
   const materialCost = calculatedWeightG * config.pricePerGramPLA
   const baseUnitPrice = materialCost + config.setupFee
 
@@ -53,7 +59,10 @@ export function calculate3DPrintPriceLegacy(
   return {
     volumeCm3,
     calculatedWeightG,
+    infillFactor: config.infillFactor,
+    estimatedPrintTimeHours: 0,
     materialCost: roundChf(materialCost),
+    machineCost: 0,
     setupFee: config.setupFee,
     electricityCost: 0,
     depreciationCost: 0,
@@ -77,11 +86,19 @@ export function calculate3DPrintPriceFromSettings(
   materialId?: string
 ): PrintPriceBreakdown {
   const material = resolveMaterial(settings, materialId ?? settings.global.defaultMaterialId)
-  const calculatedWeightG = weightFromVolumeCm3(volumeCm3, material.densityGPerCm3)
+  const infillFactor = settings.global.defaultInfillFactor
+  const calculatedWeightG = weightFromVolumeCm3(
+    volumeCm3,
+    material.densityGPerCm3,
+    infillFactor
+  )
   const input = buildAutoQuoteInput(settings, calculatedWeightG, {
     materialId: material.id,
   })
   const cost = calculatePrintCostBreakdown(settings, input)
+  const machineCostChf = roundChf(
+    cost.electricityCostChf + cost.depreciationCostChf
+  )
 
   const baseUnitPrice = cost.endPriceChf + settings.global.setupFeeChf
   const extraColors = Math.max(0, colorCount - 1)
@@ -95,7 +112,10 @@ export function calculate3DPrintPriceFromSettings(
   return {
     volumeCm3,
     calculatedWeightG: roundChf(calculatedWeightG),
+    infillFactor,
+    estimatedPrintTimeHours: cost.printTimeHours,
     materialCost: cost.filamentCostChf,
+    machineCost: machineCostChf,
     setupFee: settings.global.setupFeeChf,
     electricityCost: cost.electricityCostChf,
     depreciationCost: cost.depreciationCostChf,

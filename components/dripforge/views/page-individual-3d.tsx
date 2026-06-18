@@ -653,15 +653,41 @@ export function PageIndividual3D({
                       <span>{priceBreakdown.volumeCm3.toFixed(1)} cm³</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Gewicht (ca.)</span>
-                      <span>{priceBreakdown.calculatedWeightG.toFixed(1)} g</span>
+                      <span className="text-muted-foreground">
+                        Gewicht (ca., {Math.round(priceBreakdown.infillFactor * 100)} % Infill)
+                      </span>
+                      <span>{Math.round(priceBreakdown.calculatedWeightG)} g</span>
                     </div>
+                    {priceBreakdown.estimatedPrintTimeHours > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Druckzeit (ca.)</span>
+                        <span>
+                          {priceBreakdown.estimatedPrintTimeHours >= 1
+                            ? `${priceBreakdown.estimatedPrintTimeHours.toFixed(1)} h`
+                            : `${Math.round(priceBreakdown.estimatedPrintTimeHours * 60)} min`}
+                        </span>
+                      </div>
+                    )}
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">
                         Material ({multiColorSelection?.materialName ?? "PLA"})
                       </span>
                       <span>CHF {priceBreakdown.materialCost.toFixed(2)}</span>
                     </div>
+                    {priceBreakdown.machineCost > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">
+                          Maschine & Strom
+                        </span>
+                        <span>CHF {priceBreakdown.machineCost.toFixed(2)}</span>
+                      </div>
+                    )}
+                    {priceBreakdown.laborCost > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Vorbereitung</span>
+                        <span>CHF {priceBreakdown.laborCost.toFixed(2)}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">
                         Farben ({priceBreakdown.colorCount})
