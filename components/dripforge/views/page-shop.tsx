@@ -807,7 +807,7 @@ export function PageShop({
           >
             {showCustom3d && (
               <Link
-                href={SHOP_ROUTES["3d-druck"]}
+                href={SHOP_ROUTES.konfigurator3d}
                 className="relative z-10 block h-full rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
               >
                 <Card className="h-full border-border/50 bg-card/50 transition-colors hover:border-primary/50">
@@ -854,7 +854,7 @@ export function PageShop({
 
             {showCustomLaser && (
               <Link
-                href={SHOP_ROUTES.laser}
+                href={SHOP_ROUTES.konfiguratorLaser}
                 className="relative z-10 block h-full rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
               >
                 <Card className="h-full border-border/50 bg-card/50 transition-colors hover:border-cyan-500/50">

@@ -1,12 +1,18 @@
 "use client"
 
-import { PageIndividual3D } from "@/components/dripforge/views/page-individual-3d"
-import { useCart } from "@/components/dripforge/cart-provider"
+import { useState } from "react"
+import { Page3DDruck } from "@/components/dripforge/views/page-3d-druck"
 import { useShopNavigate } from "@/hooks/use-shop-navigate"
 
-export default function Individual3DPage() {
+export default function Druck3DInfoPage() {
   const navigate = useShopNavigate()
-  const { addToCart } = useCart()
+  const [selectedMaterial, setSelectedMaterial] = useState("pla")
 
-  return <PageIndividual3D setCurrentView={navigate} addToCart={addToCart} />
+  return (
+    <Page3DDruck
+      selectedMaterial={selectedMaterial}
+      setSelectedMaterial={setSelectedMaterial}
+      setCurrentView={navigate}
+    />
+  )
 }

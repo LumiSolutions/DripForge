@@ -1,12 +1,12 @@
 "use client"
 
-import { PageIndividualLaser } from "@/components/dripforge/views/page-individual-laser"
-import { useCart } from "@/components/dripforge/cart-provider"
+import { PageLaser } from "@/components/dripforge/views/page-laser"
 import { useShopNavigate } from "@/hooks/use-shop-navigate"
+import { useServiceVisibility } from "@/hooks/use-service-visibility"
 
-export default function IndividualLaserPage() {
+export default function LaserInfoPage() {
   const navigate = useShopNavigate()
-  const { addToCart } = useCart()
+  const services = useServiceVisibility()
 
-  return <PageIndividualLaser setCurrentView={navigate} addToCart={addToCart} />
+  return <PageLaser setCurrentView={navigate} services={services} />
 }

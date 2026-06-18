@@ -13,14 +13,16 @@ export const SHOP_ROUTES = {
   agb: "/agb",
   datenschutz: "/datenschutz",
   aiKonfigurator: "/konfigurator/ai",
+  konfigurator3d: "/konfigurator/3d-druck",
+  konfiguratorLaser: "/konfigurator/laser",
 } as const
 
 const VIEW_TO_PATH: Record<string, string> = {
   home: SHOP_ROUTES.home,
   "3d-druck": SHOP_ROUTES["3d-druck"],
-  "individual-3d": SHOP_ROUTES["3d-druck"],
+  "individual-3d": SHOP_ROUTES.konfigurator3d,
   laser: SHOP_ROUTES.laser,
-  "individual-laser": SHOP_ROUTES.laser,
+  "individual-laser": SHOP_ROUTES.konfiguratorLaser,
   shop: SHOP_ROUTES.shop,
   kontakt: SHOP_ROUTES.kontakt,
   support: SHOP_ROUTES.support,

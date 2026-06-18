@@ -1,62 +1,23 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
-import Image from "next/image"
+import Link from "next/link"
 import {
-  Home,
-  Printer,
   Zap,
-  ShoppingBag,
-  MessageSquare,
-  Menu,
-  X,
-  ChevronRight,
-  Mail,
-  Phone,
-  MapPin,
-  Clock,
-  Send,
-  Leaf,
   Scissors,
   Stamp,
   CheckCircle2,
-  Circle,
-  Sparkles,
   Package,
-  Timer,
-  Gem,
   Layers,
   ArrowRight,
-  MessageCircle,
-  User,
-  Bot,
-  Upload,
-  Box,
-  RotateCcw,
-  ZoomIn,
-  Minus,
-  Plus,
-  ShoppingCart,
   Image as ImageIcon,
-  Tag,
-  Search,
-  Moon,
-  Sun,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
-import { FilamentColorPicker } from "@/components/dripforge/shared/filament-color-picker"
-import { ProcessStepItem } from "@/components/dripforge/shared/process-step-item"
 import { LaserProcessStep } from "@/components/dripforge/shared/laser-process-step"
-import { IndividualProcessBar } from "@/components/dripforge/shared/individual-process-bar"
-import { materials3D, laserMaterials, processSteps, products } from "@/lib/dripforge/data"
-import type { CartItem } from "@/lib/dripforge/types"
+import { laserMaterials } from "@/lib/dripforge/data"
+import { SHOP_ROUTES } from "@/lib/dripforge/shop-routes"
 import type { ServiceVisibilitySettings } from "@/lib/admin/types"
 import {
   isLaserCapabilityVisible,
@@ -70,9 +31,10 @@ export function PageLaser({
   setCurrentView: (view: string) => void
   services: ServiceVisibilitySettings
 }) {
+  const configuratorHref = SHOP_ROUTES.konfiguratorLaser
+
   return (
     <div className="space-y-24 pb-24">
-      {/* Hero */}
       <section className="py-20">
         <div className="mx-auto max-w-7xl px-4">
           <Badge variant="outline" className="mb-6 border-cyan-500/30 bg-cyan-500/10 text-cyan-400">
@@ -88,15 +50,18 @@ export function PageLaser({
             präzise Schnitte auf Holz, Acryl, Leder und mehr.
           </p>
           <div className="mt-8 flex flex-wrap gap-4">
-            <Button 
-              onClick={() => setCurrentView("shop")}
-              className="bg-primary text-primary-foreground hover:bg-primary/90"
+            <Button
+              asChild
+              size="lg"
+              className="bg-primary text-primary-foreground shadow-lg shadow-primary/20 hover:bg-primary/90"
             >
-              Produkte Entdecken
-              <ArrowRight className="ml-2 h-4 w-4" />
+              <Link href={configuratorHref} prefetch>
+                Jetzt Gravur gestalten
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
             </Button>
-            <Button variant="outline" onClick={() => setCurrentView("kontakt")}>
-              Individuelle Projektanfrage
+            <Button variant="outline" onClick={() => setCurrentView("shop")}>
+              Produkte Entdecken
             </Button>
           </div>
         </div>
@@ -359,13 +324,15 @@ export function PageLaser({
                 wir helfen Ihnen, Ihr Laserprojekt zum Leben zu erwecken.
               </p>
               <div className="flex flex-wrap justify-center gap-4">
-                <Button 
-                  size="lg" 
-                  onClick={() => setCurrentView("shop")}
-                  className="bg-primary text-primary-foreground hover:bg-primary/90"
+                <Button
+                  asChild
+                  size="lg"
+                  className="bg-primary text-primary-foreground shadow-lg shadow-primary/20 hover:bg-primary/90"
                 >
-                  Laser Produkte Entdecken
-                  <ArrowRight className="ml-2 h-4 w-4" />
+                  <Link href={configuratorHref} prefetch>
+                    Jetzt Gravur gestalten
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Link>
                 </Button>
                 <Button size="lg" variant="outline" onClick={() => setCurrentView("kontakt")}>
                   Individuelle Offerte Anfragen

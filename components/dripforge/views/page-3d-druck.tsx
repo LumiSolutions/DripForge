@@ -1,68 +1,30 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
 import Image from "next/image"
+import Link from "next/link"
 import {
-  Home,
   Printer,
-  Zap,
-  ShoppingBag,
-  MessageSquare,
-  Menu,
-  X,
-  ChevronRight,
-  Mail,
-  Phone,
-  MapPin,
-  Clock,
-  Send,
   Leaf,
-  Scissors,
-  Stamp,
   CheckCircle2,
   Circle,
-  Sparkles,
   Package,
-  Timer,
-  Gem,
-  Layers,
   ArrowRight,
-  MessageCircle,
-  User,
-  Bot,
-  Upload,
-  Box,
-  RotateCcw,
-  ZoomIn,
-  Minus,
-  Plus,
-  ShoppingCart,
-  Image as ImageIcon,
-  Tag,
-  Search,
-  Moon,
-  Sun,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { FilamentColorPicker } from "@/components/dripforge/shared/filament-color-picker"
 import { ProcessStepItem } from "@/components/dripforge/shared/process-step-item"
-import { LaserProcessStep } from "@/components/dripforge/shared/laser-process-step"
-import { IndividualProcessBar } from "@/components/dripforge/shared/individual-process-bar"
-import { materials3D, laserMaterials, processSteps, products } from "@/lib/dripforge/data"
+import { materials3D, processSteps } from "@/lib/dripforge/data"
+import { SHOP_ROUTES } from "@/lib/dripforge/shop-routes"
 import { useFilamentCatalog } from "@/hooks/use-filament-catalog"
 import { findMaterialType, ratingToPercent } from "@/lib/admin/material-stats-types"
 
 export function Page3DDruck({ 
   selectedMaterial, 
   setSelectedMaterial,
-  setCurrentView 
+  setCurrentView,
 }: { 
   selectedMaterial: string
   setSelectedMaterial: (m: string) => void
@@ -94,46 +56,50 @@ export function Page3DDruck({
         { label: "Verarbeitung", value: material.easeOfUse },
       ]
 
+  const configuratorHref = SHOP_ROUTES.konfigurator3d
+
   return (
     <div className="space-y-24 pb-24">
-      {/* Hero */}
       <section className="relative overflow-hidden py-20">
-        <div className="absolute inset-0">
-          <Image
-            src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/pc3-BE2inKSo4vqNzyJPw5eT2lZzb9cXDP.jpg"
-            alt="3D Printer"
-            fill
-            className="object-cover opacity-15"
-          />
-          <div className="absolute inset-0 bg-gradient-to-b from-background via-background/90 to-background" />
-        </div>
-        <div className="relative mx-auto max-w-7xl px-4">
-          <Badge variant="outline" className="mb-6 border-primary/30 bg-primary/10 text-primary">
-            <Printer className="mr-1 h-3 w-3" />
-            Additive Fertigung
-          </Badge>
-          <h1 className="text-4xl font-bold md:text-5xl">
-            <span className="text-foreground">Präzisions </span>
-            <span className="bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent">3D-Druck</span>
-          </h1>
-          <p className="mt-4 max-w-2xl text-lg text-muted-foreground">
-            Von der Konzeption zur Kreation - wir bringen Ihre Ideen mit industrietauglichem 3D-Druck 
-            zum Leben. Wählen Sie aus Premium-Materialien, die auf Ihre spezifischen Bedürfnisse zugeschnitten sind.
-          </p>
-          <div className="mt-8 flex flex-wrap gap-4">
-            <Button 
-              onClick={() => setCurrentView("shop")}
-              className="bg-primary text-primary-foreground hover:bg-primary/90"
-            >
-              Design Hochladen
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
-            <Button variant="outline" onClick={() => setCurrentView("shop")}>
-              Produkte Entdecken
-            </Button>
+          <div className="absolute inset-0">
+            <Image
+              src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/pc3-BE2inKSo4vqNzyJPw5eT2lZzb9cXDP.jpg"
+              alt="3D Printer"
+              fill
+              className="object-cover opacity-15"
+            />
+            <div className="absolute inset-0 bg-gradient-to-b from-background via-background/90 to-background" />
           </div>
-        </div>
-      </section>
+          <div className="relative mx-auto max-w-7xl px-4">
+            <Badge variant="outline" className="mb-6 border-primary/30 bg-primary/10 text-primary">
+              <Printer className="mr-1 h-3 w-3" />
+              Additive Fertigung
+            </Badge>
+            <h1 className="text-4xl font-bold md:text-5xl">
+              <span className="text-foreground">Präzisions </span>
+              <span className="bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent">3D-Druck</span>
+            </h1>
+            <p className="mt-4 max-w-2xl text-lg text-muted-foreground">
+              Von der Konzeption zur Kreation - wir bringen Ihre Ideen mit industrietauglichem 3D-Druck 
+              zum Leben. Wählen Sie aus Premium-Materialien, die auf Ihre spezifischen Bedürfnisse zugeschnitten sind.
+            </p>
+            <div className="mt-8 flex flex-wrap gap-4">
+              <Button
+                asChild
+                size="lg"
+                className="bg-primary text-primary-foreground shadow-lg shadow-primary/20 hover:bg-primary/90"
+              >
+                <Link href={configuratorHref} prefetch>
+                  Jetzt 3D-Druck konfigurieren
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
+              </Button>
+              <Button variant="outline" onClick={() => setCurrentView("shop")}>
+                Produkte Entdecken
+              </Button>
+            </div>
+          </div>
+        </section>
 
       {/* Premium Materials */}
       <section className="py-16">
@@ -293,13 +259,15 @@ export function Page3DDruck({
                 Ihre Vision mit Präzision und Qualität umzusetzen.
               </p>
               <div className="flex flex-wrap justify-center gap-4">
-                <Button 
-                  size="lg" 
-                  onClick={() => setCurrentView("shop")}
-                  className="bg-primary text-primary-foreground hover:bg-primary/90"
+                <Button
+                  asChild
+                  size="lg"
+                  className="bg-primary text-primary-foreground shadow-lg shadow-primary/20 hover:bg-primary/90"
                 >
-                  Modell Hochladen
-                  <ArrowRight className="ml-2 h-4 w-4" />
+                  <Link href={configuratorHref} prefetch>
+                    Jetzt 3D-Druck konfigurieren
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Link>
                 </Button>
                 <Button size="lg" variant="outline" onClick={() => setCurrentView("kontakt")}>
                   Beratung Anfragen
