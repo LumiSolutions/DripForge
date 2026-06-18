@@ -68,7 +68,7 @@ export function StorefrontLaunchLayout({ children }: { children: ReactNode }) {
   if (!status?.canAccessShop) {
     return (
       <SiteTextsProvider>
-        <ComingSoonPage onAccessGranted={() => void loadStatus()} />
+        <ComingSoonPage />
       </SiteTextsProvider>
     )
   }

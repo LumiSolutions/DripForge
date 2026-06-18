@@ -2,12 +2,10 @@
 
 import { useEffect, useMemo, useState, type CSSProperties } from "react"
 import Image from "next/image"
-import { StaffAuthFlow } from "@/components/admin/staff-auth-flow"
 import { SupportMissionLink } from "@/components/dripforge/support-nav-link"
 import { useSupportPageSettings } from "@/hooks/use-support-page-active"
 import { useSiteTexts } from "@/components/dripforge/site-texts-provider"
 import { getLaunchCountdown, LAUNCH_DATE } from "@/lib/dripforge/launch-config"
-import { cn } from "@/lib/utils"
 
 function EmberField() {
   const embers = useMemo(
@@ -72,11 +70,10 @@ function CountdownSeparator() {
   )
 }
 
-export function ComingSoonPage({ onAccessGranted }: { onAccessGranted: () => void }) {
+export function ComingSoonPage() {
   const { t } = useSiteTexts()
   const { showSupportOnCountdownPage: supportPageVisible } = useSupportPageSettings()
   const [countdown, setCountdown] = useState(getLaunchCountdown())
-  const [testerOpen, setTesterOpen] = useState(false)
 
   useEffect(() => {
     document.documentElement.classList.add("dark")
@@ -188,36 +185,8 @@ export function ComingSoonPage({ onAccessGranted }: { onAccessGranted: () => voi
         </section>
       </main>
 
-      <footer className="relative z-10 mt-6 flex w-full max-w-xl flex-col items-center space-y-6 px-4 pb-2 text-center sm:mt-8">
+      <footer className="relative z-10 mt-6 flex w-full max-w-xl flex-col items-center px-4 pb-2 text-center sm:mt-8">
         <p className="text-[10px] text-zinc-700">© 2026 DripForge · Pfäffikon ZH</p>
-
-        <div className="flex flex-wrap items-center justify-center gap-x-2 leading-loose">
-          <button
-            type="button"
-            onClick={() => setTesterOpen((v) => !v)}
-            className="text-[10px] text-zinc-500 transition-colors hover:text-zinc-400"
-          >
-            Tester-Zugang
-          </button>
-        </div>
-
-        {testerOpen && (
-          <div className="mx-auto w-full max-w-xs text-left">
-            <StaffAuthFlow
-              role="tester"
-              intent="preview"
-              title="Vorschau-Zugang"
-              passwordPlaceholder="Tester-Passwort"
-              submitLabel="Weiter"
-              compact
-              showBackLink={false}
-              onSuccess={() => {
-                setTesterOpen(false)
-                onAccessGranted()
-              }}
-            />
-          </div>
-        )}
       </footer>
     </div>
   )
