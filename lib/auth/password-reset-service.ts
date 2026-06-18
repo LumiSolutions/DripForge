@@ -1,3 +1,4 @@
+import { adminPortalPath } from "@/lib/admin/admin-portal-path"
 import { normalizeCustomerEmail } from "@/lib/admin/customers"
 import { getAdminResetEmail, resolveStaffRoleByEmail } from "@/lib/admin/staff-emails"
 import { getStaffById, saveStaff } from "@/lib/admin/staff-db"
@@ -53,7 +54,11 @@ export async function requestPasswordReset(
     })
 
     const adminEmail = getAdminResetEmail() ?? normalized
-    const resetUrl = buildResetUrl(origin, "/admin/passwort-zuruecksetzen", token)
+    const resetUrl = buildResetUrl(
+      origin,
+      adminPortalPath("/passwort-zuruecksetzen"),
+      token
+    )
     await sendPasswordResetEmail({
       to: adminEmail,
       resetUrl,

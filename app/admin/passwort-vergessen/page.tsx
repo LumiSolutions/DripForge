@@ -1,5 +1,5 @@
-import { AdminForgotPasswordForm } from "@/components/admin/admin-password-reset-forms"
+import { redirect } from "next/navigation"
 
-export default function AdminPasswortVergessenPage() {
-  return <AdminForgotPasswordForm />
+export default function LegacyAdminPasswortVergessenRedirect() {
+  redirect("/")
 }

@@ -8,6 +8,7 @@ import { KeyRound, Loader2, Mail, ShieldCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { adminPortalPath } from "@/lib/admin/admin-portal-path"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
 import { cn } from "@/lib/utils"
 
@@ -46,7 +47,7 @@ export function AdminForgotPasswordForm() {
     <div className={cn("flex min-h-screen items-center justify-center px-4", adminUi.loginPage)}>
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
-          <Link href="/admin" className="inline-flex items-center gap-2">
+          <Link href={adminPortalPath()} className="inline-flex items-center gap-2">
             <Image
               src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/ChatGPT%20Image%2016.%20Mai%202026%2C%2022_19_51-CjFqSwPCG95cJ4BMP2Ono6hKObBX8y.png"
               alt="DripForge"
@@ -99,7 +100,7 @@ export function AdminForgotPasswordForm() {
         </form>
 
         <p className="mt-6 text-center">
-          <Link href="/admin" className={cn("text-xs transition-colors", adminUi.footerBtn)}>
+          <Link href={adminPortalPath()} className={cn("text-xs transition-colors", adminUi.footerBtn)}>
             ← Zurueck zum Admin-Login
           </Link>
         </p>
@@ -167,7 +168,7 @@ export function AdminResetPasswordForm() {
       })
       const data = (await res.json()) as { error?: string }
       if (!res.ok) throw new Error(data.error ?? "Reset fehlgeschlagen")
-      router.push("/admin")
+      router.push(adminPortalPath())
       router.refresh()
     } catch (err) {
       setError(err instanceof Error ? err.message : "Reset fehlgeschlagen")
@@ -191,7 +192,7 @@ export function AdminResetPasswordForm() {
           <p className="text-sm text-red-600 dark:text-red-400">
             Dieser Link ist ungueltig oder abgelaufen.
           </p>
-          <Link href="/admin/passwort-vergessen" className={cn("mt-4 inline-block text-xs", adminUi.footerBtn)}>
+          <Link href={adminPortalPath("/passwort-vergessen")} className={cn("mt-4 inline-block text-xs", adminUi.footerBtn)}>
             Neuen Link anfordern
           </Link>
         </div>

@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
+import {
+  ADMIN_PORTAL_BASE_PATH,
+  isLegacyAdminPath,
+} from "@/lib/admin/admin-portal-path"
 import { PREVIEW_ACCESS_COOKIE } from "@/lib/dripforge/launch-config"
 import {
   CUSTOMER_SESSION_COOKIE,
@@ -8,7 +12,7 @@ import {
 } from "@/lib/konto/session-edge"
 
 const BYPASS_PREFIXES = [
-  "/admin",
+  ADMIN_PORTAL_BASE_PATH,
   "/api",
   "/_next",
   "/favicon.ico",
@@ -34,6 +38,10 @@ function allowsShopAccess(data: LaunchPayload, hasPreviewCookie: boolean): boole
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
+
+  if (isLegacyAdminPath(pathname)) {
+    return NextResponse.redirect(new URL("/", request.url))
+  }
 
   if (BYPASS_PREFIXES.some((prefix) => pathname.startsWith(prefix))) {
     return NextResponse.next()

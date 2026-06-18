@@ -1,15 +1,6 @@
-import type { Metadata } from "next"
-import { AdminThemeShell } from "@/components/admin/admin-theme-shell"
+import type { ReactNode } from "react"
 
-export const metadata: Metadata = {
-  title: "Admin | DripForge",
-  robots: { index: false, follow: false },
-}
-
-export default function AdminLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
-  return <AdminThemeShell>{children}</AdminThemeShell>
+/** Legacy /admin — leitet in den Seiten weiter; Layout bleibt neutral. */
+export default function LegacyAdminLayout({ children }: { children: ReactNode }) {
+  return children
 }

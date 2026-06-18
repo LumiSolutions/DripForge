@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState, type CSSProperties } from "react"
 import Image from "next/image"
-import Link from "next/link"
 import { StaffAuthFlow } from "@/components/admin/staff-auth-flow"
 import { SupportMissionLink } from "@/components/dripforge/support-nav-link"
 import { useSupportPageSettings } from "@/hooks/use-support-page-active"
@@ -200,15 +199,6 @@ export function ComingSoonPage({ onAccessGranted }: { onAccessGranted: () => voi
           >
             Tester-Zugang
           </button>
-          <span className="text-[10px] text-zinc-700" aria-hidden>
-            |
-          </span>
-          <Link
-            href="/admin"
-            className="text-[10px] text-zinc-500 transition-colors hover:text-zinc-400"
-          >
-            Admin
-          </Link>
         </div>
 
         {testerOpen && (

@@ -7,6 +7,7 @@ import { KeyRound, Loader2, Lock, ShieldCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { adminPortalPath } from "@/lib/admin/admin-portal-path"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
 import type { StaffAuthIntent, StaffRole } from "@/lib/admin/staff-types"
 import { cn } from "@/lib/utils"
@@ -181,7 +182,7 @@ export function StaffAuthFlow({
               </Label>
               {role === "admin" && intent === "admin" && !compact && (
                 <Link
-                  href="/admin/passwort-vergessen"
+                  href={adminPortalPath("/passwort-vergessen")}
                   className={cn("text-xs transition-colors", adminUi.footerBtn)}
                 >
                   Passwort vergessen?

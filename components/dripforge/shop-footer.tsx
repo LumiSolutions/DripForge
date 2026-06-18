@@ -167,9 +167,6 @@ export function ShopFooter() {
             <Link href="/agb" className="hover:text-primary">
               AGB
             </Link>
-            <Link href="/admin" className="hover:text-primary">
-              Admin-Login
-            </Link>
           </div>
         </div>
       </div>
