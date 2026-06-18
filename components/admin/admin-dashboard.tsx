@@ -9,6 +9,7 @@ import {
   LayoutDashboard,
   Warehouse,
   LogOut,
+  Menu,
   Moon,
   Package,
   Settings,
@@ -18,6 +19,7 @@ import {
   Type,
   Users,
   Layers,
+  X,
 } from "lucide-react"
 import { AdminAiSettingsTab } from "@/components/admin/admin-ai-settings-tab"
 import { AdminFilamentsTab } from "@/components/admin/admin-filaments-tab"
@@ -78,12 +80,28 @@ export function AdminDashboard() {
   const [tab, setTab] = useState<AdminTab>("stats")
   const [inventorySub, setInventorySub] = useState<InventorySubTab>("filament")
   const [highlightOrderId, setHighlightOrderId] = useState<string | null>(null)
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const { toggleTheme, isDark } = useSiteTheme()
 
   const openOrderFromCustomers = (orderId: string) => {
     setHighlightOrderId(orderId)
     setTab("orders")
+    setMobileNavOpen(false)
   }
+
+  const selectTab = (next: AdminTab) => {
+    setTab(next)
+    setMobileNavOpen(false)
+  }
+
+  useEffect(() => {
+    if (!mobileNavOpen) return
+    const prev = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+    return () => {
+      document.body.style.overflow = prev
+    }
+  }, [mobileNavOpen])
 
   useEffect(() => {
     void (async () => {
@@ -134,14 +152,76 @@ export function AdminDashboard() {
   }
 
   return (
-    <div className={cn("flex min-h-screen", adminUi.page)}>
+    <div className={cn("flex min-h-screen flex-col lg:flex-row", adminUi.page)}>
+      <header
+        className={cn(
+          "sticky top-0 z-40 flex h-14 shrink-0 items-center gap-3 border-b px-4 lg:hidden",
+          adminUi.sidebar,
+          adminUi.sidebarBorder
+        )}
+      >
+        <button
+          type="button"
+          onClick={() => setMobileNavOpen(true)}
+          className={cn(
+            "inline-flex h-10 w-10 items-center justify-center rounded-lg transition-colors",
+            adminUi.footerBtn
+          )}
+          aria-label="Menü öffnen"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
+        <Link href="/" className="flex min-w-0 flex-1 items-center gap-2">
+          <Image
+            src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/ChatGPT%20Image%2016.%20Mai%202026%2C%2022_19_51-CjFqSwPCG95cJ4BMP2Ono6hKObBX8y.png"
+            alt="DripForge"
+            width={24}
+            height={24}
+            className="rounded"
+          />
+          <div className="min-w-0">
+            <p className="truncate text-sm font-bold leading-tight">
+              <span className="text-orange-500">Drip</span>
+              <span className={adminUi.brandText}>Forge</span>
+              <span className={cn("ml-1.5 font-normal", adminUi.muted)}>Admin</span>
+            </p>
+            <p className={cn("truncate text-[10px]", adminUi.muted)}>
+              {NAV.find((item) => item.id === tab)?.label}
+            </p>
+          </div>
+        </Link>
+      </header>
+
+      {mobileNavOpen && (
+        <button
+          type="button"
+          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+          aria-label="Menü schliessen"
+          onClick={() => setMobileNavOpen(false)}
+        />
+      )}
+
       <aside
         className={cn(
-          "sticky top-0 flex h-screen w-64 shrink-0 flex-col border-r",
+          "fixed inset-y-0 left-0 z-50 flex h-screen w-64 flex-col border-r transition-transform duration-300 ease-in-out",
+          "lg:sticky lg:top-0 lg:z-auto lg:shrink-0 lg:translate-x-0",
+          mobileNavOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
           adminUi.sidebar
         )}
       >
-        <div className={cn("border-b p-6", adminUi.sidebarBorder)}>
+        <button
+          type="button"
+          onClick={() => setMobileNavOpen(false)}
+          className={cn(
+            "absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-lg lg:hidden",
+            adminUi.footerBtn
+          )}
+          aria-label="Menü schliessen"
+        >
+          <X className="h-5 w-5" />
+        </button>
+
+        <div className={cn("border-b p-6 pr-14 lg:pr-6", adminUi.sidebarBorder)}>
           <Link href="/" className="flex items-center gap-2">
             <Image
               src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/ChatGPT%20Image%2016.%20Mai%202026%2C%2022_19_51-CjFqSwPCG95cJ4BMP2Ono6hKObBX8y.png"
@@ -170,7 +250,7 @@ export function AdminDashboard() {
               <button
                 key={item.id}
                 type="button"
-                onClick={() => setTab(item.id)}
+                onClick={() => selectTab(item.id)}
                 className={cn(
                   "flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-colors",
                   active ? adminUi.navActive : adminUi.navInactive
@@ -223,7 +303,7 @@ export function AdminDashboard() {
         </div>
       </aside>
 
-      <main className="min-w-0 flex-1 overflow-y-auto p-6 md:p-10">
+      <main className="min-w-0 w-full flex-1 overflow-y-auto p-4 sm:p-6 lg:p-10">
         {tab === "stats" && <AdminStatsTab />}
         {tab === "production" && <AdminProductionTab />}
         {tab === "inventory" && (
