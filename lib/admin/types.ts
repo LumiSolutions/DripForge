@@ -55,7 +55,11 @@ export type StoredOrder = {
   rechnungPdfPath?: string
   /** Stripe Checkout Session (Shop) */
   stripeSessionId?: string | null
-  /** Zahlung bestätigt (false = wartet auf Stripe-Webhook) */
+  /** Payrexx Gateway-Hash (TWINT) */
+  payrexxGatewayHash?: string | null
+  /** Payrexx Transaktions-UUID nach erfolgreicher Zahlung */
+  payrexxTransactionUuid?: string | null
+  /** Zahlung bestätigt (false = wartet auf Stripe-/Payrexx-Webhook) */
   paymentConfirmed?: boolean
   /** Lager: reserviert / verbraucht / freigegeben */
   inventoryState?: import("@/lib/admin/material-types").OrderInventoryState

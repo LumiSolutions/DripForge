@@ -145,13 +145,14 @@ export async function processOrderPayload(
   }
 }
 
-/** Nach Stripe-Zahlung: Bestellung abschliessen, Rechnung & KI-Credits. */
+/** Nach Stripe- oder TWINT-Zahlung: Bestellung abschliessen, Rechnung & KI-Credits. */
 export async function fulfillPaidShopOrder(
   orderId: string,
   options: {
-    stripeSessionId: string
+    stripeSessionId?: string | null
+    payrexxTransactionUuid?: string | null
     userId?: string | null
-    totalChf: number
+    totalChf?: number
   }
 ): Promise<{ fulfilled: boolean; aiCreditsGranted: number }> {
   const order = await getOrderById(orderId)
@@ -165,10 +166,20 @@ export async function fulfillPaidShopOrder(
   }
 
   const settings = await getSettings()
+  const paymentRef =
+    options.stripeSessionId?.trim() ||
+    options.payrexxTransactionUuid?.trim() ||
+    orderId
+
   const updated: StoredOrder = {
     ...order,
     paymentConfirmed: true,
-    stripeSessionId: options.stripeSessionId,
+    ...(options.stripeSessionId
+      ? { stripeSessionId: options.stripeSessionId }
+      : {}),
+    ...(options.payrexxTransactionUuid
+      ? { payrexxTransactionUuid: options.payrexxTransactionUuid }
+      : {}),
   }
   await saveOrder(updated)
 
@@ -195,10 +206,14 @@ export async function fulfillPaidShopOrder(
   }
 
   const creditEmail = options.userId?.trim() || order.billing.email
+  const totalChf =
+    options.totalChf && options.totalChf > 0
+      ? options.totalChf
+      : order.totals.total
   const grant = await grantAiCreditsForPaidOrder(
     creditEmail,
-    options.totalChf,
-    options.stripeSessionId
+    totalChf,
+    paymentRef
   )
 
   console.info(

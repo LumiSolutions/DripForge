@@ -37,7 +37,7 @@ import {
 } from "@/lib/dripforge/coupon-checkout"
 import type { CartItem } from "@/lib/dripforge/types"
 import { cn } from "@/lib/utils"
-import { submitOrder, startStripeCheckout, type OrderPayload } from "@/lib/dripforge/submit-order"
+import { submitOrder, startStripeCheckout, startTwintCheckout, type OrderPayload } from "@/lib/dripforge/submit-order"
 import type { CompanySettings } from "@/lib/admin/types"
 import { DEFAULT_COMPANY_SETTINGS } from "@/lib/admin/types"
 
@@ -225,6 +225,13 @@ export function PageCheckout({
         setStripeConfigured(Boolean(data?.configured))
       })
       .catch(() => setStripeConfigured(false))
+
+    void fetch("/api/checkout/twint")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        setPayrexxConfigured(Boolean(data?.configured))
+      })
+      .catch(() => setPayrexxConfigured(false))
   }, [])
 
   const [form, setForm] = useState<CheckoutForm>(EMPTY_FORM)
@@ -244,6 +251,7 @@ export function PageCheckout({
     null
   )
   const [stripeConfigured, setStripeConfigured] = useState(false)
+  const [payrexxConfigured, setPayrexxConfigured] = useState(false)
 
   const subtotal = useMemo(
     () => cart.reduce((sum, item) => sum + item.price * item.quantity, 0),
@@ -392,11 +400,7 @@ export function PageCheckout({
 
     setIsSubmitting(true)
 
-    const useStripe =
-      stripeConfigured &&
-      (paymentMethod === "card" || paymentMethod === "twint")
-
-    if (useStripe) {
+    if (paymentMethod === "card" && stripeConfigured) {
       const stripeResult = await startStripeCheckout(orderPayload)
       setIsSubmitting(false)
       if (!stripeResult.ok) {
@@ -404,6 +408,41 @@ export function PageCheckout({
         return
       }
       window.location.href = stripeResult.url
+      return
+    }
+
+    if (
+      paymentMethod === "twint" &&
+      checkoutConfig.twintGatewayAktiv &&
+      payrexxConfigured
+    ) {
+      const twintResult = await startTwintCheckout(orderPayload)
+      setIsSubmitting(false)
+      if (!twintResult.ok) {
+        setSubmitError(twintResult.error)
+        return
+      }
+      window.location.href = twintResult.url
+      return
+    }
+
+    if (paymentMethod === "card" && !stripeConfigured) {
+      setIsSubmitting(false)
+      setSubmitError(
+        "Kreditkartenzahlung ist derzeit nicht verfügbar (Stripe nicht konfiguriert)."
+      )
+      return
+    }
+
+    if (
+      paymentMethod === "twint" &&
+      checkoutConfig.twintGatewayAktiv &&
+      !payrexxConfigured
+    ) {
+      setIsSubmitting(false)
+      setSubmitError(
+        "TWINT-Gateway ist derzeit nicht verfügbar (Payrexx nicht konfiguriert)."
+      )
       return
     }
 
@@ -774,11 +813,11 @@ export function PageCheckout({
                         </div>
                         <div className="space-y-1">
                           <p className="text-sm font-semibold text-foreground">
-                            TWINT-Gateway (API)
+                            TWINT via Payrexx
                           </p>
                           <p className="text-xs leading-relaxed text-muted-foreground">
-                            Nach dem Bestellen wird hier der offizielle TWINT-QR-Code
-                            angezeigt. Die Anbindung wird über das Admin-Portal aktiviert.
+                            Nach dem Bestellen wirst du zum offiziellen TWINT-QR-Code
+                            weitergeleitet. Die Zahlungsbestätigung erfolgt automatisch.
                           </p>
                         </div>
                       </div>
