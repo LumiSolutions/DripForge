@@ -25,6 +25,11 @@ import {
 import type { ServiceVisibilitySettings } from "@/lib/admin/types"
 import { shopCartHref, shopNavHref } from "@/lib/dripforge/shop-routes"
 import { HEADER_ICON_BTN_CLASS } from "@/components/dripforge/support-nav-link"
+import {
+  ThemeInboundTour,
+  useThemeInboundTourVisible,
+} from "@/components/dripforge/theme-inbound-tour"
+import { markThemeInboundTourSeen } from "@/lib/dripforge/theme-inbound-tour-settings"
 
 type SpaNavProps = {
   mode: "spa"
@@ -53,6 +58,8 @@ export function ShopHeader(props: ShopHeaderProps) {
   )
   const [kontoLoggedIn, setKontoLoggedIn] = useState(false)
   const searchRef = useRef<HTMLDivElement>(null)
+  const themeButtonRef = useRef<HTMLButtonElement>(null)
+  const themeTourVisible = useThemeInboundTourVisible()
 
   const cartCount = props.mode === "spa" ? props.cartCount : (props.cartCount ?? 0)
   const kontoActive =
@@ -100,6 +107,9 @@ export function ShopHeader(props: ShopHeaderProps) {
   }, [])
 
   const toggleTheme = () => {
+    if (themeTourVisible) {
+      markThemeInboundTourSeen()
+    }
     setTheme((prev) => {
       const newTheme = prev === "dark" ? "light" : "dark"
       localStorage.setItem("theme", newTheme)
@@ -208,10 +218,15 @@ export function ShopHeader(props: ShopHeaderProps) {
 
         <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
           <button
+            ref={themeButtonRef}
             type="button"
             onClick={toggleTheme}
-            className={cn(HEADER_ICON_BTN_CLASS)}
+            className={cn(
+              HEADER_ICON_BTN_CLASS,
+              themeTourVisible && "relative z-[310]"
+            )}
             title={theme === "dark" ? "Light Mode" : "Dark Mode"}
+            aria-label={theme === "dark" ? "Light Mode aktivieren" : "Dark Mode aktivieren"}
           >
             {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
           </button>
@@ -449,6 +464,7 @@ export function ShopHeader(props: ShopHeaderProps) {
           </nav>
         </div>
       )}
+      <ThemeInboundTour anchorRef={themeButtonRef} onThemeChange={setTheme} />
     </header>
   )
 }

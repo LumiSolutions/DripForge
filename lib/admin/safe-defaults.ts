@@ -19,6 +19,7 @@ export function buildDefaultAdminSettings(): AdminSettings {
     shopConfigurators: { ...DEFAULT_SHOP_CONFIGURATORS },
     showSupportOnMainSite: false,
     showSupportOnCountdownPage: false,
+    enableThemeInboundTour: true,
     updatedAt: new Date().toISOString(),
   }
 }

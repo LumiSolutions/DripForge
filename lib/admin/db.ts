@@ -31,6 +31,7 @@ import {
   normalizeSupportFlag,
 } from "@/lib/admin/safe-defaults"
 import { buildSupportPageSettings } from "@/lib/dripforge/support-page-settings"
+import { normalizeEnableThemeInboundTour } from "@/lib/dripforge/theme-inbound-tour-settings"
 import {
   withCosmosFallback,
   withCosmosRequired,
@@ -469,6 +470,9 @@ async function getSettingsFromFile(): Promise<AdminSettings> {
         services
       ),
       ...buildSupportPageSettings(stored),
+      enableThemeInboundTour: normalizeEnableThemeInboundTour(
+        stored.enableThemeInboundTour
+      ),
       updatedAt: stored.updatedAt,
     }
   }
@@ -480,6 +484,7 @@ async function getSettingsFromFile(): Promise<AdminSettings> {
     shopConfigurators: normalizeShopConfigurators(null, DEFAULT_SERVICE_VISIBILITY),
     showSupportOnMainSite: false,
     showSupportOnCountdownPage: false,
+    enableThemeInboundTour: true,
     updatedAt: new Date().toISOString(),
   }
   try {
@@ -510,6 +515,7 @@ export async function saveSettings(input: {
   shopConfigurators?: Partial<AdminSettings["shopConfigurators"]>
   showSupportOnMainSite?: boolean
   showSupportOnCountdownPage?: boolean
+  enableThemeInboundTour?: boolean
 }): Promise<AdminSettings> {
   const current = await getSettings()
   const services = normalizeServiceVisibility({
@@ -539,6 +545,10 @@ export async function saveSettings(input: {
       input.showSupportOnCountdownPage !== undefined
         ? normalizeSupportFlag(input.showSupportOnCountdownPage)
         : current.showSupportOnCountdownPage === true,
+    enableThemeInboundTour:
+      input.enableThemeInboundTour !== undefined
+        ? normalizeEnableThemeInboundTour(input.enableThemeInboundTour)
+        : normalizeEnableThemeInboundTour(current.enableThemeInboundTour),
     updatedAt: new Date().toISOString(),
   }
   await withCosmosFallback(

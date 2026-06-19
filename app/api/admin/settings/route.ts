@@ -38,6 +38,7 @@ export async function PUT(request: Request) {
       shopConfigurators?: Partial<ShopConfiguratorSettings>
       showSupportOnMainSite?: boolean
       showSupportOnCountdownPage?: boolean
+      enableThemeInboundTour?: boolean
     }
 
     if (!body.checkout) {
@@ -76,6 +77,7 @@ export async function PUT(request: Request) {
       shopConfigurators: normalizeShopConfigurators(body.shopConfigurators, services),
       showSupportOnMainSite: body.showSupportOnMainSite,
       showSupportOnCountdownPage: body.showSupportOnCountdownPage,
+      enableThemeInboundTour: body.enableThemeInboundTour,
     })
     return NextResponse.json(settings)
   } catch (error) {

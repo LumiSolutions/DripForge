@@ -140,6 +140,8 @@ export type AdminSettings = {
   showSupportOnMainSite: boolean
   /** Support-Link/Button auf der Countdown-Landingpage */
   showSupportOnCountdownPage: boolean
+  /** Einmaliger Theme-Tropfen für Erstbesucher neben Sonne/Mond-Icon */
+  enableThemeInboundTour: boolean
   updatedAt: string
 }
 

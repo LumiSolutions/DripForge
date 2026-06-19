@@ -14,6 +14,7 @@ import { logCosmosError } from "@/lib/cosmos/log-error"
 import { products as seedProducts } from "@/lib/dripforge/data"
 import { DEFAULT_CHECKOUT_RUNTIME_CONFIG } from "@/lib/dripforge/checkout-config"
 import { buildSupportPageSettings } from "@/lib/dripforge/support-page-settings"
+import { normalizeEnableThemeInboundTour } from "@/lib/dripforge/theme-inbound-tour-settings"
 import {
   buildCustomerFromOrder,
   generateCustomerNumber,
@@ -194,6 +195,9 @@ export async function cosmosGetSettings(): Promise<AdminSettings> {
           services
         ),
         ...buildSupportPageSettings(resource),
+        enableThemeInboundTour: normalizeEnableThemeInboundTour(
+          resource.enableThemeInboundTour
+        ),
         updatedAt: resource.updatedAt,
       }
     }
@@ -213,6 +217,7 @@ export async function cosmosGetSettings(): Promise<AdminSettings> {
     shopConfigurators: normalizeShopConfigurators(null, DEFAULT_SERVICE_VISIBILITY),
     showSupportOnMainSite: false,
     showSupportOnCountdownPage: false,
+    enableThemeInboundTour: true,
     updatedAt: new Date().toISOString(),
   }
   try {

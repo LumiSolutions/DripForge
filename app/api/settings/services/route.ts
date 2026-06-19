@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getSettings } from "@/lib/admin/db"
 import { getSafeServiceVisibility } from "@/lib/admin/safe-defaults"
 import { normalizeShopConfigurators } from "@/lib/dripforge/shop-configurators"
+import { normalizeEnableThemeInboundTour } from "@/lib/dripforge/theme-inbound-tour-settings"
 
 export async function GET() {
   try {
@@ -12,12 +13,16 @@ export async function GET() {
         settings.shopConfigurators,
         settings.services
       ),
+      enableThemeInboundTour: normalizeEnableThemeInboundTour(
+        settings.enableThemeInboundTour
+      ),
     })
   } catch (error) {
     console.error("Services-API: Einstellungen konnten nicht geladen werden.", error)
     return NextResponse.json({
       ...getSafeServiceVisibility(null),
       shopConfigurators: normalizeShopConfigurators(null, null),
+      enableThemeInboundTour: true,
     })
   }
 }

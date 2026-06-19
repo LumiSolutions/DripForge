@@ -206,3 +206,52 @@
 .cs-noise {
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
 }
+
+/* Erstbesucher Theme-Tropfen (Navbar) */
+@keyframes theme-drip-enter {
+  0% {
+    transform: translateX(-50%) translateY(-130%) scale(0.25);
+    opacity: 0;
+  }
+  65% {
+    transform: translateX(-50%) translateY(6%) scale(1.03);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(-50%) translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes theme-drip-pulse {
+  0%,
+  100% {
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+  50% {
+    transform: translateX(-50%) translateY(0) scale(1.035);
+  }
+}
+
+@keyframes theme-drip-exit {
+  from {
+    transform: translateX(-50%) translateY(0) scale(1);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(-50%) translateY(12%) scale(0.92);
+    opacity: 0;
+  }
+}
+
+.theme-drip-enter {
+  animation: theme-drip-enter 0.9s cubic-bezier(0.34, 1.45, 0.64, 1) forwards;
+}
+
+.theme-drip-pulse {
+  animation: theme-drip-pulse 2.6s ease-in-out 0.9s infinite;
+}
+
+.theme-drip-exit {
+  animation: theme-drip-exit 0.32s ease-in forwards;
+}

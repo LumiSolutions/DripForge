@@ -20,6 +20,7 @@ import { createDefaultLaserConfiguratorSettings } from "@/lib/admin/laser-config
 import type { CheckoutRuntimeConfig } from "@/lib/dripforge/checkout-config"
 import { DEFAULT_CHECKOUT_RUNTIME_CONFIG } from "@/lib/dripforge/checkout-config"
 import { buildSupportPageSettings } from "@/lib/dripforge/support-page-settings"
+import { normalizeEnableThemeInboundTour } from "@/lib/dripforge/theme-inbound-tour-settings"
 import { cn } from "@/lib/utils"
 
 export function AdminSettingsTab() {
@@ -38,6 +39,7 @@ export function AdminSettingsTab() {
   const [shopLive, setShopLive] = useState(false)
   const [showSupportOnMainSite, setShowSupportOnMainSite] = useState(false)
   const [showSupportOnCountdownPage, setShowSupportOnCountdownPage] = useState(false)
+  const [enableThemeInboundTour, setEnableThemeInboundTour] = useState(true)
   const [goingLive, setGoingLive] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -59,6 +61,9 @@ export function AdminSettingsTab() {
       const support = buildSupportPageSettings(data)
       setShowSupportOnMainSite(support.showSupportOnMainSite)
       setShowSupportOnCountdownPage(support.showSupportOnCountdownPage)
+      setEnableThemeInboundTour(
+        normalizeEnableThemeInboundTour(data.enableThemeInboundTour)
+      )
       setServices({ ...DEFAULT_SERVICE_VISIBILITY, ...data.services })
       setShopConfigurators({
         ...DEFAULT_SHOP_CONFIGURATORS,
@@ -101,6 +106,7 @@ export function AdminSettingsTab() {
           shopConfigurators,
           showSupportOnMainSite,
           showSupportOnCountdownPage,
+          enableThemeInboundTour,
         }),
       })
       const data = await res.json()
@@ -121,6 +127,9 @@ export function AdminSettingsTab() {
       const support = buildSupportPageSettings(data)
       setShowSupportOnMainSite(support.showSupportOnMainSite)
       setShowSupportOnCountdownPage(support.showSupportOnCountdownPage)
+      setEnableThemeInboundTour(
+        normalizeEnableThemeInboundTour(data.enableThemeInboundTour)
+      )
       if (laserData && !laserData.error) {
         setLaserConfigurator({
           ...createDefaultLaserConfiguratorSettings(),
@@ -292,6 +301,39 @@ export function AdminSettingsTab() {
             <Switch
               checked={showSupportOnCountdownPage}
               onCheckedChange={setShowSupportOnCountdownPage}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className={adminUi.card}>
+        <CardContent className="space-y-4 p-6">
+          <div>
+            <h3 className={cn("text-base font-semibold", adminUi.accentTitle)}>
+              Erstbesucher-Onboarding
+            </h3>
+            <p className={cn("mt-1 text-sm", adminUi.muted)}>
+              Steuert die einmalige Theme-Hilfe für neue Besucher im Shop-Header.
+            </p>
+          </div>
+          <div
+            className={cn(
+              "flex items-start justify-between gap-4 rounded-xl border p-4",
+              adminUi.section
+            )}
+          >
+            <div className="space-y-1 pr-2">
+              <Label className={cn("text-sm font-semibold", adminUi.heading)}>
+                Erstbesucher Theme-Tropfen anzeigen
+              </Label>
+              <p className={cn("text-xs", adminUi.muted)}>
+                Aktiviert die einmalige, tropfenförmige Onboarding-Frage nach dem
+                Tag- oder Nachtmodus für neue Besucher.
+              </p>
+            </div>
+            <Switch
+              checked={enableThemeInboundTour}
+              onCheckedChange={setEnableThemeInboundTour}
             />
           </div>
         </CardContent>
