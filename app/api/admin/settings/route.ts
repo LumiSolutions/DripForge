@@ -39,6 +39,7 @@ export async function PUT(request: Request) {
       showSupportOnMainSite?: boolean
       showSupportOnCountdownPage?: boolean
       enableThemeInboundTour?: boolean
+      themeInboundTourImageUrl?: string | null
     }
 
     if (!body.checkout) {
@@ -78,6 +79,7 @@ export async function PUT(request: Request) {
       showSupportOnMainSite: body.showSupportOnMainSite,
       showSupportOnCountdownPage: body.showSupportOnCountdownPage,
       enableThemeInboundTour: body.enableThemeInboundTour,
+      themeInboundTourImageUrl: body.themeInboundTourImageUrl,
     })
     return NextResponse.json(settings)
   } catch (error) {

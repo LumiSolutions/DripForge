@@ -31,7 +31,10 @@ import {
   normalizeSupportFlag,
 } from "@/lib/admin/safe-defaults"
 import { buildSupportPageSettings } from "@/lib/dripforge/support-page-settings"
-import { normalizeEnableThemeInboundTour } from "@/lib/dripforge/theme-inbound-tour-settings"
+import {
+  normalizeEnableThemeInboundTour,
+  normalizeThemeInboundTourImageUrl,
+} from "@/lib/dripforge/theme-inbound-tour-settings"
 import {
   withCosmosFallback,
   withCosmosRequired,
@@ -473,6 +476,9 @@ async function getSettingsFromFile(): Promise<AdminSettings> {
       enableThemeInboundTour: normalizeEnableThemeInboundTour(
         stored.enableThemeInboundTour
       ),
+      themeInboundTourImageUrl: normalizeThemeInboundTourImageUrl(
+        stored.themeInboundTourImageUrl
+      ),
       updatedAt: stored.updatedAt,
     }
   }
@@ -485,6 +491,7 @@ async function getSettingsFromFile(): Promise<AdminSettings> {
     showSupportOnMainSite: false,
     showSupportOnCountdownPage: false,
     enableThemeInboundTour: true,
+    themeInboundTourImageUrl: null,
     updatedAt: new Date().toISOString(),
   }
   try {
@@ -516,6 +523,7 @@ export async function saveSettings(input: {
   showSupportOnMainSite?: boolean
   showSupportOnCountdownPage?: boolean
   enableThemeInboundTour?: boolean
+  themeInboundTourImageUrl?: string | null
 }): Promise<AdminSettings> {
   const current = await getSettings()
   const services = normalizeServiceVisibility({
@@ -549,6 +557,10 @@ export async function saveSettings(input: {
       input.enableThemeInboundTour !== undefined
         ? normalizeEnableThemeInboundTour(input.enableThemeInboundTour)
         : normalizeEnableThemeInboundTour(current.enableThemeInboundTour),
+    themeInboundTourImageUrl:
+      input.themeInboundTourImageUrl !== undefined
+        ? normalizeThemeInboundTourImageUrl(input.themeInboundTourImageUrl)
+        : normalizeThemeInboundTourImageUrl(current.themeInboundTourImageUrl),
     updatedAt: new Date().toISOString(),
   }
   await withCosmosFallback(

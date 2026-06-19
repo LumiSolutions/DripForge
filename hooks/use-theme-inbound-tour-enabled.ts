@@ -1,12 +1,17 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { normalizeEnableThemeInboundTour } from "@/lib/dripforge/theme-inbound-tour-settings"
+import {
+  buildThemeInboundTourPublicSettings,
+  type ThemeInboundTourPublicSettings,
+} from "@/lib/dripforge/theme-inbound-tour-settings"
 
 /** Alle 15s + bei Tab-Fokus — Admin-Änderungen ohne Reload sichtbar */
 const REFRESH_MS = 15_000
 
-async function loadThemeTourEnabledFromApi(): Promise<boolean> {
+const DEFAULT_SETTINGS = buildThemeInboundTourPublicSettings(null)
+
+async function loadThemeTourSettingsFromApi(): Promise<ThemeInboundTourPublicSettings> {
   const cacheBust = Date.now()
   try {
     const res = await fetch(`/api/settings/services?_=${cacheBust}`, {
@@ -14,20 +19,21 @@ async function loadThemeTourEnabledFromApi(): Promise<boolean> {
       headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
     })
     if (res.ok) {
-      const data = (await res.json()) as { enableThemeInboundTour?: unknown }
-      return normalizeEnableThemeInboundTour(data.enableThemeInboundTour)
+      return buildThemeInboundTourPublicSettings(await res.json())
     }
   } catch {
     /* Fallback unten */
   }
-  return true
+  return DEFAULT_SETTINGS
 }
 
-export function useThemeInboundTourEnabled(): boolean | null {
-  const [enabled, setEnabled] = useState<boolean | null>(null)
+export function useThemeInboundTourSettings(): ThemeInboundTourPublicSettings | null {
+  const [settings, setSettings] = useState<ThemeInboundTourPublicSettings | null>(
+    null
+  )
 
   const refresh = useCallback(async () => {
-    setEnabled(await loadThemeTourEnabledFromApi())
+    setSettings(await loadThemeTourSettingsFromApi())
   }, [])
 
   useEffect(() => {
@@ -50,5 +56,11 @@ export function useThemeInboundTourEnabled(): boolean | null {
     }
   }, [refresh])
 
-  return enabled
+  return settings
+}
+
+export function useThemeInboundTourEnabled(): boolean | null {
+  const settings = useThemeInboundTourSettings()
+  if (settings === null) return null
+  return settings.enableThemeInboundTour
 }

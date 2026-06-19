@@ -20,6 +20,7 @@ export function buildDefaultAdminSettings(): AdminSettings {
     showSupportOnMainSite: false,
     showSupportOnCountdownPage: false,
     enableThemeInboundTour: true,
+    themeInboundTourImageUrl: null,
     updatedAt: new Date().toISOString(),
   }
 }

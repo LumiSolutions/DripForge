@@ -16,13 +16,17 @@ import { cn } from "@/lib/utils"
 import {
   hasSeenThemeInboundTour,
   markThemeInboundTourSeen,
+  shouldUseUnoptimizedThemeTourImage,
   THEME_DRIP_OVERLAY_SRC,
 } from "@/lib/dripforge/theme-inbound-tour-settings"
 import {
   applySiteTheme,
   type SiteTheme,
 } from "@/lib/dripforge/site-theme"
-import { useThemeInboundTourEnabled } from "@/hooks/use-theme-inbound-tour-enabled"
+import {
+  useThemeInboundTourEnabled,
+  useThemeInboundTourSettings,
+} from "@/hooks/use-theme-inbound-tour-enabled"
 
 type AnchorPosition = {
   left: number
@@ -74,7 +78,10 @@ export function ThemeInboundTour({
   anchorRef,
   onThemeChange,
 }: ThemeInboundTourProps) {
-  const enabled = useThemeInboundTourEnabled()
+  const tourSettings = useThemeInboundTourSettings()
+  const enabled = tourSettings?.enableThemeInboundTour ?? null
+  const dripImageSrc =
+    tourSettings?.themeInboundTourImageUrl ?? THEME_DRIP_OVERLAY_SRC
   const [mounted, setMounted] = useState(false)
   const [visible, setVisible] = useState(false)
   const [exiting, setExiting] = useState(false)
@@ -178,12 +185,12 @@ export function ThemeInboundTour({
         >
           <div className="relative w-full">
             <Image
-              src={THEME_DRIP_OVERLAY_SRC}
+              src={dripImageSrc}
               alt=""
               width={280}
               height={340}
               priority
-              unoptimized
+              unoptimized={shouldUseUnoptimizedThemeTourImage(dripImageSrc)}
               aria-hidden
               className="pointer-events-none mx-auto h-auto w-full max-w-[17rem] opacity-[0.88] drop-shadow-[0_18px_36px_rgba(249,115,22,0.35)] sm:max-w-[18rem]"
             />

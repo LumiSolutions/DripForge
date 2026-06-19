@@ -1,7 +1,8 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
-import { Loader2, Rocket, Save } from "lucide-react"
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react"
+import Image from "next/image"
+import { Loader2, Rocket, Save, Upload } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -20,7 +21,12 @@ import { createDefaultLaserConfiguratorSettings } from "@/lib/admin/laser-config
 import type { CheckoutRuntimeConfig } from "@/lib/dripforge/checkout-config"
 import { DEFAULT_CHECKOUT_RUNTIME_CONFIG } from "@/lib/dripforge/checkout-config"
 import { buildSupportPageSettings } from "@/lib/dripforge/support-page-settings"
-import { normalizeEnableThemeInboundTour } from "@/lib/dripforge/theme-inbound-tour-settings"
+import {
+  normalizeEnableThemeInboundTour,
+  normalizeThemeInboundTourImageUrl,
+  resolveThemeInboundTourImageUrl,
+  shouldUseUnoptimizedThemeTourImage,
+} from "@/lib/dripforge/theme-inbound-tour-settings"
 import { cn } from "@/lib/utils"
 
 export function AdminSettingsTab() {
@@ -40,6 +46,11 @@ export function AdminSettingsTab() {
   const [showSupportOnMainSite, setShowSupportOnMainSite] = useState(false)
   const [showSupportOnCountdownPage, setShowSupportOnCountdownPage] = useState(false)
   const [enableThemeInboundTour, setEnableThemeInboundTour] = useState(true)
+  const [themeInboundTourImageUrl, setThemeInboundTourImageUrl] = useState<string | null>(
+    null
+  )
+  const [uploadingThemeTourImage, setUploadingThemeTourImage] = useState(false)
+  const themeTourImageInputRef = useRef<HTMLInputElement>(null)
   const [goingLive, setGoingLive] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -63,6 +74,9 @@ export function AdminSettingsTab() {
       setShowSupportOnCountdownPage(support.showSupportOnCountdownPage)
       setEnableThemeInboundTour(
         normalizeEnableThemeInboundTour(data.enableThemeInboundTour)
+      )
+      setThemeInboundTourImageUrl(
+        normalizeThemeInboundTourImageUrl(data.themeInboundTourImageUrl)
       )
       setServices({ ...DEFAULT_SERVICE_VISIBILITY, ...data.services })
       setShopConfigurators({
@@ -107,6 +121,7 @@ export function AdminSettingsTab() {
           showSupportOnMainSite,
           showSupportOnCountdownPage,
           enableThemeInboundTour,
+          themeInboundTourImageUrl,
         }),
       })
       const data = await res.json()
@@ -129,6 +144,9 @@ export function AdminSettingsTab() {
       setShowSupportOnCountdownPage(support.showSupportOnCountdownPage)
       setEnableThemeInboundTour(
         normalizeEnableThemeInboundTour(data.enableThemeInboundTour)
+      )
+      setThemeInboundTourImageUrl(
+        normalizeThemeInboundTourImageUrl(data.themeInboundTourImageUrl)
       )
       if (laserData && !laserData.error) {
         setLaserConfigurator({
@@ -176,6 +194,45 @@ export function AdminSettingsTab() {
       )
     } finally {
       setGoingLive(false)
+    }
+  }
+
+  const handleThemeTourImageUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ""
+    if (!file) return
+
+    setUploadingThemeTourImage(true)
+    setError(null)
+    setSuccess(null)
+
+    try {
+      const formData = new FormData()
+      formData.append("file", file)
+
+      const res = await fetch("/api/admin/settings/theme-tour-image", {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data.error ?? "Upload fehlgeschlagen")
+      }
+
+      setThemeInboundTourImageUrl(
+        normalizeThemeInboundTourImageUrl(data.themeInboundTourImageUrl)
+      )
+      setSuccess("Onboarding-Tropfen Bild hochgeladen — live im Shop aktiv.")
+    } catch (err) {
+      console.warn("Admin: Theme-Tour-Bild-Upload fehlgeschlagen.", err)
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Onboarding-Tropfen Bild konnte nicht hochgeladen werden."
+      )
+    } finally {
+      setUploadingThemeTourImage(false)
     }
   }
 
@@ -335,6 +392,73 @@ export function AdminSettingsTab() {
               checked={enableThemeInboundTour}
               onCheckedChange={setEnableThemeInboundTour}
             />
+          </div>
+
+          <div
+            className={cn(
+              "rounded-xl border p-4",
+              adminUi.section
+            )}
+          >
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+              <div className="flex shrink-0 flex-col items-center gap-2">
+                <div className="relative h-36 w-28 overflow-hidden rounded-xl border border-border/60 bg-background/40 p-2">
+                  <Image
+                    src={resolveThemeInboundTourImageUrl(themeInboundTourImageUrl)}
+                    alt="Vorschau Onboarding-Tropfen"
+                    fill
+                    unoptimized={shouldUseUnoptimizedThemeTourImage(
+                      resolveThemeInboundTourImageUrl(themeInboundTourImageUrl)
+                    )}
+                    className="object-contain opacity-90"
+                  />
+                </div>
+                <p className={cn("text-center text-[11px]", adminUi.muted)}>
+                  Aktive Vorschau
+                </p>
+              </div>
+
+              <div className="min-w-0 flex-1 space-y-3">
+                <div className="space-y-1">
+                  <Label className={cn("text-sm font-semibold", adminUi.heading)}>
+                    Onboarding-Tropfen Bild hochladen
+                  </Label>
+                  <p className={cn("text-xs", adminUi.muted)}>
+                    PNG oder WebP mit Transparenz, max. 2 MB. Wird sofort in Cosmos
+                    gespeichert und für Erstbesucher live geschaltet.
+                  </p>
+                </div>
+
+                <input
+                  ref={themeTourImageInputRef}
+                  type="file"
+                  accept="image/png,image/webp,.png,.webp"
+                  className="hidden"
+                  onChange={(event) => void handleThemeTourImageUpload(event)}
+                />
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={uploadingThemeTourImage}
+                  className={adminUi.input}
+                  onClick={() => themeTourImageInputRef.current?.click()}
+                >
+                  {uploadingThemeTourImage ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Upload className="mr-2 h-4 w-4" />
+                  )}
+                  Bild auswählen & hochladen
+                </Button>
+
+                {themeInboundTourImageUrl && (
+                  <p className={cn("break-all text-[11px]", adminUi.muted)}>
+                    Aktive URL: {themeInboundTourImageUrl}
+                  </p>
+                )}
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>

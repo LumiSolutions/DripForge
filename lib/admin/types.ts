@@ -142,6 +142,8 @@ export type AdminSettings = {
   showSupportOnCountdownPage: boolean
   /** Einmaliger Theme-Tropfen für Erstbesucher neben Sonne/Mond-Icon */
   enableThemeInboundTour: boolean
+  /** Hochgeladenes Overlay-Bild für die Theme-Tour (Azure Blob / Data-URL) */
+  themeInboundTourImageUrl?: string | null
   updatedAt: string
 }
 

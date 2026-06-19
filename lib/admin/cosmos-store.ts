@@ -14,7 +14,10 @@ import { logCosmosError } from "@/lib/cosmos/log-error"
 import { products as seedProducts } from "@/lib/dripforge/data"
 import { DEFAULT_CHECKOUT_RUNTIME_CONFIG } from "@/lib/dripforge/checkout-config"
 import { buildSupportPageSettings } from "@/lib/dripforge/support-page-settings"
-import { normalizeEnableThemeInboundTour } from "@/lib/dripforge/theme-inbound-tour-settings"
+import {
+  normalizeEnableThemeInboundTour,
+  normalizeThemeInboundTourImageUrl,
+} from "@/lib/dripforge/theme-inbound-tour-settings"
 import {
   buildCustomerFromOrder,
   generateCustomerNumber,
@@ -198,6 +201,9 @@ export async function cosmosGetSettings(): Promise<AdminSettings> {
         enableThemeInboundTour: normalizeEnableThemeInboundTour(
           resource.enableThemeInboundTour
         ),
+        themeInboundTourImageUrl: normalizeThemeInboundTourImageUrl(
+          resource.themeInboundTourImageUrl
+        ),
         updatedAt: resource.updatedAt,
       }
     }
@@ -218,6 +224,7 @@ export async function cosmosGetSettings(): Promise<AdminSettings> {
     showSupportOnMainSite: false,
     showSupportOnCountdownPage: false,
     enableThemeInboundTour: true,
+    themeInboundTourImageUrl: null,
     updatedAt: new Date().toISOString(),
   }
   try {
