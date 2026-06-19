@@ -1,8 +1,9 @@
 "use client"
 
-import { useCallback, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
+import { createPortal } from "react-dom"
 import Link from "next/link"
-import { usePathname, useRouter } from "next/navigation"
+import { useRouter } from "next/navigation"
 import {
   Send,
   MessageCircle,
@@ -15,6 +16,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { useSupportPageSettings } from "@/hooks/use-support-page-active"
+import { useFloatingActionsVisible } from "@/hooks/use-floating-actions-visible"
 import { SUPPORT_ROUTE } from "@/components/dripforge/support-nav-link"
 import { shopViewHref } from "@/lib/dripforge/shop-routes"
 
@@ -24,11 +26,12 @@ type ChatMessage = {
   content: string
 }
 
-/** Globale schwebende Aktionen: Support-Herz + Chatbot auf allen Seiten. */
+/** Globale schwebende Aktionen: Support-Herz + Chatbot (Mobil + Desktop). */
 export function StorefrontFloatingActions() {
-  const pathname = usePathname()
   const router = useRouter()
+  const visible = useFloatingActionsVisible()
   const { showSupportOnMainSite: supportPageVisible } = useSupportPageSettings()
+  const [mounted, setMounted] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
     {
@@ -39,6 +42,10 @@ export function StorefrontFloatingActions() {
     },
   ])
   const [chatInput, setChatInput] = useState("")
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   const handleSendMessage = useCallback(() => {
     if (!chatInput.trim()) return
@@ -62,15 +69,25 @@ export function StorefrontFloatingActions() {
     }, 1000)
   }, [chatInput])
 
-  // Launch-/Countdown-Startseite: nur Header-Herz, keine schwebenden Overlays unten rechts.
-  if (pathname === "/") {
+  if (!visible || !mounted) {
     return null
   }
 
-  return (
-    <div className="pointer-events-none fixed bottom-6 right-6 z-[100] flex flex-col items-end gap-3">
+  const content = (
+    <div
+      className={cn(
+        "pointer-events-none fixed z-[200] flex flex-col items-end gap-3",
+        "bottom-[max(1.25rem,env(safe-area-inset-bottom))]",
+        "right-[max(1.25rem,env(safe-area-inset-right))]"
+      )}
+    >
       {chatOpen && (
-        <div className="pointer-events-auto w-80 overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
+        <div
+          className={cn(
+            "pointer-events-auto overflow-hidden rounded-2xl border border-border bg-card shadow-2xl",
+            "w-[min(20rem,calc(100vw-2rem))]"
+          )}
+        >
           <div className="flex items-center justify-between border-b border-border bg-secondary/50 p-4">
             <div className="flex items-center gap-2">
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary">
@@ -85,6 +102,7 @@ export function StorefrontFloatingActions() {
               type="button"
               onClick={() => setChatOpen(false)}
               className="text-muted-foreground hover:text-foreground"
+              aria-label="Chat schliessen"
             >
               <X className="h-5 w-5" />
             </button>
@@ -131,7 +149,7 @@ export function StorefrontFloatingActions() {
                 placeholder="Nachricht eingeben..."
                 className="flex-1"
               />
-              <Button size="icon" onClick={handleSendMessage}>
+              <Button size="icon" onClick={handleSendMessage} aria-label="Nachricht senden">
                 <Send className="h-4 w-4" />
               </Button>
             </div>
@@ -150,7 +168,7 @@ export function StorefrontFloatingActions() {
         <Link
           href={SUPPORT_ROUTE}
           prefetch
-          className="pointer-events-auto flex h-12 w-12 items-center justify-center rounded-full border border-primary/30 bg-background/95 text-primary shadow-lg backdrop-blur-sm transition-transform hover:scale-105 hover:bg-primary/10"
+          className="pointer-events-auto flex h-12 w-12 touch-manipulation items-center justify-center rounded-full border border-primary/30 bg-background/95 text-primary shadow-lg backdrop-blur-sm transition-transform hover:scale-105 hover:bg-primary/10"
           title="Unsere Mission"
           aria-label="Unsere Mission unterstützen"
         >
@@ -161,7 +179,7 @@ export function StorefrontFloatingActions() {
       <button
         type="button"
         onClick={() => setChatOpen((open) => !open)}
-        className="pointer-events-auto flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-105"
+        className="pointer-events-auto flex h-14 w-14 touch-manipulation items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-105"
         title="Chat öffnen"
         aria-label="Chat öffnen"
       >
@@ -169,4 +187,6 @@ export function StorefrontFloatingActions() {
       </button>
     </div>
   )
+
+  return createPortal(content, document.body)
 }
