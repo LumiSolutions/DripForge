@@ -117,6 +117,8 @@ export interface CartItem {
       imagePosition: LayoutPosition
     }
     /** Kunden sendet eigenes Produkt zur Verarbeitung (Personalisierte Laserkreation) */
+    isCustomerInbound?: boolean
+    /** @deprecated Alias — nutze isCustomerInbound */
     customerShipping?: boolean
   }
 }

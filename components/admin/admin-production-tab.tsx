@@ -26,6 +26,10 @@ import {
   PRODUCTION_COLUMNS,
   resolveProductionStatus,
 } from "@/lib/admin/production-status"
+import {
+  CUSTOMER_INBOUND_PRODUCTION_LABEL,
+  isCustomerInboundOrder,
+} from "@/lib/admin/customer-inbound-order"
 import { formatChf } from "@/lib/admin/format-chf"
 import type { ProductionStatus, StoredOrder } from "@/lib/admin/types"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
@@ -68,6 +72,7 @@ function ProductionOrderCard({
 }) {
   const prev = prevProductionStatus(columnStatus)
   const next = nextProductionStatus(columnStatus)
+  const customerInbound = isCustomerInboundOrder(order)
   const previewSrc =
     order.items.find((i) => i.leitbildUrl ?? i.leitbild)?.leitbildUrl ??
     order.items.find((i) => i.leitbild)?.leitbild
@@ -80,7 +85,10 @@ function ProductionOrderCard({
         e.dataTransfer.effectAllowed = "move"
       }}
       className={cn(
-        "cursor-grab border-l-4 border-l-orange-500 active:cursor-grabbing",
+        "cursor-grab active:cursor-grabbing",
+        customerInbound
+          ? "border-l-4 border-l-amber-500 bg-amber-500/5 ring-1 ring-amber-500/25"
+          : "border-l-4 border-l-orange-500",
         adminUi.card,
         updating && "opacity-60"
       )}
@@ -99,6 +107,11 @@ function ProductionOrderCard({
           <GripVertical className={cn("h-4 w-4 shrink-0", adminUi.muted)} />
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {customerInbound && (
+            <Badge className="border-amber-500/40 bg-amber-500/15 text-amber-800 dark:text-amber-200">
+              {CUSTOMER_INBOUND_PRODUCTION_LABEL}
+            </Badge>
+          )}
           <Badge variant="outline" className={adminUi.badgeOutline}>
             {formatChf(order.totals.total)}
           </Badge>

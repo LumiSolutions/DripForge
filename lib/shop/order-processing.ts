@@ -28,6 +28,7 @@ import {
   redeemLoyaltyPointsForOrder,
   LOYALTY_MIN_GATEWAY_PAYMENT_CHF,
 } from "@/lib/konto/loyalty-points"
+import { orderHasCustomerInbound } from "@/lib/admin/customer-inbound-order"
 import { applyInventoryReservationForOrder } from "@/lib/admin/order-inventory-hook"
 
 function stripLeitbildPayload(item: StoredOrderItem): StoredOrderItem {
@@ -130,6 +131,7 @@ export async function processOrderPayload(
     createdAt: new Date().toISOString(),
     status: "ausstehend",
     productionStatus: DEFAULT_PRODUCTION_STATUS,
+    isCustomerInbound: orderHasCustomerInbound(items),
     billing: payload.billing,
     delivery: payload.delivery,
     shippingMethod: payload.shippingMethod,

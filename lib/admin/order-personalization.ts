@@ -23,6 +23,9 @@ export function getItemPersonalizationLines(
   }
 
   if (item.type === "laser" || d.material || d.userText) {
+    if (d.isCustomerInbound || d.customerShipping) {
+      lines.push({ label: "Einsendung", value: "Eigenes Produkt des Kunden" })
+    }
     if (d.material) lines.push({ label: "Material", value: d.material })
     if (d.variant || d.materialVariant) {
       lines.push({

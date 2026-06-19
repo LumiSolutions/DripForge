@@ -8,7 +8,14 @@ import { Card, CardContent } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 import { laserMaterials } from "@/lib/dripforge/data"
 import { calculateLaserPrice } from "@/lib/dripforge/calculate-laser-price"
+import { isCustomerShippingOptionEnabled } from "@/lib/dripforge/customer-shipping-visibility"
 import { INDIVIDUAL_LASER_MATERIAL_BASE_PRICES } from "@/lib/dripforge/laser-individual-config"
+import {
+  CUSTOMER_INBOUND_MATERIAL_ID,
+  CUSTOMER_INBOUND_MATERIAL_LABEL,
+  isCustomerInboundMaterial,
+  type IndividualLaserMaterialSelection,
+} from "@/lib/dripforge/laser-customer-inbound"
 import {
   DEFAULT_IMAGE_LAYOUT,
   DEFAULT_LASER_FONT_ID,
@@ -32,7 +39,6 @@ import {
 } from "@/components/dripforge/shared/laser-designer-studio"
 import { IndividualProcessBar } from "@/components/dripforge/shared/individual-process-bar"
 import { captureLaserPreviewLeitbild } from "@/lib/dripforge/capture-leitbild"
-import { isCustomerShippingUiVisible } from "@/lib/dripforge/customer-shipping-visibility"
 import type { CartItem, LaserMaterialId } from "@/lib/dripforge/types"
 
 export function PageIndividualLaser({
@@ -57,7 +63,7 @@ export function PageIndividualLaser({
   })
 
   const [selectedMaterialId, setSelectedMaterialId] =
-    useState<LaserMaterialId>(defaultMaterial.id)
+    useState<IndividualLaserMaterialSelection>(defaultMaterial.id)
   const [selectedSizeId, setSelectedSizeId] = useState("medium")
   const [quantity, setQuantity] = useState(1)
   const [engravingMetrics, setEngravingMetrics] =
@@ -66,8 +72,8 @@ export function PageIndividualLaser({
     DEFAULT_LASER_PRICING_CONFIG
   )
   const [allowCustomerShipping, setAllowCustomerShipping] = useState(false)
-  const [customerShippingInstructions, setCustomerShippingInstructions] = useState("")
-  const [wantsCustomerShipping, setWantsCustomerShipping] = useState(false)
+  const [customerShippingInstructions, setCustomerShippingInstructions] =
+    useState("")
   const laserPreviewRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -90,12 +96,13 @@ export function PageIndividualLaser({
       })
   }, [])
 
-  const showCustomerShippingOption = isCustomerShippingUiVisible(
-    allowCustomerShipping
-  )
+  const showCustomerShippingOption =
+    isCustomerShippingOptionEnabled(allowCustomerShipping)
+  const isCustomerInbound = isCustomerInboundMaterial(selectedMaterialId)
 
   const material =
     laserMaterials.find((m) => m.id === selectedMaterialId) ?? defaultMaterial
+  const previewMaterial = isCustomerInbound ? defaultMaterial : material
   const sizePreset =
     INDIVIDUAL_LASER_SIZES.find((s) => s.id === selectedSizeId) ??
     INDIVIDUAL_LASER_SIZES[1]
@@ -106,7 +113,7 @@ export function PageIndividualLaser({
 
   const laserDesign: LaserDesignerState = useMemo(
     () => ({
-      selectedVariant: material.types[0] ?? "",
+      selectedVariant: previewMaterial.types[0] ?? "",
       selectedFont,
       engravingText: gravurText,
       textLayout,
@@ -116,7 +123,7 @@ export function PageIndividualLaser({
       },
     }),
     [
-      material.types,
+      previewMaterial.types,
       selectedFont,
       gravurText,
       textLayout,
@@ -137,8 +144,11 @@ export function PageIndividualLaser({
     }
   }, [])
 
-  const materialBase =
-    INDIVIDUAL_LASER_MATERIAL_BASE_PRICES[selectedMaterialId] ?? 15
+  const materialBase = isCustomerInbound
+    ? 0
+    : (INDIVIDUAL_LASER_MATERIAL_BASE_PRICES[
+        selectedMaterialId as LaserMaterialId
+      ] ?? 15)
   const basePrice = materialBase * sizePreset.priceMultiplier
 
   const priceBreakdown = useMemo(() => {
@@ -163,7 +173,7 @@ export function PageIndividualLaser({
     const gravurSize = engravingMetrics?.active
     addToCart({
       id: `custom-laser-${Date.now()}`,
-      name: wantsCustomerShipping
+      name: isCustomerInbound
         ? "Personalisierte Laserkreation (Kunden-Einsendung)"
         : "Personalisierte Laserkreation",
       price: priceBreakdown.unitPrice,
@@ -171,7 +181,9 @@ export function PageIndividualLaser({
       type: "laser",
       leitbild,
       customDetails: {
-        material: material.name,
+        material: isCustomerInbound
+          ? CUSTOMER_INBOUND_MATERIAL_LABEL
+          : material.name,
         materialVariant: laserDesign.selectedVariant,
         size: sizePreset.dimensionsLabel,
         engravingText: gravurText.trim(),
@@ -189,7 +201,7 @@ export function PageIndividualLaser({
         },
         hasText: gravurText.trim().length > 0,
         hasImage: Boolean(uploadedImageSrc),
-        customerShipping: wantsCustomerShipping,
+        isCustomerInbound,
         dimensions: gravurSize
           ? `${gravurSize.widthMm.toFixed(1)} x ${gravurSize.heightMm.toFixed(1)} mm`
           : sizePreset.dimensionsLabel,
@@ -236,12 +248,11 @@ export function PageIndividualLaser({
       </div>
 
       <div className="mx-auto max-w-6xl space-y-6 px-4">
-        {/* Oberer Bereich: Konfiguration links, Vorschau + Bearbeitung rechts */}
         <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2 lg:gap-8">
           <div className="flex min-w-0 flex-col gap-6">
             <LaserDesignerStudio
               column="settings"
-              material={material}
+              material={previewMaterial}
               productName="Personalisierte Laserkreation"
               state={laserDesign}
               onStateChange={handleDesignChange}
@@ -273,7 +284,48 @@ export function PageIndividualLaser({
                       </p>
                     </button>
                   ))}
+                  {showCustomerShippingOption && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSelectedMaterialId(CUSTOMER_INBOUND_MATERIAL_ID)
+                      }
+                      className={cn(
+                        "col-span-2 rounded-xl border p-4 text-left transition-colors",
+                        isCustomerInbound
+                          ? "border-amber-500 bg-amber-500/10"
+                          : "border-dashed border-border/60 hover:border-amber-500/40"
+                      )}
+                    >
+                      <div className="flex items-start gap-3">
+                        <Package className="mt-0.5 h-6 w-6 shrink-0 text-amber-500" />
+                        <div>
+                          <p className="font-bold">{CUSTOMER_INBOUND_MATERIAL_LABEL}</p>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            Materialpreis CHF 0.00 — nur Gravur & Arbeitszeit
+                          </p>
+                        </div>
+                      </div>
+                    </button>
+                  )}
                 </div>
+
+                {isCustomerInbound && (
+                  <div className="mt-4 space-y-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
+                    <p className="text-sm font-semibold text-amber-700 dark:text-amber-300">
+                      Einsende-Instruktionen & Lieferadresse
+                    </p>
+                    {customerShippingInstructions.trim() ? (
+                      <div className="whitespace-pre-wrap text-sm text-muted-foreground">
+                        {customerShippingInstructions}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        Versandanleitung folgt per E-Mail nach der Bestellung.
+                      </p>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -302,40 +354,12 @@ export function PageIndividualLaser({
                 </div>
               </CardContent>
             </Card>
-
-            {showCustomerShippingOption && (
-              <Card className="rounded-2xl border-dashed border-border/60 bg-card/30 shadow-sm">
-                <CardContent className="p-6">
-                  <div className="mb-3 flex items-center gap-2">
-                    <Package className="h-5 w-5 text-cyan-500" />
-                    <h3 className="font-bold">Eigenes Produkt einschicken</h3>
-                  </div>
-                  <label className="flex cursor-pointer items-start gap-3">
-                    <input
-                      type="checkbox"
-                      checked={wantsCustomerShipping}
-                      onChange={(e) => setWantsCustomerShipping(e.target.checked)}
-                      className="mt-1 h-4 w-4 rounded border-border"
-                    />
-                    <span className="text-sm text-muted-foreground">
-                      Ich moechte ein eigenes Produkt einschicken und von DripForge
-                      verarbeiten lassen.
-                    </span>
-                  </label>
-                  {wantsCustomerShipping && customerShippingInstructions.trim() && (
-                    <div className="mt-4 rounded-lg border border-border/50 bg-muted/30 p-4 text-sm text-muted-foreground whitespace-pre-wrap">
-                      {customerShippingInstructions}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )}
           </div>
 
           <div className="flex min-w-0 flex-col gap-6">
             <LaserDesignerStudio
               column="preview"
-              material={material}
+              material={previewMaterial}
               productName="Personalisierte Laserkreation"
               state={laserDesign}
               previewSurfaceRef={laserPreviewRef}
@@ -346,7 +370,6 @@ export function PageIndividualLaser({
           </div>
         </div>
 
-        {/* Unterer Bereich: Preisberechnung und Anzahl — eigener Grid, kein Overlap */}
         <div className="grid grid-cols-1 items-stretch gap-6 md:grid-cols-2">
           <Card className="flex min-h-[280px] flex-col rounded-2xl border border-sky-200/80 bg-sky-50 shadow-sm dark:border-cyan-500/25 dark:bg-gradient-to-b dark:from-cyan-500/10 dark:via-sky-950/20">
             <CardContent className="flex h-full flex-col p-6">
@@ -355,8 +378,18 @@ export function PageIndividualLaser({
                 <div className="space-y-2">
                   <div className="flex justify-between gap-3">
                     <span className="text-muted-foreground">Material</span>
-                    <span className="text-right font-medium">{material.name}</span>
+                    <span className="text-right font-medium">
+                      {isCustomerInbound
+                        ? CUSTOMER_INBOUND_MATERIAL_LABEL
+                        : material.name}
+                    </span>
                   </div>
+                  {isCustomerInbound && (
+                    <div className="flex justify-between gap-3">
+                      <span className="text-muted-foreground">Materialpreis</span>
+                      <span className="font-medium">CHF 0.00</span>
+                    </div>
+                  )}
                   <div className="flex justify-between gap-3">
                     <span className="text-muted-foreground">Groesse</span>
                     <span className="text-right font-medium">

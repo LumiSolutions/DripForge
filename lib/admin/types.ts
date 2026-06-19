@@ -61,6 +61,8 @@ export type StoredOrder = {
   payrexxTransactionUuid?: string | null
   /** Zahlung bestätigt (false = wartet auf Stripe-/Payrexx-Webhook) */
   paymentConfirmed?: boolean
+  /** Mindestens eine Position: Kunde sendet eigenes Produkt zur Laserbearbeitung ein */
+  isCustomerInbound?: boolean
   /** Lager: reserviert / verbraucht / freigegeben */
   inventoryState?: import("@/lib/admin/material-types").OrderInventoryState
   /** Reservierte Materialmengen pro Bestellung */
