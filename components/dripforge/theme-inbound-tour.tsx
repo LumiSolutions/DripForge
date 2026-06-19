@@ -195,32 +195,30 @@ export function ThemeInboundTour({
               className="pointer-events-none mx-auto h-auto w-full max-w-[17rem] opacity-[0.88] drop-shadow-[0_18px_36px_rgba(249,115,22,0.35)] sm:max-w-[18rem]"
             />
 
-            <div className="absolute inset-x-0 bottom-[14%] flex flex-col items-center gap-3 px-5 pb-1 pt-2 sm:bottom-[15%] sm:gap-3.5 sm:px-6">
+            <div className="absolute inset-x-0 bottom-[12%] flex flex-col items-center gap-4 px-4 pb-1 pt-2 sm:bottom-[14%] sm:gap-3.5 sm:px-6 md:bottom-[15%]">
               <p
                 id="theme-inbound-tour-title"
-                className="text-center text-sm font-semibold leading-snug text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.55)] sm:text-[0.95rem]"
+                className="text-center text-sm font-semibold leading-snug text-slate-900 sm:text-[0.95rem]"
               >
                 Tag- oder Nachtmodus?
               </p>
 
-              <div className="flex w-full flex-col gap-2 sm:flex-row sm:justify-center">
+              <div className="flex w-full flex-col gap-3 md:flex-row md:justify-center md:gap-2">
                 <Button
                   type="button"
-                  size="sm"
                   variant="secondary"
-                  className="h-9 flex-1 touch-manipulation border border-white/25 bg-white/95 text-foreground shadow-md hover:bg-white sm:min-w-[7.25rem] sm:flex-none"
+                  className="h-auto min-h-11 w-full touch-manipulation border border-slate-300/80 bg-white/95 px-4 py-3.5 text-base font-medium text-foreground shadow-md hover:bg-white md:h-9 md:min-h-0 md:min-w-[7.25rem] md:flex-none md:py-2 md:text-sm"
                   onClick={() => closeWithTheme("light")}
                 >
-                  <Sun className="mr-1.5 h-4 w-4 shrink-0 text-amber-500" />
+                  <Sun className="mr-2 h-4 w-4 shrink-0 text-amber-500" />
                   Tagmodus
                 </Button>
                 <Button
                   type="button"
-                  size="sm"
-                  className="h-9 flex-1 touch-manipulation border border-white/15 bg-zinc-900/90 text-white shadow-md hover:bg-zinc-900 sm:min-w-[7.25rem] sm:flex-none"
+                  className="h-auto min-h-11 w-full touch-manipulation border border-slate-700/40 bg-zinc-900/95 px-4 py-3.5 text-base font-medium text-white shadow-md hover:bg-zinc-900 md:h-9 md:min-h-0 md:min-w-[7.25rem] md:flex-none md:py-2 md:text-sm"
                   onClick={() => closeWithTheme("dark")}
                 >
-                  <Moon className="mr-1.5 h-4 w-4 shrink-0 text-sky-300" />
+                  <Moon className="mr-2 h-4 w-4 shrink-0 text-sky-300" />
                   Nachtmodus
                 </Button>
               </div>

@@ -26,6 +26,7 @@ import {
   normalizeThemeInboundTourImageUrl,
   resolveThemeInboundTourImageUrl,
   shouldUseUnoptimizedThemeTourImage,
+  THEME_DRIP_STORAGE_KEY,
 } from "@/lib/dripforge/theme-inbound-tour-settings"
 import { cn } from "@/lib/utils"
 
@@ -195,6 +196,11 @@ export function AdminSettingsTab() {
     } finally {
       setGoingLive(false)
     }
+  }
+
+  const handleResetThemeTourPreview = () => {
+    localStorage.removeItem(THEME_DRIP_STORAGE_KEY)
+    window.location.reload()
   }
 
   const handleThemeTourImageUpload = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -375,7 +381,7 @@ export function AdminSettingsTab() {
           </div>
           <div
             className={cn(
-              "flex items-start justify-between gap-4 rounded-xl border p-4",
+              "flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-start sm:justify-between",
               adminUi.section
             )}
           >
@@ -388,10 +394,21 @@ export function AdminSettingsTab() {
                 Tag- oder Nachtmodus für neue Besucher.
               </p>
             </div>
-            <Switch
-              checked={enableThemeInboundTour}
-              onCheckedChange={setEnableThemeInboundTour}
-            />
+            <div className="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
+              <Switch
+                checked={enableThemeInboundTour}
+                onCheckedChange={setEnableThemeInboundTour}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className={cn("whitespace-normal text-left text-xs sm:max-w-[14rem]", adminUi.input)}
+                onClick={handleResetThemeTourPreview}
+              >
+                Tour-Vorschau zurücksetzen (LocalStorage löschen)
+              </Button>
+            </div>
           </div>
 
           <div
