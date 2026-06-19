@@ -117,11 +117,23 @@ export const DEFAULT_SERVICE_VISIBILITY: ServiceVisibilitySettings = {
   markierungAetzung: false,
 }
 
+/** Sichtbarkeit der Konfigurator-Karten im Shop («Erschaffen Sie etwas Einzigartiges») */
+export type ShopConfiguratorSettings = {
+  custom3d: boolean
+  customLaser: boolean
+}
+
+export const DEFAULT_SHOP_CONFIGURATORS: ShopConfiguratorSettings = {
+  custom3d: false,
+  customLaser: true,
+}
+
 export type AdminSettings = {
   checkout: CheckoutRuntimeConfig
   company: CompanySettings
   launch: LaunchSettings
   services: ServiceVisibilitySettings
+  shopConfigurators: ShopConfiguratorSettings
   /** Support-Kampagne auf der normalen Website (Header, Mobile, /support) */
   showSupportOnMainSite: boolean
   /** Support-Link/Button auf der Countdown-Landingpage */

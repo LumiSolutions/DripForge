@@ -6,8 +6,9 @@ import {
 } from "@/lib/admin/require-admin-session"
 import { DEFAULT_COMPANY_SETTINGS } from "@/lib/admin/types"
 import type { CheckoutRuntimeConfig } from "@/lib/dripforge/checkout-config"
-import type { CompanySettings, ServiceVisibilitySettings } from "@/lib/admin/types"
+import type { CompanySettings, ServiceVisibilitySettings, ShopConfiguratorSettings } from "@/lib/admin/types"
 import { normalizeServiceVisibility } from "@/lib/dripforge/service-visibility"
+import { normalizeShopConfigurators } from "@/lib/dripforge/shop-configurators"
 import { buildDefaultAdminSettings } from "@/lib/admin/safe-defaults"
 
 export async function GET(request: Request) {
@@ -34,6 +35,7 @@ export async function PUT(request: Request) {
       checkout?: CheckoutRuntimeConfig
       company?: Partial<CompanySettings>
       services?: Partial<ServiceVisibilitySettings>
+      shopConfigurators?: Partial<ShopConfiguratorSettings>
       showSupportOnMainSite?: boolean
       showSupportOnCountdownPage?: boolean
     }
@@ -66,10 +68,12 @@ export async function PUT(request: Request) {
         DEFAULT_COMPANY_SETTINGS.kontaktEmail,
     }
 
+    const services = normalizeServiceVisibility(body.services)
     const settings = await saveSettings({
       checkout,
       company,
-      services: normalizeServiceVisibility(body.services),
+      services,
+      shopConfigurators: normalizeShopConfigurators(body.shopConfigurators, services),
       showSupportOnMainSite: body.showSupportOnMainSite,
       showSupportOnCountdownPage: body.showSupportOnCountdownPage,
     })

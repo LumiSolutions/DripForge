@@ -30,6 +30,7 @@ import type {
 import { DEFAULT_COMPANY_SETTINGS as DEFAULT_COMPANY } from "@/lib/admin/types"
 import { DEFAULT_LAUNCH_SETTINGS, DEFAULT_SERVICE_VISIBILITY } from "@/lib/admin/types"
 import { normalizeServiceVisibility } from "@/lib/dripforge/service-visibility"
+import { normalizeShopConfigurators } from "@/lib/dripforge/shop-configurators"
 
 export { isCosmosConfigured }
 
@@ -182,11 +183,16 @@ export async function cosmosGetSettings(): Promise<AdminSettings> {
       .item(SETTINGS_DOC_ID, SETTINGS_DOC_ID)
       .read<AdminSettings & { id: string }>()
     if (resource?.checkout) {
+      const services = normalizeServiceVisibility(resource.services)
       return {
         checkout: resource.checkout,
         company: { ...DEFAULT_COMPANY, ...resource.company },
         launch: { ...DEFAULT_LAUNCH_SETTINGS, ...resource.launch },
-        services: normalizeServiceVisibility(resource.services),
+        services,
+        shopConfigurators: normalizeShopConfigurators(
+          resource.shopConfigurators,
+          services
+        ),
         ...buildSupportPageSettings(resource),
         updatedAt: resource.updatedAt,
       }
@@ -204,6 +210,7 @@ export async function cosmosGetSettings(): Promise<AdminSettings> {
     company: { ...DEFAULT_COMPANY },
     launch: { ...DEFAULT_LAUNCH_SETTINGS },
     services: { ...DEFAULT_SERVICE_VISIBILITY },
+    shopConfigurators: normalizeShopConfigurators(null, DEFAULT_SERVICE_VISIBILITY),
     showSupportOnMainSite: false,
     showSupportOnCountdownPage: false,
     updatedAt: new Date().toISOString(),

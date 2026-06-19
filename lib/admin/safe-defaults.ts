@@ -4,8 +4,10 @@ import {
   DEFAULT_COMPANY_SETTINGS,
   DEFAULT_LAUNCH_SETTINGS,
   DEFAULT_SERVICE_VISIBILITY,
+  DEFAULT_SHOP_CONFIGURATORS,
 } from "@/lib/admin/types"
 import { normalizeServiceVisibility } from "@/lib/dripforge/service-visibility"
+import { normalizeShopConfigurators } from "@/lib/dripforge/shop-configurators"
 
 /** Sichere Standard-Einstellungen wenn Cosmos/Datei nicht erreichbar sind. */
 export function buildDefaultAdminSettings(): AdminSettings {
@@ -14,6 +16,7 @@ export function buildDefaultAdminSettings(): AdminSettings {
     company: { ...DEFAULT_COMPANY_SETTINGS },
     launch: { ...DEFAULT_LAUNCH_SETTINGS },
     services: { ...DEFAULT_SERVICE_VISIBILITY },
+    shopConfigurators: { ...DEFAULT_SHOP_CONFIGURATORS },
     showSupportOnMainSite: false,
     showSupportOnCountdownPage: false,
     updatedAt: new Date().toISOString(),

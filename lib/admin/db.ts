@@ -24,6 +24,7 @@ import {
   DEFAULT_LAUNCH_SETTINGS,
   DEFAULT_SERVICE_VISIBILITY,
 } from "@/lib/admin/types"
+import { normalizeShopConfigurators } from "@/lib/dripforge/shop-configurators"
 import { normalizeServiceVisibility } from "@/lib/dripforge/service-visibility"
 import {
   buildDefaultAdminSettings,
@@ -78,9 +79,17 @@ import {
   cosmosSavePrintCalculatorSettings,
 } from "@/lib/admin/cosmos-print-calculator"
 import {
+  cosmosGetLaserConfiguratorSettings,
+  cosmosSaveLaserConfiguratorSettings,
+} from "@/lib/admin/cosmos-laser-configurator"
+import {
   mergePrintCalculatorSettings,
   type PrintCalculatorSettings,
 } from "@/lib/admin/print-calculator-types"
+import {
+  mergeLaserConfiguratorSettings,
+  type LaserConfiguratorSettings,
+} from "@/lib/admin/laser-configurator-types"
 import { mergeAiSettings, type AiSettingsDocument } from "@/lib/ai/ai-settings-types"
 import { mergeSiteTexts, type SiteTexts } from "@/lib/admin/site-texts"
 import type { AdminFilament } from "@/lib/admin/filament-types"
@@ -107,6 +116,7 @@ const FILAMENTS_FILE = "filaments.json"
 const MATERIAL_STATS_FILE = "material-stats.json"
 const AI_SETTINGS_FILE = "ai-settings.json"
 const PRINT_CALCULATOR_FILE = "print-calculator-settings.json"
+const LASER_CONFIGURATOR_FILE = "laser-configurator-settings.json"
 const CUSTOMERS_FILE = "customers.json"
 
 async function ensureDataDir(): Promise<void> {
@@ -448,11 +458,16 @@ export async function deleteProduct(id: string): Promise<boolean> {
 async function getSettingsFromFile(): Promise<AdminSettings> {
   const stored = await readJsonFile<AdminSettings | null>(SETTINGS_FILE, null)
   if (stored?.checkout) {
+    const services = normalizeServiceVisibility(stored.services)
     return {
       checkout: stored.checkout,
       company: { ...DEFAULT_COMPANY, ...stored.company },
       launch: { ...DEFAULT_LAUNCH_SETTINGS, ...stored.launch },
-      services: normalizeServiceVisibility(stored.services),
+      services,
+      shopConfigurators: normalizeShopConfigurators(
+        stored.shopConfigurators,
+        services
+      ),
       ...buildSupportPageSettings(stored),
       updatedAt: stored.updatedAt,
     }
@@ -462,6 +477,7 @@ async function getSettingsFromFile(): Promise<AdminSettings> {
     company: { ...DEFAULT_COMPANY },
     launch: { ...DEFAULT_LAUNCH_SETTINGS },
     services: { ...DEFAULT_SERVICE_VISIBILITY },
+    shopConfigurators: normalizeShopConfigurators(null, DEFAULT_SERVICE_VISIBILITY),
     showSupportOnMainSite: false,
     showSupportOnCountdownPage: false,
     updatedAt: new Date().toISOString(),
@@ -491,10 +507,15 @@ export async function saveSettings(input: {
   company?: CompanySettings
   launch?: Partial<LaunchSettings>
   services?: Partial<AdminSettings["services"]>
+  shopConfigurators?: Partial<AdminSettings["shopConfigurators"]>
   showSupportOnMainSite?: boolean
   showSupportOnCountdownPage?: boolean
 }): Promise<AdminSettings> {
   const current = await getSettings()
+  const services = normalizeServiceVisibility({
+    ...current.services,
+    ...input.services,
+  })
   const next: AdminSettings = {
     checkout: input.checkout,
     company: {
@@ -505,10 +526,11 @@ export async function saveSettings(input: {
       ...current.launch,
       ...input.launch,
     },
-    services: normalizeServiceVisibility({
-      ...current.services,
-      ...input.services,
-    }),
+    services,
+    shopConfigurators: normalizeShopConfigurators(
+      { ...current.shopConfigurators, ...input.shopConfigurators },
+      services
+    ),
     showSupportOnMainSite:
       input.showSupportOnMainSite !== undefined
         ? normalizeSupportFlag(input.showSupportOnMainSite)
@@ -656,6 +678,28 @@ export async function savePrintCalculatorSettings(
 ): Promise<PrintCalculatorSettings> {
   return withCosmosRequired("savePrintCalculatorSettings", () =>
     cosmosSavePrintCalculatorSettings(settings)
+  )
+}
+
+export async function getLaserConfiguratorSettings(): Promise<LaserConfiguratorSettings> {
+  return withCosmosFallback(
+    "getLaserConfiguratorSettings",
+    cosmosGetLaserConfiguratorSettings,
+    async () => {
+      const stored = await readJsonFile<Partial<LaserConfiguratorSettings> | null>(
+        LASER_CONFIGURATOR_FILE,
+        null
+      )
+      return mergeLaserConfiguratorSettings(stored)
+    }
+  )
+}
+
+export async function saveLaserConfiguratorSettings(
+  settings: LaserConfiguratorSettings
+): Promise<LaserConfiguratorSettings> {
+  return withCosmosRequired("saveLaserConfiguratorSettings", () =>
+    cosmosSaveLaserConfiguratorSettings(settings)
   )
 }
 

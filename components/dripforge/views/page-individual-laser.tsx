@@ -1,7 +1,7 @@
 "use client"
 
-import { useCallback, useMemo, useRef, useState } from "react"
-import { Minus, Plus, ShoppingCart } from "lucide-react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { Minus, Package, Plus, ShoppingCart } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -32,6 +32,7 @@ import {
 } from "@/components/dripforge/shared/laser-designer-studio"
 import { IndividualProcessBar } from "@/components/dripforge/shared/individual-process-bar"
 import { captureLaserPreviewLeitbild } from "@/lib/dripforge/capture-leitbild"
+import { isCustomerShippingUiVisible } from "@/lib/dripforge/customer-shipping-visibility"
 import type { CartItem, LaserMaterialId } from "@/lib/dripforge/types"
 
 export function PageIndividualLaser({
@@ -64,7 +65,34 @@ export function PageIndividualLaser({
   const [pricingConfig] = useState<LaserPricingConfig>(
     DEFAULT_LASER_PRICING_CONFIG
   )
+  const [allowCustomerShipping, setAllowCustomerShipping] = useState(false)
+  const [customerShippingInstructions, setCustomerShippingInstructions] = useState("")
+  const [wantsCustomerShipping, setWantsCustomerShipping] = useState(false)
   const laserPreviewRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    void fetch("/api/settings/laser-configurator", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then(
+        (data: {
+          allowCustomerShipping?: boolean
+          customerShippingInstructions?: string
+        } | null) => {
+          if (!data) return
+          setAllowCustomerShipping(Boolean(data.allowCustomerShipping))
+          setCustomerShippingInstructions(
+            String(data.customerShippingInstructions ?? "")
+          )
+        }
+      )
+      .catch(() => {
+        /* Defaults: Einsendung deaktiviert */
+      })
+  }, [])
+
+  const showCustomerShippingOption = isCustomerShippingUiVisible(
+    allowCustomerShipping
+  )
 
   const material =
     laserMaterials.find((m) => m.id === selectedMaterialId) ?? defaultMaterial
@@ -135,7 +163,9 @@ export function PageIndividualLaser({
     const gravurSize = engravingMetrics?.active
     addToCart({
       id: `custom-laser-${Date.now()}`,
-      name: `Individuelle Lasergravur`,
+      name: wantsCustomerShipping
+        ? "Personalisierte Laserkreation (Kunden-Einsendung)"
+        : "Personalisierte Laserkreation",
       price: priceBreakdown.unitPrice,
       quantity,
       type: "laser",
@@ -159,6 +189,7 @@ export function PageIndividualLaser({
         },
         hasText: gravurText.trim().length > 0,
         hasImage: Boolean(uploadedImageSrc),
+        customerShipping: wantsCustomerShipping,
         dimensions: gravurSize
           ? `${gravurSize.widthMm.toFixed(1)} x ${gravurSize.heightMm.toFixed(1)} mm`
           : sizePreset.dimensionsLabel,
@@ -178,12 +209,12 @@ export function PageIndividualLaser({
     <div className="space-y-8 py-8">
       <div className="mx-auto max-w-6xl px-4 text-center">
         <Badge variant="secondary" className="mb-4">
-          Individueller Auftrag
+          Personalisierte Kreation
         </Badge>
         <h1 className="text-4xl font-bold">
-          <span className="text-foreground">Deine </span>
+          <span className="text-foreground">Personalisierte </span>
           <span className="bg-gradient-to-r from-cyan-400 to-primary bg-clip-text text-transparent">
-            Lasergravur
+            Laserkreation
           </span>
         </h1>
         <p className="mx-auto mt-4 max-w-2xl text-muted-foreground">
@@ -211,7 +242,7 @@ export function PageIndividualLaser({
             <LaserDesignerStudio
               column="settings"
               material={material}
-              productName="Individuelle Lasergravur"
+              productName="Personalisierte Laserkreation"
               state={laserDesign}
               onStateChange={handleDesignChange}
               showMaterialCard={false}
@@ -271,13 +302,41 @@ export function PageIndividualLaser({
                 </div>
               </CardContent>
             </Card>
+
+            {showCustomerShippingOption && (
+              <Card className="rounded-2xl border-dashed border-border/60 bg-card/30 shadow-sm">
+                <CardContent className="p-6">
+                  <div className="mb-3 flex items-center gap-2">
+                    <Package className="h-5 w-5 text-cyan-500" />
+                    <h3 className="font-bold">Eigenes Produkt einschicken</h3>
+                  </div>
+                  <label className="flex cursor-pointer items-start gap-3">
+                    <input
+                      type="checkbox"
+                      checked={wantsCustomerShipping}
+                      onChange={(e) => setWantsCustomerShipping(e.target.checked)}
+                      className="mt-1 h-4 w-4 rounded border-border"
+                    />
+                    <span className="text-sm text-muted-foreground">
+                      Ich moechte ein eigenes Produkt einschicken und von DripForge
+                      verarbeiten lassen.
+                    </span>
+                  </label>
+                  {wantsCustomerShipping && customerShippingInstructions.trim() && (
+                    <div className="mt-4 rounded-lg border border-border/50 bg-muted/30 p-4 text-sm text-muted-foreground whitespace-pre-wrap">
+                      {customerShippingInstructions}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
           </div>
 
           <div className="flex min-w-0 flex-col gap-6">
             <LaserDesignerStudio
               column="preview"
               material={material}
-              productName="Individuelle Lasergravur"
+              productName="Personalisierte Laserkreation"
               state={laserDesign}
               previewSurfaceRef={laserPreviewRef}
               onStateChange={handleDesignChange}

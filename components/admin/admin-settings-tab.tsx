@@ -9,11 +9,14 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
-import type { CompanySettings, ServiceVisibilitySettings } from "@/lib/admin/types"
-import { DEFAULT_COMPANY_SETTINGS, DEFAULT_SERVICE_VISIBILITY } from "@/lib/admin/types"
+import type { CompanySettings, ServiceVisibilitySettings, ShopConfiguratorSettings } from "@/lib/admin/types"
+import { DEFAULT_COMPANY_SETTINGS, DEFAULT_SERVICE_VISIBILITY, DEFAULT_SHOP_CONFIGURATORS } from "@/lib/admin/types"
 import { AdminTesterPasswordSection } from "@/components/admin/admin-tester-password-section"
 import { AdminTwoFactorSection } from "@/components/admin/admin-two-factor-section"
 import { SERVICE_TOGGLE_OPTIONS } from "@/lib/dripforge/service-visibility"
+import { SHOP_CONFIGURATOR_TOGGLE_OPTIONS } from "@/lib/dripforge/shop-configurators"
+import type { LaserConfiguratorSettings } from "@/lib/admin/laser-configurator-types"
+import { createDefaultLaserConfiguratorSettings } from "@/lib/admin/laser-configurator-types"
 import type { CheckoutRuntimeConfig } from "@/lib/dripforge/checkout-config"
 import { DEFAULT_CHECKOUT_RUNTIME_CONFIG } from "@/lib/dripforge/checkout-config"
 import { buildSupportPageSettings } from "@/lib/dripforge/support-page-settings"
@@ -26,6 +29,11 @@ export function AdminSettingsTab() {
   const [company, setCompany] = useState<CompanySettings>(DEFAULT_COMPANY_SETTINGS)
   const [services, setServices] = useState<ServiceVisibilitySettings>(
     DEFAULT_SERVICE_VISIBILITY
+  )
+  const [shopConfigurators, setShopConfigurators] =
+    useState<ShopConfiguratorSettings>(DEFAULT_SHOP_CONFIGURATORS)
+  const [laserConfigurator, setLaserConfigurator] = useState<LaserConfiguratorSettings>(
+    createDefaultLaserConfiguratorSettings()
   )
   const [shopLive, setShopLive] = useState(false)
   const [showSupportOnMainSite, setShowSupportOnMainSite] = useState(false)
@@ -43,6 +51,8 @@ export function AdminSettingsTab() {
       const res = await fetch("/api/admin/settings")
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? "Laden fehlgeschlagen")
+      const laserRes = await fetch("/api/admin/laser-configurator")
+      const laserData = laserRes.ok ? await laserRes.json() : null
       setCheckout(data.checkout ?? DEFAULT_CHECKOUT_RUNTIME_CONFIG)
       setCompany({ ...DEFAULT_COMPANY_SETTINGS, ...data.company })
       setShopLive(Boolean(data.launch?.shopLive))
@@ -50,6 +60,16 @@ export function AdminSettingsTab() {
       setShowSupportOnMainSite(support.showSupportOnMainSite)
       setShowSupportOnCountdownPage(support.showSupportOnCountdownPage)
       setServices({ ...DEFAULT_SERVICE_VISIBILITY, ...data.services })
+      setShopConfigurators({
+        ...DEFAULT_SHOP_CONFIGURATORS,
+        ...data.shopConfigurators,
+      })
+      if (laserData && !laserData.error) {
+        setLaserConfigurator({
+          ...createDefaultLaserConfiguratorSettings(),
+          ...laserData,
+        })
+      }
     } catch (err) {
       console.warn("Admin: Einstellungen konnten nicht geladen werden.", err)
       setError(
@@ -78,17 +98,35 @@ export function AdminSettingsTab() {
           checkout,
           company,
           services,
+          shopConfigurators,
           showSupportOnMainSite,
           showSupportOnCountdownPage,
         }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? "Speichern fehlgeschlagen")
+
+      const laserRes = await fetch("/api/admin/laser-configurator", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(laserConfigurator),
+      })
+      const laserData = laserRes.ok ? await laserRes.json() : null
+      if (!laserRes.ok) {
+        const laserErr = laserData as { error?: string }
+        throw new Error(laserErr.error ?? "Laser-Konfigurator konnte nicht gespeichert werden.")
+      }
       setCheckout(data.checkout)
       setCompany({ ...DEFAULT_COMPANY_SETTINGS, ...data.company })
       const support = buildSupportPageSettings(data)
       setShowSupportOnMainSite(support.showSupportOnMainSite)
       setShowSupportOnCountdownPage(support.showSupportOnCountdownPage)
+      if (laserData && !laserData.error) {
+        setLaserConfigurator({
+          ...createDefaultLaserConfiguratorSettings(),
+          ...laserData,
+        })
+      }
       setSuccess("Einstellungen gespeichert — Shop wird aktualisiert.")
     } catch (err) {
       console.warn("Admin: Einstellungen konnten nicht gespeichert werden.", err)
@@ -295,6 +333,94 @@ export function AdminSettingsTab() {
               </div>
             ))}
           </div>
+
+          <div className="space-y-3 border-t pt-6">
+            <div>
+              <h4 className={cn("text-sm font-semibold", adminUi.heading)}>
+                Konfigurator-Karten im Shop
+              </h4>
+              <p className={cn("mt-1 text-xs", adminUi.muted)}>
+                Steuert die Sichtbarkeit der Karten unter «Erschaffen Sie etwas Einzigartiges» auf
+                der Startseite und im Shop.
+              </p>
+            </div>
+            {SHOP_CONFIGURATOR_TOGGLE_OPTIONS.map((option) => (
+              <div
+                key={option.key}
+                className={cn(
+                  "flex items-start justify-between gap-4 rounded-xl border p-4",
+                  adminUi.section
+                )}
+              >
+                <div className="space-y-1 pr-2">
+                  <Label className={cn("text-sm font-semibold", adminUi.heading)}>
+                    {option.label}
+                  </Label>
+                  <p className={cn("text-xs", adminUi.muted)}>{option.description}</p>
+                </div>
+                <Switch
+                  checked={shopConfigurators[option.key]}
+                  onCheckedChange={(checked) =>
+                    setShopConfigurators((prev) => ({ ...prev, [option.key]: checked }))
+                  }
+                />
+              </div>
+            ))}
+          </div>
+
+          <details className={cn("rounded-xl border p-4", adminUi.section)}>
+            <summary className={cn("cursor-pointer text-sm font-semibold", adminUi.heading)}>
+              Laser-Konfigurator — Kunden-Einsendung (intern)
+            </summary>
+            <div className="mt-4 space-y-4">
+              <p className={cn("text-xs", adminUi.muted)}>
+                Vorbereitung fuer «Eigenes Produkt einschicken & verarbeiten» bei der
+                Personalisierten Laserkreation. Die Kunden-UI bleibt standardmaessig unsichtbar.
+              </p>
+              <div
+                className={cn(
+                  "flex items-start justify-between gap-4 rounded-xl border p-4",
+                  adminUi.section
+                )}
+              >
+                <div className="space-y-1 pr-2">
+                  <Label className={cn("text-sm font-semibold", adminUi.heading)}>
+                    Option: Kunden-Einsendung erlauben
+                  </Label>
+                  <p className={cn("text-xs", adminUi.muted)}>
+                    Aktiviert die Einsende-Option nur in der Entwicklungsumgebung (oder nach
+                    expliziter Frontend-Freigabe).
+                  </p>
+                </div>
+                <Switch
+                  checked={laserConfigurator.allowCustomerShipping}
+                  onCheckedChange={(checked) =>
+                    setLaserConfigurator((prev) => ({
+                      ...prev,
+                      allowCustomerShipping: checked,
+                    }))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className={adminUi.label}>
+                  Einsende-Instruktionen & Lieferadresse
+                </Label>
+                <Textarea
+                  value={laserConfigurator.customerShippingInstructions}
+                  onChange={(e) =>
+                    setLaserConfigurator((prev) => ({
+                      ...prev,
+                      customerShippingInstructions: e.target.value,
+                    }))
+                  }
+                  rows={5}
+                  placeholder="Versandanleitung, Packhinweise, Lieferadresse …"
+                  className={adminUi.input}
+                />
+              </div>
+            </div>
+          </details>
 
           <div
             className={cn(

@@ -116,6 +116,8 @@ export interface CartItem {
       textPosition: LayoutPosition
       imagePosition: LayoutPosition
     }
+    /** Kunden sendet eigenes Produkt zur Verarbeitung (Personalisierte Laserkreation) */
+    customerShipping?: boolean
   }
 }
 

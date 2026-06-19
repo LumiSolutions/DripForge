@@ -51,7 +51,8 @@ import {
 import { ProductImageGallery } from "@/components/dripforge/shared/product-image-gallery"
 import { ProductShopPrice } from "@/components/dripforge/shared/product-shop-price"
 import type { CartItem, Product, ProductDimensionsMm } from "@/lib/dripforge/types"
-import type { ServiceVisibilitySettings } from "@/lib/admin/types"
+import type { ServiceVisibilitySettings, ShopConfiguratorSettings } from "@/lib/admin/types"
+import { DEFAULT_SHOP_CONFIGURATORS } from "@/lib/admin/types"
 import { getSaleBadgePercent } from "@/lib/dripforge/product-sale"
 import {
   buildShopFilterOptions,
@@ -92,6 +93,7 @@ type PageShopProps = {
   setSelectedProduct: (product: Product | null) => void
   addToCart: (item: CartItem) => void
   services: ServiceVisibilitySettings
+  shopConfigurators?: ShopConfiguratorSettings
   /** false bis /api/settings/services geantwortet hat — Teaser-Karten optimistisch anzeigen */
   servicesLoaded?: boolean
 }
@@ -128,6 +130,7 @@ export function PageShop({
   setSelectedProduct,
   addToCart,
   services,
+  shopConfigurators = DEFAULT_SHOP_CONFIGURATORS,
   servicesLoaded = false,
 }: PageShopProps) {
   const { t } = useSiteTexts()
@@ -141,8 +144,8 @@ export function PageShop({
   }, [filamentMaterials])
 
   const aiPublic = useAiPublicSettings()
-  const showCustom3d = servicesLoaded ? Boolean(services.druck3d) : true
-  const showCustomLaser = servicesLoaded ? Boolean(services.lasergravur) : true
+  const showCustom3d = servicesLoaded ? Boolean(shopConfigurators.custom3d) : true
+  const showCustomLaser = servicesLoaded ? Boolean(shopConfigurators.customLaser) : true
   const showAiKonfigurator = showCustom3d && Boolean(aiPublic?.enabled)
   const [filamentTab, setFilamentTab] = useState("pla")
   const [filamentSelection, setFilamentSelection] = useState<FilamentSelection | null>(null)

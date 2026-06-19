@@ -15,12 +15,19 @@ import { ShopHeader } from "@/components/dripforge/shop-header"
 import { ShopFooter } from "@/components/dripforge/shop-footer"
 import type { CartItem, Product } from "@/lib/dripforge/types"
 import { normalizeShopProduct } from "@/lib/dripforge/normalize-shop-product"
-import type { ServiceVisibilitySettings } from "@/lib/admin/types"
-import { DEFAULT_SERVICE_VISIBILITY } from "@/lib/admin/types"
+import type {
+  ServiceVisibilitySettings,
+  ShopConfiguratorSettings,
+} from "@/lib/admin/types"
+import {
+  DEFAULT_SERVICE_VISIBILITY,
+  DEFAULT_SHOP_CONFIGURATORS,
+} from "@/lib/admin/types"
 import {
   isViewAllowed,
   normalizeServiceVisibility,
 } from "@/lib/dripforge/service-visibility"
+import { normalizeShopConfigurators } from "@/lib/dripforge/shop-configurators"
 import { HomePage } from "@/components/dripforge/views/home-page"
 import { Page3DDruck } from "@/components/dripforge/views/page-3d-druck"
 import { PageLaser } from "@/components/dripforge/views/page-laser"
@@ -48,6 +55,9 @@ export default function DripForgeApp() {
   const [services, setServices] = useState<ServiceVisibilitySettings>(
     DEFAULT_SERVICE_VISIBILITY
   )
+  const [shopConfigurators, setShopConfigurators] =
+    useState<ShopConfiguratorSettings>(DEFAULT_SHOP_CONFIGURATORS)
+  const [servicesLoaded, setServicesLoaded] = useState(false)
   const aiPublic = useAiPublicSettings()
   const [pendingProductId, setPendingProductId] = useState<string | null>(null)
 
@@ -61,10 +71,19 @@ export default function DripForgeApp() {
     void fetch("/api/settings/services")
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (data) setServices(normalizeServiceVisibility(data))
+        if (data) {
+          const normalizedServices = normalizeServiceVisibility(data)
+          setServices(normalizedServices)
+          setShopConfigurators(
+            normalizeShopConfigurators(data.shopConfigurators, normalizedServices)
+          )
+        }
       })
       .catch(() => {
         console.warn("Navigation: Service-Sichtbarkeit konnte nicht geladen werden.")
+      })
+      .finally(() => {
+        setServicesLoaded(true)
       })
   }, [])
 
@@ -184,6 +203,8 @@ export default function DripForgeApp() {
             setSelectedProduct={setSelectedProduct}
             addToCart={addToCart}
             services={services}
+            shopConfigurators={shopConfigurators}
+            servicesLoaded={servicesLoaded}
           />
         )}
         {currentView === "kontakt" && <PageKontakt setCurrentView={setCurrentView} />}
