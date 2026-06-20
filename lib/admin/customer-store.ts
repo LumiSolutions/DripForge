@@ -1,5 +1,6 @@
 import { promises as fs } from "fs"
 import path from "path"
+import { normalizeCustomerEmail } from "@/lib/admin/customers"
 import { withCosmosFallback } from "@/lib/admin/storage-bridge"
 import type { StoredCustomer } from "@/lib/admin/types"
 import {
@@ -46,6 +47,14 @@ export async function saveCustomer(customer: StoredCustomer): Promise<StoredCust
     () => cosmosSaveCustomer(next),
     async () => {
       const customers = await readCustomersFile()
+      const duplicate = customers.find(
+        (entry) =>
+          entry.kundennummer === next.kundennummer &&
+          normalizeCustomerEmail(entry.email) !== normalizeCustomerEmail(next.email)
+      )
+      if (duplicate) {
+        throw new Error(`Kundennummer ${next.kundennummer} ist bereits vergeben.`)
+      }
       const index = customers.findIndex((c) => c.kundennummer === next.kundennummer)
       if (index >= 0) customers[index] = next
       else customers.push(next)

@@ -169,6 +169,13 @@ export async function cosmosSaveCustomer(
   customer: StoredCustomer
 ): Promise<StoredCustomer> {
   const container = await getCustomersContainer()
+  const existing = await cosmosGetCustomerByNumber(customer.kundennummer)
+  if (
+    existing &&
+    normalizeCustomerEmail(existing.email) !== normalizeCustomerEmail(customer.email)
+  ) {
+    throw new Error(`Kundennummer ${customer.kundennummer} ist bereits vergeben.`)
+  }
   await container.items.upsert({ ...customer, id: customer.kundennummer })
   return customer
 }

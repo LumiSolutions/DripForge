@@ -148,7 +148,7 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
         {customers.length === 0 ? (
           <div className={cn("rounded-xl border border-dashed py-16 text-center", adminUi.empty)}>
             Noch keine Kunden erfasst. Kunden werden bei Registrierung im Portal
-            oder bei der ersten Bestellung angelegt (Format KD-JJJJ-XXXX).
+            oder bei der ersten Bestellung angelegt (Format JJ-#####, z. B. 26-53719).
           </div>
         ) : (
           <div className={adminUi.tableWrap}>
@@ -320,7 +320,7 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
               <p className={cn("flex items-center gap-2 text-xs", adminUi.tableCellMuted)}>
                 <ArrowRight className="h-3 w-3" />
                 Kunden werden bei Portal-Registrierung oder Gastbestellung
-                automatisch angelegt (Format KD-JJJJ-XXXX).
+                automatisch angelegt (Format JJ-#####, z. B. 26-53719).
               </p>
             </>
           ) : (
