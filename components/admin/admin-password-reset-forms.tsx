@@ -7,6 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { KeyRound, Loader2, Mail, ShieldCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { PasswordInput } from "@/components/ui/password-input"
 import { Label } from "@/components/ui/label"
 import { adminPortalPath } from "@/lib/admin/admin-portal-path"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
@@ -221,9 +222,9 @@ export function AdminResetPasswordForm() {
               <Label htmlFor="admin-new-password" className={adminUi.labelMuted}>
                 Neues Passwort
               </Label>
-              <Input
+              <PasswordInput
                 id="admin-new-password"
-                type="password"
+                autoComplete="new-password"
                 minLength={8}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -235,9 +236,9 @@ export function AdminResetPasswordForm() {
               <Label htmlFor="admin-confirm-password" className={adminUi.labelMuted}>
                 Passwort bestaetigen
               </Label>
-              <Input
+              <PasswordInput
                 id="admin-confirm-password"
-                type="password"
+                autoComplete="new-password"
                 minLength={8}
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}

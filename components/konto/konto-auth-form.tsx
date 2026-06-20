@@ -7,6 +7,7 @@ import { Loader2, Lock, UserPlus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { PasswordInput } from "@/components/ui/password-input"
 import { Label } from "@/components/ui/label"
 import { KontoShell } from "@/components/konto/konto-shell"
 import { useSiteTexts } from "@/components/dripforge/site-texts-provider"
@@ -76,9 +77,8 @@ export function KontoLoginForm() {
                   Passwort vergessen?
                 </Link>
               </div>
-              <Input
+              <PasswordInput
                 id="password"
-                type="password"
                 autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -181,9 +181,8 @@ export function KontoRegisterForm() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="reg-password">Passwort (min. 8 Zeichen)</Label>
-              <Input
+              <PasswordInput
                 id="reg-password"
-                type="password"
                 autoComplete="new-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}

@@ -7,6 +7,7 @@ import { KeyRound, Loader2, Mail } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { PasswordInput } from "@/components/ui/password-input"
 import { Label } from "@/components/ui/label"
 import { KontoShell } from "@/components/konto/konto-shell"
 
@@ -177,9 +178,8 @@ export function KontoResetPasswordForm() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="new-password">Neues Passwort</Label>
-              <Input
+              <PasswordInput
                 id="new-password"
-                type="password"
                 autoComplete="new-password"
                 minLength={8}
                 value={password}
@@ -189,9 +189,8 @@ export function KontoResetPasswordForm() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="confirm-password">Passwort bestaetigen</Label>
-              <Input
+              <PasswordInput
                 id="confirm-password"
-                type="password"
                 autoComplete="new-password"
                 minLength={8}
                 value={confirm}

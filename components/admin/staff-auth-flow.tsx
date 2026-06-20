@@ -6,6 +6,7 @@ import Link from "next/link"
 import { KeyRound, Loader2, Lock, ShieldCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { PasswordInput } from "@/components/ui/password-input"
 import { Label } from "@/components/ui/label"
 import { adminPortalPath } from "@/lib/admin/admin-portal-path"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
@@ -178,9 +179,8 @@ export function StaffAuthFlow({
                 </Link>
               )}
             </div>
-            <Input
+            <PasswordInput
               id="staff-password"
-              type="password"
               autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}

@@ -4,7 +4,7 @@ import { FormEvent, useState } from "react"
 import { KeyRound, Loader2, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
+import { PasswordInput } from "@/components/ui/password-input"
 import { Label } from "@/components/ui/label"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
 import { cn } from "@/lib/utils"
@@ -95,9 +95,9 @@ export function AdminTesterPasswordSection() {
             <Label htmlFor="tester-password" className={adminUi.labelMuted}>
               Neues Tester-Passwort
             </Label>
-            <Input
+            <PasswordInput
               id="tester-password"
-              type="password"
+              autoComplete="new-password"
               minLength={8}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
