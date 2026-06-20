@@ -1,11 +1,5 @@
-"use client"
-
 import { Suspense } from "react"
-import { KontoRegisterForm } from "@/components/konto/konto-auth-form"
-
-function RegisterForm() {
-  return <KontoRegisterForm />
-}
+import { RegisterForm } from "./register-form"
 
 export default function KontoRegisterPage() {
   return (

@@ -1,7 +1,5 @@
-"use client"
-
 import { Suspense } from "react"
-import { KontoLoginForm } from "@/components/konto/konto-auth-form"
+import { LoginForm } from "./login-form"
 
 export default function KontoLoginPage() {
   return (
@@ -12,7 +10,7 @@ export default function KontoLoginPage() {
         </div>
       }
     >
-      <KontoLoginForm />
+      <LoginForm />
     </Suspense>
   )
 }
