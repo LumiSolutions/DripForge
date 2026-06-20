@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { normalizeCustomerEmail } from "@/lib/admin/customers"
 import { getAccountByEmail, toPublicAccount } from "@/lib/konto/account-db"
+import { mergeGuestCartForCustomer } from "@/lib/konto/cart-service"
 import { verifyPassword } from "@/lib/konto/password"
 import {
   createCustomerSessionToken,
@@ -13,6 +14,7 @@ export async function POST(request: Request) {
     const body = (await request.json()) as {
       email?: string
       password?: string
+      guestCart?: unknown
     }
 
     const email = normalizeCustomerEmail(body.email ?? "")
@@ -33,9 +35,12 @@ export async function POST(request: Request) {
       )
     }
 
+    const mergedCart = await mergeGuestCartForCustomer(email, body.guestCart)
+
     const response = NextResponse.json({
       success: true,
       account: toPublicAccount(account),
+      cart: mergedCart,
     })
 
     response.cookies.set(

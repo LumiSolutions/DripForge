@@ -22,6 +22,8 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { CartItemDetails } from "@/components/dripforge/shared/cart-item-details"
+import { useCart } from "@/components/dripforge/cart-provider"
+import { CheckoutAuthDialog } from "@/components/konto/checkout-auth-dialog"
 import {
   DEFAULT_CHECKOUT_RUNTIME_CONFIG,
   getShippingCost,
@@ -172,6 +174,7 @@ export function PageCheckout({
   cart: CartItem[]
   onOrderComplete?: () => void
 }) {
+  const { applyMergedCart } = useCart()
   const [checkoutConfig, setCheckoutConfig] = useState<CheckoutRuntimeConfig>(
     DEFAULT_CHECKOUT_RUNTIME_CONFIG
   )
@@ -265,7 +268,11 @@ export function PageCheckout({
   const [stripeConfigured, setStripeConfigured] = useState(false)
   const [payrexxConfigured, setPayrexxConfigured] = useState(false)
   const [pointsToRedeem, setPointsToRedeem] = useState(0)
-  const { loggedIn, loyaltyPoints, loading: loyaltyLoading } =
+  const [authDialogOpen, setAuthDialogOpen] = useState(false)
+  const [authSuccessMessage, setAuthSuccessMessage] = useState<string | null>(
+    null
+  )
+  const { loggedIn, loyaltyPoints, loading: loyaltyLoading, refresh: refreshLoyalty } =
     useCustomerLoyaltyPoints()
 
   const subtotal = useMemo(
@@ -361,6 +368,55 @@ export function PageCheckout({
     setAppliedCouponMeta(null)
     setCouponTotals(null)
     setCouponError(null)
+  }
+
+  const prefillFromAccount = (account: {
+    email?: string
+    firstName?: string
+    lastName?: string
+    street?: string
+    zip?: string
+    city?: string
+    phone?: string
+  }) => {
+    setForm((prev) => ({
+      ...prev,
+      firstName: prev.firstName || account.firstName || "",
+      lastName: prev.lastName || account.lastName || "",
+      email: prev.email || account.email || "",
+      street: prev.street || account.street || "",
+      zip: prev.zip || account.zip || "",
+      city: prev.city || account.city || "",
+      phone: prev.phone || account.phone || "",
+      deliveryFirstName: prev.deliveryFirstName || account.firstName || "",
+      deliveryLastName: prev.deliveryLastName || account.lastName || "",
+      deliveryStreet: prev.deliveryStreet || account.street || "",
+      deliveryZip: prev.deliveryZip || account.zip || "",
+      deliveryCity: prev.deliveryCity || account.city || "",
+    }))
+  }
+
+  const handleCheckoutAuthSuccess = ({
+    account,
+    cart: mergedCart,
+  }: {
+    account: {
+      email?: string
+      firstName?: string
+      lastName?: string
+      street?: string
+      zip?: string
+      city?: string
+      phone?: string
+    }
+    cart: CartItem[]
+  }) => {
+    applyMergedCart(mergedCart)
+    prefillFromAccount(account)
+    void refreshLoyalty()
+    setAuthSuccessMessage(
+      "Erfolgreich angemeldet — dein Warenkorb wurde mit deinem Konto zusammengeführt."
+    )
   }
 
   const updateField = (key: FieldKey, value: string) => {
@@ -558,6 +614,47 @@ export function PageCheckout({
             </p>
           )}
         </div>
+
+        {!loggedIn && !loyaltyLoading && (
+          <Card className="mb-6 rounded-2xl border-primary/20 bg-primary/5">
+            <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3">
+                <Lock className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+                <div>
+                  <p className="font-semibold">Bereits ein Konto?</p>
+                  <p className="text-sm text-muted-foreground">
+                    Melde dich an, um gespeicherte Adressdaten und Treuepunkte
+                    zu nutzen — dein Warenkorb bleibt erhalten.
+                  </p>
+                </div>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                className="shrink-0 border-primary/30 bg-background/80 hover:bg-primary/10"
+                onClick={() => setAuthDialogOpen(true)}
+              >
+                Hier anmelden
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {authSuccessMessage && (
+          <div
+            role="status"
+            className="mb-6 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-800 dark:text-emerald-200"
+          >
+            <p>{authSuccessMessage}</p>
+            <button
+              type="button"
+              onClick={() => setAuthSuccessMessage(null)}
+              className="mt-2 text-xs font-medium underline underline-offset-2"
+            >
+              Schliessen
+            </button>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-12">
           {/* Linke Spalte */}
@@ -1132,6 +1229,13 @@ export function PageCheckout({
           </div>
         </div>
       </div>
+
+      <CheckoutAuthDialog
+        open={authDialogOpen}
+        onOpenChange={setAuthDialogOpen}
+        guestCart={cart}
+        onAuthSuccess={handleCheckoutAuthSuccess}
+      />
     </div>
   )
 }

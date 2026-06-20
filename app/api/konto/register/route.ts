@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server"
 import { normalizeCustomerEmail } from "@/lib/admin/customers"
-import { getAccountByEmail, saveAccount } from "@/lib/konto/account-db"
+import { getAccountByEmail, saveAccount, toPublicAccount } from "@/lib/konto/account-db"
 import type { CustomerAccount } from "@/lib/konto/account-types"
+import { mergeGuestCartForCustomer } from "@/lib/konto/cart-service"
 import { syncAccountToCrm } from "@/lib/konto/crm-sync"
 import { hashPassword } from "@/lib/konto/password"
 import {
@@ -17,6 +18,7 @@ export async function POST(request: Request) {
       password?: string
       firstName?: string
       lastName?: string
+      guestCart?: unknown
     }
 
     const email = normalizeCustomerEmail(body.email ?? "")
@@ -65,15 +67,12 @@ export async function POST(request: Request) {
 
     await saveAccount(account)
     const synced = await syncAccountToCrm(account)
+    const mergedCart = await mergeGuestCartForCustomer(email, body.guestCart)
 
     const response = NextResponse.json({
       success: true,
-      account: {
-        email: synced.email,
-        firstName: synced.firstName,
-        lastName: synced.lastName,
-        kundennummer: synced.kundennummer,
-      },
+      account: toPublicAccount(synced),
+      cart: mergedCart,
     })
 
     response.cookies.set(

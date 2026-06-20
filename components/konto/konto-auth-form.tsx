@@ -11,6 +11,8 @@ import { PasswordInput } from "@/components/ui/password-input"
 import { Label } from "@/components/ui/label"
 import { KontoShell } from "@/components/konto/konto-shell"
 import { useSiteTexts } from "@/components/dripforge/site-texts-provider"
+import { readClientCart, writeClientCart } from "@/lib/dripforge/cart-storage"
+import type { CartItem } from "@/lib/dripforge/types"
 
 export function KontoLoginForm() {
   const { t } = useSiteTexts()
@@ -31,10 +33,18 @@ export function KontoLoginForm() {
       const res = await fetch("/api/konto/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        credentials: "include",
+        body: JSON.stringify({
+          email,
+          password,
+          guestCart: readClientCart(),
+        }),
       })
-      const data = (await res.json()) as { error?: string }
+      const data = (await res.json()) as { error?: string; cart?: CartItem[] }
       if (!res.ok) throw new Error(data.error ?? "Login fehlgeschlagen")
+      if (Array.isArray(data.cart)) {
+        writeClientCart(data.cart)
+      }
       router.push(next)
       router.refresh()
     } catch (err) {
@@ -108,6 +118,8 @@ export function KontoLoginForm() {
 export function KontoRegisterForm() {
   const { t } = useSiteTexts()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const next = searchParams.get("next") || "/konto"
   const [firstName, setFirstName] = useState("")
   const [lastName, setLastName] = useState("")
   const [email, setEmail] = useState("")
@@ -123,11 +135,21 @@ export function KontoRegisterForm() {
       const res = await fetch("/api/konto/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ firstName, lastName, email, password }),
+        credentials: "include",
+        body: JSON.stringify({
+          firstName,
+          lastName,
+          email,
+          password,
+          guestCart: readClientCart(),
+        }),
       })
-      const data = (await res.json()) as { error?: string }
+      const data = (await res.json()) as { error?: string; cart?: CartItem[] }
       if (!res.ok) throw new Error(data.error ?? "Registrierung fehlgeschlagen")
-      router.push("/konto")
+      if (Array.isArray(data.cart)) {
+        writeClientCart(data.cart)
+      }
+      router.push(next)
       router.refresh()
     } catch (err) {
       setError(err instanceof Error ? err.message : "Registrierung fehlgeschlagen")

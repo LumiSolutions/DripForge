@@ -212,6 +212,10 @@ export async function getCustomerDesignsContainer(): Promise<Container> {
   return ensureContainer("customer-designs", "/customerEmail")
 }
 
+export async function getCustomerCartsContainer(): Promise<Container> {
+  return ensureContainer("customer-carts", "/customerEmail")
+}
+
 export async function getStaffAccountsContainer(): Promise<Container> {
   return ensureContainer("staff-accounts", "/id")
 }
