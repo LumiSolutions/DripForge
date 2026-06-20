@@ -28,6 +28,8 @@ import {
   useThemeInboundTourSettings,
 } from "@/hooks/use-theme-inbound-tour-enabled"
 
+const DESKTOP_MEDIA_QUERY = "(min-width: 768px)"
+
 type AnchorPosition = {
   left: number
   top: number
@@ -45,6 +47,25 @@ function measureAnchor(anchor: HTMLElement | null): AnchorPosition | null {
 function resolveSystemTheme(): SiteTheme {
   if (typeof window === "undefined") return "dark"
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"
+}
+
+function readIsDesktopViewport(): boolean {
+  if (typeof window === "undefined") return false
+  return window.matchMedia(DESKTOP_MEDIA_QUERY).matches
+}
+
+function useIsDesktopViewport(): boolean {
+  const [isDesktop, setIsDesktop] = useState(readIsDesktopViewport)
+
+  useLayoutEffect(() => {
+    const mediaQuery = window.matchMedia(DESKTOP_MEDIA_QUERY)
+    const sync = () => setIsDesktop(mediaQuery.matches)
+    sync()
+    mediaQuery.addEventListener("change", sync)
+    return () => mediaQuery.removeEventListener("change", sync)
+  }, [])
+
+  return isDesktop
 }
 
 type ThemeInboundTourProps = {
@@ -78,6 +99,7 @@ export function ThemeInboundTour({
   anchorRef,
   onThemeChange,
 }: ThemeInboundTourProps) {
+  const isDesktop = useIsDesktopViewport()
   const tourSettings = useThemeInboundTourSettings()
   const enabled = tourSettings?.enableThemeInboundTour ?? null
   const dripImageSrc =
@@ -132,7 +154,7 @@ export function ThemeInboundTour({
   }, [enabled])
 
   useLayoutEffect(() => {
-    if (!visible || exiting) return
+    if (!visible || exiting || !isDesktop) return
 
     const updatePosition = () => {
       setPosition(measureAnchor(anchorRef.current))
@@ -146,11 +168,19 @@ export function ThemeInboundTour({
       window.removeEventListener("resize", updatePosition)
       window.removeEventListener("scroll", updatePosition, true)
     }
-  }, [visible, exiting, anchorRef])
+  }, [visible, exiting, anchorRef, isDesktop])
 
-  if (!mounted || !visible || !position) {
+  if (!mounted || !visible || (isDesktop && !position)) {
     return null
   }
+
+  const animationClass = exiting
+    ? isDesktop
+      ? "theme-drip-exit"
+      : "theme-drip-exit-mobile"
+    : isDesktop
+      ? "theme-drip-enter theme-drip-pulse"
+      : "theme-drip-enter-mobile theme-drip-pulse-mobile"
 
   return createPortal(
     <>
@@ -166,13 +196,20 @@ export function ThemeInboundTour({
 
       <div
         className={cn(
-          "fixed z-[305] w-[min(18rem,calc(100vw-1.5rem))] max-w-[19rem]",
-          exiting ? "theme-drip-exit" : "theme-drip-enter theme-drip-pulse"
+          "pointer-events-auto fixed z-[305]",
+          isDesktop
+            ? "w-[min(18rem,calc(100vw-1.5rem))] max-w-[19rem]"
+            : "top-1/2 left-1/2 w-[85vw] max-w-[340px] -translate-x-1/2 -translate-y-1/2",
+          animationClass
         )}
-        style={{
-          left: position.left,
-          top: position.top + 4,
-        }}
+        style={
+          isDesktop
+            ? {
+                left: position!.left,
+                top: position!.top + 4,
+              }
+            : undefined
+        }
         role="dialog"
         aria-modal="true"
         aria-labelledby="theme-inbound-tour-title"
@@ -187,27 +224,27 @@ export function ThemeInboundTour({
             <Image
               src={dripImageSrc}
               alt=""
-              width={280}
-              height={340}
+              width={340}
+              height={400}
               priority
               unoptimized={shouldUseUnoptimizedThemeTourImage(dripImageSrc)}
               aria-hidden
-              className="pointer-events-none mx-auto h-auto w-full max-w-[17rem] opacity-[0.88] drop-shadow-[0_18px_36px_rgba(249,115,22,0.35)] sm:max-w-[18rem]"
+              className="pointer-events-none mx-auto h-auto w-full opacity-[0.88] drop-shadow-[0_18px_36px_rgba(249,115,22,0.35)] md:max-w-[18rem]"
             />
 
-            <div className="absolute inset-x-0 bottom-[12%] flex flex-col items-center gap-4 px-4 pb-1 pt-2 sm:bottom-[14%] sm:gap-3.5 sm:px-6 md:bottom-[15%]">
+            <div className="absolute inset-x-0 bottom-[13%] flex flex-col items-center justify-center gap-4 px-5 pb-2 pt-2 md:bottom-[15%] md:gap-3.5 md:px-6">
               <p
                 id="theme-inbound-tour-title"
-                className="text-center text-sm font-semibold leading-snug text-slate-900 sm:text-[0.95rem]"
+                className="max-w-[14rem] text-center text-base font-semibold leading-snug text-slate-900 md:max-w-none md:text-sm md:text-[0.95rem]"
               >
                 Tag- oder Nachtmodus?
               </p>
 
-              <div className="flex w-full flex-col gap-3 md:flex-row md:justify-center md:gap-2">
+              <div className="flex w-full max-w-[16rem] flex-col items-stretch gap-3 md:max-w-none md:flex-row md:justify-center md:gap-2">
                 <Button
                   type="button"
                   variant="secondary"
-                  className="h-auto min-h-11 w-full touch-manipulation border border-slate-300/80 bg-white/95 px-4 py-3.5 text-base font-medium text-foreground shadow-md hover:bg-white md:h-9 md:min-h-0 md:min-w-[7.25rem] md:flex-none md:py-2 md:text-sm"
+                  className="h-auto min-h-12 w-full touch-manipulation border border-slate-300/80 bg-white/95 px-4 py-4 text-base font-medium text-foreground shadow-md hover:bg-white md:h-9 md:min-h-0 md:min-w-[7.25rem] md:flex-none md:py-2 md:text-sm"
                   onClick={() => closeWithTheme("light")}
                 >
                   <Sun className="mr-2 h-4 w-4 shrink-0 text-amber-500" />
@@ -215,7 +252,7 @@ export function ThemeInboundTour({
                 </Button>
                 <Button
                   type="button"
-                  className="h-auto min-h-11 w-full touch-manipulation border border-slate-700/40 bg-zinc-900/95 px-4 py-3.5 text-base font-medium text-white shadow-md hover:bg-zinc-900 md:h-9 md:min-h-0 md:min-w-[7.25rem] md:flex-none md:py-2 md:text-sm"
+                  className="h-auto min-h-12 w-full touch-manipulation border border-slate-700/40 bg-zinc-900/95 px-4 py-4 text-base font-medium text-white shadow-md hover:bg-zinc-900 md:h-9 md:min-h-0 md:min-w-[7.25rem] md:flex-none md:py-2 md:text-sm"
                   onClick={() => closeWithTheme("dark")}
                 >
                   <Moon className="mr-2 h-4 w-4 shrink-0 text-sky-300" />
