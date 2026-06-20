@@ -312,3 +312,22 @@ export function legacyMaterialsFallback(
   }
   return result
 }
+
+export function resolveFilamentMaterialsFromSources(
+  inventoryItems: MaterialItem[],
+  adminFilaments: AdminFilament[],
+  materialTypes: MaterialTypeDefinition[] = buildDefaultMaterialTypes()
+): FilamentMaterial[] {
+  const fromInventory = groupInventoryForConfigurator(inventoryItems, materialTypes)
+  if (fromInventory.length > 0) return fromInventory
+
+  if (adminFilaments.length > 0) {
+    const enrichment = buildInventoryColorEnrichmentMap(inventoryItems)
+    const fromAdmin = groupFilamentsForConfigurator(adminFilaments, materialTypes, {
+      inventoryEnrichment: enrichment,
+    })
+    if (fromAdmin.length > 0) return fromAdmin
+  }
+
+  return legacyMaterialsFallback(materialTypes)
+}

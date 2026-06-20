@@ -103,9 +103,6 @@ import {
   type MaterialStatsMap,
   type MaterialTypeDefinition,
 } from "@/lib/admin/material-stats-types"
-import {
-  groupInventoryForConfigurator,
-} from "@/lib/dripforge/filament-catalog"
 import type { FilamentMaterial } from "@/lib/dripforge/types"
 import { getMaterials } from "@/lib/admin/material-db"
 
@@ -721,11 +718,19 @@ export async function getFilamentMaterials(): Promise<FilamentMaterial[]> {
     "getFilamentMaterials",
     cosmosGetFilamentMaterials,
     async () => {
-      const [types, inventoryItems] = await Promise.all([
+      const [types, inventoryItems, storedFilaments] = await Promise.all([
         getMaterialTypes(),
         getMaterials("filament"),
+        readJsonFile<AdminFilament[] | null>(FILAMENTS_FILE, null),
       ])
-      return groupInventoryForConfigurator(inventoryItems, types)
+      const { resolveFilamentMaterialsFromSources } = await import(
+        "@/lib/dripforge/filament-catalog"
+      )
+      return resolveFilamentMaterialsFromSources(
+        inventoryItems,
+        storedFilaments ?? [],
+        types
+      )
     }
   )
 }

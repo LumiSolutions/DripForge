@@ -2,9 +2,6 @@ import { getSettingsContainer } from "@/lib/cosmos/client"
 import { logCosmosError } from "@/lib/cosmos/log-error"
 import { normalizeAdminFilament, type AdminFilament } from "@/lib/admin/filament-types"
 import { cosmosGetMaterialTypes } from "@/lib/admin/cosmos-material-stats"
-import {
-  groupInventoryForConfigurator,
-} from "@/lib/dripforge/filament-catalog"
 import { cosmosGetMaterials } from "@/lib/admin/cosmos-materials"
 
 export const FILAMENT_DOC_TYPE = "filament"
@@ -86,9 +83,17 @@ export async function cosmosDeleteFilament(id: string): Promise<boolean> {
 }
 
 export async function cosmosGetFilamentMaterials() {
-  const [materialTypes, inventoryItems] = await Promise.all([
+  const [materialTypes, inventoryItems, adminFilaments] = await Promise.all([
     cosmosGetMaterialTypes(),
     cosmosGetMaterials("filament"),
+    cosmosGetFilaments(),
   ])
-  return groupInventoryForConfigurator(inventoryItems, materialTypes)
+  const { resolveFilamentMaterialsFromSources } = await import(
+    "@/lib/dripforge/filament-catalog"
+  )
+  return resolveFilamentMaterialsFromSources(
+    inventoryItems,
+    adminFilaments,
+    materialTypes
+  )
 }

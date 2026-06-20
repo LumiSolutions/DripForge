@@ -16,6 +16,27 @@ export type FilamentSelection = {
   inStock: boolean
 }
 
+export function pickDefaultFilamentSelection(
+  materials: FilamentMaterial[]
+): FilamentSelection | null {
+  for (const material of materials) {
+    const color =
+      material.colors.find((entry) => entry.inStock) ?? material.colors[0]
+    if (!color) continue
+
+    return {
+      materialId: material.id,
+      materialName: material.name,
+      colorId: color.id,
+      colorName: color.name,
+      colorHex: color.hex,
+      inStock: color.inStock,
+    }
+  }
+
+  return null
+}
+
 function FilamentImageSlot({
   src,
   alt,

@@ -28,6 +28,7 @@ import {
 import { cn } from "@/lib/utils"
 import {
   FilamentColorPicker,
+  pickDefaultFilamentSelection,
   type FilamentSelection,
 } from "@/components/dripforge/shared/filament-color-picker"
 import {
@@ -36,7 +37,7 @@ import {
   type LaserDesignerState,
 } from "@/components/dripforge/shared/laser-designer-studio"
 import { products as staticProducts } from "@/lib/dripforge/data"
-import { useFilamentMaterials } from "@/hooks/use-filament-materials"
+import { useFilamentCatalog } from "@/hooks/use-filament-materials"
 import { useAiPublicSettings } from "@/hooks/use-ai-public-settings"
 import { getLaserMaterialForProduct } from "@/lib/dripforge/laser"
 import { resolveProductVarianten } from "@/lib/dripforge/product-varianten"
@@ -134,7 +135,8 @@ export function PageShop({
   servicesLoaded = false,
 }: PageShopProps) {
   const { t } = useSiteTexts()
-  const filamentMaterials = useFilamentMaterials()
+  const { materials: filamentMaterials, loading: filamentsLoading } =
+    useFilamentCatalog()
 
   useEffect(() => {
     if (filamentMaterials.length === 0) return
@@ -267,11 +269,15 @@ export function PageShop({
       })
   }
 
+  const effectiveFilamentSelection =
+    filamentSelection ?? pickDefaultFilamentSelection(filamentMaterials)
+
   const handleAddToCart = async () => {
     if (!selectedProduct) return
 
     if (selectedProduct.type === "3d") {
-      if (!filamentSelection?.inStock) return
+      const selection = effectiveFilamentSelection
+      if (!selection?.inStock) return
 
       let leitbild: string | undefined
       try {
@@ -289,8 +295,8 @@ export function PageShop({
         type: "3d",
         leitbild,
         customDetails: {
-          filament: filamentSelection.materialName,
-          color: filamentSelection.colorName,
+          filament: selection.materialName,
+          color: selection.colorName,
           dimensions: selectedProduct.dimensionsMm
             ? formatProductDimensionsText(selectedProduct.dimensionsMm)
             : undefined,
@@ -361,7 +367,7 @@ export function PageShop({
 
   const canAddToCart =
     selectedProduct?.type === "3d"
-      ? Boolean(filamentSelection?.inStock)
+      ? !filamentsLoading && Boolean(effectiveFilamentSelection?.inStock)
       : Boolean(
           laserDesign &&
             (selectedProductVarianten.length === 0 ||
