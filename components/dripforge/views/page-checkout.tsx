@@ -2,7 +2,6 @@
 
 import { useMemo, useState, useEffect } from "react"
 import {
-  Coins,
   ArrowLeft,
   CreditCard,
   Lock,
@@ -22,6 +21,10 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { CartItemDetails } from "@/components/dripforge/shared/cart-item-details"
+import {
+  CheckoutRewardPointsSection,
+  resolveCheckoutPointsPurchaseSelection,
+} from "@/components/dripforge/checkout-reward-points"
 import { useCart } from "@/components/dripforge/cart-provider"
 import { CheckoutAuthDialog } from "@/components/konto/checkout-auth-dialog"
 import {
@@ -41,9 +44,9 @@ import {
 } from "@/lib/dripforge/coupon-checkout"
 import {
   maxRedeemablePoints,
-  loyaltyPointsToChf,
 } from "@/lib/konto/loyalty-points-config"
 import { useCustomerLoyaltyPoints } from "@/hooks/use-customer-loyalty-points"
+import { useRewardPointsEnabled } from "@/hooks/use-reward-points-enabled"
 import type { CartItem } from "@/lib/dripforge/types"
 import { cn } from "@/lib/utils"
 import { submitOrder, startStripeCheckout, startTwintCheckout, type OrderPayload } from "@/lib/dripforge/submit-order"
@@ -268,12 +271,17 @@ export function PageCheckout({
   const [stripeConfigured, setStripeConfigured] = useState(false)
   const [payrexxConfigured, setPayrexxConfigured] = useState(false)
   const [pointsToRedeem, setPointsToRedeem] = useState(0)
+  const [pointsPurchasePackage, setPointsPurchasePackage] = useState<string | null>(
+    null
+  )
+  const [pointsPurchaseCustom, setPointsPurchaseCustom] = useState("10")
   const [authDialogOpen, setAuthDialogOpen] = useState(false)
   const [authSuccessMessage, setAuthSuccessMessage] = useState<string | null>(
     null
   )
   const { loggedIn, loyaltyPoints, loading: loyaltyLoading, refresh: refreshLoyalty } =
     useCustomerLoyaltyPoints()
+  const rewardPointsEnabled = useRewardPointsEnabled()
 
   const subtotal = useMemo(
     () => cart.reduce((sum, item) => sum + item.price * item.quantity, 0),
@@ -283,12 +291,19 @@ export function PageCheckout({
   const baseTotals =
     couponTotals ??
     calculateCheckoutTotalsWithCoupon(subtotal, shippingCost, checkoutConfig, null)
-  const maxPoints = loggedIn
-    ? maxRedeemablePoints(loyaltyPoints, baseTotals.total)
-    : 0
+  const maxPoints =
+    rewardPointsEnabled && loggedIn
+      ? maxRedeemablePoints(loyaltyPoints, baseTotals.total)
+      : 0
   const effectivePoints = Math.min(pointsToRedeem, maxPoints)
+  const pointsPurchaseSelection =
+    rewardPointsEnabled && loggedIn
+      ? resolveCheckoutPointsPurchaseSelection(
+          pointsPurchasePackage,
+          pointsPurchaseCustom
+        )
+      : null
   const totals: CheckoutTotalsWithCoupon = useMemo(() => {
-    if (effectivePoints <= 0) return baseTotals
     return calculateCheckoutTotalsWithDiscounts(
       subtotal,
       shippingCost,
@@ -296,6 +311,12 @@ export function PageCheckout({
       {
         coupon: appliedCouponMeta,
         pointsToRedeem: effectivePoints,
+        pointsPurchase: pointsPurchaseSelection
+          ? {
+              amountChf: pointsPurchaseSelection.amountChf,
+              points: pointsPurchaseSelection.points,
+            }
+          : null,
       }
     )
   }, [
@@ -303,8 +324,8 @@ export function PageCheckout({
     subtotal,
     shippingCost,
     checkoutConfig,
-    baseTotals,
     appliedCouponMeta,
+    pointsPurchaseSelection,
   ])
 
   useEffect(() => {
@@ -313,6 +334,7 @@ export function PageCheckout({
     setCouponTotals(null)
     setCouponError(null)
     setPointsToRedeem(0)
+    setPointsPurchasePackage(null)
   }, [subtotal, shippingMethod, checkoutConfig.mwstAktiv, checkoutConfig.mwstSatz])
 
   const applyCoupon = async () => {
@@ -460,6 +482,24 @@ export function PageCheckout({
     setSubmitError(null)
     if (!validate()) return
 
+    if (
+      rewardPointsEnabled &&
+      pointsPurchasePackage &&
+      !pointsPurchaseSelection
+    ) {
+      setSubmitError("Bitte einen gültigen Punktebetrag wählen (1–500 CHF).")
+      return
+    }
+
+    if (
+      rewardPointsEnabled &&
+      (effectivePoints > 0 || pointsPurchaseSelection) &&
+      !loggedIn
+    ) {
+      setSubmitError("Bitte melde dich an, um Treuepunkte zu nutzen.")
+      return
+    }
+
     const billing = {
       firstName: form.firstName.trim(),
       lastName: form.lastName.trim(),
@@ -492,6 +532,12 @@ export function PageCheckout({
       items: cart,
       couponCode: appliedCouponCode ?? undefined,
       pointsToRedeem: effectivePoints > 0 ? effectivePoints : undefined,
+      pointsPurchase: pointsPurchaseSelection
+        ? {
+            packageId: pointsPurchaseSelection.packageId,
+            customAmountChf: pointsPurchaseSelection.customAmountChf,
+          }
+        : undefined,
       totals: {
         subtotal: totals.subtotal,
         shippingCost: totals.shippingCost,
@@ -499,6 +545,8 @@ export function PageCheckout({
         couponCode: totals.couponCode,
         pointsRedeemed: totals.pointsRedeemed,
         pointsDiscountChf: totals.pointsDiscountChf,
+        pointsPurchaseChf: totals.pointsPurchaseChf,
+        pointsPurchased: totals.pointsPurchased,
         vat: totals.vat,
         total: totals.total,
         mwstAktiv: checkoutConfig.mwstAktiv,
@@ -623,8 +671,9 @@ export function PageCheckout({
                 <div>
                   <p className="font-semibold">Bereits ein Konto?</p>
                   <p className="text-sm text-muted-foreground">
-                    Melde dich an, um gespeicherte Adressdaten und Treuepunkte
-                    zu nutzen — dein Warenkorb bleibt erhalten.
+                    Melde dich an, um gespeicherte Adressdaten
+                    {rewardPointsEnabled !== false ? " und Treuepunkte" : ""} zu
+                    nutzen — dein Warenkorb bleibt erhalten.
                   </p>
                 </div>
               </div>
@@ -1098,45 +1147,21 @@ export function PageCheckout({
                 )}
               </div>
 
-              {loggedIn && !loyaltyLoading && loyaltyPoints > 0 && (
-                <div className="mb-4 space-y-2 rounded-xl border border-dashed border-amber-500/30 bg-amber-500/5 p-4">
-                  <div className="flex items-center gap-2 text-sm font-semibold">
-                    <Coins className="h-4 w-4 text-amber-600" />
-                    Punkte einlösen
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Verfügbar: {loyaltyPoints} Punkte (CHF{" "}
-                    {loyaltyPointsToChf(loyaltyPoints).toFixed(2)})
-                  </p>
-                  <div className="flex gap-2">
-                    <Input
-                      type="number"
-                      min={0}
-                      max={maxPoints}
-                      value={pointsToRedeem || ""}
-                      onChange={(e) =>
-                        setPointsToRedeem(
-                          Math.max(0, Math.min(maxPoints, Number(e.target.value) || 0))
-                        )
-                      }
-                      placeholder="0"
-                      className="bg-background/80"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setPointsToRedeem(maxPoints)}
-                      disabled={maxPoints <= 0}
-                    >
-                      Max
-                    </Button>
-                  </div>
-                  {effectivePoints > 0 && (
-                    <p className="text-xs text-amber-700 dark:text-amber-300">
-                      − CHF {(totals.pointsDiscountChf ?? 0).toFixed(2)} Rabatt
-                    </p>
-                  )}
-                </div>
+              {rewardPointsEnabled === true && (
+                <CheckoutRewardPointsSection
+                  loggedIn={loggedIn}
+                  loyaltyLoading={loyaltyLoading}
+                  loyaltyPoints={loyaltyPoints}
+                  pointsToRedeem={pointsToRedeem}
+                  maxPoints={maxPoints}
+                  effectivePoints={effectivePoints}
+                  pointsDiscountChf={totals.pointsDiscountChf ?? 0}
+                  onPointsToRedeemChange={setPointsToRedeem}
+                  selectedPackage={pointsPurchasePackage}
+                  onSelectedPackageChange={setPointsPurchasePackage}
+                  customAmount={pointsPurchaseCustom}
+                  onCustomAmountChange={setPointsPurchaseCustom}
+                />
               )}
 
               <div className="mt-6 space-y-2 border-t border-slate-200 pt-4 text-sm dark:border-slate-700">
@@ -1170,6 +1195,14 @@ export function PageCheckout({
                     <span>Treuepunkte ({totals.pointsRedeemed ?? 0})</span>
                     <span className="font-medium tabular-nums">
                       − CHF {(totals.pointsDiscountChf ?? 0).toFixed(2)}
+                    </span>
+                  </div>
+                )}
+                {(totals.pointsPurchaseChf ?? 0) > 0 && (
+                  <div className="flex justify-between gap-3 text-primary">
+                    <span>Punkte kaufen ({totals.pointsPurchased ?? 0})</span>
+                    <span className="font-medium tabular-nums">
+                      + CHF {(totals.pointsPurchaseChf ?? 0).toFixed(2)}
                     </span>
                   </div>
                 )}

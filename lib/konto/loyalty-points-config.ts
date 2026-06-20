@@ -49,6 +49,21 @@ export function calculateEarnedLoyaltyPoints(paidTotalChf: number): number {
   return Math.floor((amount * LOYALTY_EARN_RATE) / LOYALTY_POINT_VALUE_CHF)
 }
 
+/** Umsatzbasis für Punkte-Gutschrift (ohne Punktekauf-Aufschlag). */
+export function calculateLoyaltyEarnBaseChf(totals: {
+  subtotal: number
+  shippingCost: number
+  discountAmount?: number
+  pointsDiscountChf?: number
+}): number {
+  const base =
+    totals.subtotal +
+    totals.shippingCost -
+    (totals.discountAmount ?? 0) -
+    (totals.pointsDiscountChf ?? 0)
+  return Math.max(0, Math.round(base * 100) / 100)
+}
+
 export function calculatePointsDiscountChf(points: number): number {
   return loyaltyPointsToChf(points)
 }

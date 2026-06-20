@@ -26,10 +26,14 @@ import {
   maxRedeemablePoints,
   normalizeLoyaltyPoints,
   redeemLoyaltyPointsForOrder,
+  grantLoyaltyPoints,
+  calculateLoyaltyEarnBaseChf,
   LOYALTY_MIN_GATEWAY_PAYMENT_CHF,
 } from "@/lib/konto/loyalty-points"
 import { orderHasCustomerInbound } from "@/lib/admin/customer-inbound-order"
 import { applyInventoryReservationForOrder } from "@/lib/admin/order-inventory-hook"
+import { normalizeEnableRewardPointsSystem } from "@/lib/dripforge/reward-points-settings"
+import { resolveCheckoutPointsPurchase } from "@/lib/shop/points-purchase"
 
 function stripLeitbildPayload(item: StoredOrderItem): StoredOrderItem {
   const { leitbild: _removed, ...rest } = item
@@ -64,6 +68,9 @@ export async function processOrderPayload(
 
   const orderId = options?.orderId ?? createOrderId()
   const settings = await getSettings()
+  const rewardPointsEnabled = normalizeEnableRewardPointsSystem(
+    settings.enableRewardPointsSystem
+  )
 
   const subtotal = payload.items.reduce(
     (sum, item) => sum + item.price * item.quantity,
@@ -91,13 +98,49 @@ export async function processOrderPayload(
     }
   }
 
+  if (!rewardPointsEnabled) {
+    if (normalizeLoyaltyPoints(payload.pointsToRedeem ?? 0) > 0) {
+      throw new Error("Treuepunkte-System ist derzeit deaktiviert.")
+    }
+    if (payload.pointsPurchase) {
+      throw new Error("Treuepunkte-System ist derzeit deaktiviert.")
+    }
+  }
+
+  let pointsPurchase: { amountChf: number; points: number } | null = null
+  if (rewardPointsEnabled && payload.pointsPurchase) {
+    const hasPackage = Boolean(payload.pointsPurchase.packageId?.trim())
+    const hasCustom = payload.pointsPurchase.customAmountChf != null
+    if (hasPackage || hasCustom) {
+      const account = await getAccountByEmail(payload.billing.email)
+      if (!account) {
+        throw new Error("Punkte können nur mit einem Kundenkonto gekauft werden.")
+      }
+      const resolved = resolveCheckoutPointsPurchase(payload.pointsPurchase)
+      pointsPurchase = {
+        amountChf: resolved.amountChf,
+        points: resolved.points,
+      }
+    }
+  }
+
   const serverTotals = calculateCheckoutTotalsWithDiscounts(
     subtotal,
     shippingCost,
     settings.checkout,
     {
       coupon: appliedCoupon,
-      pointsToRedeem: await resolvePointsToRedeem(payload, appliedCoupon, subtotal, shippingCost, settings.checkout, options),
+      pointsToRedeem: rewardPointsEnabled
+        ? await resolvePointsToRedeem(
+            payload,
+            appliedCoupon,
+            subtotal,
+            shippingCost,
+            settings.checkout,
+            options
+          )
+        : 0,
+      pointsPurchase,
     }
   )
 
@@ -265,13 +308,12 @@ export async function fulfillPaidShopOrder(
   }
 
   const creditEmail = options.userId?.trim() || order.billing.email
-  const totalChf =
-    options.totalChf && options.totalChf > 0
-      ? options.totalChf
-      : order.totals.total
+  const rewardPointsEnabled = normalizeEnableRewardPointsSystem(
+    settings.enableRewardPointsSystem
+  )
 
   const pointsRedeemed = normalizeLoyaltyPoints(order.totals.pointsRedeemed ?? 0)
-  if (pointsRedeemed > 0) {
+  if (rewardPointsEnabled && pointsRedeemed > 0) {
     const redeem = await redeemLoyaltyPointsForOrder(
       creditEmail,
       pointsRedeemed,
@@ -284,25 +326,46 @@ export async function fulfillPaidShopOrder(
     }
   }
 
+  const pointsPurchased = normalizeLoyaltyPoints(order.totals.pointsPurchased ?? 0)
+  if (rewardPointsEnabled && pointsPurchased > 0) {
+    const purchaseGrant = await grantLoyaltyPoints(
+      creditEmail,
+      pointsPurchased,
+      `purchase:${orderId}`,
+      "purchase",
+      `Punktekauf mit Bestellung ${orderId}`
+    )
+    if (!purchaseGrant.success && purchaseGrant.reason !== "already_granted") {
+      console.error(
+        `Shop-Fulfillment: Punktekauf fehlgeschlagen (${orderId}, ${purchaseGrant.reason}).`
+      )
+    }
+  }
+
   const grant = await grantAiCreditsForPaidOrder(
     creditEmail,
-    totalChf,
+    order.totals.total,
     paymentRef
   )
 
-  const loyaltyGrant = await grantLoyaltyPointsForPaidOrder(
-    creditEmail,
-    totalChf,
-    orderId
-  )
+  let loyaltyPointsGranted = 0
+  if (rewardPointsEnabled) {
+    const earnBase = calculateLoyaltyEarnBaseChf(order.totals)
+    const loyaltyGrant = await grantLoyaltyPointsForPaidOrder(
+      creditEmail,
+      earnBase,
+      orderId
+    )
+    loyaltyPointsGranted = loyaltyGrant.success ? loyaltyGrant.points : 0
+  }
 
   console.info(
-    `Shop-Fulfillment: ${orderId} bezahlt${grant.granted ? `, +${grant.credits} KI-Credits` : ""}${loyaltyGrant.success ? `, +${loyaltyGrant.points} Treuepunkte` : ""}.`
+    `Shop-Fulfillment: ${orderId} bezahlt${grant.granted ? `, +${grant.credits} KI-Credits` : ""}${loyaltyPointsGranted > 0 ? `, +${loyaltyPointsGranted} Treuepunkte` : ""}.`
   )
 
   return {
     fulfilled: true,
     aiCreditsGranted: grant.granted ? grant.credits : 0,
-    loyaltyPointsGranted: loyaltyGrant.success ? loyaltyGrant.points : 0,
+    loyaltyPointsGranted,
   }
 }

@@ -40,6 +40,7 @@ export async function PUT(request: Request) {
       showSupportOnCountdownPage?: boolean
       enableThemeInboundTour?: boolean
       themeInboundTourImageUrl?: string | null
+      enableRewardPointsSystem?: boolean
     }
 
     if (!body.checkout) {
@@ -80,6 +81,7 @@ export async function PUT(request: Request) {
       showSupportOnCountdownPage: body.showSupportOnCountdownPage,
       enableThemeInboundTour: body.enableThemeInboundTour,
       themeInboundTourImageUrl: body.themeInboundTourImageUrl,
+      enableRewardPointsSystem: body.enableRewardPointsSystem,
     })
     return NextResponse.json(settings)
   } catch (error) {

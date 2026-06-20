@@ -22,6 +22,52 @@ export type ResolvedPointsPurchase = {
   label: string
 }
 
+export type CheckoutPointsPurchaseRequest = {
+  packageId?: string
+  customAmountChf?: number
+}
+
+export function resolveCheckoutPointsPurchase(
+  body: CheckoutPointsPurchaseRequest
+): Pick<ResolvedPointsPurchase, "points" | "amountChf" | "label"> {
+  let points = 0
+  let amountChf = 0
+  let label = ""
+
+  const packageId = body.packageId?.trim()
+  if (packageId) {
+    const pkg = LOYALTY_POINT_PACKAGES.find((entry) => entry.id === packageId)
+    if (!pkg) {
+      throw new Error("Punktepaket nicht gefunden.")
+    }
+    points = pkg.points
+    amountChf = pkg.priceChf
+    label = pkg.label
+  } else if (body.customAmountChf != null) {
+    amountChf = Math.round(Number(body.customAmountChf) * 100) / 100
+    if (!Number.isFinite(amountChf) || amountChf < 1) {
+      throw new Error("Mindestbetrag für individuelle Punkte: 1.00 CHF.")
+    }
+    if (amountChf > 500) {
+      throw new Error("Maximal 500.00 CHF pro Punktekauf.")
+    }
+    points = chfToLoyaltyPoints(amountChf)
+    label = `${points} Punkte`
+  } else {
+    throw new Error("Kein Punktepaket ausgewählt.")
+  }
+
+  if (points <= 0) {
+    throw new Error("Ungültiger Punktebetrag.")
+  }
+
+  return {
+    points: normalizeLoyaltyPoints(points),
+    amountChf,
+    label,
+  }
+}
+
 export function resolvePointsPurchase(
   body: PointsPurchaseRequest,
   sessionEmail: string | null

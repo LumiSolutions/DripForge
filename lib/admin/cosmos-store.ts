@@ -18,6 +18,7 @@ import {
   normalizeEnableThemeInboundTour,
   normalizeThemeInboundTourImageUrl,
 } from "@/lib/dripforge/theme-inbound-tour-settings"
+import { normalizeEnableRewardPointsSystem } from "@/lib/dripforge/reward-points-settings"
 import {
   buildCustomerFromOrder,
   mergeOrderIntoCustomer,
@@ -204,6 +205,9 @@ export async function cosmosGetSettings(): Promise<AdminSettings> {
         themeInboundTourImageUrl: normalizeThemeInboundTourImageUrl(
           resource.themeInboundTourImageUrl
         ),
+        enableRewardPointsSystem: normalizeEnableRewardPointsSystem(
+          resource.enableRewardPointsSystem
+        ),
         updatedAt: resource.updatedAt,
       }
     }
@@ -225,6 +229,7 @@ export async function cosmosGetSettings(): Promise<AdminSettings> {
     showSupportOnCountdownPage: false,
     enableThemeInboundTour: true,
     themeInboundTourImageUrl: null,
+    enableRewardPointsSystem: true,
     updatedAt: new Date().toISOString(),
   }
   try {

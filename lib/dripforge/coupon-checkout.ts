@@ -13,6 +13,8 @@ export type CheckoutTotalsWithCoupon = {
   couponCode?: string
   pointsRedeemed?: number
   pointsDiscountChf?: number
+  pointsPurchaseChf?: number
+  pointsPurchased?: number
   vat: number
   total: number
   mwstAktiv: boolean
@@ -89,6 +91,10 @@ export function calculateCheckoutTotalsWithDiscounts(
       discountValue: number
     } | null
     pointsToRedeem?: number
+    pointsPurchase?: {
+      amountChf: number
+      points: number
+    } | null
   }
 ): CheckoutTotalsWithCoupon {
   const withCoupon = calculateCheckoutTotalsWithCoupon(
@@ -99,28 +105,40 @@ export function calculateCheckoutTotalsWithDiscounts(
   )
 
   const points = normalizeLoyaltyPoints(options?.pointsToRedeem ?? 0)
-  if (points <= 0) {
-    return withCoupon
+  let result: CheckoutTotalsWithCoupon = withCoupon
+
+  if (points > 0) {
+    const pointsDiscountChf = Math.min(
+      withCoupon.total,
+      calculatePointsDiscountChf(points)
+    )
+    const finalTotal = Math.max(
+      0,
+      Math.round((withCoupon.total - pointsDiscountChf) * 100) / 100
+    )
+    const finalVat =
+      withCoupon.total > 0
+        ? Math.round(withCoupon.vat * (finalTotal / withCoupon.total) * 100) / 100
+        : 0
+
+    result = {
+      ...withCoupon,
+      pointsRedeemed: points,
+      pointsDiscountChf,
+      vat: finalVat,
+      total: finalTotal,
+    }
   }
 
-  const pointsDiscountChf = Math.min(
-    withCoupon.total,
-    calculatePointsDiscountChf(points)
-  )
-  const finalTotal = Math.max(
-    0,
-    Math.round((withCoupon.total - pointsDiscountChf) * 100) / 100
-  )
-  const finalVat =
-    withCoupon.total > 0
-      ? Math.round(withCoupon.vat * (finalTotal / withCoupon.total) * 100) / 100
-      : 0
-
-  return {
-    ...withCoupon,
-    pointsRedeemed: points,
-    pointsDiscountChf,
-    vat: finalVat,
-    total: finalTotal,
+  const purchase = options?.pointsPurchase
+  if (purchase && purchase.amountChf > 0 && purchase.points > 0) {
+    result = {
+      ...result,
+      pointsPurchaseChf: purchase.amountChf,
+      pointsPurchased: purchase.points,
+      total: Math.round((result.total + purchase.amountChf) * 100) / 100,
+    }
   }
+
+  return result
 }

@@ -20,6 +20,7 @@ export {
   chfToLoyaltyPoints,
   calculateEarnedLoyaltyPoints,
   calculatePointsDiscountChf,
+  calculateLoyaltyEarnBaseChf,
   maxRedeemablePoints,
   createPointsPurchaseId,
   isPointsPurchaseReference,

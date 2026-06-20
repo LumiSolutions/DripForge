@@ -34,6 +34,7 @@ import {
   normalizeEnableThemeInboundTour,
   normalizeThemeInboundTourImageUrl,
 } from "@/lib/dripforge/theme-inbound-tour-settings"
+import { normalizeEnableRewardPointsSystem } from "@/lib/dripforge/reward-points-settings"
 import {
   withCosmosFallback,
   withCosmosRequired,
@@ -463,6 +464,9 @@ async function getSettingsFromFile(): Promise<AdminSettings> {
       themeInboundTourImageUrl: normalizeThemeInboundTourImageUrl(
         stored.themeInboundTourImageUrl
       ),
+      enableRewardPointsSystem: normalizeEnableRewardPointsSystem(
+        stored.enableRewardPointsSystem
+      ),
       updatedAt: stored.updatedAt,
     }
   }
@@ -476,6 +480,7 @@ async function getSettingsFromFile(): Promise<AdminSettings> {
     showSupportOnCountdownPage: false,
     enableThemeInboundTour: true,
     themeInboundTourImageUrl: null,
+    enableRewardPointsSystem: true,
     updatedAt: new Date().toISOString(),
   }
   try {
@@ -508,6 +513,7 @@ export async function saveSettings(input: {
   showSupportOnCountdownPage?: boolean
   enableThemeInboundTour?: boolean
   themeInboundTourImageUrl?: string | null
+  enableRewardPointsSystem?: boolean
 }): Promise<AdminSettings> {
   const current = await getSettings()
   const services = normalizeServiceVisibility({
@@ -545,6 +551,10 @@ export async function saveSettings(input: {
       input.themeInboundTourImageUrl !== undefined
         ? normalizeThemeInboundTourImageUrl(input.themeInboundTourImageUrl)
         : normalizeThemeInboundTourImageUrl(current.themeInboundTourImageUrl),
+    enableRewardPointsSystem:
+      input.enableRewardPointsSystem !== undefined
+        ? normalizeEnableRewardPointsSystem(input.enableRewardPointsSystem)
+        : normalizeEnableRewardPointsSystem(current.enableRewardPointsSystem),
     updatedAt: new Date().toISOString(),
   }
   await withCosmosFallback(

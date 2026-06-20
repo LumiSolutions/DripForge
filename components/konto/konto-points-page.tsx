@@ -13,11 +13,13 @@ import {
   loyaltyPointsToChf,
 } from "@/lib/konto/loyalty-points-config"
 import { useCustomerLoyaltyPoints } from "@/hooks/use-customer-loyalty-points"
+import { useRewardPointsEnabled } from "@/hooks/use-reward-points-enabled"
 
 export function KontoPointsPage() {
   const searchParams = useSearchParams()
   const { loggedIn, loading, loyaltyPoints, loyaltyBalanceChf, refresh } =
     useCustomerLoyaltyPoints()
+  const rewardPointsEnabled = useRewardPointsEnabled()
   const [customAmount, setCustomAmount] = useState("10")
   const [selectedPackage, setSelectedPackage] = useState<string | null>("100")
   const [paymentMethod, setPaymentMethod] = useState<"card" | "twint">("card")
@@ -83,6 +85,16 @@ export function KontoPointsPage() {
           <Loader2 className="mr-2 h-5 w-5 animate-spin" />
           Punkte werden geladen…
         </div>
+      </KontoShell>
+    )
+  }
+
+  if (rewardPointsEnabled === false) {
+    return (
+      <KontoShell>
+        <p className="rounded-xl border border-dashed py-10 text-center text-sm text-muted-foreground">
+          Das Treuepunkte-System ist derzeit deaktiviert.
+        </p>
       </KontoShell>
     )
   }

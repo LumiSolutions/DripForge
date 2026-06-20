@@ -12,11 +12,12 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { useRewardPointsEnabled } from "@/hooks/use-reward-points-enabled"
 
 const NAV = [
   { href: "/konto", label: "Übersicht", icon: LayoutDashboard, exact: true },
   { href: "/konto/bestellungen", label: "Bestellungen", icon: Package, exact: false },
-  { href: "/konto/punkte", label: "Treuepunkte", icon: Coins, exact: false },
+  { href: "/konto/punkte", label: "Treuepunkte", icon: Coins, exact: false, rewardPoints: true },
   { href: "/konto/profil", label: "Profil & Adressen", icon: MapPin, exact: false },
   { href: "/konto/designs", label: "Meine Designs", icon: Palette, exact: false },
 ]
@@ -33,6 +34,11 @@ export function KontoShell({
 }) {
   const pathname = usePathname()
   const router = useRouter()
+  const rewardPointsEnabled = useRewardPointsEnabled()
+
+  const navItems = NAV.filter(
+    (item) => !item.rewardPoints || rewardPointsEnabled !== false
+  )
 
   const handleLogout = async () => {
     await fetch("/api/konto/logout", { method: "POST" })
@@ -49,7 +55,7 @@ export function KontoShell({
     >
       {!authMode && (
         <nav className="flex shrink-0 flex-row gap-2 md:w-52 md:flex-col">
-          {NAV.map((item) => {
+          {navItems.map((item) => {
             const Icon = item.icon
             const active = item.exact
               ? pathname === item.href

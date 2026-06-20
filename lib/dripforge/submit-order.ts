@@ -20,6 +20,11 @@ export type OrderPayload = {
   items: CartItem[]
   couponCode?: string
   pointsToRedeem?: number
+  /** Punktepaket im Checkout (wird dem Gesamtbetrag aufgeschlagen) */
+  pointsPurchase?: {
+    packageId?: string
+    customAmountChf?: number
+  }
   totals: {
     subtotal: number
     shippingCost: number
@@ -27,6 +32,8 @@ export type OrderPayload = {
     couponCode?: string
     pointsRedeemed?: number
     pointsDiscountChf?: number
+    pointsPurchaseChf?: number
+    pointsPurchased?: number
     vat: number
     total: number
     mwstAktiv: boolean

@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server"
+import { getSettings } from "@/lib/admin/db"
 import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
+import { normalizeEnableRewardPointsSystem } from "@/lib/dripforge/reward-points-settings"
 import {
   resolvePointsPurchaseFromRequest,
   type PointsPurchaseRequest,
@@ -19,6 +21,14 @@ export async function POST(request: Request) {
 
   try {
     await warmCosmosInfrastructure()
+
+    const settings = await getSettings()
+    if (!normalizeEnableRewardPointsSystem(settings.enableRewardPointsSystem)) {
+      return NextResponse.json(
+        { error: "Treuepunkte-System ist derzeit deaktiviert." },
+        { status: 403 }
+      )
+    }
 
     const body = (await request.json()) as PointsPurchaseRequest
     if (body.paymentMethod !== "card") {

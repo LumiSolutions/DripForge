@@ -28,6 +28,7 @@ import {
   shouldUseUnoptimizedThemeTourImage,
   THEME_DRIP_STORAGE_KEY,
 } from "@/lib/dripforge/theme-inbound-tour-settings"
+import { normalizeEnableRewardPointsSystem } from "@/lib/dripforge/reward-points-settings"
 import { cn } from "@/lib/utils"
 
 export function AdminSettingsTab() {
@@ -47,6 +48,7 @@ export function AdminSettingsTab() {
   const [showSupportOnMainSite, setShowSupportOnMainSite] = useState(false)
   const [showSupportOnCountdownPage, setShowSupportOnCountdownPage] = useState(false)
   const [enableThemeInboundTour, setEnableThemeInboundTour] = useState(true)
+  const [enableRewardPointsSystem, setEnableRewardPointsSystem] = useState(true)
   const [themeInboundTourImageUrl, setThemeInboundTourImageUrl] = useState<string | null>(
     null
   )
@@ -75,6 +77,9 @@ export function AdminSettingsTab() {
       setShowSupportOnCountdownPage(support.showSupportOnCountdownPage)
       setEnableThemeInboundTour(
         normalizeEnableThemeInboundTour(data.enableThemeInboundTour)
+      )
+      setEnableRewardPointsSystem(
+        normalizeEnableRewardPointsSystem(data.enableRewardPointsSystem)
       )
       setThemeInboundTourImageUrl(
         normalizeThemeInboundTourImageUrl(data.themeInboundTourImageUrl)
@@ -123,6 +128,7 @@ export function AdminSettingsTab() {
           showSupportOnCountdownPage,
           enableThemeInboundTour,
           themeInboundTourImageUrl,
+          enableRewardPointsSystem,
         }),
       })
       const data = await res.json()
@@ -145,6 +151,9 @@ export function AdminSettingsTab() {
       setShowSupportOnCountdownPage(support.showSupportOnCountdownPage)
       setEnableThemeInboundTour(
         normalizeEnableThemeInboundTour(data.enableThemeInboundTour)
+      )
+      setEnableRewardPointsSystem(
+        normalizeEnableRewardPointsSystem(data.enableRewardPointsSystem)
       )
       setThemeInboundTourImageUrl(
         normalizeThemeInboundTourImageUrl(data.themeInboundTourImageUrl)
@@ -312,6 +321,40 @@ export function AdminSettingsTab() {
               Website offiziell live schalten
             </Button>
           )}
+        </CardContent>
+      </Card>
+
+      <Card className={adminUi.card}>
+        <CardContent className="space-y-4 p-6">
+          <div>
+            <h3 className={cn("text-base font-semibold", adminUi.accentTitle)}>
+              Treuepunkte
+            </h3>
+            <p className={cn("mt-1 text-sm", adminUi.muted)}>
+              Steuert Kaufen, Einlösen und Anzeige von Treuepunkten im Konto und
+              Checkout.
+            </p>
+          </div>
+          <div
+            className={cn(
+              "flex items-start justify-between gap-4 rounded-xl border p-4",
+              adminUi.section
+            )}
+          >
+            <div className="space-y-1 pr-2">
+              <Label className={cn("text-sm font-semibold", adminUi.heading)}>
+                Treuepunkte-System aktivieren
+              </Label>
+              <p className={cn("text-xs", adminUi.muted)}>
+                Deaktiviert alle Punkte-Funktionen im Shop: Kauf, Einlösung und
+                Anzeige im Kundenkonto sowie Checkout.
+              </p>
+            </div>
+            <Switch
+              checked={enableRewardPointsSystem}
+              onCheckedChange={setEnableRewardPointsSystem}
+            />
+          </div>
         </CardContent>
       </Card>
 

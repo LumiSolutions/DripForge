@@ -144,6 +144,8 @@ export type AdminSettings = {
   enableThemeInboundTour: boolean
   /** Hochgeladenes Overlay-Bild für die Theme-Tour (Azure Blob / Data-URL) */
   themeInboundTourImageUrl?: string | null
+  /** Treuepunkte-System (Kaufen, Einlösen, Konto-Anzeige) */
+  enableRewardPointsSystem: boolean
   updatedAt: string
 }
 

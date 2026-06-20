@@ -12,6 +12,11 @@ import { processOrderPayload } from "@/lib/shop/order-processing"
 import { upsertCustomerFromOrder, getSettings } from "@/lib/admin/db"
 import { applyInventoryReservationForOrder } from "@/lib/admin/order-inventory-hook"
 import { processOrderInvoice } from "@/lib/invoices/process-order-invoice"
+import { normalizeEnableRewardPointsSystem } from "@/lib/dripforge/reward-points-settings"
+import {
+  grantLoyaltyPoints,
+  calculateLoyaltyEarnBaseChf,
+} from "@/lib/konto/loyalty-points"
 
 export async function POST(request: Request) {
   let orderId = ""
@@ -42,13 +47,27 @@ export async function POST(request: Request) {
     const portalAccount = await getAccountByEmail(order.billing.email)
     let aiCreditsGranted = 0
     let loyaltyPointsGranted = 0
+    const rewardPointsEnabled = normalizeEnableRewardPointsSystem(
+      settings.enableRewardPointsSystem
+    )
 
     const pointsRedeemed = normalizeLoyaltyPoints(order.totals.pointsRedeemed ?? 0)
-    if (pointsRedeemed > 0 && portalAccount) {
+    if (rewardPointsEnabled && pointsRedeemed > 0 && portalAccount) {
       await redeemLoyaltyPointsForOrder(
         order.billing.email,
         pointsRedeemed,
         order.orderId
+      )
+    }
+
+    const pointsPurchased = normalizeLoyaltyPoints(order.totals.pointsPurchased ?? 0)
+    if (rewardPointsEnabled && pointsPurchased > 0 && portalAccount) {
+      await grantLoyaltyPoints(
+        order.billing.email,
+        pointsPurchased,
+        `purchase:${order.orderId}`,
+        "purchase",
+        `Punktekauf mit Bestellung ${order.orderId}`
       )
     }
 
@@ -65,13 +84,16 @@ export async function POST(request: Request) {
         )
       }
 
-      const loyaltyGrant = await grantLoyaltyPointsForPaidOrder(
-        order.billing.email,
-        order.totals.total,
-        orderId
-      )
-      if (loyaltyGrant.success) {
-        loyaltyPointsGranted = loyaltyGrant.points
+      if (rewardPointsEnabled) {
+        const earnBase = calculateLoyaltyEarnBaseChf(order.totals)
+        const loyaltyGrant = await grantLoyaltyPointsForPaidOrder(
+          order.billing.email,
+          earnBase,
+          orderId
+        )
+        if (loyaltyGrant.success) {
+          loyaltyPointsGranted = loyaltyGrant.points
+        }
       }
     }
 

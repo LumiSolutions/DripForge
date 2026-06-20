@@ -3,6 +3,7 @@ import { getSettings } from "@/lib/admin/db"
 import { getSafeServiceVisibility } from "@/lib/admin/safe-defaults"
 import { normalizeShopConfigurators } from "@/lib/dripforge/shop-configurators"
 import { buildThemeInboundTourPublicSettings } from "@/lib/dripforge/theme-inbound-tour-settings"
+import { buildRewardPointsPublicSettings } from "@/lib/dripforge/reward-points-settings"
 
 export async function GET() {
   try {
@@ -14,6 +15,7 @@ export async function GET() {
         settings.services
       ),
       ...buildThemeInboundTourPublicSettings(settings),
+      ...buildRewardPointsPublicSettings(settings),
     })
   } catch (error) {
     console.error("Services-API: Einstellungen konnten nicht geladen werden.", error)
@@ -21,6 +23,7 @@ export async function GET() {
       ...getSafeServiceVisibility(null),
       shopConfigurators: normalizeShopConfigurators(null, null),
       ...buildThemeInboundTourPublicSettings(null),
+      ...buildRewardPointsPublicSettings(null),
     })
   }
 }

@@ -6,6 +6,7 @@ import { Loader2, Package, Palette, Coins } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { KontoShell } from "@/components/konto/konto-shell"
 import { useSiteTexts } from "@/components/dripforge/site-texts-provider"
+import { useRewardPointsEnabled } from "@/hooks/use-reward-points-enabled"
 import type { CustomerOrderSummary } from "@/lib/konto/customer-orders"
 
 type Account = {
@@ -19,6 +20,7 @@ type Account = {
 
 export function KontoDashboard() {
   const { t } = useSiteTexts()
+  const rewardPointsEnabled = useRewardPointsEnabled()
   const [account, setAccount] = useState<Account | null>(null)
   const [orders, setOrders] = useState<CustomerOrderSummary[]>([])
   const [loading, setLoading] = useState(true)
@@ -90,6 +92,7 @@ export function KontoDashboard() {
               </div>
             </CardContent>
           </Card>
+          {rewardPointsEnabled !== false && (
           <Card className="rounded-2xl border-primary/25 bg-primary/5">
             <CardContent className="flex items-center gap-4 p-6">
               <Coins className="h-8 w-8 text-primary" />
@@ -109,6 +112,7 @@ export function KontoDashboard() {
               </div>
             </CardContent>
           </Card>
+          )}
           <Card className="rounded-2xl border-border/50">
             <CardContent className="flex items-center gap-4 p-6">
               <Palette className="h-8 w-8 text-cyan-500" />

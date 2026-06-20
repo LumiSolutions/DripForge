@@ -21,6 +21,7 @@ export function buildDefaultAdminSettings(): AdminSettings {
     showSupportOnCountdownPage: false,
     enableThemeInboundTour: true,
     themeInboundTourImageUrl: null,
+    enableRewardPointsSystem: true,
     updatedAt: new Date().toISOString(),
   }
 }
