@@ -1,27 +1,35 @@
 import type { OrderAddress } from "@/lib/dripforge/submit-order"
 import type { StoredCustomer, StoredOrder } from "@/lib/admin/types"
+import {
+  findMaxSequenceInPool,
+  formatCustomerNumber,
+  getCustomerNumberYearPrefix,
+  getYearBaseSequence,
+} from "@/lib/admin/customer-number-config"
+
+export {
+  CUSTOMER_NUMBER_YEAR_BASE,
+  formatCustomerNumber,
+  getCustomerNumberYearPrefix,
+  getYearBaseSequence,
+  parseSequenceFromCustomerNumber,
+} from "@/lib/admin/customer-number-config"
 
 export function normalizeCustomerEmail(email: string): string {
   return email.trim().toLowerCase()
 }
 
+/** Synchrone Vergabe fuer JSON-Fallback (strikt +1 pro Jahr-Praefix). */
 export function generateCustomerNumber(
-  existing: Array<{ kundennummer: string }>
+  existing: Array<{ kundennummer: string }>,
+  referenceDate = new Date()
 ): string {
-  const year = new Date().getFullYear()
-  const prefix = `KD-${year}-`
-  let max = 0
-
-  for (const customer of existing) {
-    if (!customer.kundennummer.startsWith(prefix)) continue
-    const suffix = customer.kundennummer.slice(prefix.length)
-    const parsed = parseInt(suffix, 10)
-    if (!Number.isNaN(parsed)) {
-      max = Math.max(max, parsed)
-    }
-  }
-
-  return `${prefix}${String(max + 1).padStart(4, "0")}`
+  const year = referenceDate.getFullYear()
+  const yearPrefix = getCustomerNumberYearPrefix(referenceDate)
+  const baseSequence = getYearBaseSequence(year)
+  const max = findMaxSequenceInPool(existing, yearPrefix)
+  const nextSequence = max === null ? baseSequence + 1 : max + 1
+  return formatCustomerNumber(yearPrefix, nextSequence)
 }
 
 export function customerDisplayName(billing: OrderAddress): string {

@@ -20,11 +20,10 @@ import {
 } from "@/lib/dripforge/theme-inbound-tour-settings"
 import {
   buildCustomerFromOrder,
-  generateCustomerNumber,
   mergeOrderIntoCustomer,
   normalizeCustomerEmail,
 } from "@/lib/admin/customers"
-import { listAllAccounts } from "@/lib/konto/account-db"
+import { allocateNextCustomerNumber } from "@/lib/admin/customer-number-service"
 import type {
   AdminProduct,
   AdminSettings,
@@ -150,15 +149,9 @@ export async function cosmosUpsertCustomerFromOrder(
   if (index >= 0) {
     customer = mergeOrderIntoCustomer(customers[index], order)
   } else {
-    const accounts = await listAllAccounts()
     customer = buildCustomerFromOrder(
       order,
-      generateCustomerNumber([
-        ...customers,
-        ...accounts
-          .filter((a) => a.kundennummer)
-          .map((a) => ({ kundennummer: a.kundennummer! })),
-      ])
+      await allocateNextCustomerNumber()
     )
   }
 

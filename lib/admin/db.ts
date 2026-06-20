@@ -4,12 +4,11 @@ import { products as seedProducts } from "@/lib/dripforge/data"
 import { DEFAULT_CHECKOUT_RUNTIME_CONFIG } from "@/lib/dripforge/checkout-config"
 import {
   buildCustomerFromOrder,
-  generateCustomerNumber,
   mergeOrderIntoCustomer,
   normalizeCustomerEmail,
 } from "@/lib/admin/customers"
+import { allocateNextCustomerNumber } from "@/lib/admin/customer-number-service"
 import { reconcilePortalAccounts } from "@/lib/konto/crm-sync"
-import { listAllAccounts } from "@/lib/konto/account-db"
 import type {
   AdminProduct,
   AdminSettings,
@@ -221,13 +220,7 @@ async function upsertCustomerFromOrderFile(
     customer = mergeOrderIntoCustomer(customers[index], order)
     customers[index] = customer
   } else {
-    const accounts = await listAllAccounts()
-    const kundennummer = generateCustomerNumber([
-      ...customers,
-      ...accounts
-        .filter((a) => a.kundennummer)
-        .map((a) => ({ kundennummer: a.kundennummer! })),
-    ])
+    const kundennummer = await allocateNextCustomerNumber()
     customer = buildCustomerFromOrder(order, kundennummer)
     customers.push(customer)
   }
@@ -270,13 +263,7 @@ export async function reconcileCustomersFromOrders(): Promise<void> {
         await attachCustomerToOrder(order.orderId, merged.kundennummer)
       }
     } else {
-      const accounts = await listAllAccounts()
-      const kundennummer = generateCustomerNumber([
-        ...byEmail.values(),
-        ...accounts
-          .filter((a) => a.kundennummer)
-          .map((a) => ({ kundennummer: a.kundennummer! })),
-      ])
+      const kundennummer = await allocateNextCustomerNumber()
       const created = buildCustomerFromOrder(order, kundennummer)
       byEmail.set(email, created)
       changed = true

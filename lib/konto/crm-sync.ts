@@ -1,8 +1,8 @@
 import type { OrderAddress } from "@/lib/dripforge/submit-order"
 import {
-  generateCustomerNumber,
   normalizeCustomerEmail,
 } from "@/lib/admin/customers"
+import { allocateNextCustomerNumber } from "@/lib/admin/customer-number-service"
 import {
   getCustomersSnapshot,
   saveCustomer,
@@ -24,25 +24,12 @@ function accountToBilling(account: CustomerAccount): OrderAddress {
   }
 }
 
-function numberPool(
-  customers: StoredCustomer[],
-  accounts: CustomerAccount[]
-): Array<{ kundennummer: string }> {
-  return [
-    ...customers.map((c) => ({ kundennummer: c.kundennummer })),
-    ...accounts
-      .filter((a) => a.kundennummer)
-      .map((a) => ({ kundennummer: a.kundennummer! })),
-  ]
-}
-
 /** Legt CRM-Stammdaten an und vergibt ggf. eine neue Kundennummer. */
 export async function syncAccountToCrm(
   account: CustomerAccount
 ): Promise<CustomerAccount> {
   const email = normalizeCustomerEmail(account.email)
   const customers = await getCustomersSnapshot()
-  const accounts = await listAllAccounts()
   const existingIdx = customers.findIndex((c) => c.email === email)
 
   let kundennummer =
@@ -50,7 +37,7 @@ export async function syncAccountToCrm(
     (existingIdx >= 0 ? customers[existingIdx].kundennummer : undefined)
 
   if (!kundennummer) {
-    kundennummer = generateCustomerNumber(numberPool(customers, accounts))
+    kundennummer = await allocateNextCustomerNumber()
   }
 
   const now = new Date().toISOString()
