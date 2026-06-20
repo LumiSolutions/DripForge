@@ -232,12 +232,14 @@ export function ThemeInboundTour({
               className="pointer-events-none mx-auto h-auto w-full opacity-[0.88] drop-shadow-[0_18px_36px_rgba(249,115,22,0.35)] md:max-w-[18rem]"
             />
 
-            <div className="absolute inset-x-0 bottom-[13%] flex flex-col items-center justify-center gap-4 px-5 pb-2 pt-2 md:bottom-[15%] md:gap-3.5 md:px-6">
+            <div className="absolute inset-x-0 bottom-[13%] flex flex-col items-center justify-center gap-4 px-6 pb-2 pt-2 md:bottom-[15%] md:gap-3.5 md:px-8">
               <p
                 id="theme-inbound-tour-title"
-                className="max-w-[14rem] text-center text-base font-semibold leading-snug text-slate-900 md:max-w-none md:text-sm md:text-[0.95rem]"
+                className="flex flex-col items-center text-center text-xl font-extrabold leading-[1.15] tracking-tight text-slate-900 md:text-2xl"
               >
-                Tag- oder Nachtmodus?
+                <span>Tag-</span>
+                <span>oder</span>
+                <span>Nachtmodus?</span>
               </p>
 
               <div className="flex w-full max-w-[16rem] flex-col items-stretch gap-3 md:max-w-none md:flex-row md:justify-center md:gap-2">
