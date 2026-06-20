@@ -77,7 +77,7 @@ export default function LaunchGate() {
   if (!status?.canAccessShop) {
     return (
       <SiteTextsProvider>
-        <ComingSoonPage />
+        <ComingSoonPage onAccessGranted={() => void loadStatus()} />
       </SiteTextsProvider>
     )
   }

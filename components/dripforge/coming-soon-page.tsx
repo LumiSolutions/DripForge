@@ -2,10 +2,12 @@
 
 import { useEffect, useMemo, useState, type CSSProperties } from "react"
 import Image from "next/image"
+import { StaffAuthFlow } from "@/components/admin/staff-auth-flow"
 import { SupportMissionLink } from "@/components/dripforge/support-nav-link"
 import { useSupportPageSettings } from "@/hooks/use-support-page-active"
 import { useSiteTexts } from "@/components/dripforge/site-texts-provider"
 import { getLaunchCountdown, LAUNCH_DATE } from "@/lib/dripforge/launch-config"
+import { cn } from "@/lib/utils"
 
 function EmberField() {
   const embers = useMemo(
@@ -70,10 +72,19 @@ function CountdownSeparator() {
   )
 }
 
-export function ComingSoonPage() {
+export function ComingSoonPage({
+  onAccessGranted,
+}: {
+  onAccessGranted?: () => void
+}) {
   const { t } = useSiteTexts()
   const { showSupportOnCountdownPage: supportPageVisible } = useSupportPageSettings()
   const [countdown, setCountdown] = useState(getLaunchCountdown())
+  const [testerOpen, setTesterOpen] = useState(false)
+  const [testerFeedback, setTesterFeedback] = useState<{
+    type: "success" | "error"
+    message: string
+  } | null>(null)
 
   useEffect(() => {
     document.documentElement.classList.add("dark")
@@ -185,8 +196,63 @@ export function ComingSoonPage() {
         </section>
       </main>
 
-      <footer className="relative z-10 mt-6 flex w-full max-w-xl flex-col items-center px-4 pb-2 text-center sm:mt-8">
+      <footer className="relative z-30 mt-6 flex w-full max-w-xl flex-col items-center space-y-4 px-4 pb-2 text-center sm:mt-8">
         <p className="text-[10px] text-zinc-700">© 2026 DripForge · Pfäffikon ZH</p>
+
+        {testerFeedback && (
+          <p
+            role="status"
+            className={cn(
+              "w-full max-w-xs rounded-lg px-3 py-2 text-xs font-medium",
+              testerFeedback.type === "success"
+                ? "border border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+                : "border border-red-500/30 bg-red-500/10 text-red-300"
+            )}
+          >
+            {testerFeedback.message}
+          </p>
+        )}
+
+        <div className="pointer-events-auto flex flex-wrap items-center justify-center gap-x-2 leading-loose">
+          <button
+            type="button"
+            onClick={() => {
+              setTesterOpen((open) => !open)
+              setTesterFeedback(null)
+            }}
+            className="touch-manipulation text-[10px] text-zinc-500 transition-colors hover:text-zinc-300"
+          >
+            Tester-Zugang
+          </button>
+        </div>
+
+        {testerOpen && (
+          <div className="pointer-events-auto relative z-30 mx-auto w-full max-w-xs text-left">
+            <StaffAuthFlow
+              role="tester"
+              intent="preview"
+              title="Vorschau-Zugang"
+              passwordPlaceholder="Tester-Passwort"
+              submitLabel="Anmelden"
+              compact
+              showBackLink={false}
+              onSuccess={() => {
+                setTesterOpen(false)
+                setTesterFeedback({
+                  type: "success",
+                  message: "Erfolgreich als Tester angemeldet! Vorschau wird geladen…",
+                })
+                window.setTimeout(() => {
+                  if (onAccessGranted) {
+                    onAccessGranted()
+                  } else {
+                    window.location.reload()
+                  }
+                }, 900)
+              }}
+            />
+          </div>
+        )}
       </footer>
     </div>
   )
