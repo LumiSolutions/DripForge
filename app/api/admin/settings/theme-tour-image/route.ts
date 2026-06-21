@@ -94,7 +94,8 @@ export async function POST(request: Request) {
     const current = await getSettings()
     const settings = await saveSettings({
       checkout: current.checkout,
-      enableThemeInboundTour: current.enableThemeInboundTour,
+      enableOnboardingTour: current.enableOnboardingTour,
+      onboardingTourText: current.onboardingTourText,
       themeInboundTourImageUrl: normalizedUrl,
     })
 

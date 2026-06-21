@@ -38,7 +38,8 @@ export async function PUT(request: Request) {
       shopConfigurators?: Partial<ShopConfiguratorSettings>
       showSupportOnMainSite?: boolean
       showSupportOnCountdownPage?: boolean
-      enableThemeInboundTour?: boolean
+      enableOnboardingTour?: boolean
+      onboardingTourText?: string
       themeInboundTourImageUrl?: string | null
       enableRewardPointsSystem?: boolean
     }
@@ -79,7 +80,8 @@ export async function PUT(request: Request) {
       shopConfigurators: normalizeShopConfigurators(body.shopConfigurators, services),
       showSupportOnMainSite: body.showSupportOnMainSite,
       showSupportOnCountdownPage: body.showSupportOnCountdownPage,
-      enableThemeInboundTour: body.enableThemeInboundTour,
+      enableOnboardingTour: body.enableOnboardingTour,
+      onboardingTourText: body.onboardingTourText,
       themeInboundTourImageUrl: body.themeInboundTourImageUrl,
       enableRewardPointsSystem: body.enableRewardPointsSystem,
     })

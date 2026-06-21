@@ -15,8 +15,10 @@ import { products as seedProducts } from "@/lib/dripforge/data"
 import { DEFAULT_CHECKOUT_RUNTIME_CONFIG } from "@/lib/dripforge/checkout-config"
 import { buildSupportPageSettings } from "@/lib/dripforge/support-page-settings"
 import {
-  normalizeEnableThemeInboundTour,
+  normalizeEnableOnboardingTour,
+  normalizeOnboardingTourText,
   normalizeThemeInboundTourImageUrl,
+  DEFAULT_ONBOARDING_TOUR_TEXT,
 } from "@/lib/dripforge/theme-inbound-tour-settings"
 import { normalizeEnableRewardPointsSystem } from "@/lib/dripforge/reward-points-settings"
 import {
@@ -199,9 +201,11 @@ export async function cosmosGetSettings(): Promise<AdminSettings> {
           services
         ),
         ...buildSupportPageSettings(resource),
-        enableThemeInboundTour: normalizeEnableThemeInboundTour(
-          resource.enableThemeInboundTour
+        enableOnboardingTour: normalizeEnableOnboardingTour(
+          resource.enableOnboardingTour ??
+            (resource as { enableThemeInboundTour?: boolean }).enableThemeInboundTour
         ),
+        onboardingTourText: normalizeOnboardingTourText(resource.onboardingTourText),
         themeInboundTourImageUrl: normalizeThemeInboundTourImageUrl(
           resource.themeInboundTourImageUrl
         ),
@@ -227,7 +231,8 @@ export async function cosmosGetSettings(): Promise<AdminSettings> {
     shopConfigurators: normalizeShopConfigurators(null, DEFAULT_SERVICE_VISIBILITY),
     showSupportOnMainSite: false,
     showSupportOnCountdownPage: false,
-    enableThemeInboundTour: true,
+    enableOnboardingTour: true,
+    onboardingTourText: DEFAULT_ONBOARDING_TOUR_TEXT,
     themeInboundTourImageUrl: null,
     enableRewardPointsSystem: true,
     updatedAt: new Date().toISOString(),

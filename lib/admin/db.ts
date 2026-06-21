@@ -31,8 +31,10 @@ import {
 } from "@/lib/admin/safe-defaults"
 import { buildSupportPageSettings } from "@/lib/dripforge/support-page-settings"
 import {
-  normalizeEnableThemeInboundTour,
+  normalizeEnableOnboardingTour,
+  normalizeOnboardingTourText,
   normalizeThemeInboundTourImageUrl,
+  DEFAULT_ONBOARDING_TOUR_TEXT,
 } from "@/lib/dripforge/theme-inbound-tour-settings"
 import { normalizeEnableRewardPointsSystem } from "@/lib/dripforge/reward-points-settings"
 import {
@@ -458,9 +460,11 @@ async function getSettingsFromFile(): Promise<AdminSettings> {
         services
       ),
       ...buildSupportPageSettings(stored),
-      enableThemeInboundTour: normalizeEnableThemeInboundTour(
-        stored.enableThemeInboundTour
+      enableOnboardingTour: normalizeEnableOnboardingTour(
+        stored.enableOnboardingTour ??
+          (stored as { enableThemeInboundTour?: boolean }).enableThemeInboundTour
       ),
+      onboardingTourText: normalizeOnboardingTourText(stored.onboardingTourText),
       themeInboundTourImageUrl: normalizeThemeInboundTourImageUrl(
         stored.themeInboundTourImageUrl
       ),
@@ -478,7 +482,8 @@ async function getSettingsFromFile(): Promise<AdminSettings> {
     shopConfigurators: normalizeShopConfigurators(null, DEFAULT_SERVICE_VISIBILITY),
     showSupportOnMainSite: false,
     showSupportOnCountdownPage: false,
-    enableThemeInboundTour: true,
+    enableOnboardingTour: true,
+    onboardingTourText: DEFAULT_ONBOARDING_TOUR_TEXT,
     themeInboundTourImageUrl: null,
     enableRewardPointsSystem: true,
     updatedAt: new Date().toISOString(),
@@ -511,7 +516,8 @@ export async function saveSettings(input: {
   shopConfigurators?: Partial<AdminSettings["shopConfigurators"]>
   showSupportOnMainSite?: boolean
   showSupportOnCountdownPage?: boolean
-  enableThemeInboundTour?: boolean
+  enableOnboardingTour?: boolean
+  onboardingTourText?: string
   themeInboundTourImageUrl?: string | null
   enableRewardPointsSystem?: boolean
 }): Promise<AdminSettings> {
@@ -543,10 +549,14 @@ export async function saveSettings(input: {
       input.showSupportOnCountdownPage !== undefined
         ? normalizeSupportFlag(input.showSupportOnCountdownPage)
         : current.showSupportOnCountdownPage === true,
-    enableThemeInboundTour:
-      input.enableThemeInboundTour !== undefined
-        ? normalizeEnableThemeInboundTour(input.enableThemeInboundTour)
-        : normalizeEnableThemeInboundTour(current.enableThemeInboundTour),
+    enableOnboardingTour:
+      input.enableOnboardingTour !== undefined
+        ? normalizeEnableOnboardingTour(input.enableOnboardingTour)
+        : normalizeEnableOnboardingTour(current.enableOnboardingTour),
+    onboardingTourText:
+      input.onboardingTourText !== undefined
+        ? normalizeOnboardingTourText(input.onboardingTourText)
+        : normalizeOnboardingTourText(current.onboardingTourText),
     themeInboundTourImageUrl:
       input.themeInboundTourImageUrl !== undefined
         ? normalizeThemeInboundTourImageUrl(input.themeInboundTourImageUrl)

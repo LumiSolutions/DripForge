@@ -18,6 +18,7 @@ import {
   markThemeInboundTourSeen,
   shouldUseUnoptimizedThemeTourImage,
   THEME_DRIP_OVERLAY_SRC,
+  DEFAULT_ONBOARDING_TOUR_TEXT,
 } from "@/lib/dripforge/theme-inbound-tour-settings"
 import {
   applySiteTheme,
@@ -101,7 +102,10 @@ export function ThemeInboundTour({
 }: ThemeInboundTourProps) {
   const isDesktop = useIsDesktopViewport()
   const tourSettings = useThemeInboundTourSettings()
-  const enabled = tourSettings?.enableThemeInboundTour ?? null
+  const enabled = tourSettings?.enableOnboardingTour ?? null
+  const tourText =
+    tourSettings?.onboardingTourText ??
+    DEFAULT_ONBOARDING_TOUR_TEXT
   const dripImageSrc =
     tourSettings?.themeInboundTourImageUrl ?? THEME_DRIP_OVERLAY_SRC
   const [mounted, setMounted] = useState(false)
@@ -235,11 +239,9 @@ export function ThemeInboundTour({
             <div className="absolute inset-x-0 bottom-[13%] flex flex-col items-center justify-center gap-4 px-6 pb-2 pt-2 md:bottom-[15%] md:gap-3.5 md:px-8">
               <p
                 id="theme-inbound-tour-title"
-                className="flex flex-col items-center text-center text-xl font-extrabold leading-[1.15] tracking-tight text-slate-900 md:text-2xl"
+                className="whitespace-pre-line text-center text-xl font-extrabold leading-[1.15] tracking-tight text-slate-900 md:text-2xl"
               >
-                <span>Tag-</span>
-                <span>oder</span>
-                <span>Nachtmodus?</span>
+                {tourText}
               </p>
 
               <div className="flex w-full max-w-[16rem] flex-col items-stretch gap-3 md:max-w-none md:flex-row md:justify-center md:gap-2">

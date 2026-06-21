@@ -62,5 +62,5 @@ export function useThemeInboundTourSettings(): ThemeInboundTourPublicSettings | 
 export function useThemeInboundTourEnabled(): boolean | null {
   const settings = useThemeInboundTourSettings()
   if (settings === null) return null
-  return settings.enableThemeInboundTour
+  return settings.enableOnboardingTour
 }

@@ -3,14 +3,29 @@ export const THEME_DRIP_STORAGE_KEY = "dripforge_theme_drip_seen"
 /** Fallback, wenn im Admin noch kein Bild hochgeladen wurde */
 export const THEME_DRIP_OVERLAY_SRC = "/images/drip-overlay.svg"
 
+export const DEFAULT_ONBOARDING_TOUR_TEXT = "Tag-\noder\nNachtmodus?"
+
 export type ThemeInboundTourPublicSettings = {
-  enableThemeInboundTour: boolean
+  enableOnboardingTour: boolean
+  onboardingTourText: string
   themeInboundTourImageUrl: string
 }
 
 /** Standard: Tour aktiv, bis im Admin deaktiviert */
-export function normalizeEnableThemeInboundTour(value: unknown): boolean {
+export function normalizeEnableOnboardingTour(value: unknown): boolean {
   return value !== false
+}
+
+export function normalizeOnboardingTourText(value: unknown): string {
+  if (typeof value !== "string") return DEFAULT_ONBOARDING_TOUR_TEXT
+  const trimmed = value.trim()
+  if (!trimmed) return DEFAULT_ONBOARDING_TOUR_TEXT
+  return trimmed.slice(0, 200)
+}
+
+/** @deprecated Legacy-Feld — nur noch beim Lesen aus Cosmos */
+export function normalizeEnableThemeInboundTour(value: unknown): boolean {
+  return normalizeEnableOnboardingTour(value)
 }
 
 export function normalizeThemeInboundTourImageUrl(value: unknown): string | null {
@@ -35,13 +50,19 @@ export function resolveThemeInboundTourImageUrl(
 }
 
 export function buildThemeInboundTourPublicSettings(input?: {
+  enableOnboardingTour?: unknown
   enableThemeInboundTour?: unknown
+  onboardingTourText?: unknown
   themeInboundTourImageUrl?: unknown
 } | null): ThemeInboundTourPublicSettings {
+  const enabledRaw =
+    input?.enableOnboardingTour !== undefined
+      ? input.enableOnboardingTour
+      : input?.enableThemeInboundTour
+
   return {
-    enableThemeInboundTour: normalizeEnableThemeInboundTour(
-      input?.enableThemeInboundTour
-    ),
+    enableOnboardingTour: normalizeEnableOnboardingTour(enabledRaw),
+    onboardingTourText: normalizeOnboardingTourText(input?.onboardingTourText),
     themeInboundTourImageUrl: resolveThemeInboundTourImageUrl(
       input?.themeInboundTourImageUrl
     ),

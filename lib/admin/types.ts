@@ -140,8 +140,10 @@ export type AdminSettings = {
   showSupportOnMainSite: boolean
   /** Support-Link/Button auf der Countdown-Landingpage */
   showSupportOnCountdownPage: boolean
-  /** Einmaliger Theme-Tropfen für Erstbesucher neben Sonne/Mond-Icon */
-  enableThemeInboundTour: boolean
+  /** Onboarding-Tropfen für Erstbesucher neben Sonne/Mond-Icon */
+  enableOnboardingTour: boolean
+  /** Frage-Text im Tropfen (Zeilenumbrüche via \\n) */
+  onboardingTourText: string
   /** Hochgeladenes Overlay-Bild für die Theme-Tour (Azure Blob / Data-URL) */
   themeInboundTourImageUrl?: string | null
   /** Treuepunkte-System (Kaufen, Einlösen, Konto-Anzeige) */

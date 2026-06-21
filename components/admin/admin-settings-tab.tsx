@@ -22,11 +22,13 @@ import type { CheckoutRuntimeConfig } from "@/lib/dripforge/checkout-config"
 import { DEFAULT_CHECKOUT_RUNTIME_CONFIG } from "@/lib/dripforge/checkout-config"
 import { buildSupportPageSettings } from "@/lib/dripforge/support-page-settings"
 import {
-  normalizeEnableThemeInboundTour,
+  normalizeEnableOnboardingTour,
+  normalizeOnboardingTourText,
   normalizeThemeInboundTourImageUrl,
   resolveThemeInboundTourImageUrl,
   shouldUseUnoptimizedThemeTourImage,
   THEME_DRIP_STORAGE_KEY,
+  DEFAULT_ONBOARDING_TOUR_TEXT,
 } from "@/lib/dripforge/theme-inbound-tour-settings"
 import { normalizeEnableRewardPointsSystem } from "@/lib/dripforge/reward-points-settings"
 import { cn } from "@/lib/utils"
@@ -47,7 +49,10 @@ export function AdminSettingsTab() {
   const [shopLive, setShopLive] = useState(false)
   const [showSupportOnMainSite, setShowSupportOnMainSite] = useState(false)
   const [showSupportOnCountdownPage, setShowSupportOnCountdownPage] = useState(false)
-  const [enableThemeInboundTour, setEnableThemeInboundTour] = useState(true)
+  const [enableOnboardingTour, setEnableOnboardingTour] = useState(true)
+  const [onboardingTourText, setOnboardingTourText] = useState(
+    DEFAULT_ONBOARDING_TOUR_TEXT
+  )
   const [enableRewardPointsSystem, setEnableRewardPointsSystem] = useState(true)
   const [themeInboundTourImageUrl, setThemeInboundTourImageUrl] = useState<string | null>(
     null
@@ -75,9 +80,12 @@ export function AdminSettingsTab() {
       const support = buildSupportPageSettings(data)
       setShowSupportOnMainSite(support.showSupportOnMainSite)
       setShowSupportOnCountdownPage(support.showSupportOnCountdownPage)
-      setEnableThemeInboundTour(
-        normalizeEnableThemeInboundTour(data.enableThemeInboundTour)
+      setEnableOnboardingTour(
+        normalizeEnableOnboardingTour(
+          data.enableOnboardingTour ?? data.enableThemeInboundTour
+        )
       )
+      setOnboardingTourText(normalizeOnboardingTourText(data.onboardingTourText))
       setEnableRewardPointsSystem(
         normalizeEnableRewardPointsSystem(data.enableRewardPointsSystem)
       )
@@ -126,7 +134,8 @@ export function AdminSettingsTab() {
           shopConfigurators,
           showSupportOnMainSite,
           showSupportOnCountdownPage,
-          enableThemeInboundTour,
+          enableOnboardingTour,
+          onboardingTourText,
           themeInboundTourImageUrl,
           enableRewardPointsSystem,
         }),
@@ -149,9 +158,12 @@ export function AdminSettingsTab() {
       const support = buildSupportPageSettings(data)
       setShowSupportOnMainSite(support.showSupportOnMainSite)
       setShowSupportOnCountdownPage(support.showSupportOnCountdownPage)
-      setEnableThemeInboundTour(
-        normalizeEnableThemeInboundTour(data.enableThemeInboundTour)
+      setEnableOnboardingTour(
+        normalizeEnableOnboardingTour(
+          data.enableOnboardingTour ?? data.enableThemeInboundTour
+        )
       )
+      setOnboardingTourText(normalizeOnboardingTourText(data.onboardingTourText))
       setEnableRewardPointsSystem(
         normalizeEnableRewardPointsSystem(data.enableRewardPointsSystem)
       )
@@ -430,17 +442,17 @@ export function AdminSettingsTab() {
           >
             <div className="space-y-1 pr-2">
               <Label className={cn("text-sm font-semibold", adminUi.heading)}>
-                Erstbesucher Theme-Tropfen anzeigen
+                Onboarding-Tour (Tropfen) aktivieren
               </Label>
               <p className={cn("text-xs", adminUi.muted)}>
-                Aktiviert die einmalige, tropfenförmige Onboarding-Frage nach dem
-                Tag- oder Nachtmodus für neue Besucher.
+                Aktiviert die einmalige, tropfenförmige Onboarding-Frage für neue
+                Besucher im Shop-Header.
               </p>
             </div>
             <div className="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
               <Switch
-                checked={enableThemeInboundTour}
-                onCheckedChange={setEnableThemeInboundTour}
+                checked={enableOnboardingTour}
+                onCheckedChange={setEnableOnboardingTour}
               />
               <Button
                 type="button"
@@ -452,6 +464,31 @@ export function AdminSettingsTab() {
                 Tour-Vorschau zurücksetzen (LocalStorage löschen)
               </Button>
             </div>
+          </div>
+
+          <div
+            className={cn(
+              "space-y-2 rounded-xl border p-4",
+              adminUi.section
+            )}
+          >
+            <Label
+              htmlFor="onboardingTourText"
+              className={cn("text-sm font-semibold", adminUi.heading)}
+            >
+              Inhalt der Frage im Tropfen
+            </Label>
+            <p className={cn("text-xs", adminUi.muted)}>
+              Zeilenumbrüche werden im Tropfen übernommen (Enter für neue Zeile).
+            </p>
+            <Textarea
+              id="onboardingTourText"
+              value={onboardingTourText}
+              onChange={(event) => setOnboardingTourText(event.target.value)}
+              rows={4}
+              className={cn("font-mono text-sm", adminUi.input)}
+              placeholder={DEFAULT_ONBOARDING_TOUR_TEXT}
+            />
           </div>
 
           <div
