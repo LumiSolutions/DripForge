@@ -206,6 +206,22 @@ export async function cosmosReplaceCustomerRecord(
   return cosmosSaveCustomer(customer)
 }
 
+export async function cosmosDeleteCustomer(kundennummer: string): Promise<boolean> {
+  const trimmed = kundennummer.trim()
+  if (!trimmed) return false
+
+  const container = await getCustomersContainer()
+  try {
+    await container.item(trimmed, trimmed).delete()
+    return true
+  } catch (error) {
+    const code = (error as { code?: number }).code
+    if (code === 404) return false
+    logCosmosError(`cosmosDeleteCustomer:${trimmed}`, error)
+    throw error
+  }
+}
+
 export async function cosmosGetSettings(): Promise<AdminSettings> {
   const container = await getSettingsContainer()
   try {

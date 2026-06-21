@@ -68,3 +68,19 @@ export async function cosmosUpsertAccount(
   await container.items.upsert({ ...account, id: account.id })
   return account
 }
+
+export async function cosmosDeleteAccount(id: string): Promise<boolean> {
+  const accountId = normalizeCustomerEmail(id)
+  if (!accountId) return false
+
+  const container = await getCustomerAccountsContainer()
+  try {
+    await container.item(accountId, accountId).delete()
+    return true
+  } catch (error) {
+    const code = (error as { code?: number }).code
+    if (code === 404) return false
+    logCosmosError(`cosmosDeleteAccount:${accountId}`, error)
+    throw error
+  }
+}

@@ -7,6 +7,7 @@ import {
   cosmosGetCustomers,
   cosmosReplaceCustomerRecord,
   cosmosSaveCustomer,
+  cosmosDeleteCustomer,
 } from "@/lib/admin/cosmos-store"
 
 const DATA_DIR = path.join(process.cwd(), "data", "admin")
@@ -117,4 +118,22 @@ export async function replaceCustomerForEmail(
   )
 
   return next
+}
+
+export async function deleteCustomerByNumber(kundennummer: string): Promise<boolean> {
+  const trimmed = kundennummer.trim()
+  if (!trimmed) return false
+
+  return withCosmosFallback(
+    "deleteCustomerByNumber",
+    () => cosmosDeleteCustomer(trimmed),
+    async () => {
+      const customers = await readCustomersFile()
+      const index = customers.findIndex((c) => c.kundennummer === trimmed)
+      if (index === -1) return false
+      customers.splice(index, 1)
+      await writeCustomersFile(customers)
+      return true
+    }
+  )
 }

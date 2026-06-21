@@ -5,6 +5,7 @@ import {
   cosmosGetAccountByEmail,
   cosmosListAccounts,
   cosmosUpsertAccount,
+  cosmosDeleteAccount,
 } from "@/lib/konto/cosmos-accounts"
 import type { CustomerAccount } from "@/lib/konto/account-types"
 import { withCosmosFallback } from "@/lib/admin/storage-bridge"
@@ -100,6 +101,24 @@ export async function saveAccount(account: CustomerAccount): Promise<CustomerAcc
     }
   )
   return next
+}
+
+export async function deleteAccountById(accountId: string): Promise<boolean> {
+  const stableId = normalizeCustomerEmail(accountId)
+  if (!stableId) return false
+
+  return withCosmosFallback(
+    "deleteAccountById",
+    () => cosmosDeleteAccount(stableId),
+    async () => {
+      const accounts = await readAccountsFile()
+      const index = accounts.findIndex((a) => a.id === stableId)
+      if (index === -1) return false
+      accounts.splice(index, 1)
+      await writeAccountsFile(accounts)
+      return true
+    }
+  )
 }
 
 export function toPublicAccount(account: CustomerAccount) {

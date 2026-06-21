@@ -6,11 +6,22 @@ import {
   ExternalLink,
   Loader2,
   RefreshCw,
+  Trash2,
   UserRound,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import {
   Table,
   TableBody,
@@ -75,6 +86,9 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
   const [loading, setLoading] = useState(true)
   const [detailLoading, setDetailLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const loadCustomers = useCallback(async () => {
     setLoading(true)
@@ -131,7 +145,46 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
   }, [selectedId, loadCustomerDetail])
 
   const selectCustomer = (kundennummer: string) => {
+    setDeleteError(null)
     setSelectedId((prev) => (prev === kundennummer ? null : kundennummer))
+  }
+
+  const handleHardDelete = async () => {
+    if (!detail) return
+
+    setDeleting(true)
+    setDeleteError(null)
+    try {
+      const res = await fetch("/api/admin/delete-customer", {
+        method: "POST",
+        credentials: "include",
+        cache: "no-store",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: detail.kundennummer }),
+      })
+
+      let data: { error?: string; success?: boolean } = {}
+      try {
+        data = (await res.json()) as typeof data
+      } catch {
+        throw new Error("Server-Antwort ungültig.")
+      }
+
+      if (!res.ok) {
+        throw new Error(data.error ?? "Kunde konnte nicht gelöscht werden.")
+      }
+
+      setDeleteDialogOpen(false)
+      setSelectedId(null)
+      setDetail(null)
+      setOrders([])
+      await loadCustomers()
+    } catch (err) {
+      setDeleteError(
+        err instanceof Error ? err.message : "Kunde konnte nicht gelöscht werden."
+      )
+      setDeleting(false)
+    }
   }
 
   if (loading) {
@@ -353,6 +406,61 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
                 Kunden werden bei Portal-Registrierung oder Gastbestellung
                 automatisch angelegt (Format JJ-#####, z. B. 26-53719).
               </p>
+
+              <div className={cn("border-t pt-6", adminUi.section)}>
+                <AlertDialog
+                  open={deleteDialogOpen}
+                  onOpenChange={(open) => {
+                    if (deleting) return
+                    setDeleteDialogOpen(open)
+                    if (!open) setDeleteError(null)
+                  }}
+                >
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      className="w-full sm:w-auto"
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Kunde unwiderruflich löschen
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Kunde unwiderruflich löschen?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Achtung: Dies löscht den User komplett aus der CosmosDB. Die
+                        E-Mail-Adresse wird wieder freigegeben. Diese Aktion kann nicht
+                        rückgängig gemacht werden!
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    {deleteError && (
+                      <p className="text-sm text-red-500" role="alert">
+                        {deleteError}
+                      </p>
+                    )}
+                    <AlertDialogFooter>
+                      <AlertDialogCancel disabled={deleting}>Abbrechen</AlertDialogCancel>
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        disabled={deleting}
+                        onClick={() => void handleHardDelete()}
+                      >
+                        {deleting ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Wird gelöscht…
+                          </>
+                        ) : (
+                          "Ja, unwiderruflich löschen"
+                        )}
+                      </Button>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
             </>
           ) : (
             <p className={adminUi.error}>Kunde konnte nicht geladen werden.</p>
