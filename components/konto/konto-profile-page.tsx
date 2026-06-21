@@ -1,11 +1,23 @@
 "use client"
 
 import { FormEvent, useEffect, useState } from "react"
-import { Loader2, MapPin, Save } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { Loader2, MapPin, Save, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import { KontoShell } from "@/components/konto/konto-shell"
 
 type ProfileForm = {
@@ -29,11 +41,14 @@ const EMPTY: ProfileForm = {
 }
 
 export function KontoProfilePage() {
+  const router = useRouter()
   const [form, setForm] = useState<ProfileForm>(EMPTY)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   useEffect(() => {
     void fetch("/api/konto/me", { cache: "no-store" })
@@ -79,6 +94,32 @@ export function KontoProfilePage() {
       setError(err instanceof Error ? err.message : "Speichern fehlgeschlagen")
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleDeleteAccount = async () => {
+    setDeleting(true)
+    setDeleteError(null)
+    try {
+      const res = await fetch("/api/konto/delete", {
+        method: "POST",
+        credentials: "include",
+      })
+      const data = (await res.json()) as {
+        error?: string
+        redirectUrl?: string
+      }
+      if (!res.ok) {
+        throw new Error(data.error ?? "Konto konnte nicht gelöscht werden.")
+      }
+      router.push(data.redirectUrl ?? "/")
+      router.refresh()
+    } catch (err) {
+      setDeleteError(
+        err instanceof Error ? err.message : "Konto konnte nicht gelöscht werden."
+      )
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -202,6 +243,67 @@ export function KontoProfilePage() {
                 Speichern
               </Button>
             </form>
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-2xl border-red-500/30 bg-red-500/5">
+          <CardContent className="space-y-4 p-6 sm:p-8">
+            <div>
+              <h2 className="text-lg font-semibold text-red-700 dark:text-red-300">
+                Konto löschen
+              </h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Dein Konto wird unwiderruflich deaktiviert. Persönliche Daten werden
+                anonymisiert. Bestellungen und Rechnungen bleiben aus
+                buchhaltungsrechtlichen Gründen erhalten.
+              </p>
+            </div>
+
+            {deleteError && (
+              <p className="text-sm text-red-500">{deleteError}</p>
+            )}
+
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  disabled={deleting}
+                  className="w-full sm:w-auto"
+                >
+                  {deleting ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="mr-2 h-4 w-4" />
+                  )}
+                  Konto unwiderruflich löschen
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Konto wirklich löschen?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Diese Aktion kann nicht rückgängig gemacht werden. Deine
+                    persönlichen Daten werden anonymisiert. Bestellungen und
+                    Rechnungen bleiben für die Buchhaltung gespeichert. Du wirst
+                    sofort abgemeldet.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel disabled={deleting}>Abbrechen</AlertDialogCancel>
+                  <AlertDialogAction
+                    disabled={deleting}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    onClick={(event) => {
+                      event.preventDefault()
+                      void handleDeleteAccount()
+                    }}
+                  >
+                    {deleting ? "Wird gelöscht…" : "Ja, Konto löschen"}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </CardContent>
         </Card>
       </div>

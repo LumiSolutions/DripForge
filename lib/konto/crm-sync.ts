@@ -13,6 +13,7 @@ import {
 import type { StoredCustomer } from "@/lib/admin/types"
 import { getAccountByEmail, listAllAccounts, saveAccount } from "@/lib/konto/account-db"
 import type { CustomerAccount } from "@/lib/konto/account-types"
+import { isAccountDeleted } from "@/lib/konto/account-status"
 
 function accountToBilling(account: CustomerAccount): OrderAddress {
   return {
@@ -56,6 +57,10 @@ async function resolveKundennummerForAccount(
 export async function syncAccountToCrm(
   account: CustomerAccount
 ): Promise<CustomerAccount> {
+  if (isAccountDeleted(account.status)) {
+    return account
+  }
+
   const email = normalizeCustomerEmail(account.email)
   const customers = await getCustomersSnapshot()
   const existingCustomer =

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { getAccountByEmail, saveAccount, toPublicAccount } from "@/lib/konto/account-db"
+import { getAccountByEmail, saveAccount, toPublicAccount, isActiveCustomerAccount } from "@/lib/konto/account-db"
 import type { CustomerProfileInput } from "@/lib/konto/account-types"
 import { getSessionEmailFromRequest } from "@/lib/konto/api-auth"
 import { syncAccountToCrm } from "@/lib/konto/crm-sync"
@@ -33,7 +33,7 @@ export async function PATCH(request: Request) {
   }
 
   const account = await getAccountByEmail(email)
-  if (!account) {
+  if (!account || !isActiveCustomerAccount(account)) {
     return NextResponse.json({ error: "Konto nicht gefunden." }, { status: 404 })
   }
 

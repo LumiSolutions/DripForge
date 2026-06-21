@@ -4,7 +4,7 @@ import { getAdminResetEmail, resolveStaffRoleByEmail } from "@/lib/admin/staff-e
 import { getStaffById, saveStaff } from "@/lib/admin/staff-db"
 import { createPasswordResetToken } from "@/lib/auth/password-reset-token"
 import { sendPasswordResetEmail } from "@/lib/email/send-password-reset"
-import { getAccountByEmail, saveAccount } from "@/lib/konto/account-db"
+import { getAccountByEmail, saveAccount, isActiveCustomerAccount } from "@/lib/konto/account-db"
 
 const GENERIC_SUCCESS =
   "Falls ein Konto mit dieser E-Mail existiert, erhalten Sie in Kuerze einen Link zum Zuruecksetzen."
@@ -69,7 +69,7 @@ export async function requestPasswordReset(
   }
 
   const customer = await getAccountByEmail(normalized)
-  if (!customer) {
+  if (!customer || !isActiveCustomerAccount(customer)) {
     return { ok: true, message: GENERIC_SUCCESS }
   }
 

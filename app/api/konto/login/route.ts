@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { normalizeCustomerEmail } from "@/lib/admin/customers"
-import { getAccountByEmail, toPublicAccount } from "@/lib/konto/account-db"
+import { getAccountByEmail, toPublicAccount, isActiveCustomerAccount } from "@/lib/konto/account-db"
 import { mergeGuestCartForCustomer } from "@/lib/konto/cart-service"
 import { verifyPassword } from "@/lib/konto/password"
 import {
@@ -28,7 +28,11 @@ export async function POST(request: Request) {
     }
 
     const account = await getAccountByEmail(email)
-    if (!account || !verifyPassword(password, account.passwordHash)) {
+    if (
+      !account ||
+      !isActiveCustomerAccount(account) ||
+      !verifyPassword(password, account.passwordHash)
+    ) {
       return NextResponse.json(
         { error: "E-Mail oder Passwort ist falsch." },
         { status: 401 }

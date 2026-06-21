@@ -25,10 +25,32 @@ import {
   type StoredCustomer,
   type StoredOrder,
 } from "@/lib/admin/types"
+import type { CustomerAccountStatus } from "@/lib/konto/account-status"
+import { normalizeAccountStatus } from "@/lib/konto/account-status"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
 import { cn } from "@/lib/utils"
 
-type CustomerDetail = StoredCustomer & { name: string }
+function normalizeDetailStatus(status: unknown): CustomerAccountStatus {
+  return normalizeAccountStatus(status)
+}
+
+type CustomerDetail = StoredCustomer & { name: string; status: CustomerAccountStatus }
+
+function CustomerStatusBadge({ status }: { status: CustomerAccountStatus }) {
+  if (status === "gelöscht") {
+    return (
+      <Badge variant="outline" className="border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-300">
+        Gelöscht
+      </Badge>
+    )
+  }
+
+  return (
+    <Badge variant="outline" className="border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
+      Aktiv
+    </Badge>
+  )
+}
 
 function formatDate(iso: string) {
   return new Intl.DateTimeFormat("de-CH", {
@@ -157,6 +179,7 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
                 <TableRow className={adminUi.tableHeadRow}>
                   <TableHead className={adminUi.tableHead}>Kundennr.</TableHead>
                   <TableHead className={adminUi.tableHead}>Name</TableHead>
+                  <TableHead className={adminUi.tableHead}>Status</TableHead>
                   <TableHead className={cn("hidden md:table-cell", adminUi.tableHead)}>
                     Registriert
                   </TableHead>
@@ -182,6 +205,9 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
                       <TableCell>
                         <p className={cn("font-medium", adminUi.heading)}>{customer.name}</p>
                         <p className={cn("text-xs", adminUi.muted)}>{customer.email}</p>
+                      </TableCell>
+                      <TableCell>
+                        <CustomerStatusBadge status={customer.status} />
                       </TableCell>
                       <TableCell className={cn("hidden md:table-cell text-xs", adminUi.muted)}>
                         {formatDate(customer.createdAt)}
@@ -213,9 +239,14 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
           ) : detail ? (
             <>
               <div>
-                <p className={cn("font-mono text-sm", adminUi.accentTitle)}>
-                  {detail.kundennummer}
-                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className={cn("font-mono text-sm", adminUi.accentTitle)}>
+                    {detail.kundennummer}
+                  </p>
+                  <CustomerStatusBadge
+                    status={normalizeDetailStatus(detail.status)}
+                  />
+                </div>
                 <h3 className={cn("mt-1 text-xl font-bold", adminUi.heading)}>{detail.name}</h3>
                 <p className={cn("text-sm", adminUi.muted)}>{detail.email}</p>
                 <p className={cn("mt-2 text-xs", adminUi.tableCellMuted)}>

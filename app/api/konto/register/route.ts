@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { normalizeCustomerEmail } from "@/lib/admin/customers"
 import { getAccountByEmail, saveAccount, toPublicAccount } from "@/lib/konto/account-db"
 import type { CustomerAccount } from "@/lib/konto/account-types"
+import { DEFAULT_CUSTOMER_ACCOUNT_STATUS } from "@/lib/konto/account-status"
 import { allocateNextCustomerNumber } from "@/lib/admin/customer-number-service"
 import { mergeGuestCartForCustomer } from "@/lib/konto/cart-service"
 import { syncAccountToCrm } from "@/lib/konto/crm-sync"
@@ -63,6 +64,7 @@ export async function POST(request: Request) {
       firstName,
       lastName,
       kundennummer,
+      status: DEFAULT_CUSTOMER_ACCOUNT_STATUS,
       loyaltyPoints: 0,
       createdAt: now,
       updatedAt: now,

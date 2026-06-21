@@ -18,6 +18,8 @@ function mapCosmosAccount(doc: CosmosDoc<CustomerAccount>): CustomerAccount {
     city: doc.city ?? "",
     phone: doc.phone ?? "",
     kundennummer: doc.kundennummer,
+    status: doc.status,
+    deletedAt: doc.deletedAt ?? null,
     aiCredits: normalizeLoyaltyPoints(doc.aiCredits),
     aiCreditGrants: doc.aiCreditGrants ?? {},
     loyaltyPoints: normalizeLoyaltyPoints(doc.loyaltyPoints),

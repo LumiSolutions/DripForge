@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server"
-import { toPublicAccount } from "@/lib/konto/account-db"
+import {
+  toPublicAccount,
+  isActiveCustomerAccount,
+} from "@/lib/konto/account-db"
 import { getSessionEmailFromRequest } from "@/lib/konto/api-auth"
 import { ensureAccountHasCustomerNumber } from "@/lib/konto/crm-sync"
 
@@ -10,7 +13,7 @@ export async function GET() {
   }
 
   const account = await ensureAccountHasCustomerNumber(email)
-  if (!account) {
+  if (!account || !isActiveCustomerAccount(account)) {
     return NextResponse.json({ error: "Konto nicht gefunden." }, { status: 404 })
   }
 

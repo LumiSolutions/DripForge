@@ -9,6 +9,11 @@ import {
 import type { CustomerAccount } from "@/lib/konto/account-types"
 import { withCosmosFallback } from "@/lib/admin/storage-bridge"
 import { normalizeLoyaltyPoints, loyaltyPointsToChf } from "@/lib/konto/loyalty-points-config"
+import {
+  DEFAULT_CUSTOMER_ACCOUNT_STATUS,
+  isAccountDeleted,
+  normalizeAccountStatus,
+} from "@/lib/konto/account-status"
 
 const DATA_DIR = path.join(process.cwd(), "data", "admin")
 const ACCOUNTS_FILE = "customer-accounts.json"
@@ -57,10 +62,17 @@ export async function getAccountByEmail(
 function normalizeAccount(account: CustomerAccount): CustomerAccount {
   return {
     ...account,
+    status: normalizeAccountStatus(account.status ?? DEFAULT_CUSTOMER_ACCOUNT_STATUS),
     loyaltyPoints: normalizeLoyaltyPoints(account.loyaltyPoints),
     loyaltyPointGrants: account.loyaltyPointGrants ?? {},
     loyaltyPointTransactions: account.loyaltyPointTransactions ?? [],
   }
+}
+
+export function isActiveCustomerAccount(
+  account: CustomerAccount | null | undefined
+): account is CustomerAccount {
+  return Boolean(account && !isAccountDeleted(account.status))
 }
 
 export async function saveAccount(account: CustomerAccount): Promise<CustomerAccount> {

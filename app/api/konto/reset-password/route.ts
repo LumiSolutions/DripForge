@@ -4,7 +4,7 @@ import {
   parsePasswordResetToken,
   verifyStoredResetToken,
 } from "@/lib/auth/password-reset-token"
-import { getAccountByEmail, saveAccount } from "@/lib/konto/account-db"
+import { getAccountByEmail, saveAccount, isActiveCustomerAccount } from "@/lib/konto/account-db"
 import { hashPassword } from "@/lib/konto/password"
 
 export async function POST(request: Request) {
@@ -40,7 +40,7 @@ export async function POST(request: Request) {
     }
 
     const account = await getAccountByEmail(payload.accountId)
-    if (!account) {
+    if (!account || !isActiveCustomerAccount(account)) {
       return NextResponse.json(
         { error: "Ungueltiger oder abgelaufener Link." },
         { status: 400 }

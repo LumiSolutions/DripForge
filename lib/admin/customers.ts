@@ -1,6 +1,10 @@
 import type { OrderAddress } from "@/lib/dripforge/submit-order"
 import type { StoredCustomer, StoredOrder } from "@/lib/admin/types"
 import {
+  normalizeAccountStatus,
+  type CustomerAccountStatus,
+} from "@/lib/konto/account-status"
+import {
   findMaxSequenceInPool,
   formatCustomerNumber,
   getCustomerNumberYearPrefix,
@@ -62,8 +66,12 @@ export function mergeOrderIntoCustomer(
 
   return {
     ...customer,
-    billing: order.billing,
-    delivery: order.delivery ?? customer.delivery,
+    billing:
+      customer.status === "gelöscht" ? customer.billing : order.billing,
+    delivery:
+      customer.status === "gelöscht"
+        ? customer.delivery
+        : order.delivery ?? customer.delivery,
     orderIds,
     updatedAt: new Date().toISOString(),
   }
@@ -75,6 +83,7 @@ export type CustomerListItem = {
   email: string
   city: string
   orderCount: number
+  status: CustomerAccountStatus
   createdAt: string
   updatedAt: string
 }
@@ -86,6 +95,7 @@ export function toCustomerListItem(customer: StoredCustomer): CustomerListItem {
     email: customer.email,
     city: customer.billing.city,
     orderCount: customer.orderIds.length,
+    status: normalizeAccountStatus(customer.status),
     createdAt: customer.createdAt,
     updatedAt: customer.updatedAt,
   }

@@ -11,6 +11,10 @@ export type CustomerAccount = {
   phone?: string
   /** Verknuepfung zum CRM (falls bereits Bestellungen) */
   kundennummer?: string
+  /** Portal-Kontostatus (Soft Delete) */
+  status?: import("@/lib/konto/account-status").CustomerAccountStatus
+  /** Zeitpunkt der Kontolöschung */
+  deletedAt?: string | null
   /** KI-Generierungs-Credits (Loyalty / KI) */
   aiCredits?: number
   aiCreditGrants?: Record<string, number>

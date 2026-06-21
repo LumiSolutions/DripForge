@@ -91,6 +91,8 @@ export type StoredCustomer = {
   billing: OrderAddress
   delivery?: OrderAddress
   orderIds: string[]
+  /** CRM-Status (Soft Delete über Portal) */
+  status?: import("@/lib/konto/account-status").CustomerAccountStatus
   createdAt: string
   updatedAt: string
 }
