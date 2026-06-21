@@ -10,6 +10,7 @@ import {
   formatCustomerNumber,
   getCustomerNumberYearPrefix,
   getYearBaseSequence,
+  isModernCustomerNumber,
 } from "@/lib/admin/customer-number-config"
 import { generateCustomerNumber } from "@/lib/admin/customers"
 import { listAllAccounts } from "@/lib/konto/account-db"
@@ -46,6 +47,7 @@ async function allocateWithCosmosCounter(): Promise<string> {
     const candidate = buildAllocatedCustomerNumber(sequence)
 
     if (!(await isKundennummerTaken(candidate))) {
+      assertModernCustomerNumber(candidate)
       return candidate
     }
   }
@@ -58,14 +60,22 @@ async function allocateFromLocalPool(): Promise<string> {
   return generateCustomerNumber(pool)
 }
 
+function assertModernCustomerNumber(kundennummer: string): void {
+  if (!isModernCustomerNumber(kundennummer)) {
+    throw new Error(`Ungültiges Kundennummern-Format: ${kundennummer}`)
+  }
+}
+
 /**
  * Vergibt die naechste eindeutige Kundennummer im Format YY-#####.
  * Cosmos: atomarer Counter mit ETag; lokal: Pool-basierte +1-Logik.
  */
 export async function allocateNextCustomerNumber(): Promise<string> {
+  let candidate: string | null = null
+
   if (canUseCosmosCustomerCounter()) {
     try {
-      return await allocateWithCosmosCounter()
+      candidate = await allocateWithCosmosCounter()
     } catch (error) {
       console.error(
         "Kundennummer: Cosmos-Counter fehlgeschlagen, Fallback auf Pool.",
@@ -74,7 +84,12 @@ export async function allocateNextCustomerNumber(): Promise<string> {
     }
   }
 
-  const candidate = await allocateFromLocalPool()
+  if (!candidate) {
+    candidate = await allocateFromLocalPool()
+  }
+
+  assertModernCustomerNumber(candidate)
+
   if (!(await isKundennummerTaken(candidate))) {
     return candidate
   }
@@ -84,8 +99,9 @@ export async function allocateNextCustomerNumber(): Promise<string> {
   const baseSequence = getYearBaseSequence(year)
   const max = (await discoverMaxSequenceForCurrentYear()) ?? baseSequence
 
-  for (let offset = 1; offset <= 20; offset++) {
+  for (let offset = 1; offset <= 50; offset++) {
     const retry = formatCustomerNumber(yearPrefix, max + offset)
+    assertModernCustomerNumber(retry)
     if (!(await isKundennummerTaken(retry))) {
       return retry
     }

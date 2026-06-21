@@ -1,10 +1,13 @@
 import type { OrderAddress } from "@/lib/dripforge/submit-order"
+import { normalizeCustomerEmail } from "@/lib/admin/customers"
+import { isModernCustomerNumber } from "@/lib/admin/customer-number-config"
 import {
-  normalizeCustomerEmail,
-} from "@/lib/admin/customers"
-import { allocateNextCustomerNumber } from "@/lib/admin/customer-number-service"
+  allocateNextCustomerNumber,
+  isKundennummerTaken,
+} from "@/lib/admin/customer-number-service"
 import {
   getCustomersSnapshot,
+  replaceCustomerForEmail,
   saveCustomer,
 } from "@/lib/admin/customer-store"
 import type { StoredCustomer } from "@/lib/admin/types"
@@ -24,43 +27,72 @@ function accountToBilling(account: CustomerAccount): OrderAddress {
   }
 }
 
+async function resolveKundennummerForAccount(
+  account: CustomerAccount,
+  existingCustomer: StoredCustomer | undefined
+): Promise<string> {
+  if (account.kundennummer) {
+    return account.kundennummer
+  }
+
+  if (
+    existingCustomer?.kundennummer &&
+    isModernCustomerNumber(existingCustomer.kundennummer)
+  ) {
+    return existingCustomer.kundennummer
+  }
+
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const candidate = await allocateNextCustomerNumber()
+    if (!(await isKundennummerTaken(candidate))) {
+      return candidate
+    }
+  }
+
+  throw new Error("Keine freie Kundennummer für das Kundenkonto gefunden.")
+}
+
 /** Legt CRM-Stammdaten an und vergibt ggf. eine neue Kundennummer. */
 export async function syncAccountToCrm(
   account: CustomerAccount
 ): Promise<CustomerAccount> {
   const email = normalizeCustomerEmail(account.email)
   const customers = await getCustomersSnapshot()
-  const existingIdx = customers.findIndex((c) => c.email === email)
+  const existingCustomer =
+    customers.find((c) => normalizeCustomerEmail(c.email) === email) ?? undefined
 
-  let kundennummer =
-    account.kundennummer ??
-    (existingIdx >= 0 ? customers[existingIdx].kundennummer : undefined)
-
-  if (!kundennummer) {
-    kundennummer = await allocateNextCustomerNumber()
-  }
+  const kundennummer = await resolveKundennummerForAccount(
+    account,
+    existingCustomer
+  )
 
   const now = new Date().toISOString()
   const billing = accountToBilling(account)
 
-  const customer: StoredCustomer =
-    existingIdx >= 0
-      ? {
-          ...customers[existingIdx],
-          kundennummer,
-          billing,
-          updatedAt: now,
-        }
-      : {
-          kundennummer,
-          email,
-          billing,
-          orderIds: [],
-          createdAt: account.createdAt,
-          updatedAt: now,
-        }
+  const customer: StoredCustomer = existingCustomer
+    ? {
+        ...existingCustomer,
+        kundennummer,
+        billing,
+        updatedAt: now,
+      }
+    : {
+        kundennummer,
+        email,
+        billing,
+        orderIds: [],
+        createdAt: account.createdAt,
+        updatedAt: now,
+      }
 
-  await saveCustomer(customer)
+  if (
+    existingCustomer &&
+    existingCustomer.kundennummer !== kundennummer
+  ) {
+    await replaceCustomerForEmail(email, customer, existingCustomer.kundennummer)
+  } else {
+    await saveCustomer(customer)
+  }
 
   if (account.kundennummer !== kundennummer) {
     return saveAccount({ ...account, kundennummer })
@@ -82,6 +114,8 @@ export async function ensureAccountHasCustomerNumber(
 ): Promise<CustomerAccount | null> {
   const account = await getAccountByEmail(email)
   if (!account) return null
-  if (account.kundennummer) return account
+  if (account.kundennummer && isModernCustomerNumber(account.kundennummer)) {
+    return account
+  }
   return syncAccountToCrm(account)
 }

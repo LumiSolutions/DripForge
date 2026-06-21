@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { normalizeCustomerEmail } from "@/lib/admin/customers"
 import { getAccountByEmail, saveAccount, toPublicAccount } from "@/lib/konto/account-db"
 import type { CustomerAccount } from "@/lib/konto/account-types"
+import { allocateNextCustomerNumber } from "@/lib/admin/customer-number-service"
 import { mergeGuestCartForCustomer } from "@/lib/konto/cart-service"
 import { syncAccountToCrm } from "@/lib/konto/crm-sync"
 import { hashPassword } from "@/lib/konto/password"
@@ -54,12 +55,14 @@ export async function POST(request: Request) {
     }
 
     const now = new Date().toISOString()
+    const kundennummer = await allocateNextCustomerNumber()
     const account: CustomerAccount = {
       id: email,
       email,
       passwordHash: hashPassword(password),
       firstName,
       lastName,
+      kundennummer,
       loyaltyPoints: 0,
       createdAt: now,
       updatedAt: now,

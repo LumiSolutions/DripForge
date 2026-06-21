@@ -13,6 +13,7 @@ export {
   getCustomerNumberYearPrefix,
   getYearBaseSequence,
   parseSequenceFromCustomerNumber,
+  isModernCustomerNumber,
 } from "@/lib/admin/customer-number-config"
 
 export function normalizeCustomerEmail(email: string): string {

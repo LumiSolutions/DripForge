@@ -56,3 +56,23 @@ export function findMaxSequenceInPool(
 
   return max
 }
+
+/** Aktuelles Format YY-##### (beliebiges Jahr). Legacy KD-* zählt nicht. */
+export function isModernCustomerNumber(kundennummer: string): boolean {
+  const trimmed = kundennummer.trim()
+  if (!/^\d{2}-\d+$/.test(trimmed)) return false
+  const [yearPart, sequencePart] = trimmed.split("-")
+  const year = Number.parseInt(yearPart, 10)
+  const sequence = Number.parseInt(sequencePart, 10)
+  return (
+    Number.isFinite(year) &&
+    year >= 0 &&
+    year <= 99 &&
+    Number.isFinite(sequence) &&
+    sequence > 0
+  )
+}
+
+export function isLegacyCustomerNumber(kundennummer: string): boolean {
+  return kundennummer.trim().toUpperCase().startsWith("KD-")
+}

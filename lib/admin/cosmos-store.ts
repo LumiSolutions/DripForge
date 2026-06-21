@@ -183,6 +183,29 @@ export async function cosmosSaveCustomer(
   return customer
 }
 
+/** CRM-Eintrag mit neuer Kundennummer (z. B. Legacy KD-* → YY-#####). */
+export async function cosmosReplaceCustomerRecord(
+  customer: StoredCustomer,
+  previousKundennummer?: string
+): Promise<StoredCustomer> {
+  const container = await getCustomersContainer()
+  const previous = previousKundennummer?.trim()
+
+  if (previous && previous !== customer.kundennummer) {
+    try {
+      await container.item(previous, previous).delete()
+    } catch (error) {
+      const code = (error as { code?: number }).code
+      if (code !== 404) {
+        logCosmosError(`cosmosReplaceCustomerRecord:delete:${previous}`, error)
+        throw error
+      }
+    }
+  }
+
+  return cosmosSaveCustomer(customer)
+}
+
 export async function cosmosGetSettings(): Promise<AdminSettings> {
   const container = await getSettingsContainer()
   try {
