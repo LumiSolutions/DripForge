@@ -53,7 +53,9 @@ export async function getAccountByEmail(
     () => cosmosGetAccountByEmail(normalized),
     async () => {
       const accounts = await readAccountsFile()
-      return accounts.find((a) => a.email === normalized) ?? null
+      return (
+        accounts.find((a) => a.id === normalized || a.email === normalized) ?? null
+      )
     }
   )
   return account ? normalizeAccount(account) : null
@@ -76,9 +78,10 @@ export function isActiveCustomerAccount(
 }
 
 export async function saveAccount(account: CustomerAccount): Promise<CustomerAccount> {
+  const stableId = normalizeCustomerEmail(account.id || account.email)
   const next: CustomerAccount = normalizeAccount({
     ...account,
-    id: normalizeCustomerEmail(account.email),
+    id: stableId,
     email: normalizeCustomerEmail(account.email),
     updatedAt: new Date().toISOString(),
   })
@@ -90,7 +93,7 @@ export async function saveAccount(account: CustomerAccount): Promise<CustomerAcc
     },
     async () => {
       const accounts = await readAccountsFile()
-      const index = accounts.findIndex((a) => a.id === next.id)
+      const index = accounts.findIndex((a) => a.id === stableId)
       if (index >= 0) accounts[index] = next
       else accounts.push(next)
       await writeAccountsFile(accounts)

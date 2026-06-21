@@ -63,6 +63,7 @@ export async function softDeleteCustomerAccount(
 
   const deleted: CustomerAccount = {
     ...account,
+    id: account.id,
     status: "gelöscht",
     email: placeholderEmail,
     firstName: DELETED_FIRST_NAME,

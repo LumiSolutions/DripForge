@@ -1,7 +1,6 @@
 "use client"
 
 import { FormEvent, useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
 import { Loader2, MapPin, Save, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -9,7 +8,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -41,11 +39,11 @@ const EMPTY: ProfileForm = {
 }
 
 export function KontoProfilePage() {
-  const router = useRouter()
   const [form, setForm] = useState<ProfileForm>(EMPTY)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
@@ -104,21 +102,27 @@ export function KontoProfilePage() {
       const res = await fetch("/api/konto/delete", {
         method: "POST",
         credentials: "include",
+        cache: "no-store",
+        headers: { "Content-Type": "application/json" },
       })
-      const data = (await res.json()) as {
-        error?: string
-        redirectUrl?: string
+
+      let data: { error?: string; redirectUrl?: string; success?: boolean } = {}
+      try {
+        data = (await res.json()) as typeof data
+      } catch {
+        throw new Error("Server-Antwort ungültig.")
       }
+
       if (!res.ok) {
         throw new Error(data.error ?? "Konto konnte nicht gelöscht werden.")
       }
-      router.push(data.redirectUrl ?? "/")
-      router.refresh()
+
+      setDeleteDialogOpen(false)
+      window.location.href = data.redirectUrl ?? "/"
     } catch (err) {
       setDeleteError(
         err instanceof Error ? err.message : "Konto konnte nicht gelöscht werden."
       )
-    } finally {
       setDeleting(false)
     }
   }
@@ -263,7 +267,14 @@ export function KontoProfilePage() {
               <p className="text-sm text-red-500">{deleteError}</p>
             )}
 
-            <AlertDialog>
+            <AlertDialog
+              open={deleteDialogOpen}
+              onOpenChange={(open) => {
+                if (deleting) return
+                setDeleteDialogOpen(open)
+                if (!open) setDeleteError(null)
+              }}
+            >
               <AlertDialogTrigger asChild>
                 <Button
                   type="button"
@@ -289,18 +300,29 @@ export function KontoProfilePage() {
                     sofort abgemeldet.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
+                {deleteError && (
+                  <p className="text-sm text-red-500" role="alert">
+                    {deleteError}
+                  </p>
+                )}
                 <AlertDialogFooter>
                   <AlertDialogCancel disabled={deleting}>Abbrechen</AlertDialogCancel>
-                  <AlertDialogAction
+                  <Button
+                    type="button"
+                    variant="destructive"
                     disabled={deleting}
                     className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                    onClick={(event) => {
-                      event.preventDefault()
-                      void handleDeleteAccount()
-                    }}
+                    onClick={() => void handleDeleteAccount()}
                   >
-                    {deleting ? "Wird gelöscht…" : "Ja, Konto löschen"}
-                  </AlertDialogAction>
+                    {deleting ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Wird gelöscht…
+                      </>
+                    ) : (
+                      "Ja, Konto löschen"
+                    )}
+                  </Button>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
