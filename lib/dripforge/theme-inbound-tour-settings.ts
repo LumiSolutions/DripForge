@@ -17,10 +17,15 @@ export function normalizeEnableOnboardingTour(value: unknown): boolean {
 }
 
 export function normalizeOnboardingTourText(value: unknown): string {
-  if (typeof value !== "string") return DEFAULT_ONBOARDING_TOUR_TEXT
-  const trimmed = value.trim()
-  if (!trimmed) return DEFAULT_ONBOARDING_TOUR_TEXT
-  return trimmed.slice(0, 200)
+  if (value === null || value === undefined) return ""
+  if (typeof value !== "string") return ""
+  return value.trim().slice(0, 200)
+}
+
+/** Anzeige im Shop: leerer gespeicherter Text → Standard-Fallback */
+export function resolveOnboardingTourText(value: unknown): string {
+  const normalized = normalizeOnboardingTourText(value)
+  return normalized || DEFAULT_ONBOARDING_TOUR_TEXT
 }
 
 /** @deprecated Legacy-Feld — nur noch beim Lesen aus Cosmos */

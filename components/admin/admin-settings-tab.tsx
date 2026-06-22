@@ -50,9 +50,7 @@ export function AdminSettingsTab() {
   const [showSupportOnMainSite, setShowSupportOnMainSite] = useState(false)
   const [showSupportOnCountdownPage, setShowSupportOnCountdownPage] = useState(false)
   const [enableOnboardingTour, setEnableOnboardingTour] = useState(true)
-  const [onboardingTourText, setOnboardingTourText] = useState(
-    DEFAULT_ONBOARDING_TOUR_TEXT
-  )
+  const [onboardingTourText, setOnboardingTourText] = useState("")
   const [enableRewardPointsSystem, setEnableRewardPointsSystem] = useState(true)
   const [themeInboundTourImageUrl, setThemeInboundTourImageUrl] = useState<string | null>(
     null
@@ -479,12 +477,15 @@ export function AdminSettingsTab() {
               Inhalt der Frage im Tropfen
             </Label>
             <p className={cn("text-xs", adminUi.muted)}>
-              Zeilenumbrüche werden im Tropfen übernommen (Enter für neue Zeile).
+              Zeilenumbrüche werden im Tropfen übernommen (Enter für neue Zeile). Feld leer
+              lassen für den Standardtext im Shop.
             </p>
             <Textarea
               id="onboardingTourText"
               value={onboardingTourText}
-              onChange={(event) => setOnboardingTourText(event.target.value)}
+              onChange={(event) =>
+                setOnboardingTourText(event.target.value.slice(0, 200))
+              }
               rows={4}
               className={cn("font-mono text-sm", adminUi.input)}
               placeholder={DEFAULT_ONBOARDING_TOUR_TEXT}

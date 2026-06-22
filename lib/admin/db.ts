@@ -517,7 +517,7 @@ export async function saveSettings(input: {
   showSupportOnMainSite?: boolean
   showSupportOnCountdownPage?: boolean
   enableOnboardingTour?: boolean
-  onboardingTourText?: string
+  onboardingTourText?: string | null
   themeInboundTourImageUrl?: string | null
   enableRewardPointsSystem?: boolean
 }): Promise<AdminSettings> {

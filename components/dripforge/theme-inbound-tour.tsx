@@ -18,7 +18,7 @@ import {
   markThemeInboundTourSeen,
   shouldUseUnoptimizedThemeTourImage,
   THEME_DRIP_OVERLAY_SRC,
-  DEFAULT_ONBOARDING_TOUR_TEXT,
+  resolveOnboardingTourText,
 } from "@/lib/dripforge/theme-inbound-tour-settings"
 import {
   applySiteTheme,
@@ -103,9 +103,7 @@ export function ThemeInboundTour({
   const isDesktop = useIsDesktopViewport()
   const tourSettings = useThemeInboundTourSettings()
   const enabled = tourSettings?.enableOnboardingTour ?? null
-  const tourText =
-    tourSettings?.onboardingTourText ??
-    DEFAULT_ONBOARDING_TOUR_TEXT
+  const tourText = resolveOnboardingTourText(tourSettings?.onboardingTourText)
   const dripImageSrc =
     tourSettings?.themeInboundTourImageUrl ?? THEME_DRIP_OVERLAY_SRC
   const [mounted, setMounted] = useState(false)

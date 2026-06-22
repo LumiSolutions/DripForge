@@ -39,7 +39,7 @@ export async function PUT(request: Request) {
       showSupportOnMainSite?: boolean
       showSupportOnCountdownPage?: boolean
       enableOnboardingTour?: boolean
-      onboardingTourText?: string
+      onboardingTourText?: string | null
       themeInboundTourImageUrl?: string | null
       enableRewardPointsSystem?: boolean
     }
