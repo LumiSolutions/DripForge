@@ -10,6 +10,7 @@ import {
   OrderActions,
   OrderItemList,
   OrderStatusBadge,
+  OrderStatusTimeline,
 } from "@/components/konto/konto-order-parts"
 
 export function KontoOrdersPage() {
@@ -101,6 +102,7 @@ export function KontoOrdersPage() {
                   Zahlung: {order.paymentMethodLabel} · {order.itemCount} Position(en)
                 </p>
 
+                <OrderStatusTimeline order={order} />
                 <OrderItemList order={order} />
                 <OrderActions
                   order={order}

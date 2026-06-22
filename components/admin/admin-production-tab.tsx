@@ -14,6 +14,15 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import {
   downloadDataUrl,
   downloadTextFile,
 } from "@/lib/admin/download-helpers"
@@ -24,8 +33,10 @@ import {
   nextProductionStatus,
   prevProductionStatus,
   PRODUCTION_COLUMNS,
+  requiresShipmentModal,
   resolveProductionStatus,
 } from "@/lib/admin/production-status"
+import { handlePrintPostLabel } from "@/lib/admin/post-label"
 import {
   CUSTOMER_INBOUND_PRODUCTION_LABEL,
   isCustomerInboundOrder,
@@ -63,11 +74,13 @@ function ProductionOrderCard({
   order,
   columnStatus,
   onMove,
+  onRequestShipment,
   updating,
 }: {
   order: StoredOrder
   columnStatus: ProductionStatus
   onMove: (orderId: string, status: ProductionStatus) => void
+  onRequestShipment: (order: StoredOrder) => void
   updating: boolean
 }) {
   const prev = prevProductionStatus(columnStatus)
@@ -195,8 +208,14 @@ function ProductionOrderCard({
           )
         })}
 
+        {order.trackingNumber && columnStatus === "versendet" && (
+          <p className={cn("font-mono text-xs", adminUi.muted)}>
+            Tracking: {order.trackingNumber}
+          </p>
+        )}
+
         <div className="flex gap-2 pt-1">
-          {prev && (
+          {prev && columnStatus !== "versendet" && (
             <Button
               type="button"
               size="sm"
@@ -215,9 +234,17 @@ function ProductionOrderCard({
               size="sm"
               disabled={updating}
               className={cn("flex-1", adminUi.primaryBtn)}
-              onClick={() => onMove(order.orderId, next)}
+              onClick={() => {
+                if (
+                  requiresShipmentModal(columnStatus, next)
+                ) {
+                  onRequestShipment(order)
+                } else {
+                  onMove(order.orderId, next)
+                }
+              }}
             >
-              Weiter
+              {next === "versendet" ? "Versenden" : "Weiter"}
               <ChevronRight className="ml-1 h-3.5 w-3.5" />
             </Button>
           )}
@@ -232,6 +259,10 @@ export function AdminProductionTab() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
+  const [shipModalOrder, setShipModalOrder] = useState<StoredOrder | null>(null)
+  const [trackingNumber, setTrackingNumber] = useState("")
+  const [shipBusy, setShipBusy] = useState(false)
+  const [shipNotice, setShipNotice] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -273,12 +304,13 @@ export function AdminProductionTab() {
   }, [productionOrders])
 
   const moveOrder = async (orderId: string, productionStatus: ProductionStatus) => {
+    if (productionStatus === "versendet") return
     setUpdatingId(orderId)
     try {
-      const res = await fetch(`/api/admin/orders/${encodeURIComponent(orderId)}`, {
+      const res = await fetch("/api/admin/orders/update-status", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productionStatus }),
+        body: JSON.stringify({ orderId, productionStatus }),
       })
       const data = (await res.json()) as { order?: StoredOrder; error?: string }
       if (!res.ok) throw new Error(data.error ?? "Update fehlgeschlagen")
@@ -297,10 +329,65 @@ export function AdminProductionTab() {
     }
   }
 
+  const openShipmentModal = (order: StoredOrder) => {
+    setShipModalOrder(order)
+    setTrackingNumber(order.trackingNumber ?? "")
+    setShipNotice(null)
+  }
+
+  const completeShipment = async () => {
+    if (!shipModalOrder) return
+    setShipBusy(true)
+    setError(null)
+    setShipNotice(null)
+    try {
+      const res = await fetch("/api/admin/orders/update-status", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderId: shipModalOrder.orderId,
+          status: "versendet",
+          productionStatus: "versendet",
+          trackingNumber,
+        }),
+      })
+      const data = (await res.json()) as {
+        order?: StoredOrder
+        emailSent?: boolean
+        error?: string
+      }
+      if (!res.ok) throw new Error(data.error ?? "Versand konnte nicht abgeschlossen werden.")
+      if (data.order) {
+        setOrders((prev) =>
+          prev.map((o) => (o.orderId === data.order!.orderId ? data.order! : o))
+        )
+      }
+      setShipNotice(
+        data.emailSent
+          ? "Versand abgeschlossen — Kunde wurde per E-Mail benachrichtigt."
+          : "Versand abgeschlossen — Versandbestätigung vorbereitet (SMTP prüfen)."
+      )
+      setShipModalOrder(null)
+      setTrackingNumber("")
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Versand konnte nicht abgeschlossen werden."
+      )
+    } finally {
+      setShipBusy(false)
+    }
+  }
+
   const handleDrop = (status: ProductionStatus, orderId: string) => {
     const order = productionOrders.find((o) => o.orderId === orderId)
     if (!order) return
-    if (resolveProductionStatus(order) === status) return
+    const from = resolveProductionStatus(order)
+    if (from === status) return
+    if (requiresShipmentModal(from, status)) {
+      openShipmentModal(order)
+      return
+    }
+    if (status === "versendet") return
     void moveOrder(orderId, status)
   }
 
@@ -337,9 +424,15 @@ export function AdminProductionTab() {
         </Button>
       </div>
 
+      {shipNotice && (
+        <p className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-sm text-emerald-700 dark:text-emerald-300">
+          {shipNotice}
+        </p>
+      )}
+
       {error && <p className={adminUi.errorLg}>{error}</p>}
 
-      <div className="grid gap-4 xl:grid-cols-4">
+      <div className="grid gap-4 xl:grid-cols-5">
         {PRODUCTION_COLUMNS.map((column) => {
           const columnOrders = byColumn.get(column.id) ?? []
           return (
@@ -386,6 +479,7 @@ export function AdminProductionTab() {
                       order={order}
                       columnStatus={column.id}
                       onMove={moveOrder}
+                      onRequestShipment={openShipmentModal}
                       updating={updatingId === order.orderId}
                     />
                   ))
@@ -395,6 +489,72 @@ export function AdminProductionTab() {
           )
         })}
       </div>
+
+      <Dialog
+        open={shipModalOrder != null}
+        onOpenChange={(open) => {
+          if (!open && !shipBusy) {
+            setShipModalOrder(null)
+            setTrackingNumber("")
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Versand abschliessen</DialogTitle>
+          </DialogHeader>
+          {shipModalOrder && (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Bestellung{" "}
+                <span className="font-mono font-medium text-foreground">
+                  {shipModalOrder.orderId}
+                </span>{" "}
+                — {shipModalOrder.billing.firstName} {shipModalOrder.billing.lastName}
+              </p>
+              <div className="space-y-2">
+                <Label htmlFor="trackingNumber">
+                  Schweizer Post Tracking-Nummer (Sendungsnummer)
+                </Label>
+                <Input
+                  id="trackingNumber"
+                  value={trackingNumber}
+                  onChange={(e) => setTrackingNumber(e.target.value)}
+                  placeholder="z. B. 99.60.123456.12345678"
+                  autoComplete="off"
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter className="flex-col gap-2 sm:flex-col sm:space-x-0">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={!shipModalOrder || shipBusy}
+              onClick={() => {
+                if (shipModalOrder) void handlePrintPostLabel(shipModalOrder.orderId)
+              }}
+            >
+              Post-Etikette drucken
+            </Button>
+            <Button
+              type="button"
+              disabled={!shipModalOrder || shipBusy || !trackingNumber.trim()}
+              className={adminUi.primaryBtn}
+              onClick={() => void completeShipment()}
+            >
+              {shipBusy ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Wird gespeichert…
+                </>
+              ) : (
+                "Versand abschliessen"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

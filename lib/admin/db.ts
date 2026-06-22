@@ -56,6 +56,7 @@ import {
   cosmosUpsertProduct,
   cosmosUpdateOrderInvoice,
   cosmosUpdateOrderProductionStatus,
+  cosmosUpdateOrderShipment,
   cosmosUpdateOrderStatus,
   cosmosUpsertCustomerFromOrder,
 } from "@/lib/admin/cosmos-store"
@@ -347,6 +348,29 @@ export async function updateOrderProductionStatus(
     "updateOrderProductionStatus",
     () => cosmosUpdateOrderProductionStatus(orderId, productionStatus),
     () => updateOrderProductionStatusInFile(orderId, productionStatus)
+  )
+}
+
+async function updateOrderShipmentInFile(
+  orderId: string,
+  data: Partial<Pick<StoredOrder, "productionStatus" | "trackingNumber" | "status">>
+): Promise<StoredOrder | null> {
+  const orders = await readJsonFile<StoredOrder[]>(ORDERS_FILE, [])
+  const index = orders.findIndex((o) => o.orderId === orderId)
+  if (index === -1) return null
+  orders[index] = { ...orders[index], ...data }
+  await writeJsonFile(ORDERS_FILE, orders)
+  return orders[index]
+}
+
+export async function updateOrderShipmentDetails(
+  orderId: string,
+  data: Partial<Pick<StoredOrder, "productionStatus" | "trackingNumber" | "status">>
+): Promise<StoredOrder | null> {
+  return withCosmosFallback(
+    "updateOrderShipmentDetails",
+    () => cosmosUpdateOrderShipment(orderId, data),
+    () => updateOrderShipmentInFile(orderId, data)
   )
 }
 

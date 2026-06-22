@@ -9,6 +9,10 @@ import {
   mapOrderItemToCustomerView,
   type CustomerOrderItemView,
 } from "@/lib/konto/format-order-item"
+import {
+  resolveCustomerTimelineStepIndex,
+  resolveCustomerTrackingUrl,
+} from "@/lib/konto/customer-order-timeline"
 
 export type CustomerOrderSummary = {
   orderId: string
@@ -19,6 +23,9 @@ export type CustomerOrderSummary = {
   customerStatusLabel: string
   productionStatus: string
   productionStatusLabel: string
+  timelineStepIndex: number
+  trackingNumber?: string
+  trackingUrl?: string
   totalChf: number
   itemCount: number
   paymentMethodLabel: string
@@ -30,25 +37,26 @@ function orderStatusLabel(status: StoredOrder["status"]): string {
   return ORDER_STATUS_OPTIONS.find((o) => o.value === status)?.label ?? status
 }
 
-/** Vereinfachter Status für das Kunden-Dashboard */
+const TIMELINE_LABELS = [
+  "Bestellt / Bereit für Produktion",
+  "In Produktion",
+  "Qualitätskontrolle",
+  "Bereit für Versand / Verpackt",
+  "Versendet",
+] as const
+
+/** Vereinfachter Status für das Kunden-Dashboard — synchron zum Cockpit-Fortschritt */
 export function customerFacingOrderStatus(order: StoredOrder): string {
   if (order.status === "storniert") return "Storniert"
-  if (order.status === "versendet") return "Versendet"
 
-  const production = resolveProductionStatus(order)
-  if (production === "bereit_fuer_versand") return "Versandbereit"
-  if (production === "qualitaetskontrolle") return "Qualitätskontrolle"
-  if (production === "in_produktion") return "In Produktion"
-
-  if (order.status === "in_produktion") return "In Produktion"
-  if (order.status === "ausstehend") return "Bestätigt"
-
-  return orderStatusLabel(order.status)
+  const stepIndex = resolveCustomerTimelineStepIndex(order)
+  return TIMELINE_LABELS[stepIndex] ?? orderStatusLabel(order.status)
 }
 
 function mapOrderToCustomerSummary(order: StoredOrder): CustomerOrderSummary {
   const production = resolveProductionStatus(order)
   const items = order.items.map(mapOrderItemToCustomerView)
+  const trackingUrl = resolveCustomerTrackingUrl(order)
 
   return {
     orderId: order.orderId,
@@ -58,6 +66,9 @@ function mapOrderToCustomerSummary(order: StoredOrder): CustomerOrderSummary {
     customerStatusLabel: customerFacingOrderStatus(order),
     productionStatus: production,
     productionStatusLabel: productionStatusLabel(production),
+    timelineStepIndex: resolveCustomerTimelineStepIndex(order),
+    trackingNumber: order.trackingNumber,
+    trackingUrl: trackingUrl ?? undefined,
     totalChf: order.totals.total,
     itemCount: order.items.length,
     paymentMethodLabel: order.paymentMethodLabel,

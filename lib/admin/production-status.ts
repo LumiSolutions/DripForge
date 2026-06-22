@@ -25,6 +25,11 @@ export const PRODUCTION_COLUMNS: {
     label: "Bereit für Versand",
     hint: "Verpackung & Versand",
   },
+  {
+    id: "versendet",
+    label: "Versendet",
+    hint: "Unterwegs zur Kundschaft",
+  },
 ]
 
 const VALID: ProductionStatus[] = PRODUCTION_COLUMNS.map((c) => c.id)
@@ -35,14 +40,15 @@ export function isProductionStatus(value: string): value is ProductionStatus {
 
 /** Legacy-Bestellungen ohne productionStatus aus Shop-Status ableiten. */
 export function resolveProductionStatus(order: StoredOrder): ProductionStatus {
+  if (order.productionStatus === "versendet" || order.status === "versendet") {
+    return "versendet"
+  }
   if (order.productionStatus && isProductionStatus(order.productionStatus)) {
     return order.productionStatus
   }
   switch (order.status) {
     case "in_produktion":
       return "in_produktion"
-    case "versendet":
-      return "bereit_fuer_versand"
     default:
       return "bereit_fuer_produktion"
   }
@@ -69,5 +75,21 @@ export function prevProductionStatus(
 }
 
 export function isOrderVisibleInProductionCockpit(order: StoredOrder): boolean {
-  return order.status !== "storniert" && order.status !== "versendet"
+  return order.status !== "storniert"
+}
+
+export function requiresShipmentModal(
+  from: ProductionStatus,
+  to: ProductionStatus
+): boolean {
+  return from === "bereit_fuer_versand" && to === "versendet"
+}
+
+export function normalizeTrackingNumber(value: string): string {
+  return value.trim().replace(/\s+/g, "")
+}
+
+export function isValidTrackingNumber(value: string): boolean {
+  const normalized = normalizeTrackingNumber(value)
+  return normalized.length >= 8
 }

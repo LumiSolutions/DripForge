@@ -1,10 +1,81 @@
 "use client"
 
 import Link from "next/link"
-import { Download, LifeBuoy } from "lucide-react"
+import { Download, ExternalLink, LifeBuoy } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import type { CustomerOrderSummary } from "@/lib/konto/customer-orders"
+import { CUSTOMER_ORDER_TIMELINE_STEPS } from "@/lib/konto/customer-order-timeline"
+import { cn } from "@/lib/utils"
+
+export function OrderStatusTimeline({ order }: { order: CustomerOrderSummary }) {
+  const activeIndex = order.timelineStepIndex
+
+  return (
+    <div className="space-y-3 border-t border-border/50 pt-4">
+      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        Bestellstatus
+      </p>
+      <ol className="relative flex flex-col gap-0 sm:flex-row sm:items-start sm:justify-between">
+        {CUSTOMER_ORDER_TIMELINE_STEPS.map((step, index) => {
+          const done = index < activeIndex
+          const active = index === activeIndex
+          const pending = index > activeIndex
+
+          return (
+            <li
+              key={step.id}
+              className="relative flex flex-1 flex-col items-start pb-4 sm:items-center sm:pb-0 sm:text-center"
+            >
+              {index < CUSTOMER_ORDER_TIMELINE_STEPS.length - 1 && (
+                <span
+                  aria-hidden
+                  className={cn(
+                    "absolute left-3 top-3 hidden h-0.5 sm:block sm:h-auto sm:w-full sm:border-t-2 sm:border-l-0",
+                    index < activeIndex ? "border-primary" : "border-border/60"
+                  )}
+                  style={{ left: "50%", width: "100%" }}
+                />
+              )}
+              <span
+                className={cn(
+                  "relative z-10 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 text-[10px] font-bold",
+                  done && "border-primary bg-primary text-primary-foreground",
+                  active && "border-primary bg-primary/15 text-primary ring-2 ring-primary/25",
+                  pending && "border-border bg-muted text-muted-foreground"
+                )}
+              >
+                {done ? "✓" : index + 1}
+              </span>
+              <span
+                className={cn(
+                  "mt-2 max-w-[9rem] text-xs leading-snug",
+                  active ? "font-semibold text-foreground" : "text-muted-foreground"
+                )}
+              >
+                {step.label}
+              </span>
+            </li>
+          )
+        })}
+      </ol>
+      {order.status === "versendet" && order.trackingUrl && order.trackingNumber && (
+        <p className="text-sm">
+          Sendungsnummer:{" "}
+          <a
+            href={order.trackingUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
+          >
+            {order.trackingNumber}
+            <ExternalLink className="h-3.5 w-3.5" />
+          </a>
+        </p>
+      )}
+    </div>
+  )
+}
 
 export function OrderStatusBadge({ order }: { order: CustomerOrderSummary }) {
   const tone =

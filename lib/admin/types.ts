@@ -28,6 +28,7 @@ export type ProductionStatus =
   | "in_produktion"
   | "qualitaetskontrolle"
   | "bereit_fuer_versand"
+  | "versendet"
 
 export const DEFAULT_PRODUCTION_STATUS: ProductionStatus = "bereit_fuer_produktion"
 
@@ -67,6 +68,8 @@ export type StoredOrder = {
   inventoryState?: import("@/lib/admin/material-types").OrderInventoryState
   /** Reservierte Materialmengen pro Bestellung */
   materialReservations?: import("@/lib/admin/material-types").OrderMaterialReservation[]
+  /** Schweizer Post Sendungsnummer (nach Versand) */
+  trackingNumber?: string
 }
 
 export type CompanySettings = {

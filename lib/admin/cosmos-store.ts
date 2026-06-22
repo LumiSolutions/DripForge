@@ -102,6 +102,17 @@ export async function cosmosUpdateOrderProductionStatus(
   return next
 }
 
+export async function cosmosUpdateOrderShipment(
+  orderId: string,
+  data: Partial<Pick<StoredOrder, "productionStatus" | "trackingNumber" | "status">>
+): Promise<StoredOrder | null> {
+  const order = await cosmosGetOrderById(orderId)
+  if (!order) return null
+  const next = { ...order, ...data }
+  await cosmosSaveOrder(next)
+  return next
+}
+
 export async function cosmosUpdateOrderInvoice(
   orderId: string,
   data: Pick<StoredOrder, "rechnungPdfUrl" | "rechnungPdfPath" | "kundennummer">
