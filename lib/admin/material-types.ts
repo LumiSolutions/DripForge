@@ -50,6 +50,10 @@ export type MaterialItem = {
   spuleBildUrl?: string
   /** Beispiel-Druck / Farbmuster (Shop: rechter Bild-Slot) */
   printBildUrl?: string
+  /** Lasermaterial: Rohzustand (Shop: linker Bild-Slot) */
+  materialImageUrl?: string
+  /** Lasermaterial: Beispiel Gravur/Schnitt (Shop: rechter Bild-Slot) */
+  sampleLaserImageUrl?: string
   stockUnit: MaterialStockUnit
   stockAvailable: number
   stockReserved: number
@@ -130,6 +134,13 @@ export function formatMaterialCardTitle(material: MaterialItem): string {
 export function formatMaterialStockLabel(material: MaterialItem): string {
   const parts = [material.manufacturer, material.name, material.farbe].filter(Boolean)
   return parts.join(" — ") || material.name
+}
+
+export function resolveMaterialPreviewImage(material: MaterialItem): string | undefined {
+  if (material.category === "lasermaterial") {
+    return material.materialImageUrl ?? material.sampleLaserImageUrl
+  }
+  return material.spuleBildUrl ?? material.printBildUrl
 }
 
 export function isMaterialLowStock(material: MaterialItem): boolean {

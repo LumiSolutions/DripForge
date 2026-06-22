@@ -80,6 +80,10 @@ export function normalizeMaterialItem(raw: Partial<MaterialItem> & { id: string 
       category === "lasermaterial" ? raw.formatGroesse?.trim() || undefined : undefined,
     spuleBildUrl: category === "filament" ? imageUrls.spuleBildUrl : undefined,
     printBildUrl: category === "filament" ? imageUrls.printBildUrl : undefined,
+    materialImageUrl:
+      category === "lasermaterial" ? raw.materialImageUrl?.trim() || undefined : undefined,
+    sampleLaserImageUrl:
+      category === "lasermaterial" ? raw.sampleLaserImageUrl?.trim() || undefined : undefined,
     stockUnit: raw.stockUnit === "piece" ? "piece" : "gram",
     stockAvailable: Math.max(
       0,

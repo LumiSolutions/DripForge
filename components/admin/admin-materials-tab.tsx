@@ -47,6 +47,7 @@ import {
   getEffectiveMaterialStock,
   GRAMS_PER_FULL_SPOOL,
   isMaterialLowStock,
+  resolveMaterialPreviewImage,
 } from "@/lib/admin/material-types"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
 import { cn } from "@/lib/utils"
@@ -337,7 +338,7 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
 
   const uploadMaterialImage = async (
     file: File,
-    field: "spuleBildUrl" | "printBildUrl"
+    field: "spuleBildUrl" | "printBildUrl" | "materialImageUrl" | "sampleLaserImageUrl"
   ) => {
     if (!draft) return
     const formData = new FormData()
@@ -431,7 +432,7 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
                     </p>
                   )}
                 </div>
-                {(material.spuleBildUrl ?? material.printBildUrl) && (
+                {(resolveMaterialPreviewImage(material) ?? null) && (
                   <div
                     className={cn(
                       "h-12 w-12 shrink-0 overflow-hidden rounded-lg border",
@@ -440,8 +441,8 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={material.spuleBildUrl ?? material.printBildUrl}
-                      alt={material.farbe ?? "Filamentbild"}
+                      src={resolveMaterialPreviewImage(material)}
+                      alt={material.farbe ?? material.name}
                       className="h-full w-full object-cover"
                     />
                   </div>
@@ -698,6 +699,86 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
                       </div>
                     ) : (
                       <p className={cn("text-xs", adminUi.muted)}>Noch kein Print-Beispiel</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {category === "lasermaterial" && (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className={cn("space-y-3 rounded-xl border p-4", adminUi.section)}>
+                    <Label>Material-Bild (Rohzustand)</Label>
+                    <p className={cn("text-xs", adminUi.muted)}>
+                      z. B. Foto der Holzplatte oder Acrylstruktur — erscheint als Option im Shop.
+                    </p>
+                    <label className="flex cursor-pointer items-center gap-2 text-sm">
+                      <Upload className="h-4 w-4" />
+                      Bild hochladen
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0]
+                          if (file) void uploadMaterialImage(file, "materialImageUrl")
+                        }}
+                      />
+                    </label>
+                    {draft.materialImageUrl ? (
+                      <div
+                        className={cn(
+                          "h-20 w-20 overflow-hidden rounded-lg border",
+                          adminUi.thumbnail
+                        )}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={draft.materialImageUrl}
+                          alt={draft.name || "Material-Bild"}
+                          className="h-full w-full object-cover"
+                        />
+                      </div>
+                    ) : (
+                      <p className={cn("text-xs", adminUi.muted)}>Noch kein Material-Bild</p>
+                    )}
+                  </div>
+
+                  <div className={cn("space-y-3 rounded-xl border p-4", adminUi.section)}>
+                    <Label>Beispiel Gravur/Schnitt-Bild</Label>
+                    <p className={cn("text-xs", adminUi.muted)}>
+                      Gelasertes Musterbeispiel — zeigt das fertig bearbeitete Material.
+                    </p>
+                    <label className="flex cursor-pointer items-center gap-2 text-sm">
+                      <Upload className="h-4 w-4" />
+                      Bild hochladen
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0]
+                          if (file) void uploadMaterialImage(file, "sampleLaserImageUrl")
+                        }}
+                      />
+                    </label>
+                    {draft.sampleLaserImageUrl ? (
+                      <div
+                        className={cn(
+                          "h-20 w-20 overflow-hidden rounded-lg border",
+                          adminUi.thumbnail
+                        )}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={draft.sampleLaserImageUrl}
+                          alt={draft.name || "Gravur-Beispiel"}
+                          className="h-full w-full object-cover"
+                        />
+                      </div>
+                    ) : (
+                      <p className={cn("text-xs", adminUi.muted)}>
+                        Noch kein Gravur/Schnitt-Beispiel
+                      </p>
                     )}
                   </div>
                 </div>
