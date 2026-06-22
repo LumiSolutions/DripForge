@@ -22,12 +22,6 @@ export function normalizeOnboardingTourText(value: unknown): string {
   return value.trim().slice(0, 200)
 }
 
-/** Anzeige im Shop: leerer gespeicherter Text → Standard-Fallback */
-export function resolveOnboardingTourText(value: unknown): string {
-  const normalized = normalizeOnboardingTourText(value)
-  return normalized || DEFAULT_ONBOARDING_TOUR_TEXT
-}
-
 /** @deprecated Legacy-Feld — nur noch beim Lesen aus Cosmos */
 export function normalizeEnableThemeInboundTour(value: unknown): boolean {
   return normalizeEnableOnboardingTour(value)

@@ -144,7 +144,7 @@ export type AdminSettings = {
   showSupportOnCountdownPage: boolean
   /** Onboarding-Tropfen für Erstbesucher neben Sonne/Mond-Icon */
   enableOnboardingTour: boolean
-  /** Frage-Text im Tropfen (Zeilenumbrüche via \\n); leer = Standard im Shop */
+  /** Frage-Text im Tropfen (Zeilenumbrüche via \\n); leer = kein Text im Tropfen */
   onboardingTourText: string
   /** Hochgeladenes Overlay-Bild für die Theme-Tour (Azure Blob / Data-URL) */
   themeInboundTourImageUrl?: string | null

@@ -478,7 +478,7 @@ export function AdminSettingsTab() {
             </Label>
             <p className={cn("text-xs", adminUi.muted)}>
               Zeilenumbrüche werden im Tropfen übernommen (Enter für neue Zeile). Feld leer
-              lassen für den Standardtext im Shop.
+              lassen, wenn im Tropfen kein Text angezeigt werden soll.
             </p>
             <Textarea
               id="onboardingTourText"
