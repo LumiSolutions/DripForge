@@ -273,6 +273,30 @@ export function AdminMaterialStatsSection() {
                 </div>
               </div>
 
+              <div className="space-y-2">
+                <Label>Materialzusammensetzung (Info)</Label>
+                <Textarea
+                  rows={2}
+                  value={type.compositionDescription ?? ""}
+                  onChange={(e) =>
+                    updateCategory(type.id, {
+                      compositionDescription: e.target.value || undefined,
+                    })
+                  }
+                  placeholder="Kurz erklären, woraus das Material besteht …"
+                  className={adminUi.input}
+                />
+                {type.compositionDescription?.trim() ? (
+                  <p className={cn("text-xs leading-relaxed", adminUi.muted)}>
+                    {type.compositionDescription.trim()}
+                  </p>
+                ) : (
+                  <p className={cn("text-xs", adminUi.muted)}>
+                    Optional — z. B. chemische Basis oder Herkunft des Materials.
+                  </p>
+                )}
+              </div>
+
               {sortMode === "manual" && (
                 <div className="space-y-1">
                   <Label className="text-xs">Homepage-Reihenfolge</Label>

@@ -45,6 +45,7 @@ import type { ProductTag } from "@/lib/admin/product-tags"
 type ProductFormState = Partial<AdminProduct> & {
   variantenText?: string
   basisPreis?: number
+  purchasePriceChf?: number
 }
 
 const EMPTY_FORM: ProductFormState = {
@@ -52,6 +53,7 @@ const EMPTY_FORM: ProductFormState = {
   name: "",
   description: "",
   basisPreis: 0,
+  purchasePriceChf: 0,
   price: 0,
   originalPrice: null,
   type: "3d",
@@ -340,6 +342,15 @@ export function AdminProductsTab() {
     return { basis, endpreis, validation }
   }, [form.basisPreis, form.sale, form.saleRabattTyp, form.saleRabattWert])
 
+  const marginPreview = useMemo(() => {
+    const purchase = Number(form.purchasePriceChf) || 0
+    const sale = Number(form.basisPreis) || 0
+    if (purchase <= 0 && sale <= 0) return null
+    const profit = sale - purchase
+    const marginPercent = sale > 0 ? (profit / sale) * 100 : null
+    return { purchase, sale, profit, marginPercent }
+  }, [form.purchasePriceChf, form.basisPreis])
+
   const saveProduct = async () => {
     setSaving(true)
     setError(null)
@@ -508,18 +519,60 @@ export function AdminProductsTab() {
                     className={adminUi.input}
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label className={adminUi.label}>Basispreis (CHF)</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={form.basisPreis ?? 0}
-                    onChange={(e) =>
-                      updateField("basisPreis", Number(e.target.value))
-                    }
-                    className={adminUi.input}
-                  />
+                <div className={cn("space-y-4 rounded-xl border p-4 sm:col-span-2", adminUi.section)}>
+                  <h4 className={cn("text-sm font-semibold", adminUi.accentTitle)}>
+                    Preise & Marge
+                  </h4>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label className={adminUi.label}>Einkaufspreis (CHF)</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={form.purchasePriceChf ?? 0}
+                        onChange={(e) =>
+                          updateField("purchasePriceChf", Number(e.target.value))
+                        }
+                        className={adminUi.input}
+                      />
+                      <p className={cn("text-xs", adminUi.muted)}>
+                        Interne Kalkulation — nicht im Shop sichtbar.
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className={adminUi.label}>Verkaufspreis (CHF)</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={form.basisPreis ?? 0}
+                        onChange={(e) =>
+                          updateField("basisPreis", Number(e.target.value))
+                        }
+                        className={adminUi.input}
+                      />
+                      <p className={cn("text-xs", adminUi.muted)}>
+                        Basispreis vor Sale-Rabatt.
+                      </p>
+                    </div>
+                  </div>
+                  {marginPreview && (
+                    <p
+                      className={cn(
+                        "text-sm tabular-nums",
+                        marginPreview.profit > 0
+                          ? "text-emerald-600 dark:text-emerald-400"
+                          : marginPreview.profit < 0
+                            ? "text-red-600 dark:text-red-400"
+                            : adminUi.muted
+                      )}
+                    >
+                      Bruttogewinn: CHF {marginPreview.profit.toFixed(2)}
+                      {marginPreview.marginPercent != null &&
+                        ` (${marginPreview.marginPercent.toFixed(1)} % Marge)`}
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label className={adminUi.label}>Typ</Label>

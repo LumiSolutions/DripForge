@@ -19,6 +19,8 @@ export type MaterialCategoryStat = {
   vorteile: string[]
   hinweise: string[]
   idealFuer?: string
+  /** Kurzbeschreibung der Materialzusammensetzung (Admin / Shop-Info) */
+  compositionDescription?: string
 }
 
 export type MaterialTypeDefinition = MaterialCategoryStat & {
@@ -43,6 +45,12 @@ const LEGACY_PERCENT: Partial<
   ASA: { strength: 85, flexibility: 40, heatResistance: 85, easeOfUse: 60 },
   TPU: { strength: 50, flexibility: 90, heatResistance: 50, easeOfUse: 70 },
   Nylon: { strength: 85, flexibility: 60, heatResistance: 90, easeOfUse: 55 },
+}
+
+const DEFAULT_COMPOSITION_DESCRIPTIONS: Partial<Record<string, string>> = {
+  PLA: "Besteht aus biokompatibler Polymilchsäure, die aus nachwachsenden Rohstoffen wie Maisstärke oder Zuckerrohr gewonnen wird.",
+  PETG: "Ein mit Glykol modifiziertes Polyethylenterephthalat, bekannt für hohe Robustheit und chemische Beständigkeit.",
+  ABS: "Ein synthetisches Terpolymer, extrem schlagfest und hitzebeständig, benötigt jedoch einen geschlossenen Bauraum.",
 }
 
 function percentToRating(percent: number): number {
@@ -76,6 +84,7 @@ function defaultStatFields(): MaterialCategoryStat {
     vorteile: [],
     hinweise: [],
     idealFuer: undefined,
+    compositionDescription: undefined,
   }
 }
 
@@ -99,6 +108,10 @@ function defaultStatForLegacyName(name: string): MaterialCategoryStat {
     vorteile: [],
     hinweise: [],
     idealFuer: undefined,
+    compositionDescription:
+      DEFAULT_COMPOSITION_DESCRIPTIONS[name.toUpperCase()] ??
+      DEFAULT_COMPOSITION_DESCRIPTIONS[name] ??
+      undefined,
   }
 }
 
@@ -146,6 +159,11 @@ export function normalizeMaterialCategoryStat(
       ? input.hinweise.map((s) => String(s).trim()).filter(Boolean)
       : fallback.hinweise,
     idealFuer: input?.idealFuer?.trim() || fallback.idealFuer,
+    compositionDescription:
+      input?.compositionDescription?.trim() ||
+      fallback.compositionDescription ||
+      DEFAULT_COMPOSITION_DESCRIPTIONS[fallbackName.toUpperCase()] ||
+      undefined,
   }
 }
 

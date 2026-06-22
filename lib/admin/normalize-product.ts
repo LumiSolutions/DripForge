@@ -58,6 +58,13 @@ export function normalizeAdminProductInput(
     saleRabattWert: input.saleRabattWert ?? existing?.saleRabattWert,
   })
 
+  const purchasePriceChf =
+    input.purchasePriceChf != null
+      ? roundChf(Math.max(0, Number(input.purchasePriceChf) || 0))
+      : existing?.purchasePriceChf != null
+        ? roundChf(Math.max(0, Number(existing.purchasePriceChf) || 0))
+        : undefined
+
   if (sale) {
     const validation = validateSaleDiscount(
       basisPreis,
@@ -76,6 +83,7 @@ export function normalizeAdminProductInput(
     name: input.name?.trim() ?? existing?.name ?? "Neues Produkt",
     description: input.description?.trim() ?? existing?.description ?? "",
     ...saleFields,
+    purchasePriceChf,
     type: (input.type ?? existing?.type) === "laser" ? "laser" : "3d",
     istAktiv,
     laserMaterialId: input.laserMaterialId ?? existing?.laserMaterialId,

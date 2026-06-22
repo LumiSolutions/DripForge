@@ -74,9 +74,12 @@ export function normalizeMaterialItem(raw: Partial<MaterialItem> & { id: string 
     manufacturer: raw.manufacturer?.trim() || undefined,
     materialType: category === "filament" ? materialType : undefined,
     farbe: legacy.farbe ?? (raw.farbe?.trim() || undefined),
-    filamentCode: raw.filamentCode?.trim() || undefined,
-    spuleBildUrl: imageUrls.spuleBildUrl,
-    printBildUrl: imageUrls.printBildUrl,
+    filamentCode: category === "filament" ? raw.filamentCode?.trim() || undefined : undefined,
+    dicke: category === "lasermaterial" ? raw.dicke?.trim() || undefined : undefined,
+    formatGroesse:
+      category === "lasermaterial" ? raw.formatGroesse?.trim() || undefined : undefined,
+    spuleBildUrl: category === "filament" ? imageUrls.spuleBildUrl : undefined,
+    printBildUrl: category === "filament" ? imageUrls.printBildUrl : undefined,
     stockUnit: raw.stockUnit === "piece" ? "piece" : "gram",
     stockAvailable: Math.max(
       0,

@@ -370,7 +370,9 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
         <div>
           <h2 className={cn("text-xl font-bold", adminUi.heading)}>{categoryLabel}</h2>
           <p className={cn("text-sm", adminUi.muted)}>
-            Einzelne Lagerartikel pro Farbe — Materialeigenschaften unter «Material-Arten»
+            {category === "filament"
+              ? "Einzelne Lagerartikel pro Farbe — Materialeigenschaften unter «Material-Arten»"
+              : "Platten, Holz, Acryl & Co. — pro Variante (Dicke, Format, Farbe) als Stückbestand"}
           </p>
         </div>
         <div className="flex gap-2">
@@ -526,47 +528,102 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
                 </div>
               )}
 
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Hersteller</Label>
-                  <Input
-                    value={draft.manufacturer ?? ""}
-                    onChange={(e) => setDraft({ ...draft, manufacturer: e.target.value })}
-                    placeholder="z. B. Bambu Lab"
-                    className={adminUi.input}
-                  />
+              {category === "filament" ? (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Hersteller</Label>
+                    <Input
+                      value={draft.manufacturer ?? ""}
+                      onChange={(e) => setDraft({ ...draft, manufacturer: e.target.value })}
+                      placeholder="z. B. Bambu Lab"
+                      className={adminUi.input}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Produktlinie / Name</Label>
+                    <Input
+                      value={draft.name}
+                      onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+                      placeholder="PLA Basic"
+                      className={adminUi.input}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Farbe</Label>
+                    <Input
+                      value={draft.farbe ?? ""}
+                      onChange={(e) => setDraft({ ...draft, farbe: e.target.value })}
+                      placeholder="Black"
+                      className={adminUi.input}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Filamentcode / Farbcode</Label>
+                    <Input
+                      value={draft.filamentCode ?? ""}
+                      onChange={(e) =>
+                        setDraft({ ...draft, filamentCode: e.target.value || undefined })
+                      }
+                      placeholder="z. B. 10100"
+                      className={adminUi.input}
+                    />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>Produktlinie / Name</Label>
-                  <Input
-                    value={draft.name}
-                    onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-                    placeholder="PLA Basic"
-                    className={adminUi.input}
-                    required
-                  />
+              ) : (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Hersteller</Label>
+                    <Input
+                      value={draft.manufacturer ?? ""}
+                      onChange={(e) => setDraft({ ...draft, manufacturer: e.target.value })}
+                      placeholder="z. B. Plexiglas, WoodForge"
+                      className={adminUi.input}
+                    />
+                  </div>
+                  <div className="space-y-2 sm:col-span-2">
+                    <Label>Materialname / Typ</Label>
+                    <Input
+                      value={draft.name}
+                      onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+                      placeholder="z. B. Pappelsperrholz, Acryl transparent"
+                      className={adminUi.input}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Dicke / Stärke</Label>
+                    <Input
+                      value={draft.dicke ?? ""}
+                      onChange={(e) =>
+                        setDraft({ ...draft, dicke: e.target.value || undefined })
+                      }
+                      placeholder="z. B. 3mm, 5mm"
+                      className={adminUi.input}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Format / Grösse</Label>
+                    <Input
+                      value={draft.formatGroesse ?? ""}
+                      onChange={(e) =>
+                        setDraft({ ...draft, formatGroesse: e.target.value || undefined })
+                      }
+                      placeholder="z. B. A4, 30x30 cm"
+                      className={adminUi.input}
+                    />
+                  </div>
+                  <div className="space-y-2 sm:col-span-2">
+                    <Label>Farbcode / Farbbezeichnung</Label>
+                    <Input
+                      value={draft.farbe ?? ""}
+                      onChange={(e) => setDraft({ ...draft, farbe: e.target.value })}
+                      placeholder="z. B. Rauchglas, Natur"
+                      className={adminUi.input}
+                    />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>Farbe</Label>
-                  <Input
-                    value={draft.farbe ?? ""}
-                    onChange={(e) => setDraft({ ...draft, farbe: e.target.value })}
-                    placeholder="Black"
-                    className={adminUi.input}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Filamentcode / Farbcode</Label>
-                  <Input
-                    value={draft.filamentCode ?? ""}
-                    onChange={(e) =>
-                      setDraft({ ...draft, filamentCode: e.target.value || undefined })
-                    }
-                    placeholder="z. B. 10100"
-                    className={adminUi.input}
-                  />
-                </div>
-              </div>
+              )}
 
               {category === "filament" && (
                 <div className="grid gap-4 sm:grid-cols-2">

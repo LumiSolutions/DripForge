@@ -31,6 +31,8 @@ export type Product = {
   sale: boolean
   /** Unrabattierter Referenzpreis (Admin) */
   basisPreis?: number
+  /** Einkaufspreis für Margenkalkulation (nur Admin) */
+  purchasePriceChf?: number
   /** Rabatt-Art im Sale */
   saleRabattTyp?: "percent" | "fixed"
   /** Rabatt-Wert (% oder CHF) */

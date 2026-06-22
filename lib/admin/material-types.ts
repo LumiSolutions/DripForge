@@ -42,6 +42,10 @@ export type MaterialItem = {
   farbe?: string
   /** Hersteller-Filamentcode / Farbcode (z. B. Bambu Lab «10100») */
   filamentCode?: string
+  /** Dicke/Stärke (Lasermaterial), z. B. «3mm» */
+  dicke?: string
+  /** Format/Grösse (Lasermaterial), z. B. «A4», «30x30 cm» */
+  formatGroesse?: string
   /** Filament-Spule (Shop: linker Bild-Slot) */
   spuleBildUrl?: string
   /** Beispiel-Druck / Farbmuster (Shop: rechter Bild-Slot) */
@@ -104,6 +108,12 @@ export function getEffectiveMaterialStock(material: MaterialItem): {
 }
 
 export function formatMaterialFarbeDisplay(material: MaterialItem): string | null {
+  if (material.category === "lasermaterial") {
+    const parts = [material.farbe?.trim(), material.dicke?.trim(), material.formatGroesse?.trim()].filter(
+      Boolean
+    ) as string[]
+    return parts.length > 0 ? parts.join(" · ") : null
+  }
   if (!material.farbe?.trim() && !material.filamentCode?.trim()) return null
   const color = material.farbe?.trim() || "—"
   if (material.filamentCode?.trim()) {
