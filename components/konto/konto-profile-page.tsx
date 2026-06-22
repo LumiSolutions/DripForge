@@ -17,8 +17,9 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { KontoShell } from "@/components/konto/konto-shell"
+import type { CustomerProfileResponse } from "@/lib/konto/customer-profile-service"
 
-type ProfileForm = {
+type AddressForm = {
   firstName: string
   lastName: string
   street: string
@@ -26,9 +27,10 @@ type ProfileForm = {
   city: string
   phone: string
   email: string
+  kundennummer?: string
 }
 
-const EMPTY: ProfileForm = {
+const EMPTY: AddressForm = {
   firstName: "",
   lastName: "",
   street: "",
@@ -39,7 +41,7 @@ const EMPTY: ProfileForm = {
 }
 
 export function KontoProfilePage() {
-  const [form, setForm] = useState<ProfileForm>(EMPTY)
+  const [form, setForm] = useState<AddressForm>(EMPTY)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -49,18 +51,25 @@ export function KontoProfilePage() {
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
   useEffect(() => {
-    void fetch("/api/konto/me", { cache: "no-store" })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data: { account?: ProfileForm } | null) => {
-        if (data?.account) {
+    void fetch("/api/customer/profile", { cache: "no-store", credentials: "include" })
+      .then(async (res) => {
+        if (res.status === 401) {
+          window.location.href = "/konto/login?next=/konto/profil"
+          return null
+        }
+        return res.ok ? res.json() : null
+      })
+      .then((data: { profile?: CustomerProfileResponse } | null) => {
+        if (data?.profile) {
           setForm({
-            firstName: data.account.firstName ?? "",
-            lastName: data.account.lastName ?? "",
-            street: data.account.street ?? "",
-            zip: data.account.zip ?? "",
-            city: data.account.city ?? "",
-            phone: data.account.phone ?? "",
-            email: data.account.email ?? "",
+            firstName: data.profile.firstName ?? "",
+            lastName: data.profile.lastName ?? "",
+            street: data.profile.street ?? "",
+            zip: data.profile.zip ?? "",
+            city: data.profile.city ?? "",
+            phone: data.profile.phone ?? "",
+            email: data.profile.email ?? "",
+            kundennummer: data.profile.kundennummer,
           })
         }
       })
@@ -73,21 +82,29 @@ export function KontoProfilePage() {
     setError(null)
     setMessage(null)
     try {
-      const res = await fetch("/api/konto/profile", {
-        method: "PATCH",
+      const res = await fetch("/api/customer/profile", {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
-          firstName: form.firstName,
-          lastName: form.lastName,
           street: form.street,
           zip: form.zip,
           city: form.city,
           phone: form.phone,
         }),
       })
-      const data = (await res.json()) as { error?: string }
+      const data = (await res.json()) as { error?: string; profile?: CustomerProfileResponse }
       if (!res.ok) throw new Error(data.error ?? "Speichern fehlgeschlagen")
-      setMessage("Profil gespeichert — Checkout-Felder werden beim nächsten Einkauf vorausgefüllt.")
+      if (data.profile) {
+        setForm((prev) => ({
+          ...prev,
+          street: data.profile!.street ?? "",
+          zip: data.profile!.zip ?? "",
+          city: data.profile!.city ?? "",
+          phone: data.profile!.phone ?? "",
+        }))
+      }
+      setMessage("Adressdaten gespeichert — Checkout-Felder werden beim nächsten Einkauf vorausgefüllt.")
     } catch (err) {
       setError(err instanceof Error ? err.message : "Speichern fehlgeschlagen")
     } finally {
@@ -146,8 +163,12 @@ export function KontoProfilePage() {
         <div>
           <h1 className="text-2xl font-bold">Profil &amp; Adressen</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Diese Angaben werden beim Checkout automatisch übernommen.
+            Name und E-Mail sind fest mit deinem Konto verknüpft. Adressdaten kannst du
+            jederzeit anpassen.
           </p>
+          {form.kundennummer ? (
+            <p className="mt-2 font-mono text-sm text-primary">{form.kundennummer}</p>
+          ) : null}
         </div>
 
         <Card className="rounded-2xl border-border/50">
@@ -161,33 +182,19 @@ export function KontoProfilePage() {
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="firstName">Vorname</Label>
-                  <Input
-                    id="firstName"
-                    value={form.firstName}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, firstName: e.target.value }))
-                    }
-                    required
-                  />
+                  <Input id="firstName" value={form.firstName} disabled readOnly />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="lastName">Nachname</Label>
-                  <Input
-                    id="lastName"
-                    value={form.lastName}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, lastName: e.target.value }))
-                    }
-                    required
-                  />
+                  <Input id="lastName" value={form.lastName} disabled readOnly />
                 </div>
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="email">E-Mail</Label>
-                <Input id="email" type="email" value={form.email} disabled />
+                <Input id="email" type="email" value={form.email} disabled readOnly />
                 <p className="text-xs text-muted-foreground">
-                  Die E-Mail-Adresse ist mit deinem Konto verknüpft und kann hier nicht geändert werden.
+                  Vorname, Nachname und E-Mail können hier nicht geändert werden.
                 </p>
               </div>
 

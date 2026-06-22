@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
+import type { CustomerProfileResponse } from "@/lib/konto/customer-profile-service"
 
 type LoyaltyState = {
   loggedIn: boolean
@@ -18,19 +19,20 @@ export function useCustomerLoyaltyPoints(): LoyaltyState & { refresh: () => Prom
   const refresh = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch("/api/konto/me", { cache: "no-store" })
+      const res = await fetch("/api/customer/profile", {
+        cache: "no-store",
+        credentials: "include",
+      })
       if (!res.ok) {
         setLoggedIn(false)
         setLoyaltyPoints(0)
         setLoyaltyBalanceChf(0)
         return
       }
-      const data = (await res.json()) as {
-        account?: { loyaltyPoints?: number; loyaltyBalanceChf?: number }
-      }
+      const data = (await res.json()) as { profile?: CustomerProfileResponse }
       setLoggedIn(true)
-      setLoyaltyPoints(Number(data.account?.loyaltyPoints) || 0)
-      setLoyaltyBalanceChf(Number(data.account?.loyaltyBalanceChf) || 0)
+      setLoyaltyPoints(Number(data.profile?.loyaltyPoints) || 0)
+      setLoyaltyBalanceChf(Number(data.profile?.loyaltyBalanceChf) || 0)
     } catch {
       setLoggedIn(false)
       setLoyaltyPoints(0)

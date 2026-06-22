@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
-import { Coins, CreditCard, Loader2, QrCode } from "lucide-react"
+import { Coins, CreditCard, History, Loader2, QrCode } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -11,15 +11,22 @@ import { KontoShell } from "@/components/konto/konto-shell"
 import {
   LOYALTY_POINT_PACKAGES,
   loyaltyPointsToChf,
+  type LoyaltyPointTransaction,
 } from "@/lib/konto/loyalty-points-config"
-import { useCustomerLoyaltyPoints } from "@/hooks/use-customer-loyalty-points"
 import { useRewardPointsEnabled } from "@/hooks/use-reward-points-enabled"
+import type { CustomerProfileResponse } from "@/lib/konto/customer-profile-service"
+
+function formatHistoryEntry(tx: LoyaltyPointTransaction): string {
+  const sign = tx.points > 0 ? "+" : ""
+  const label = tx.note?.trim() || tx.referenceId
+  return `${sign}${tx.points} Punkte — ${label}`
+}
 
 export function KontoPointsPage() {
   const searchParams = useSearchParams()
-  const { loggedIn, loading, loyaltyPoints, loyaltyBalanceChf, refresh } =
-    useCustomerLoyaltyPoints()
   const rewardPointsEnabled = useRewardPointsEnabled()
+  const [profile, setProfile] = useState<CustomerProfileResponse | null>(null)
+  const [loading, setLoading] = useState(true)
   const [customAmount, setCustomAmount] = useState("10")
   const [selectedPackage, setSelectedPackage] = useState<string | null>("100")
   const [paymentMethod, setPaymentMethod] = useState<"card" | "twint">("card")
@@ -27,16 +34,34 @@ export function KontoPointsPage() {
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
 
+  const refreshProfile = async () => {
+    const res = await fetch("/api/customer/profile", {
+      cache: "no-store",
+      credentials: "include",
+    })
+    if (res.status === 401) {
+      window.location.href = "/konto/login?next=/konto/punkte"
+      return
+    }
+    if (!res.ok) return
+    const data = (await res.json()) as { profile: CustomerProfileResponse }
+    setProfile(data.profile)
+  }
+
+  useEffect(() => {
+    void refreshProfile().finally(() => setLoading(false))
+  }, [])
+
   useEffect(() => {
     if (searchParams.get("purchase_success") === "1") {
       setNotice("Zahlung erfolgreich — deine Punkte werden in Kürze gutgeschrieben.")
-      void refresh()
+      void refreshProfile()
     } else if (searchParams.get("payment_failed") === "1") {
       setError("Zahlung fehlgeschlagen. Bitte erneut versuchen.")
     } else if (searchParams.get("canceled") === "1") {
       setNotice("Kauf abgebrochen.")
     }
-  }, [searchParams, refresh])
+  }, [searchParams])
 
   const startPurchase = async () => {
     setBusy(true)
@@ -99,7 +124,7 @@ export function KontoPointsPage() {
     )
   }
 
-  if (!loggedIn) {
+  if (!profile) {
     return (
       <KontoShell>
         <p className="rounded-xl border border-dashed py-10 text-center text-sm text-muted-foreground">
@@ -109,8 +134,10 @@ export function KontoPointsPage() {
     )
   }
 
+  const history = profile.loyaltyPointHistory ?? []
+
   return (
-    <KontoShell>
+    <KontoShell accountName={`${profile.firstName} ${profile.lastName}`.trim()}>
       <div className="space-y-8">
         <div>
           <h1 className="text-2xl font-bold">Treuepunkte</h1>
@@ -119,13 +146,13 @@ export function KontoPointsPage() {
           </p>
         </div>
 
-        <Card className="rounded-2xl border-primary/25 bg-primary/5">
-          <CardContent className="flex flex-wrap items-center gap-4 p-6">
-            <Coins className="h-10 w-10 text-primary" />
+        <Card className="rounded-2xl border-primary/25 bg-gradient-to-br from-primary/10 to-transparent">
+          <CardContent className="flex flex-wrap items-center gap-4 p-8">
+            <Coins className="h-12 w-12 text-primary" />
             <div>
-              <p className="text-3xl font-bold tabular-nums">{loyaltyPoints} Punkte</p>
+              <p className="text-4xl font-bold tabular-nums">{profile.loyaltyPoints} Punkte</p>
               <p className="text-sm text-muted-foreground">
-                = CHF {loyaltyBalanceChf.toFixed(2)} Guthaben
+                = CHF {profile.loyaltyBalanceChf.toFixed(2)} Guthaben
               </p>
             </div>
           </CardContent>
@@ -141,6 +168,38 @@ export function KontoPointsPage() {
             {error}
           </p>
         )}
+
+        <section className="space-y-4">
+          <h2 className="flex items-center gap-2 text-lg font-semibold">
+            <History className="h-5 w-5 text-primary" />
+            Punkte-Historie
+          </h2>
+          {history.length === 0 ? (
+            <p className="rounded-xl border border-dashed py-8 text-center text-sm text-muted-foreground">
+              Noch keine Punktebewegungen — sammle Punkte mit deiner nächsten Bestellung
+              oder kaufe Guthaben auf.
+            </p>
+          ) : (
+            <ul className="divide-y rounded-xl border border-border/50">
+              {history.map((tx) => (
+                <li
+                  key={tx.id}
+                  className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm"
+                >
+                  <span className={tx.points >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600"}>
+                    {formatHistoryEntry(tx)}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {new Intl.DateTimeFormat("de-CH", {
+                      dateStyle: "medium",
+                      timeStyle: "short",
+                    }).format(new Date(tx.createdAt))}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
 
         <section className="space-y-4">
           <h2 className="text-lg font-semibold">Punkte kaufen</h2>
@@ -219,7 +278,14 @@ export function KontoPointsPage() {
           </div>
 
           <Button onClick={() => void startPurchase()} disabled={busy}>
-            {busy ? "Wird weitergeleitet…" : "Jetzt Punkte kaufen"}
+            {busy ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Wird weitergeleitet…
+              </>
+            ) : (
+              "Jetzt Punkte kaufen"
+            )}
           </Button>
         </section>
       </div>
