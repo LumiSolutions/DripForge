@@ -19,11 +19,9 @@ import {
   Sparkles,
   Type,
   Users,
-  Layers,
   X,
 } from "lucide-react"
 import { AdminAiSettingsTab } from "@/components/admin/admin-ai-settings-tab"
-import { AdminFilamentsTab } from "@/components/admin/admin-filaments-tab"
 import { AdminCustomersTab } from "@/components/admin/admin-customers-tab"
 import { AdminOrdersTab } from "@/components/admin/admin-orders-tab"
 import { AdminProductsTab } from "@/components/admin/admin-products-tab"
@@ -51,7 +49,6 @@ type AdminTab =
   | "customers"
   | "settings"
   | "site-texts"
-  | "filaments"
   | "print-calculator"
   | "ai-settings"
 
@@ -75,7 +72,6 @@ const NAV: { id: AdminTab; label: string; icon: typeof ClipboardList }[] = [
   { id: "site-texts", label: "Texte & Inhalte", icon: Type },
   { id: "ai-settings", label: "KI-Modell-Konfiguration", icon: Sparkles },
   { id: "print-calculator", label: "Druck-Kalkulator", icon: Calculator },
-  { id: "filaments", label: "Filament-Verwaltung", icon: Layers },
 ]
 
 export function AdminDashboard() {
@@ -348,7 +344,6 @@ export function AdminDashboard() {
         {tab === "settings" && <AdminSettingsTab />}
         {tab === "site-texts" && <AdminSiteTextsTab />}
         {tab === "ai-settings" && <AdminAiSettingsTab />}
-        {tab === "filaments" && <AdminFilamentsTab />}
         {tab === "print-calculator" && <AdminPrintCalculatorTab />}
       </main>
     </div>

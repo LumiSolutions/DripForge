@@ -64,11 +64,7 @@ import {
   cosmosSaveSiteTexts,
 } from "@/lib/admin/cosmos-site-texts"
 import {
-  cosmosDeleteFilament,
-  cosmosGetFilamentById,
   cosmosGetFilamentMaterials,
-  cosmosGetFilaments,
-  cosmosUpsertFilament,
 } from "@/lib/admin/cosmos-filaments"
 import {
   cosmosGetMaterialStats,
@@ -729,10 +725,6 @@ export async function saveLaserConfiguratorSettings(
   )
 }
 
-export async function getAdminFilaments(): Promise<AdminFilament[]> {
-  return withCosmosRequired("getAdminFilaments", cosmosGetFilaments)
-}
-
 export async function getFilamentMaterials(): Promise<FilamentMaterial[]> {
   return withCosmosFallback(
     "getFilamentMaterials",
@@ -753,28 +745,4 @@ export async function getFilamentMaterials(): Promise<FilamentMaterial[]> {
       )
     }
   )
-}
-
-export async function getFilamentsForStorefront(): Promise<AdminFilament[]> {
-  return withCosmosFallback(
-    "getFilamentsForStorefront",
-    cosmosGetFilaments,
-    async () => {
-      const stored = await readJsonFile<AdminFilament[] | null>(FILAMENTS_FILE, null)
-      if (stored?.length) return stored
-      return []
-    }
-  )
-}
-
-export async function getAdminFilamentById(id: string): Promise<AdminFilament | null> {
-  return withCosmosRequired("getAdminFilamentById", () => cosmosGetFilamentById(id))
-}
-
-export async function upsertFilament(filament: AdminFilament): Promise<AdminFilament> {
-  return withCosmosRequired("upsertFilament", () => cosmosUpsertFilament(filament))
-}
-
-export async function deleteFilament(id: string): Promise<boolean> {
-  return withCosmosRequired("deleteFilament", () => cosmosDeleteFilament(id))
 }
