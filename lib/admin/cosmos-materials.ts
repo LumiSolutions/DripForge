@@ -96,6 +96,10 @@ export function normalizeMaterialItem(raw: Partial<MaterialItem> & { id: string 
     bemerkungen: raw.bemerkungen?.trim() || undefined,
     mindestbestand:
       raw.mindestbestand != null ? Math.max(0, Math.round(Number(raw.mindestbestand))) : undefined,
+    purchasePrice:
+      raw.purchasePrice != null
+        ? Math.round(Math.max(0, Number(raw.purchasePrice) || 0) * 100) / 100
+        : undefined,
     lieferant: raw.lieferant?.trim() || undefined,
     updatedAt: raw.updatedAt ?? new Date().toISOString(),
   }

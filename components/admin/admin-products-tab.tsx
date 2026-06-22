@@ -27,11 +27,19 @@ import {
   calculateSalePrice,
   inferSaleRabattFromProduct,
   resolveProductBasisPreis,
+  roundChf,
   validateSaleDiscount,
   type SaleRabattTyp,
 } from "@/lib/dripforge/product-sale"
 import type { LaserMaterialId, Product } from "@/lib/dripforge/types"
 import type { MaterialItem, ProductMaterialLink } from "@/lib/admin/material-types"
+import {
+  calculateGrossMarginPercent,
+  calculateMarkupFactor,
+  calculateProductPricingBreakdown,
+  salePriceFromMarkupFactor,
+  salePriceFromTargetMarginPercent,
+} from "@/lib/admin/material-pricing"
 import { type ProductSortMode } from "@/lib/admin/list-sort-utils"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
 import { cn } from "@/lib/utils"
@@ -46,6 +54,7 @@ type ProductFormState = Partial<AdminProduct> & {
   variantenText?: string
   basisPreis?: number
   purchasePriceChf?: number
+  additionalBaseCostChf?: number
 }
 
 const EMPTY_FORM: ProductFormState = {
@@ -54,6 +63,7 @@ const EMPTY_FORM: ProductFormState = {
   description: "",
   basisPreis: 0,
   purchasePriceChf: 0,
+  additionalBaseCostChf: 0,
   price: 0,
   originalPrice: null,
   type: "3d",
@@ -110,6 +120,13 @@ function emptyMaterialLink(): ProductMaterialLink {
 function materialLabel(item: MaterialItem): string {
   const parts = [item.manufacturer, item.name, item.farbe].filter(Boolean)
   return parts.join(" — ") || item.name
+}
+
+function marginToneClass(marginPercent: number | null): string {
+  if (marginPercent == null) return adminUi.muted
+  if (marginPercent >= 60) return "text-emerald-600 dark:text-emerald-400"
+  if (marginPercent >= 30) return "text-amber-600 dark:text-amber-400"
+  return "text-red-600 dark:text-red-400"
 }
 
 export function AdminProductsTab() {
@@ -213,6 +230,8 @@ export function AdminProductsTab() {
       modellDateiUrl: product.modellDateiUrl ?? product.modelUrl ?? "",
       variantenText: formatVariantenForAdmin(product.varianten ?? []),
       materialLinks: product.materialLinks ?? [],
+      additionalBaseCostChf: product.additionalBaseCostChf ?? 0,
+      purchasePriceChf: product.purchasePriceChf ?? 0,
       tags: product.tags ?? [],
     })
     setIsEditing(true)
@@ -330,6 +349,16 @@ export function AdminProductsTab() {
     updateField("materialLinks", links)
   }
 
+  const pricingBreakdown = useMemo(
+    () =>
+      calculateProductPricingBreakdown(
+        form.materialLinks ?? [],
+        materialCatalog,
+        form.additionalBaseCostChf ?? 0
+      ),
+    [form.materialLinks, form.additionalBaseCostChf, materialCatalog]
+  )
+
   const salePreview = useMemo(() => {
     const basis = Number(form.basisPreis) || 0
     if (!form.sale || basis <= 0) return null
@@ -343,13 +372,27 @@ export function AdminProductsTab() {
   }, [form.basisPreis, form.sale, form.saleRabattTyp, form.saleRabattWert])
 
   const marginPreview = useMemo(() => {
-    const purchase = Number(form.purchasePriceChf) || 0
+    const selfCost = pricingBreakdown.totalSelfCostChf
     const sale = Number(form.basisPreis) || 0
-    if (purchase <= 0 && sale <= 0) return null
-    const profit = sale - purchase
-    const marginPercent = sale > 0 ? (profit / sale) * 100 : null
-    return { purchase, sale, profit, marginPercent }
-  }, [form.purchasePriceChf, form.basisPreis])
+    if (selfCost <= 0 && sale <= 0) return null
+    const profit = roundChf(sale - selfCost)
+    const marginPercent = calculateGrossMarginPercent(sale, selfCost)
+    const markupFactor = calculateMarkupFactor(sale, selfCost)
+    return { selfCost, sale, profit, marginPercent, markupFactor }
+  }, [pricingBreakdown.totalSelfCostChf, form.basisPreis])
+
+  const applyMarkupFactor = (factor: number) => {
+    const next = salePriceFromMarkupFactor(pricingBreakdown.totalSelfCostChf, factor)
+    updateField("basisPreis", next)
+  }
+
+  const applyTargetMargin = (marginPercent: number) => {
+    const next = salePriceFromTargetMarginPercent(
+      pricingBreakdown.totalSelfCostChf,
+      marginPercent
+    )
+    updateField("basisPreis", next)
+  }
 
   const saveProduct = async () => {
     setSaving(true)
@@ -378,7 +421,11 @@ export function AdminProductsTab() {
         method,
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          purchasePriceChf: pricingBreakdown.totalSelfCostChf,
+          additionalBaseCostChf: pricingBreakdown.additionalBaseCostChf,
+        }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? "Speichern fehlgeschlagen")
@@ -518,61 +565,6 @@ export function AdminProductsTab() {
                     rows={3}
                     className={adminUi.input}
                   />
-                </div>
-                <div className={cn("space-y-4 rounded-xl border p-4 sm:col-span-2", adminUi.section)}>
-                  <h4 className={cn("text-sm font-semibold", adminUi.accentTitle)}>
-                    Preise & Marge
-                  </h4>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label className={adminUi.label}>Einkaufspreis (CHF)</Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={form.purchasePriceChf ?? 0}
-                        onChange={(e) =>
-                          updateField("purchasePriceChf", Number(e.target.value))
-                        }
-                        className={adminUi.input}
-                      />
-                      <p className={cn("text-xs", adminUi.muted)}>
-                        Interne Kalkulation — nicht im Shop sichtbar.
-                      </p>
-                    </div>
-                    <div className="space-y-2">
-                      <Label className={adminUi.label}>Verkaufspreis (CHF)</Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={form.basisPreis ?? 0}
-                        onChange={(e) =>
-                          updateField("basisPreis", Number(e.target.value))
-                        }
-                        className={adminUi.input}
-                      />
-                      <p className={cn("text-xs", adminUi.muted)}>
-                        Basispreis vor Sale-Rabatt.
-                      </p>
-                    </div>
-                  </div>
-                  {marginPreview && (
-                    <p
-                      className={cn(
-                        "text-sm tabular-nums",
-                        marginPreview.profit > 0
-                          ? "text-emerald-600 dark:text-emerald-400"
-                          : marginPreview.profit < 0
-                            ? "text-red-600 dark:text-red-400"
-                            : adminUi.muted
-                      )}
-                    >
-                      Bruttogewinn: CHF {marginPreview.profit.toFixed(2)}
-                      {marginPreview.marginPercent != null &&
-                        ` (${marginPreview.marginPercent.toFixed(1)} % Marge)`}
-                    </p>
-                  )}
                 </div>
                 <div className="space-y-2">
                   <Label className={adminUi.label}>Typ</Label>
@@ -886,6 +878,16 @@ export function AdminProductsTab() {
                         {selectedMaterial && (
                           <p className={cn("text-xs sm:col-span-2", adminUi.muted)}>
                             → {materialLabel(selectedMaterial)}
+                            {(() => {
+                              const line = pricingBreakdown.lines.find(
+                                (entry) =>
+                                  entry.link.materialId === link.materialId &&
+                                  entry.link.consumptionGrams === link.consumptionGrams &&
+                                  (entry.link.productVariant ?? "") ===
+                                    (link.productVariant ?? "")
+                              )
+                              return line ? ` · ${line.detail}` : ""
+                            })()}
                           </p>
                         )}
 
@@ -905,6 +907,164 @@ export function AdminProductsTab() {
                     )
                   })
                 )}
+              </div>
+
+              <div className={cn("grid gap-4 rounded-xl border p-4 sm:grid-cols-2", adminUi.section)}>
+                <div className="space-y-4">
+                  <div>
+                    <h4 className={cn("text-sm font-semibold", adminUi.accentTitle)}>
+                      Kalkulationsbasis (EK)
+                    </h4>
+                    <p className={cn("text-xs", adminUi.muted)}>
+                      Materialkosten aus verknüpften Lagerartikeln plus Zusatzkosten.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className={adminUi.label}>Materialkosten</Label>
+                    {(form.materialLinks?.length ?? 0) === 0 ? (
+                      <p className={cn("text-xs", adminUi.muted)}>
+                        Keine Rohmaterial-Verknüpfung — Materialkosten CHF 0.00
+                      </p>
+                    ) : pricingBreakdown.lines.length === 0 ? (
+                      <p className={cn("text-xs", adminUi.muted)}>
+                        Materialien wählen und Verbrauch angeben.
+                      </p>
+                    ) : (
+                      <ul className="space-y-1.5 text-xs tabular-nums">
+                        {pricingBreakdown.lines.map((line, lineIndex) => (
+                          <li key={`cost-${lineIndex}`} className={adminUi.muted}>
+                            <span className={cn("font-medium", adminUi.accentTitle)}>
+                              {line.label}
+                            </span>
+                            <br />
+                            {line.detail}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    <p className={cn("text-sm font-medium tabular-nums", adminUi.accentTitle)}>
+                      Summe Material: CHF {pricingBreakdown.materialCostChf.toFixed(2)}
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className={adminUi.label}>Zusätzliche Basiskosten (CHF)</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={form.additionalBaseCostChf ?? 0}
+                      onChange={(e) =>
+                        updateField("additionalBaseCostChf", Number(e.target.value))
+                      }
+                      placeholder="Strom, Verschleiss, Verpackung…"
+                      className={adminUi.input}
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className={adminUi.label}>Gesamte Selbstkosten (EK)</Label>
+                    <Input
+                      type="text"
+                      readOnly
+                      value={`CHF ${pricingBreakdown.totalSelfCostChf.toFixed(2)}`}
+                      className={cn(adminUi.input, "font-semibold tabular-nums opacity-90")}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <h4 className={cn("text-sm font-semibold", adminUi.accentTitle)}>
+                      Verkaufspreis & Marge
+                    </h4>
+                    <p className={cn("text-xs", adminUi.muted)}>
+                      Verkaufspreis vor Sale-Rabatt — nicht im Shop sichtbar: EK-Kalkulation.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className={adminUi.label}>Verkaufspreis (CHF)</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={form.basisPreis ?? 0}
+                      onChange={(e) =>
+                        updateField("basisPreis", Number(e.target.value))
+                      }
+                      className={adminUi.input}
+                    />
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label className={adminUi.label}>Faktor (Aufschlag)</Label>
+                      <Input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        value={
+                          marginPreview?.markupFactor != null
+                            ? marginPreview.markupFactor
+                            : ""
+                        }
+                        placeholder="z. B. 3"
+                        onChange={(e) => {
+                          const factor = Number(e.target.value)
+                          if (factor > 0) applyMarkupFactor(factor)
+                        }}
+                        className={adminUi.input}
+                      />
+                      <p className={cn("text-xs", adminUi.muted)}>VK = EK × Faktor</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className={adminUi.label}>Gewünschte Marge (%)</Label>
+                      <Input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        max="99.9"
+                        value={
+                          marginPreview?.marginPercent != null
+                            ? marginPreview.marginPercent
+                            : ""
+                        }
+                        placeholder="z. B. 70"
+                        onChange={(e) => {
+                          const margin = Number(e.target.value)
+                          if (Number.isFinite(margin) && margin >= 0 && margin < 100) {
+                            applyTargetMargin(margin)
+                          }
+                        }}
+                        className={adminUi.input}
+                      />
+                      <p className={cn("text-xs", adminUi.muted)}>Bruttomarge auf VK</p>
+                    </div>
+                  </div>
+
+                  {marginPreview && (
+                    <div
+                      className={cn(
+                        "rounded-lg border px-3 py-2 text-sm tabular-nums",
+                        adminUi.section
+                      )}
+                    >
+                      <p className={marginToneClass(marginPreview.marginPercent)}>
+                        Bruttogewinn: CHF {marginPreview.profit.toFixed(2)}
+                        {marginPreview.marginPercent != null &&
+                          ` (${marginPreview.marginPercent.toFixed(1)} % Marge)`}
+                      </p>
+                      {marginPreview.marginPercent != null &&
+                        marginPreview.marginPercent >= 60 && (
+                          <p className={cn("text-xs", adminUi.muted)}>
+                            Zielmarge erreicht (≥ 60 %)
+                          </p>
+                        )}
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className={cn("space-y-4 rounded-xl border p-4", adminUi.section)}>

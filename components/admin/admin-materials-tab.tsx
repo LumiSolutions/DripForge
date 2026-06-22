@@ -49,6 +49,7 @@ import {
   isMaterialLowStock,
   resolveMaterialPreviewImage,
 } from "@/lib/admin/material-types"
+import { materialPurchasePriceUnitLabel } from "@/lib/admin/material-pricing"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
 import { cn } from "@/lib/utils"
 
@@ -625,6 +626,30 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
                   </div>
                 </div>
               )}
+
+              <div className={cn("space-y-2 rounded-xl border p-4", adminUi.section)}>
+                <Label>Einkaufspreis pro Einheit (CHF)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={draft.purchasePrice ?? ""}
+                  onChange={(e) =>
+                    setDraft({
+                      ...draft,
+                      purchasePrice:
+                        e.target.value === ""
+                          ? undefined
+                          : Math.max(0, Number(e.target.value) || 0),
+                    })
+                  }
+                  placeholder="0.00"
+                  className={adminUi.input}
+                />
+                <p className={cn("text-xs", adminUi.muted)}>
+                  {materialPurchasePriceUnitLabel(draft)} — Basis für die Produktkalkulation.
+                </p>
+              </div>
 
               {category === "filament" && (
                 <div className="grid gap-4 sm:grid-cols-2">

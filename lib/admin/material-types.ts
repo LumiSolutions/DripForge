@@ -60,6 +60,8 @@ export type MaterialItem = {
   bemerkungen?: string
   /** Meldebestand in Gramm (Filament) oder Stück */
   mindestbestand?: number
+  /** Einkaufspreis pro Einheit (CHF): pro 1000g-Rolle oder pro Stück */
+  purchasePrice?: number
   lieferant?: string
   updatedAt: string
 }

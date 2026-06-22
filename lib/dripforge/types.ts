@@ -31,8 +31,10 @@ export type Product = {
   sale: boolean
   /** Unrabattierter Referenzpreis (Admin) */
   basisPreis?: number
-  /** Einkaufspreis für Margenkalkulation (nur Admin) */
+  /** Gesamte Selbstkosten / EK für Margenkalkulation (nur Admin) */
   purchasePriceChf?: number
+  /** Zusätzliche Basiskosten (Strom, Verschleiss, Verpackung) in CHF */
+  additionalBaseCostChf?: number
   /** Rabatt-Art im Sale */
   saleRabattTyp?: "percent" | "fixed"
   /** Rabatt-Wert (% oder CHF) */
