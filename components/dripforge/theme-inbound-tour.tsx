@@ -184,92 +184,117 @@ export function ThemeInboundTour({
       ? "theme-drip-enter theme-drip-pulse"
       : "theme-drip-enter-mobile theme-drip-pulse-mobile"
 
-  return createPortal(
-    <>
-      <button
-        type="button"
-        aria-label="Theme-Hinweis schliessen"
-        className={cn(
-          "fixed inset-0 z-[300] bg-black/55 backdrop-blur-[1px] transition-opacity duration-300",
-          exiting ? "opacity-0" : "opacity-100"
-        )}
-        onClick={dismissWithSystemTheme}
-      />
+  const dripPanel = (
+    <div
+      className={cn(
+        "relative flex flex-col items-center transition-opacity duration-300",
+        exiting && "opacity-0"
+      )}
+    >
+      <div className="relative w-full">
+        <Image
+          src={dripImageSrc}
+          alt=""
+          width={340}
+          height={400}
+          priority
+          unoptimized={shouldUseUnoptimizedThemeTourImage(dripImageSrc)}
+          aria-hidden
+          className="pointer-events-none mx-auto h-auto w-full opacity-[0.88] drop-shadow-[0_18px_36px_rgba(249,115,22,0.35)] md:max-w-[18rem]"
+        />
 
+        <div className="absolute inset-x-0 bottom-[13%] flex flex-col items-center justify-center gap-3 px-4 pb-2 pt-2 md:bottom-[15%] md:gap-3.5 md:px-8">
+          {hasTourText && (
+            <p
+              id="theme-inbound-tour-title"
+              className="whitespace-pre-line text-center text-base font-extrabold leading-[1.15] tracking-tight text-slate-900 sm:text-lg md:text-2xl"
+            >
+              {tourText}
+            </p>
+          )}
+
+          <div className="flex w-full max-w-[14rem] flex-col items-stretch gap-2 sm:max-w-[16rem] sm:gap-3 md:max-w-none md:flex-row md:justify-center md:gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              className="h-auto min-h-10 w-full touch-manipulation border border-slate-300/80 bg-white/95 px-3 py-3 text-sm font-medium text-foreground shadow-md hover:bg-white sm:min-h-12 sm:px-4 sm:py-4 sm:text-base md:h-9 md:min-h-0 md:min-w-[7.25rem] md:flex-none md:py-2 md:text-sm"
+              onClick={() => closeWithTheme("light")}
+            >
+              <Sun className="mr-2 h-4 w-4 shrink-0 text-amber-500" />
+              Tagmodus
+            </Button>
+            <Button
+              type="button"
+              className="h-auto min-h-10 w-full touch-manipulation border border-slate-700/40 bg-zinc-900/95 px-3 py-3 text-sm font-medium text-white shadow-md hover:bg-zinc-900 sm:min-h-12 sm:px-4 sm:py-4 sm:text-base md:h-9 md:min-h-0 md:min-w-[7.25rem] md:flex-none md:py-2 md:text-sm"
+              onClick={() => closeWithTheme("dark")}
+            >
+              <Moon className="mr-2 h-4 w-4 shrink-0 text-sky-300" />
+              Nachtmodus
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+
+  if (isDesktop) {
+    return createPortal(
+      <>
+        <button
+          type="button"
+          aria-label="Theme-Hinweis schliessen"
+          className={cn(
+            "fixed inset-0 z-[300] bg-black/55 backdrop-blur-[1px] transition-opacity duration-300",
+            exiting ? "opacity-0" : "opacity-100"
+          )}
+          onClick={dismissWithSystemTheme}
+        />
+
+        <div
+          className={cn(
+            "pointer-events-auto fixed z-[305] w-[min(18rem,calc(100vw-1.5rem))] max-w-[19rem]",
+            animationClass
+          )}
+          style={{
+            left: position!.left,
+            top: position!.top + 4,
+          }}
+          role="dialog"
+          aria-modal="true"
+          {...(hasTourText
+            ? { "aria-labelledby": "theme-inbound-tour-title" }
+            : { "aria-label": "Theme-Modus wählen" })}
+        >
+          {dripPanel}
+        </div>
+      </>,
+      document.body
+    )
+  }
+
+  return createPortal(
+    <div
+      className={cn(
+        "fixed inset-0 z-[300] flex flex-col items-center justify-center bg-black/40 p-4 backdrop-blur-sm transition-opacity duration-300",
+        exiting ? "opacity-0" : "opacity-100"
+      )}
+      onClick={dismissWithSystemTheme}
+    >
       <div
         className={cn(
-          "pointer-events-auto fixed z-[305]",
-          isDesktop
-            ? "w-[min(18rem,calc(100vw-1.5rem))] max-w-[19rem]"
-            : "top-1/2 left-1/2 w-[85vw] max-w-[340px] -translate-x-1/2 -translate-y-1/2",
+          "pointer-events-auto w-full max-w-[240px] sm:max-w-[280px]",
           animationClass
         )}
-        style={
-          isDesktop
-            ? {
-                left: position!.left,
-                top: position!.top + 4,
-              }
-            : undefined
-        }
         role="dialog"
         aria-modal="true"
+        onClick={(event) => event.stopPropagation()}
         {...(hasTourText
           ? { "aria-labelledby": "theme-inbound-tour-title" }
           : { "aria-label": "Theme-Modus wählen" })}
       >
-        <div
-          className={cn(
-            "relative flex flex-col items-center transition-opacity duration-300",
-            exiting && "opacity-0"
-          )}
-        >
-          <div className="relative w-full">
-            <Image
-              src={dripImageSrc}
-              alt=""
-              width={340}
-              height={400}
-              priority
-              unoptimized={shouldUseUnoptimizedThemeTourImage(dripImageSrc)}
-              aria-hidden
-              className="pointer-events-none mx-auto h-auto w-full opacity-[0.88] drop-shadow-[0_18px_36px_rgba(249,115,22,0.35)] md:max-w-[18rem]"
-            />
-
-            <div className="absolute inset-x-0 bottom-[13%] flex flex-col items-center justify-center gap-4 px-6 pb-2 pt-2 md:bottom-[15%] md:gap-3.5 md:px-8">
-              {hasTourText && (
-                <p
-                  id="theme-inbound-tour-title"
-                  className="whitespace-pre-line text-center text-xl font-extrabold leading-[1.15] tracking-tight text-slate-900 md:text-2xl"
-                >
-                  {tourText}
-                </p>
-              )}
-
-              <div className="flex w-full max-w-[16rem] flex-col items-stretch gap-3 md:max-w-none md:flex-row md:justify-center md:gap-2">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  className="h-auto min-h-12 w-full touch-manipulation border border-slate-300/80 bg-white/95 px-4 py-4 text-base font-medium text-foreground shadow-md hover:bg-white md:h-9 md:min-h-0 md:min-w-[7.25rem] md:flex-none md:py-2 md:text-sm"
-                  onClick={() => closeWithTheme("light")}
-                >
-                  <Sun className="mr-2 h-4 w-4 shrink-0 text-amber-500" />
-                  Tagmodus
-                </Button>
-                <Button
-                  type="button"
-                  className="h-auto min-h-12 w-full touch-manipulation border border-slate-700/40 bg-zinc-900/95 px-4 py-4 text-base font-medium text-white shadow-md hover:bg-zinc-900 md:h-9 md:min-h-0 md:min-w-[7.25rem] md:flex-none md:py-2 md:text-sm"
-                  onClick={() => closeWithTheme("dark")}
-                >
-                  <Moon className="mr-2 h-4 w-4 shrink-0 text-sky-300" />
-                  Nachtmodus
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
+        {dripPanel}
       </div>
-    </>,
+    </div>,
     document.body
   )
 }
