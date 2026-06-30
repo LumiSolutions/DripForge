@@ -1,37 +1,37 @@
 import { NextResponse } from "next/server"
 import { adminDatabaseErrorResponse } from "@/lib/admin/api-errors"
 import {
-  getSiteConfigProduction,
+  getSiteConfigMeta,
   getSiteConfigStaging,
   saveSiteConfigStaging,
 } from "@/lib/admin/db"
-import { SITE_CONFIG_PREVIEW_PARAM } from "@/lib/admin/site-config"
 import {
   isAuthError,
   requireAdminSession,
 } from "@/lib/admin/require-admin-session"
-import { mergeSiteTexts, sanitizeSiteTextsInput } from "@/lib/admin/site-texts"
+import { sanitizeSiteTextsInput } from "@/lib/admin/site-texts"
 import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
 
 export const dynamic = "force-dynamic"
 
 export async function GET(request: Request) {
+  const auth = requireAdminSession(request)
+  if (isAuthError(auth)) return auth
+
   try {
     await warmCosmosInfrastructure()
-    const preview =
-      new URL(request.url).searchParams.get(SITE_CONFIG_PREVIEW_PARAM) === "true"
-    const texts = preview
-      ? await getSiteConfigStaging()
-      : await getSiteConfigProduction()
-    return NextResponse.json(
-      { texts, preview },
-      { headers: { "Cache-Control": "no-store, max-age=0" } }
-    )
+    const [texts, meta] = await Promise.all([
+      getSiteConfigStaging(),
+      getSiteConfigMeta(),
+    ])
+    return NextResponse.json({ texts, meta, environment: "staging" })
   } catch (error) {
-    console.error("Site-Texts API: Laden fehlgeschlagen.", error)
+    const dbResponse = adminDatabaseErrorResponse(error)
+    if (dbResponse) return dbResponse
+    console.error("Admin Site-Config: Laden fehlgeschlagen.", error)
     return NextResponse.json(
-      { texts: mergeSiteTexts(null), preview: false },
-      { headers: { "Cache-Control": "no-store, max-age=0" } }
+      { error: "Texte konnten nicht geladen werden." },
+      { status: 500 }
     )
   }
 }
@@ -50,11 +50,12 @@ export async function PUT(request: Request) {
     const existing = await getSiteConfigStaging()
     const texts = sanitizeSiteTextsInput({ ...existing, ...body.texts })
     const saved = await saveSiteConfigStaging(texts)
-    return NextResponse.json({ texts: saved, environment: "staging" })
+    const meta = await getSiteConfigMeta()
+    return NextResponse.json({ texts: saved, meta, environment: "staging" })
   } catch (error) {
     const dbResponse = adminDatabaseErrorResponse(error)
     if (dbResponse) return dbResponse
-    console.error("Site-Texts API: Speichern fehlgeschlagen.", error)
+    console.error("Admin Site-Config: Speichern fehlgeschlagen.", error)
     return NextResponse.json(
       { error: "Texte konnten nicht gespeichert werden." },
       { status: 500 }

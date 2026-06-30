@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react"
 import { Loader2 } from "lucide-react"
 import { ComingSoonPage } from "@/components/dripforge/coming-soon-page"
-import { SiteTextsProvider } from "@/components/dripforge/site-texts-provider"
 import { CartProvider } from "@/components/dripforge/cart-provider"
 import { StorefrontShell } from "@/components/dripforge/storefront-shell"
 
@@ -66,18 +65,12 @@ export function StorefrontLaunchLayout({ children }: { children: ReactNode }) {
   }
 
   if (!status?.canAccessShop) {
-    return (
-      <SiteTextsProvider>
-        <ComingSoonPage onAccessGranted={() => void loadStatus()} />
-      </SiteTextsProvider>
-    )
+    return <ComingSoonPage onAccessGranted={() => void loadStatus()} />
   }
 
   return (
-    <SiteTextsProvider>
-      <CartProvider>
-        <StorefrontShell>{children}</StorefrontShell>
-      </CartProvider>
-    </SiteTextsProvider>
+    <CartProvider>
+      <StorefrontShell>{children}</StorefrontShell>
+    </CartProvider>
   )
 }

@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { attachmentKey } from "@/lib/tawk/tawk-attachments"
 import {
   loadTawkBridge,
@@ -9,13 +9,15 @@ import {
 } from "@/lib/tawk/tawk-bridge"
 import type { TawkUiMessage } from "@/lib/tawk/tawk-types"
 import { uploadTawkVisitorFile } from "@/lib/tawk/tawk-upload-file"
+import { DEFAULT_SITE_TEXTS } from "@/lib/admin/site-texts"
 
-const WELCOME_MESSAGE: TawkUiMessage = {
-  id: "welcome",
-  role: "admin",
-  content:
-    "Willkommen bei DripForge! Schreib uns deine Frage — unser Team antwortet live. Wir melden uns so schnell wie möglich.",
-  createdAt: new Date(0).toISOString(),
+function buildWelcomeMessage(content: string): TawkUiMessage {
+  return {
+    id: "welcome",
+    role: "admin",
+    content,
+    createdAt: new Date(0).toISOString(),
+  }
 }
 
 function messageAttachmentKey(message: TawkUiMessage): string {
@@ -43,12 +45,24 @@ function isDuplicateMessage(prev: TawkUiMessage[], next: TawkUiMessage): boolean
   )
 }
 
-export function useTawkChat(enabled: boolean) {
-  const [messages, setMessages] = useState<TawkUiMessage[]>([WELCOME_MESSAGE])
+export function useTawkChat(enabled: boolean, welcomeText?: string) {
+  const welcomeMessage = useMemo(
+    () => buildWelcomeMessage(welcomeText?.trim() || DEFAULT_SITE_TEXTS.chat_welcome),
+    [welcomeText]
+  )
+
+  const [messages, setMessages] = useState<TawkUiMessage[]>(() => [welcomeMessage])
   const [loading, setLoading] = useState(false)
   const [sending, setSending] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [ready, setReady] = useState(false)
+
+  useEffect(() => {
+    setMessages((prev) => {
+      const withoutWelcome = prev.filter((entry) => entry.id !== "welcome")
+      return [welcomeMessage, ...withoutWelcome]
+    })
+  }, [welcomeMessage])
 
   const appendMessage = useCallback((message: TawkUiMessage) => {
     setMessages((prev) => {

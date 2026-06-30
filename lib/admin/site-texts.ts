@@ -12,7 +12,7 @@ export type SiteTextField = {
 }
 
 export type SiteTextSection = {
-  id: "landingpage" | "shop" | "konto" | "footer"
+  id: "landingpage" | "shop" | "konto" | "footer" | "chat"
   label: string
   fields: SiteTextField[]
 }
@@ -83,6 +83,44 @@ export const DEFAULT_SITE_TEXTS = {
   footer_company_heading: "Unternehmen",
   footer_contact_heading: "Kontakt",
   footer_copyright_suffix: "Alle Rechte vorbehalten.",
+
+  chat_welcome:
+    "Willkommen bei DripForge! Schreib uns deine Frage — unser Team antwortet live. Wir melden uns so schnell wie möglich.",
+  chat_title: "DripForge Live-Chat",
+  chat_status_connecting: "Verbinden…",
+  chat_status_live: "Team antwortet live",
+  chat_loading: "Chat wird geladen…",
+  chat_input_placeholder: "Nachricht eingeben...",
+  chat_contact_link: "Team kontaktieren",
+  chat_open_label: "Chat öffnen",
+  chat_support_mission: "Unsere Mission",
+
+  landingpage_expertise_prefix: "Unsere ",
+  landingpage_expertise_3d_title: "3D-Druck",
+  landingpage_expertise_3d_description:
+    "Präzise additive Fertigung mit Premium-Filamenten. Von Prototypen bis zu fertigen Produkten.",
+  landingpage_expertise_3d_cta: "Mehr erfahren",
+  landingpage_expertise_laser_title: "Lasergravur",
+  landingpage_expertise_laser_description:
+    "Hochpräzises Laserschneiden und Gravieren auf Holz, Acryl, Leder und mehr.",
+  landingpage_expertise_laser_cta: "Mehr erfahren",
+  landingpage_ai_title: "KI-Modell erstellen",
+  landingpage_ai_description:
+    "Text-to-3D und Image-to-3D — beschreibe deine Idee und erhalte ein druckbares 3D-Modell nach unseren technischen Vorgaben.",
+  landingpage_ai_cta: "KI-Konfigurator starten",
+  landingpage_why_prefix: "Warum ",
+  landingpage_cta_title_prefix: "Bereit zum ",
+  landingpage_feature_1_title: "Premium Qualität",
+  landingpage_feature_1_description:
+    "Industrietaugliche Materialien und Präzisionsfertigung für langlebige Ergebnisse.",
+  landingpage_feature_2_title: "Schnelle Lieferung",
+  landingpage_feature_2_description:
+    "Schnelle Produktionszeiten ohne Kompromisse bei Qualität oder Detail.",
+  landingpage_feature_3_title: "Individuelle Kreationen",
+  landingpage_feature_3_description:
+    "Von Ihrer Idee zur Realität - voll personalisierte Produkte.",
+  landingpage_feature_4_title: "Vielfältige Materialien",
+  landingpage_feature_4_description: "PLA, PETG, ASA, Holz, Acryl, Leder und mehr.",
 } as const
 
 export const SITE_TEXT_SECTIONS: SiteTextSection[] = [
@@ -97,6 +135,7 @@ export const SITE_TEXT_SECTIONS: SiteTextSection[] = [
       { key: "landingpage_hero_cta_primary", label: "Primaerer Button" },
       { key: "landingpage_hero_cta_secondary", label: "Sekundaerer Button" },
       { key: "landingpage_expertise_heading", label: "Expertise-Ueberschrift" },
+      { key: "landingpage_expertise_prefix", label: "Expertise-Prefix (z.B. Unsere)" },
       {
         key: "landingpage_expertise_subtitle_both",
         label: "Expertise-Text (3D + Laser)",
@@ -108,7 +147,9 @@ export const SITE_TEXT_SECTIONS: SiteTextSection[] = [
         multiline: true,
       },
       { key: "landingpage_why_heading", label: "Warum-Ueberschrift" },
+      { key: "landingpage_why_prefix", label: "Warum-Prefix (z.B. Warum)" },
       { key: "landingpage_why_subtitle", label: "Warum-Text", multiline: true },
+      { key: "landingpage_cta_title_prefix", label: "CTA-Titel Prefix (z.B. Bereit zum)" },
       { key: "landingpage_cta_title", label: "CTA-Titel (hervorgehoben)" },
       { key: "landingpage_cta_subtitle", label: "CTA-Text", multiline: true },
       { key: "landingpage_cta_button_upload", label: "CTA-Button Upload" },
@@ -124,6 +165,62 @@ export const SITE_TEXT_SECTIONS: SiteTextSection[] = [
         label: "Countdown abgelaufen Hinweis",
         multiline: true,
       },
+      { key: "landingpage_expertise_3d_title", label: "3D-Karte Titel" },
+      {
+        key: "landingpage_expertise_3d_description",
+        label: "3D-Karte Beschreibung",
+        multiline: true,
+      },
+      { key: "landingpage_expertise_3d_cta", label: "3D-Karte Button" },
+      { key: "landingpage_expertise_laser_title", label: "Laser-Karte Titel" },
+      {
+        key: "landingpage_expertise_laser_description",
+        label: "Laser-Karte Beschreibung",
+        multiline: true,
+      },
+      { key: "landingpage_expertise_laser_cta", label: "Laser-Karte Button" },
+      { key: "landingpage_ai_title", label: "KI-Block Titel" },
+      { key: "landingpage_ai_description", label: "KI-Block Text", multiline: true },
+      { key: "landingpage_ai_cta", label: "KI-Block Button" },
+      { key: "landingpage_feature_1_title", label: "Feature 1 Titel" },
+      {
+        key: "landingpage_feature_1_description",
+        label: "Feature 1 Text",
+        multiline: true,
+      },
+      { key: "landingpage_feature_2_title", label: "Feature 2 Titel" },
+      {
+        key: "landingpage_feature_2_description",
+        label: "Feature 2 Text",
+        multiline: true,
+      },
+      { key: "landingpage_feature_3_title", label: "Feature 3 Titel" },
+      {
+        key: "landingpage_feature_3_description",
+        label: "Feature 3 Text",
+        multiline: true,
+      },
+      { key: "landingpage_feature_4_title", label: "Feature 4 Titel" },
+      {
+        key: "landingpage_feature_4_description",
+        label: "Feature 4 Text",
+        multiline: true,
+      },
+    ],
+  },
+  {
+    id: "chat",
+    label: "Live-Chat",
+    fields: [
+      { key: "chat_welcome", label: "Willkommensnachricht", multiline: true },
+      { key: "chat_title", label: "Chat-Titel" },
+      { key: "chat_status_connecting", label: "Status: Verbinden" },
+      { key: "chat_status_live", label: "Status: Live" },
+      { key: "chat_loading", label: "Lade-Hinweis" },
+      { key: "chat_input_placeholder", label: "Eingabefeld Placeholder" },
+      { key: "chat_contact_link", label: "Kontakt-Link" },
+      { key: "chat_open_label", label: "Chat-Button Label" },
+      { key: "chat_support_mission", label: "Support-Herz Titel" },
     ],
   },
   {

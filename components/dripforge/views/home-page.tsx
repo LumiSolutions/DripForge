@@ -129,7 +129,7 @@ export function HomePage({
         <div className="mx-auto max-w-7xl px-4">
           <div className="mb-12 text-center">
             <h2 className="text-3xl font-bold md:text-4xl">
-              <span className="text-foreground">Unsere </span>
+              <span className="text-foreground">{t("landingpage_expertise_prefix")}</span>
               <span className="bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent">{t("landingpage_expertise_heading")}</span>
             </h2>
             <p className="mt-4 text-muted-foreground">
@@ -155,15 +155,15 @@ export function HomePage({
                     <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/20">
                       <Printer className="h-6 w-6 text-primary" />
                     </div>
-                    <h3 className="mb-2 text-xl font-bold">3D-Druck</h3>
+                    <h3 className="mb-2 text-xl font-bold">{t("landingpage_expertise_3d_title")}</h3>
                     <p className="mb-6 text-sm text-muted-foreground">
-                      Präzise additive Fertigung mit Premium-Filamenten. Von Prototypen bis zu fertigen Produkten.
+                      {t("landingpage_expertise_3d_description")}
                     </p>
                     <Link
                       href={SHOP_ROUTES["3d-druck"]}
                       className="inline-flex items-center text-sm font-medium text-foreground hover:text-primary"
                     >
-                      Mehr erfahren
+                      {t("landingpage_expertise_3d_cta")}
                       <ArrowRight className="ml-1 h-4 w-4" />
                     </Link>
                   </div>
@@ -188,15 +188,15 @@ export function HomePage({
                     <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-cyan-500/20">
                       <Zap className="h-6 w-6 text-cyan-400" />
                     </div>
-                    <h3 className="mb-2 text-xl font-bold">Lasergravur</h3>
+                    <h3 className="mb-2 text-xl font-bold">{t("landingpage_expertise_laser_title")}</h3>
                     <p className="mb-6 text-sm text-muted-foreground">
-                      Hochpräzises Laserschneiden und Gravieren auf Holz, Acryl, Leder und mehr.
+                      {t("landingpage_expertise_laser_description")}
                     </p>
                     <Link
                       href={SHOP_ROUTES.laser}
                       className="inline-flex items-center text-sm font-medium text-foreground hover:text-primary"
                     >
-                      Mehr erfahren
+                      {t("landingpage_expertise_laser_cta")}
                       <ArrowRight className="ml-1 h-4 w-4" />
                     </Link>
                   </div>
@@ -226,10 +226,9 @@ export function HomePage({
                 <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-violet-500/20">
                   <Sparkles className="h-6 w-6 text-violet-400" />
                 </div>
-                <h2 className="text-2xl font-bold">KI-Modell erstellen</h2>
+                <h2 className="text-2xl font-bold">{t("landingpage_ai_title")}</h2>
                 <p className="mt-2 max-w-xl text-muted-foreground">
-                  Text-to-3D und Image-to-3D — beschreibe deine Idee und erhalte
-                  ein druckbares 3D-Modell nach unseren technischen Vorgaben.
+                  {t("landingpage_ai_description")}
                 </p>
               </div>
               <Button
@@ -238,7 +237,7 @@ export function HomePage({
                 className="bg-violet-600 text-white hover:bg-violet-500"
               >
                 <Link href={SHOP_ROUTES.aiKonfigurator}>
-                  KI-Konfigurator starten
+                  {t("landingpage_ai_cta")}
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Link>
               </Button>
@@ -253,7 +252,7 @@ export function HomePage({
         <div className="mx-auto max-w-7xl px-4">
           <div className="mb-12 text-center">
             <h2 className="text-3xl font-bold md:text-4xl">
-              <span className="text-foreground">Warum </span>
+              <span className="text-foreground">{t("landingpage_why_prefix")}</span>
               <span className="bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent">{t("landingpage_why_heading")}</span>
             </h2>
             <p className="mt-4 text-muted-foreground">
@@ -263,12 +262,12 @@ export function HomePage({
 
           <div className="grid gap-6 md:grid-cols-4">
             {[
-              { icon: Gem, title: "Premium Qualität", description: "Industrietaugliche Materialien und Präzisionsfertigung für langlebige Ergebnisse." },
-              { icon: Timer, title: "Schnelle Lieferung", description: "Schnelle Produktionszeiten ohne Kompromisse bei Qualität oder Detail." },
-              { icon: Sparkles, title: "Individuelle Kreationen", description: "Von Ihrer Idee zur Realität - voll personalisierte Produkte." },
-              { icon: Layers, title: "Vielfältige Materialien", description: "PLA, PETG, ASA, Holz, Acryl, Leder und mehr." },
+              { icon: Gem, titleKey: "landingpage_feature_1_title" as const, descKey: "landingpage_feature_1_description" as const },
+              { icon: Timer, titleKey: "landingpage_feature_2_title" as const, descKey: "landingpage_feature_2_description" as const },
+              { icon: Sparkles, titleKey: "landingpage_feature_3_title" as const, descKey: "landingpage_feature_3_description" as const },
+              { icon: Layers, titleKey: "landingpage_feature_4_title" as const, descKey: "landingpage_feature_4_description" as const },
             ].map((feature, i) => (
-              <Card key={i} className="border-border/50 bg-card/50">
+              <Card key={feature.titleKey} className="border-border/50 bg-card/50">
                 <CardContent className="p-6">
                   <div className={cn(
                     "mb-4 flex h-12 w-12 items-center justify-center rounded-xl",
@@ -279,8 +278,8 @@ export function HomePage({
                       i === 0 ? "text-primary" : i === 1 ? "text-cyan-400" : i === 2 ? "text-green-400" : "text-purple-400"
                     )} />
                   </div>
-                  <h3 className="mb-2 font-bold">{feature.title}</h3>
-                  <p className="text-sm text-muted-foreground">{feature.description}</p>
+                  <h3 className="mb-2 font-bold">{t(feature.titleKey)}</h3>
+                  <p className="text-sm text-muted-foreground">{t(feature.descKey)}</p>
                 </CardContent>
               </Card>
             ))}
@@ -295,7 +294,7 @@ export function HomePage({
             <CardContent className="p-12 text-center">
               <Package className="mx-auto mb-4 h-10 w-10 text-cyan-400" />
               <h2 className="mb-4 text-3xl font-bold">
-                <span className="text-foreground">Bereit zum </span>
+                <span className="text-foreground">{t("landingpage_cta_title_prefix")}</span>
                 <span className="bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent">{t("landingpage_cta_title")}</span>
                 <span className="text-foreground">?</span>
               </h2>

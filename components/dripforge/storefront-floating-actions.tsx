@@ -21,12 +21,14 @@ import { cn } from "@/lib/utils"
 import { useSupportPageSettings } from "@/hooks/use-support-page-active"
 import { useFloatingActionsVisible } from "@/hooks/use-floating-actions-visible"
 import { useTawkChat } from "@/hooks/use-tawk-chat"
+import { useSiteTexts } from "@/components/dripforge/site-texts-provider"
 import { SUPPORT_ROUTE } from "@/components/dripforge/support-nav-link"
 import { shopViewHref } from "@/lib/dripforge/shop-routes"
 
 /** Globale schwebende Aktionen: Support-Herz + Live-Chat (Mobil + Desktop). */
 export function StorefrontFloatingActions() {
   const router = useRouter()
+  const { t } = useSiteTexts()
   const visible = useFloatingActionsVisible()
   const { showSupportOnMainSite: supportPageVisible } = useSupportPageSettings()
   const [mounted, setMounted] = useState(false)
@@ -35,7 +37,10 @@ export function StorefrontFloatingActions() {
   const scrollRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const { messages, loading, sending, uploading, sendMessage, uploadFile } = useTawkChat(chatOpen)
+  const { messages, loading, sending, uploading, sendMessage, uploadFile } = useTawkChat(
+    chatOpen,
+    t("chat_welcome")
+  )
 
   useEffect(() => {
     setMounted(true)
@@ -88,9 +93,9 @@ export function StorefrontFloatingActions() {
                 <Bot className="h-4 w-4 text-primary-foreground" />
               </div>
               <div>
-                <p className="text-sm font-medium">DripForge Live-Chat</p>
+                <p className="text-sm font-medium">{t("chat_title")}</p>
                 <p className="text-xs text-muted-foreground">
-                  {loading ? "Verbinden…" : "Team antwortet live"}
+                  {loading ? t("chat_status_connecting") : t("chat_status_live")}
                 </p>
               </div>
             </div>
@@ -107,7 +112,7 @@ export function StorefrontFloatingActions() {
             {loading ? (
               <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Chat wird geladen…
+                {t("chat_loading")}
               </div>
             ) : (
               <div className="space-y-4">
@@ -173,7 +178,7 @@ export function StorefrontFloatingActions() {
                 onKeyDown={(e) => {
                   if (e.key === "Enter") void handleSendMessage()
                 }}
-                placeholder="Nachricht eingeben..."
+                placeholder={t("chat_input_placeholder")}
                 className="flex-1"
                 disabled={loading || sending || uploading}
               />
@@ -195,7 +200,7 @@ export function StorefrontFloatingActions() {
               onClick={() => router.push(shopViewHref("kontakt"))}
               className="mt-2 text-xs text-primary hover:underline"
             >
-              Team kontaktieren
+              {t("chat_contact_link")}
             </button>
           </div>
         </div>
@@ -206,8 +211,8 @@ export function StorefrontFloatingActions() {
           href={SUPPORT_ROUTE}
           prefetch
           className="pointer-events-auto flex h-12 w-12 touch-manipulation items-center justify-center rounded-full border border-primary/30 bg-background/95 text-primary shadow-lg backdrop-blur-sm transition-transform hover:scale-105 hover:bg-primary/10"
-          title="Unsere Mission"
-          aria-label="Unsere Mission unterstützen"
+          title={t("chat_support_mission")}
+          aria-label={t("chat_support_mission")}
         >
           <Heart className="h-5 w-5 fill-primary/20 text-primary" />
         </Link>
@@ -217,8 +222,8 @@ export function StorefrontFloatingActions() {
         type="button"
         onClick={() => setChatOpen((open) => !open)}
         className="pointer-events-auto flex h-14 w-14 touch-manipulation items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-105"
-        title="Chat öffnen"
-        aria-label="Chat öffnen"
+        title={t("chat_open_label")}
+        aria-label={t("chat_open_label")}
       >
         <MessageCircle className="h-6 w-6" />
       </button>

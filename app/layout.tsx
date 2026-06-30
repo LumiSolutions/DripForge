@@ -11,6 +11,11 @@ import {
 } from "next/font/google"
 import "./globals.css"
 import { ParticleBackground } from "@/components/dripforge/particle-background"
+import {
+  SiteConfigPreviewBanner,
+  SiteConfigPreviewProvider,
+} from "@/components/dripforge/site-config-preview-banner"
+import { SiteTextsProvider } from "@/components/dripforge/site-texts-provider"
 import { StorefrontFloatingActions } from "@/components/dripforge/storefront-floating-actions"
 
 const geistSans = Geist({
@@ -74,8 +79,15 @@ export default function RootLayout({
     >
       <body className="flex min-h-full flex-col font-sans">
         <ParticleBackground />
-        <div className="relative z-20 flex min-h-full flex-1 flex-col">{children}</div>
-        <StorefrontFloatingActions />
+        <div className="relative z-20 flex min-h-full flex-1 flex-col">
+          <SiteConfigPreviewProvider>
+            <SiteTextsProvider>
+              <SiteConfigPreviewBanner />
+              {children}
+              <StorefrontFloatingActions />
+            </SiteTextsProvider>
+          </SiteConfigPreviewProvider>
+        </div>
       </body>
     </html>
   )

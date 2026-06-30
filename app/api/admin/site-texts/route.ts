@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server"
 import { adminDatabaseErrorResponse } from "@/lib/admin/api-errors"
-import { getSiteTexts, saveSiteTexts } from "@/lib/admin/db"
+import {
+  getSiteConfigMeta,
+  getSiteConfigStaging,
+  saveSiteConfigStaging,
+} from "@/lib/admin/db"
 import {
   isAuthError,
   requireAdminSession,
@@ -16,8 +20,11 @@ export async function GET(request: Request) {
 
   try {
     await warmCosmosInfrastructure()
-    const texts = await getSiteTexts()
-    return NextResponse.json({ texts })
+    const [texts, meta] = await Promise.all([
+      getSiteConfigStaging(),
+      getSiteConfigMeta(),
+    ])
+    return NextResponse.json({ texts, meta, environment: "staging" })
   } catch (error) {
     const dbResponse = adminDatabaseErrorResponse(error)
     if (dbResponse) return dbResponse
@@ -40,10 +47,11 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: "Text-Daten fehlen." }, { status: 400 })
     }
 
-    const existing = await getSiteTexts()
+    const existing = await getSiteConfigStaging()
     const texts = sanitizeSiteTextsInput({ ...existing, ...body.texts })
-    const saved = await saveSiteTexts(texts)
-    return NextResponse.json({ texts: saved })
+    const saved = await saveSiteConfigStaging(texts)
+    const meta = await getSiteConfigMeta()
+    return NextResponse.json({ texts: saved, meta, environment: "staging" })
   } catch (error) {
     const dbResponse = adminDatabaseErrorResponse(error)
     if (dbResponse) return dbResponse

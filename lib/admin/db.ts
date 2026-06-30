@@ -61,6 +61,13 @@ import {
   cosmosUpsertCustomerFromOrder,
 } from "@/lib/admin/cosmos-store"
 import {
+  cosmosGetSiteConfigMeta,
+  cosmosGetSiteConfigProduction,
+  cosmosGetSiteConfigStaging,
+  cosmosPublishSiteConfig,
+  cosmosSaveSiteConfigStaging,
+} from "@/lib/admin/cosmos-site-config"
+import {
   cosmosGetSiteTexts,
   cosmosSaveSiteTexts,
 } from "@/lib/admin/cosmos-site-texts"
@@ -94,7 +101,7 @@ import {
   type LaserConfiguratorSettings,
 } from "@/lib/admin/laser-configurator-types"
 import { mergeAiSettings, type AiSettingsDocument } from "@/lib/ai/ai-settings-types"
-import { mergeSiteTexts, type SiteTexts } from "@/lib/admin/site-texts"
+import { mergeSiteTexts, sanitizeSiteTextsInput, type SiteTexts } from "@/lib/admin/site-texts"
 import type { AdminFilament } from "@/lib/admin/filament-types"
 import {
   mergeMaterialStats,
@@ -112,6 +119,8 @@ const ORDERS_FILE = "orders.json"
 const PRODUCTS_FILE = "products.json"
 const SETTINGS_FILE = "settings.json"
 const SITE_TEXTS_FILE = "site-texts.json"
+const SITE_CONFIG_STAGING_FILE = "site-config-staging.json"
+const SITE_CONFIG_PRODUCTION_FILE = "site-config-production.json"
 const FILAMENTS_FILE = "filaments.json"
 const MATERIAL_STATS_FILE = "material-stats.json"
 const AI_SETTINGS_FILE = "ai-settings.json"
@@ -622,22 +631,86 @@ export async function setShopLive(shopLive: boolean): Promise<AdminSettings> {
   return next
 }
 
-export async function getSiteTexts(): Promise<SiteTexts> {
+export async function getSiteConfigProduction(): Promise<SiteTexts> {
   return withCosmosFallback(
-    "getSiteTexts",
-    cosmosGetSiteTexts,
+    "getSiteConfigProduction",
+    cosmosGetSiteConfigProduction,
     async () => {
       const stored = await readJsonFile<Partial<Record<string, string>> | null>(
+        SITE_CONFIG_PRODUCTION_FILE,
+        null
+      )
+      if (stored) return mergeSiteTexts(stored)
+
+      const legacy = await readJsonFile<Partial<Record<string, string>> | null>(
         SITE_TEXTS_FILE,
         null
       )
-      return mergeSiteTexts(stored)
+      return mergeSiteTexts(legacy)
     }
   )
 }
 
+export async function getSiteConfigStaging(): Promise<SiteTexts> {
+  return withCosmosFallback(
+    "getSiteConfigStaging",
+    cosmosGetSiteConfigStaging,
+    async () => {
+      const stored = await readJsonFile<Partial<Record<string, string>> | null>(
+        SITE_CONFIG_STAGING_FILE,
+        null
+      )
+      if (stored) return mergeSiteTexts(stored)
+      return getSiteConfigProduction()
+    }
+  )
+}
+
+export async function saveSiteConfigStaging(texts: SiteTexts): Promise<SiteTexts> {
+  const sanitized = sanitizeSiteTextsInput(texts)
+  return withCosmosFallback(
+    "saveSiteConfigStaging",
+    async () => {
+      await cosmosSaveSiteConfigStaging(sanitized)
+      return sanitized
+    },
+    async () => {
+      await writeJsonFile(SITE_CONFIG_STAGING_FILE, sanitized)
+      return sanitized
+    }
+  )
+}
+
+export async function publishSiteConfig(): Promise<SiteTexts> {
+  return withCosmosFallback(
+    "publishSiteConfig",
+    async () => cosmosPublishSiteConfig(),
+    async () => {
+      const staging = await getSiteConfigStaging()
+      const published = sanitizeSiteTextsInput(staging)
+      await writeJsonFile(SITE_CONFIG_PRODUCTION_FILE, published)
+      return published
+    }
+  )
+}
+
+export async function getSiteConfigMeta(): Promise<{
+  stagingUpdatedAt: string | null
+  productionUpdatedAt: string | null
+}> {
+  return withCosmosFallback(
+    "getSiteConfigMeta",
+    cosmosGetSiteConfigMeta,
+    async () => ({ stagingUpdatedAt: null, productionUpdatedAt: null })
+  )
+}
+
+export async function getSiteTexts(): Promise<SiteTexts> {
+  return getSiteConfigProduction()
+}
+
 export async function saveSiteTexts(texts: SiteTexts): Promise<SiteTexts> {
-  return withCosmosRequired("saveSiteTexts", () => cosmosSaveSiteTexts(texts))
+  return saveSiteConfigStaging(texts)
 }
 
 export async function getMaterialStats(): Promise<MaterialStatsMap> {

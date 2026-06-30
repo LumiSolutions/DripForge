@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { Loader2 } from "lucide-react"
 import { ShopHeader } from "@/components/dripforge/shop-header"
 import { ShopFooter } from "@/components/dripforge/shop-footer"
-import { SiteTextsProvider } from "@/components/dripforge/site-texts-provider"
 import { SupportPageContent } from "@/components/dripforge/views/support-page-content"
 import { fetchSupportPageSettings } from "@/hooks/use-support-page-active"
 
@@ -76,26 +75,24 @@ export default function SupportPage() {
   }, [])
 
   return (
-    <SiteTextsProvider>
-      <div className="min-h-screen bg-background text-foreground">
-        <ShopHeader mode="link" />
+    <div className="min-h-screen bg-background text-foreground">
+      <ShopHeader mode="link" />
 
-        <main>
-          <SupportPageGate>
-            <Suspense
-              fallback={
-                <div className="py-24 text-center text-muted-foreground">
-                  Support-Seite wird geladen…
-                </div>
-              }
-            >
-              <SupportPageInner />
-            </Suspense>
-          </SupportPageGate>
-        </main>
+      <main>
+        <SupportPageGate>
+          <Suspense
+            fallback={
+              <div className="py-24 text-center text-muted-foreground">
+                Support-Seite wird geladen…
+              </div>
+            }
+          >
+            <SupportPageInner />
+          </Suspense>
+        </SupportPageGate>
+      </main>
 
-        <ShopFooter />
-      </div>
-    </SiteTextsProvider>
+      <ShopFooter />
+    </div>
   )
 }
