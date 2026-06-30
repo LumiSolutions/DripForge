@@ -303,3 +303,17 @@
 .theme-drip-exit-mobile {
   animation: theme-drip-exit-mobile 0.32s ease-in forwards;
 }
+
+/* Tawk.to: Standard-Widget ausblenden — eigenes DripForge-Chat-UI bleibt sichtbar */
+iframe[title*="chat widget" i],
+iframe[title*="tawk" i],
+#tawk-bubble-container,
+.tawk-min-container,
+.tawk-max-container,
+.tawk-button-circle,
+.tawk-button {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}

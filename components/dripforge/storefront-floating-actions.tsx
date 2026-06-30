@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -11,63 +11,45 @@ import {
   Bot,
   Heart,
   X,
+  Loader2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { useSupportPageSettings } from "@/hooks/use-support-page-active"
 import { useFloatingActionsVisible } from "@/hooks/use-floating-actions-visible"
+import { useTawkChat } from "@/hooks/use-tawk-chat"
 import { SUPPORT_ROUTE } from "@/components/dripforge/support-nav-link"
 import { shopViewHref } from "@/lib/dripforge/shop-routes"
 
-type ChatMessage = {
-  id: string
-  role: "assistant" | "user"
-  content: string
-}
-
-/** Globale schwebende Aktionen: Support-Herz + Chatbot (Mobil + Desktop). */
+/** Globale schwebende Aktionen: Support-Herz + Live-Chat (Mobil + Desktop). */
 export function StorefrontFloatingActions() {
   const router = useRouter()
   const visible = useFloatingActionsVisible()
   const { showSupportOnMainSite: supportPageVisible } = useSupportPageSettings()
   const [mounted, setMounted] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
-    {
-      id: "1",
-      role: "assistant",
-      content:
-        "Willkommen bei DripForge! Wie kann ich Ihnen heute helfen? Ich kann Fragen zu unseren 3D-Druck- und Lasergravur-Services beantworten.",
-    },
-  ])
   const [chatInput, setChatInput] = useState("")
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  const { messages, loading, sending, error, sendMessage } = useTawkChat(chatOpen)
 
   useEffect(() => {
     setMounted(true)
   }, [])
 
-  const handleSendMessage = useCallback(() => {
-    if (!chatInput.trim()) return
-    const newMessage: ChatMessage = {
-      id: Date.now().toString(),
-      role: "user",
-      content: chatInput,
-    }
-    setChatMessages((prev) => [...prev, newMessage])
+  useEffect(() => {
+    if (!chatOpen || !scrollRef.current) return
+    scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+  }, [chatOpen, messages])
+
+  const handleSendMessage = async () => {
+    if (!chatInput.trim() || sending) return
+    const text = chatInput
     setChatInput("")
-    setTimeout(() => {
-      setChatMessages((prev) => [
-        ...prev,
-        {
-          id: (Date.now() + 1).toString(),
-          role: "assistant",
-          content:
-            "Vielen Dank für Ihre Nachricht! Unser Team wird sich in Kürze bei Ihnen melden. Für dringende Anfragen erreichen Sie uns unter drip-forge@outlook.com",
-        },
-      ])
-    }, 1000)
-  }, [chatInput])
+    const ok = await sendMessage(text)
+    if (!ok) setChatInput(text)
+  }
 
   if (!visible || !mounted) {
     return null
@@ -94,8 +76,10 @@ export function StorefrontFloatingActions() {
                 <Bot className="h-4 w-4 text-primary-foreground" />
               </div>
               <div>
-                <p className="text-sm font-medium">DripForge Assistent</p>
-                <p className="text-xs text-muted-foreground">Online</p>
+                <p className="text-sm font-medium">DripForge Live-Chat</p>
+                <p className="text-xs text-muted-foreground">
+                  {loading ? "Verbinden…" : "Team antwortet live"}
+                </p>
               </div>
             </div>
             <button
@@ -107,50 +91,74 @@ export function StorefrontFloatingActions() {
               <X className="h-5 w-5" />
             </button>
           </div>
-          <div className="h-64 overflow-y-auto p-4">
-            <div className="space-y-4">
-              {chatMessages.map((msg) => (
-                <div
-                  key={msg.id}
-                  className={cn("flex gap-2", msg.role === "user" && "flex-row-reverse")}
-                >
+          <div ref={scrollRef} className="h-64 overflow-y-auto p-4">
+            {loading ? (
+              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Chat wird geladen…
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {messages.map((msg) => (
                   <div
-                    className={cn(
-                      "flex h-6 w-6 shrink-0 items-center justify-center rounded-full",
-                      msg.role === "assistant" ? "bg-primary" : "bg-secondary"
-                    )}
+                    key={msg.id}
+                    className={cn("flex gap-2", msg.role === "visitor" && "flex-row-reverse")}
                   >
-                    {msg.role === "assistant" ? (
-                      <Bot className="h-3 w-3 text-primary-foreground" />
-                    ) : (
-                      <User className="h-3 w-3" />
-                    )}
+                    <div
+                      className={cn(
+                        "flex h-6 w-6 shrink-0 items-center justify-center rounded-full",
+                        msg.role === "visitor" ? "bg-secondary" : "bg-primary"
+                      )}
+                    >
+                      {msg.role === "visitor" ? (
+                        <User className="h-3 w-3" />
+                      ) : (
+                        <Bot className="h-3 w-3 text-primary-foreground" />
+                      )}
+                    </div>
+                    <div
+                      className={cn(
+                        "max-w-[85%] rounded-2xl px-3 py-2 text-sm",
+                        msg.role === "visitor"
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-secondary"
+                      )}
+                    >
+                      {msg.content}
+                    </div>
                   </div>
-                  <div
-                    className={cn(
-                      "rounded-2xl px-3 py-2 text-sm",
-                      msg.role === "assistant"
-                        ? "bg-secondary"
-                        : "bg-primary text-primary-foreground"
-                    )}
-                  >
-                    {msg.content}
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
           <div className="border-t border-border p-4">
+            {error && (
+              <p className="mb-2 text-xs text-red-500" role="alert">
+                {error}
+              </p>
+            )}
             <div className="flex gap-2">
               <Input
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") void handleSendMessage()
+                }}
                 placeholder="Nachricht eingeben..."
                 className="flex-1"
+                disabled={loading || sending}
               />
-              <Button size="icon" onClick={handleSendMessage} aria-label="Nachricht senden">
-                <Send className="h-4 w-4" />
+              <Button
+                size="icon"
+                onClick={() => void handleSendMessage()}
+                disabled={loading || sending || !chatInput.trim()}
+                aria-label="Nachricht senden"
+              >
+                {sending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
               </Button>
             </div>
             <button

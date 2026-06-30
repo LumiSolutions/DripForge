@@ -219,3 +219,7 @@ export async function getCustomerCartsContainer(): Promise<Container> {
 export async function getStaffAccountsContainer(): Promise<Container> {
   return ensureContainer("staff-accounts", "/id")
 }
+
+export async function getChatContainer(): Promise<Container> {
+  return ensureContainer("chat", "/sessionId")
+}
