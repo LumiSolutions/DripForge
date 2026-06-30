@@ -304,7 +304,8 @@
   animation: theme-drip-exit-mobile 0.32s ease-in forwards;
 }
 
-/* Tawk.to: Standard-Widget ausblenden — eigenes DripForge-Chat-UI bleibt sichtbar */
+/* Tawk.to: Standard-Widget unsichtbar off-screen — bleibt funktionsfähig für Custom-UI */
+#tawk-hidden-host,
 iframe[title*="chat widget" i],
 iframe[title*="tawk" i],
 #tawk-bubble-container,
@@ -312,8 +313,13 @@ iframe[title*="tawk" i],
 .tawk-max-container,
 .tawk-button-circle,
 .tawk-button {
-  display: none !important;
-  visibility: hidden !important;
+  position: fixed !important;
+  left: -10000px !important;
+  top: -10000px !important;
+  width: 1px !important;
+  height: 1px !important;
   opacity: 0 !important;
+  visibility: hidden !important;
   pointer-events: none !important;
+  overflow: hidden !important;
 }

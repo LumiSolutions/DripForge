@@ -1,6 +1,7 @@
 "use client"
 
 import { getTawkEmbedSrc } from "@/lib/tawk/tawk-config"
+import { dispatchTawkVisitorMessage, prepareTawkEmbeddedHost } from "@/lib/tawk/tawk-send-message"
 import type { TawkApi, TawkChatRole, TawkUiMessage } from "@/lib/tawk/tawk-types"
 
 type MessageListener = (message: TawkUiMessage) => void
@@ -43,11 +44,42 @@ function emitUiMessage(role: TawkChatRole, raw: unknown): void {
   listeners.forEach((listener) => listener(uiMessage))
 }
 
+function wireIncomingMessageHandlers(api: TawkApi): void {
+  const handleAgent = (message: unknown) => {
+    emitUiMessage("admin", message)
+    api.onChatMessageReceived?.(message)
+  }
+
+  const handleVisitor = (message: unknown) => {
+    const content = normalizeTawkMessageContent(message)
+    if (content && pendingVisitorTexts.has(content)) {
+      pendingVisitorTexts.delete(content)
+      return
+    }
+    emitUiMessage("visitor", message)
+    api.onChatMessageReceived?.(message)
+  }
+
+  api.onChatMessageAgent = handleAgent
+  api.onChatMessageVisitor = handleVisitor
+
+  window.addEventListener("tawkChatMessageAgent", (event) => {
+    handleAgent((event as CustomEvent).detail)
+  })
+  window.addEventListener("tawkChatMessageVisitor", (event) => {
+    handleVisitor((event as CustomEvent).detail)
+  })
+}
+
 function injectTawkScript(): void {
   if (scriptInjected || typeof document === "undefined") return
   scriptInjected = true
 
   if (document.querySelector(`script[data-tawk-bridge="true"]`)) return
+
+  if (window.Tawk_API) {
+    prepareTawkEmbeddedHost(window.Tawk_API)
+  }
 
   const script = document.createElement("script")
   script.async = true
@@ -79,6 +111,9 @@ export function loadTawkBridge(): Promise<TawkApi> {
     const api = window.Tawk_API
     let settled = false
 
+    prepareTawkEmbeddedHost(api)
+    wireIncomingMessageHandlers(api)
+
     const markReady = () => {
       if (settled) return
       settled = true
@@ -95,21 +130,6 @@ export function loadTawkBridge(): Promise<TawkApi> {
     api.onLoad = function onLoad() {
       previousOnLoad?.()
       markReady()
-    }
-
-    api.onChatMessageAgent = function onChatMessageAgent(message) {
-      emitUiMessage("admin", message)
-      api.onChatMessageReceived?.(message)
-    }
-
-    api.onChatMessageVisitor = function onChatMessageVisitor(message) {
-      const content = normalizeTawkMessageContent(message)
-      if (content && pendingVisitorTexts.has(content)) {
-        pendingVisitorTexts.delete(content)
-        return
-      }
-      emitUiMessage("visitor", message)
-      api.onChatMessageReceived?.(message)
     }
 
     injectTawkScript()
@@ -130,29 +150,22 @@ export async function sendTawkVisitorMessage(content: string): Promise<void> {
   if (!text) return
 
   const api = await loadTawkBridge()
-  api.start?.()
   pendingVisitorTexts.add(text)
 
-  await new Promise<void>((resolve, reject) => {
-    const finish = (error?: unknown) => {
-      if (error) {
-        pendingVisitorTexts.delete(text)
-        reject(error instanceof Error ? error : new Error("Tawk sendMessage fehlgeschlagen."))
-        return
+  const waitForTawkEcho = new Promise<void>((resolve) => {
+    const started = Date.now()
+    const timer = window.setInterval(() => {
+      if (!pendingVisitorTexts.has(text) || Date.now() - started > 8_000) {
+        window.clearInterval(timer)
+        resolve()
       }
-      resolve()
-    }
-
-    if (typeof api.sendMessage === "function") {
-      api.sendMessage(text, finish)
-      return
-    }
-
-    pendingVisitorTexts.delete(text)
-    reject(
-      new Error(
-        "Tawk sendMessage ist in dieser Widget-Version nicht verfügbar. Bitte Tawk.to aktualisieren."
-      )
-    )
+    }, 100)
   })
+
+  try {
+    await dispatchTawkVisitorMessage(api, text)
+    await waitForTawkEcho
+  } finally {
+    window.setTimeout(() => pendingVisitorTexts.delete(text), 15_000)
+  }
 }

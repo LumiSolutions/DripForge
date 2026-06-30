@@ -32,7 +32,7 @@ export function StorefrontFloatingActions() {
   const [chatInput, setChatInput] = useState("")
   const scrollRef = useRef<HTMLDivElement>(null)
 
-  const { messages, loading, sending, error, sendMessage } = useTawkChat(chatOpen)
+  const { messages, loading, sending, sendMessage } = useTawkChat(chatOpen)
 
   useEffect(() => {
     setMounted(true)
@@ -132,11 +132,6 @@ export function StorefrontFloatingActions() {
             )}
           </div>
           <div className="border-t border-border p-4">
-            {error && (
-              <p className="mb-2 text-xs text-red-500" role="alert">
-                {error}
-              </p>
-            )}
             <div className="flex gap-2">
               <Input
                 value={chatInput}

@@ -20,7 +20,6 @@ export function useTawkChat(enabled: boolean) {
   const [messages, setMessages] = useState<TawkUiMessage[]>([WELCOME_MESSAGE])
   const [loading, setLoading] = useState(false)
   const [sending, setSending] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [ready, setReady] = useState(false)
 
   const appendMessage = useCallback((message: TawkUiMessage) => {
@@ -34,12 +33,11 @@ export function useTawkChat(enabled: boolean) {
     if (!enabled) return
 
     setLoading(true)
-    setError(null)
 
     void loadTawkBridge()
       .then(() => setReady(true))
       .catch((err) => {
-        setError(err instanceof Error ? err.message : "Chat konnte nicht geladen werden.")
+        console.warn("[Chat] Tawk konnte nicht geladen werden.", err)
       })
       .finally(() => setLoading(false))
   }, [enabled])
@@ -57,7 +55,6 @@ export function useTawkChat(enabled: boolean) {
       if (!text || !ready) return false
 
       setSending(true)
-      setError(null)
 
       appendMessage({
         id: `local-${Date.now()}`,
@@ -68,13 +65,13 @@ export function useTawkChat(enabled: boolean) {
 
       try {
         await sendTawkVisitorMessage(text)
-        return true
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Senden fehlgeschlagen.")
-        return false
+        console.warn("[Chat] Tawk-Übermittlung fehlgeschlagen.", err)
       } finally {
         setSending(false)
       }
+
+      return true
     },
     [ready, appendMessage]
   )
@@ -83,7 +80,6 @@ export function useTawkChat(enabled: boolean) {
     messages,
     loading,
     sending,
-    error,
     sendMessage,
     ready,
   }
