@@ -1,8 +1,12 @@
 "use client"
 
+import {
+  attachmentKey,
+  parseTawkAttachments,
+} from "@/lib/tawk/tawk-attachments"
 import { getTawkEmbedSrc } from "@/lib/tawk/tawk-config"
 import { dispatchTawkVisitorMessage, prepareTawkEmbeddedHost } from "@/lib/tawk/tawk-send-message"
-import type { TawkApi, TawkChatRole, TawkUiMessage } from "@/lib/tawk/tawk-types"
+import type { TawkApi, TawkAttachment, TawkChatRole, TawkUiMessage } from "@/lib/tawk/tawk-types"
 
 type MessageListener = (message: TawkUiMessage) => void
 
@@ -54,10 +58,20 @@ function extractTawkTimestamp(raw: unknown): string | null {
 export function buildIncomingMessageKey(
   role: TawkChatRole,
   content: string,
-  raw: unknown
+  raw: unknown,
+  attachments: TawkAttachment[] = parseTawkAttachments(raw)
 ): string {
   const tawkId = extractTawkMessageId(raw)
-  if (tawkId) return `${role}:id:${tawkId}`
+  if (tawkId) {
+    if (attachments.length > 0) {
+      return `${role}:id:${tawkId}:${attachmentKey(attachments)}`
+    }
+    return `${role}:id:${tawkId}`
+  }
+
+  if (attachments.length > 0) {
+    return `${role}:att:${attachmentKey(attachments)}:${content}`
+  }
 
   const timestamp = extractTawkTimestamp(raw)
   if (timestamp) return `${role}:ts:${timestamp}:${content}`
@@ -79,7 +93,12 @@ function hideTawkWidget(api: TawkApi): void {
   api.hideWidget?.()
 }
 
-function toUiMessage(role: TawkChatRole, raw: unknown, content: string): TawkUiMessage {
+function toUiMessage(
+  role: TawkChatRole,
+  raw: unknown,
+  content: string,
+  attachments: TawkAttachment[]
+): TawkUiMessage {
   const tawkId = extractTawkMessageId(raw)
   const timestamp = extractTawkTimestamp(raw)
 
@@ -87,24 +106,35 @@ function toUiMessage(role: TawkChatRole, raw: unknown, content: string): TawkUiM
     id: tawkId ?? createMessageId(role),
     role,
     content,
+    attachments: attachments.length > 0 ? attachments : undefined,
     createdAt: timestamp ?? new Date().toISOString(),
   }
+}
+
+function normalizeFileUploadLink(link: unknown): string | null {
+  if (typeof link === "string" && link.trim()) return link.trim()
+  if (link && typeof link === "object") {
+    const record = link as Record<string, unknown>
+    if (typeof record.url === "string" && record.url.trim()) return record.url.trim()
+  }
+  return null
 }
 
 /** Einziger Einstieg für eingehende Tawk-Nachrichten (Agent + Visitor). */
 function handleChatMessageReceived(raw: unknown, role: TawkChatRole): void {
   const content = normalizeTawkMessageContent(raw)
-  if (!content) return
+  const attachments = parseTawkAttachments(raw)
+  if (!content && attachments.length === 0) return
 
-  if (role === "visitor" && pendingVisitorTexts.has(content)) {
+  if (role === "visitor" && content && pendingVisitorTexts.has(content)) {
     pendingVisitorTexts.delete(content)
     return
   }
 
-  const dedupeKey = buildIncomingMessageKey(role, content, raw)
+  const dedupeKey = buildIncomingMessageKey(role, content, raw, attachments)
   if (!rememberIncomingKey(dedupeKey)) return
 
-  const uiMessage = toUiMessage(role, raw, content)
+  const uiMessage = toUiMessage(role, raw, content, attachments)
   listeners.forEach((listener) => listener(uiMessage))
 }
 
@@ -112,13 +142,29 @@ function wireIncomingMessageHandlers(api: TawkApi): void {
   if (handlersWired) return
   handlersWired = true
 
-  // Ein Hook für Agent-Antworten (Tawk ruft onChatMessageAgent nativ auf).
   api.onChatMessageAgent = (message) => {
     handleChatMessageReceived(message, "admin")
   }
 
   api.onChatMessageVisitor = (message) => {
     handleChatMessageReceived(message, "visitor")
+  }
+
+  api.onFileUpload = (link) => {
+    const url = normalizeFileUploadLink(link)
+    if (!url) return
+
+    handleChatMessageReceived(
+      {
+        attachments: [
+          {
+            type: "file",
+            content: { file: { url } },
+          },
+        ],
+      },
+      "visitor"
+    )
   }
 }
 

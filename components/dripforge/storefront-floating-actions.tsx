@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, type ChangeEvent } from "react"
 import { createPortal } from "react-dom"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -12,7 +12,9 @@ import {
   Heart,
   X,
   Loader2,
+  Paperclip,
 } from "lucide-react"
+import { ChatMessageContent } from "@/components/dripforge/chat-message-content"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
@@ -31,8 +33,9 @@ export function StorefrontFloatingActions() {
   const [chatOpen, setChatOpen] = useState(false)
   const [chatInput, setChatInput] = useState("")
   const scrollRef = useRef<HTMLDivElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const { messages, loading, sending, sendMessage } = useTawkChat(chatOpen)
+  const { messages, loading, sending, uploading, sendMessage, uploadFile } = useTawkChat(chatOpen)
 
   useEffect(() => {
     setMounted(true)
@@ -44,11 +47,18 @@ export function StorefrontFloatingActions() {
   }, [chatOpen, messages])
 
   const handleSendMessage = async () => {
-    if (!chatInput.trim() || sending) return
+    if (!chatInput.trim() || sending || uploading) return
     const text = chatInput
     setChatInput("")
     const ok = await sendMessage(text)
     if (!ok) setChatInput(text)
+  }
+
+  const handleFileSelect = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ""
+    if (!file || uploading || sending) return
+    await uploadFile(file)
   }
 
   if (!visible || !mounted) {
@@ -124,7 +134,7 @@ export function StorefrontFloatingActions() {
                           : "bg-secondary"
                       )}
                     >
-                      {msg.content}
+                      <ChatMessageContent message={msg} isVisitor={msg.role === "visitor"} />
                     </div>
                   </div>
                 ))}
@@ -132,7 +142,29 @@ export function StorefrontFloatingActions() {
             )}
           </div>
           <div className="border-t border-border p-4">
+            <input
+              ref={fileInputRef}
+              type="file"
+              className="hidden"
+              accept="image/*,.pdf,.doc,.docx"
+              onChange={(event) => void handleFileSelect(event)}
+            />
             <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="shrink-0 text-muted-foreground hover:text-foreground"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={loading || sending || uploading}
+                aria-label="Datei anhängen"
+              >
+                {uploading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Paperclip className="h-4 w-4" />
+                )}
+              </Button>
               <Input
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
@@ -141,12 +173,12 @@ export function StorefrontFloatingActions() {
                 }}
                 placeholder="Nachricht eingeben..."
                 className="flex-1"
-                disabled={loading || sending}
+                disabled={loading || sending || uploading}
               />
               <Button
                 size="icon"
                 onClick={() => void handleSendMessage()}
-                disabled={loading || sending || !chatInput.trim()}
+                disabled={loading || sending || uploading || !chatInput.trim()}
                 aria-label="Nachricht senden"
               >
                 {sending ? (

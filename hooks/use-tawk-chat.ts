@@ -1,12 +1,14 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
+import { attachmentKey } from "@/lib/tawk/tawk-attachments"
 import {
   loadTawkBridge,
   sendTawkVisitorMessage,
   subscribeTawkMessages,
 } from "@/lib/tawk/tawk-bridge"
 import type { TawkUiMessage } from "@/lib/tawk/tawk-types"
+import { uploadTawkVisitorFile } from "@/lib/tawk/tawk-upload-file"
 
 const WELCOME_MESSAGE: TawkUiMessage = {
   id: "welcome",
@@ -16,16 +18,28 @@ const WELCOME_MESSAGE: TawkUiMessage = {
   createdAt: new Date(0).toISOString(),
 }
 
+function messageAttachmentKey(message: TawkUiMessage): string {
+  return attachmentKey(message.attachments ?? [])
+}
+
 function isDuplicateMessage(prev: TawkUiMessage[], next: TawkUiMessage): boolean {
   if (prev.some((entry) => entry.id === next.id && entry.id !== "welcome")) {
     return true
+  }
+
+  const nextAttachments = messageAttachmentKey(next)
+  if (nextAttachments) {
+    return prev.some(
+      (entry) => entry.role === next.role && messageAttachmentKey(entry) === nextAttachments
+    )
   }
 
   return prev.some(
     (entry) =>
       entry.role === next.role &&
       entry.content === next.content &&
-      entry.createdAt === next.createdAt
+      entry.createdAt === next.createdAt &&
+      !messageAttachmentKey(entry)
   )
 }
 
@@ -33,6 +47,7 @@ export function useTawkChat(enabled: boolean) {
   const [messages, setMessages] = useState<TawkUiMessage[]>([WELCOME_MESSAGE])
   const [loading, setLoading] = useState(false)
   const [sending, setSending] = useState(false)
+  const [uploading, setUploading] = useState(false)
   const [ready, setReady] = useState(false)
 
   const appendMessage = useCallback((message: TawkUiMessage) => {
@@ -91,11 +106,42 @@ export function useTawkChat(enabled: boolean) {
     [ready, appendMessage]
   )
 
+  const uploadFile = useCallback(
+    async (file: File) => {
+      if (!ready || !file) return false
+
+      setUploading(true)
+
+      try {
+        const link = await uploadTawkVisitorFile(file)
+        if (link) {
+          appendMessage({
+            id: `local-file-${Date.now()}`,
+            role: "visitor",
+            content: file.name,
+            attachments: [{ url: link, name: file.name, mimeType: file.type }],
+            createdAt: new Date().toISOString(),
+          })
+        }
+      } catch (err) {
+        console.warn("[Chat] Tawk-Upload fehlgeschlagen.", err)
+        return false
+      } finally {
+        setUploading(false)
+      }
+
+      return true
+    },
+    [ready, appendMessage]
+  )
+
   return {
     messages,
     loading,
     sending,
+    uploading,
     sendMessage,
+    uploadFile,
     ready,
   }
 }

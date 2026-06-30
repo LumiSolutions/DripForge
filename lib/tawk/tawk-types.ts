@@ -1,13 +1,23 @@
 export type TawkChatRole = "visitor" | "admin"
 
+export type TawkAttachment = {
+  url: string
+  name?: string
+  mimeType?: string
+  extension?: string
+  size?: string
+}
+
 export type TawkUiMessage = {
   id: string
   role: TawkChatRole
   content: string
+  attachments?: TawkAttachment[]
   createdAt: string
 }
 
 export type TawkMessageCallback = (message: unknown) => void
+export type TawkFileUploadCallback = (link: unknown) => void
 
 export type TawkApi = {
   hideWidget?: () => void
@@ -20,6 +30,8 @@ export type TawkApi = {
   onChatMessageAgent?: TawkMessageCallback
   onChatMessageVisitor?: TawkMessageCallback
   onChatMessageReceived?: TawkMessageCallback
+  onFileUpload?: TawkFileUploadCallback
+  uploadFile?: (file: File, callback?: (error?: unknown, link?: string) => void) => void
   addEvent?: (
     eventName: string,
     metadata?: Record<string, unknown>,
