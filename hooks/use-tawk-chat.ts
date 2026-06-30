@@ -108,31 +108,30 @@ export function useTawkChat(enabled: boolean) {
 
   const uploadFile = useCallback(
     async (file: File) => {
-      if (!ready || !file) return false
+      if (!file || uploading || sending) return false
 
       setUploading(true)
 
       try {
-        const link = await uploadTawkVisitorFile(file)
-        if (link) {
-          appendMessage({
-            id: `local-file-${Date.now()}`,
-            role: "visitor",
-            content: file.name,
-            attachments: [{ url: link, name: file.name, mimeType: file.type }],
-            createdAt: new Date().toISOString(),
-          })
+        if (!ready) {
+          throw new Error("Tawk-Chat ist noch nicht bereit. Bitte kurz warten und erneut versuchen.")
         }
+
+        const result = await uploadTawkVisitorFile(file)
+        if (!result.success || !result.url) {
+          throw new Error("Tawk Upload ohne bestätigte Bild-URL abgeschlossen.")
+        }
+
+        console.log("[Chat] Upload bestätigt:", result.url)
+        return true
       } catch (err) {
-        console.warn("[Chat] Tawk-Upload fehlgeschlagen.", err)
+        console.error("[Chat] Tawk-Upload fehlgeschlagen.", err)
         return false
       } finally {
         setUploading(false)
       }
-
-      return true
     },
-    [ready, appendMessage]
+    [ready, uploading, sending]
   )
 
   return {

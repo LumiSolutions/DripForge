@@ -19,6 +19,13 @@ export type TawkUiMessage = {
 export type TawkMessageCallback = (message: unknown) => void
 export type TawkFileUploadCallback = (link: unknown) => void
 
+export type TawkUploadResult = {
+  success: boolean
+  url?: string
+}
+
+export type TawkUploadCallback = (error?: unknown, result?: TawkUploadResult) => void
+
 export type TawkApi = {
   hideWidget?: () => void
   showWidget?: () => void
@@ -31,7 +38,7 @@ export type TawkApi = {
   onChatMessageVisitor?: TawkMessageCallback
   onChatMessageReceived?: TawkMessageCallback
   onFileUpload?: TawkFileUploadCallback
-  uploadFile?: (file: File, callback?: (error?: unknown, link?: string) => void) => void
+  uploadFile?: (file: File, callback?: TawkUploadCallback) => void
   addEvent?: (
     eventName: string,
     metadata?: Record<string, unknown>,

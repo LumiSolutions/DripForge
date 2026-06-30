@@ -6,14 +6,18 @@ import {
 } from "@/lib/tawk/tawk-attachments"
 import { getTawkEmbedSrc } from "@/lib/tawk/tawk-config"
 import { dispatchTawkVisitorMessage, prepareTawkEmbeddedHost } from "@/lib/tawk/tawk-send-message"
+import { installTawkSessionKeyCapture } from "@/lib/tawk/tawk-session-key"
+import { installTawkUploadFilePolyfill } from "@/lib/tawk/tawk-upload-file"
 import type { TawkApi, TawkAttachment, TawkChatRole, TawkUiMessage } from "@/lib/tawk/tawk-types"
 
 type MessageListener = (message: TawkUiMessage) => void
+type FileUploadListener = (url: string) => void
 
 let loadPromise: Promise<TawkApi> | null = null
 let scriptInjected = false
 let handlersWired = false
 const listeners = new Set<MessageListener>()
+const fileUploadListeners = new Set<FileUploadListener>()
 const pendingVisitorTexts = new Set<string>()
 const seenIncomingKeys = new Set<string>()
 
@@ -138,6 +142,21 @@ function handleChatMessageReceived(raw: unknown, role: TawkChatRole): void {
   listeners.forEach((listener) => listener(uiMessage))
 }
 
+export function emitVisitorFileUpload(url: string): void {
+  fileUploadListeners.forEach((listener) => listener(url))
+  handleChatMessageReceived(
+    {
+      attachments: [
+        {
+          type: "file",
+          content: { file: { url } },
+        },
+      ],
+    },
+    "visitor"
+  )
+}
+
 function wireIncomingMessageHandlers(api: TawkApi): void {
   if (handlersWired) return
   handlersWired = true
@@ -153,6 +172,8 @@ function wireIncomingMessageHandlers(api: TawkApi): void {
   api.onFileUpload = (link) => {
     const url = normalizeFileUploadLink(link)
     if (!url) return
+
+    fileUploadListeners.forEach((listener) => listener(url))
 
     handleChatMessageReceived(
       {
@@ -172,10 +193,13 @@ function injectTawkScript(): void {
   if (scriptInjected || typeof document === "undefined") return
   scriptInjected = true
 
+  installTawkSessionKeyCapture()
+
   if (document.querySelector(`script[data-tawk-bridge="true"]`)) return
 
   if (window.Tawk_API) {
     prepareTawkEmbeddedHost(window.Tawk_API)
+    installTawkUploadFilePolyfill(window.Tawk_API)
   }
 
   const script = document.createElement("script")
@@ -192,6 +216,29 @@ function injectTawkScript(): void {
 export function subscribeTawkMessages(listener: MessageListener): () => void {
   listeners.add(listener)
   return () => listeners.delete(listener)
+}
+
+export function subscribeTawkFileUpload(listener: FileUploadListener): () => void {
+  fileUploadListeners.add(listener)
+  return () => fileUploadListeners.delete(listener)
+}
+
+export async function waitForTawkBridgeReady(api: TawkApi): Promise<void> {
+  const loadedApi = api as TawkApi & { onLoaded?: boolean }
+  if (loadedApi.onLoaded) return
+
+  await new Promise<void>((resolve, reject) => {
+    const timeoutId = window.setTimeout(() => {
+      reject(new Error("Tawk_API.onLoad wurde nicht ausgelöst."))
+    }, 20_000)
+
+    const previousOnLoad = api.onLoad
+    api.onLoad = function onLoad() {
+      previousOnLoad?.()
+      window.clearTimeout(timeoutId)
+      resolve()
+    }
+  })
 }
 
 export function loadTawkBridge(): Promise<TawkApi> {
@@ -214,6 +261,7 @@ export function loadTawkBridge(): Promise<TawkApi> {
     const markReady = () => {
       if (settled) return
       settled = true
+      installTawkUploadFilePolyfill(api)
       hideTawkWidget(api)
       api.start?.()
       resolve(api)

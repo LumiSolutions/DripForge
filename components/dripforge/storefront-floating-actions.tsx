@@ -54,11 +54,13 @@ export function StorefrontFloatingActions() {
     if (!ok) setChatInput(text)
   }
 
-  const handleFileSelect = async (event: ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     event.target.value = ""
+
     if (!file || uploading || sending) return
-    await uploadFile(file)
+
+    void uploadFile(file)
   }
 
   if (!visible || !mounted) {
@@ -147,7 +149,7 @@ export function StorefrontFloatingActions() {
               type="file"
               className="hidden"
               accept="image/*,.pdf,.doc,.docx"
-              onChange={(event) => void handleFileSelect(event)}
+              onChange={handleFileSelect}
             />
             <div className="flex gap-2">
               <Button
