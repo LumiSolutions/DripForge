@@ -16,6 +16,19 @@ const WELCOME_MESSAGE: TawkUiMessage = {
   createdAt: new Date(0).toISOString(),
 }
 
+function isDuplicateMessage(prev: TawkUiMessage[], next: TawkUiMessage): boolean {
+  if (prev.some((entry) => entry.id === next.id && entry.id !== "welcome")) {
+    return true
+  }
+
+  return prev.some(
+    (entry) =>
+      entry.role === next.role &&
+      entry.content === next.content &&
+      entry.createdAt === next.createdAt
+  )
+}
+
 export function useTawkChat(enabled: boolean) {
   const [messages, setMessages] = useState<TawkUiMessage[]>([WELCOME_MESSAGE])
   const [loading, setLoading] = useState(false)
@@ -24,7 +37,7 @@ export function useTawkChat(enabled: boolean) {
 
   const appendMessage = useCallback((message: TawkUiMessage) => {
     setMessages((prev) => {
-      if (prev.some((entry) => entry.id === message.id)) return prev
+      if (isDuplicateMessage(prev, message)) return prev
       return [...prev, message]
     })
   }, [])
@@ -56,12 +69,14 @@ export function useTawkChat(enabled: boolean) {
 
       setSending(true)
 
-      appendMessage({
+      const optimisticMessage: TawkUiMessage = {
         id: `local-${Date.now()}`,
         role: "visitor",
         content: text,
         createdAt: new Date().toISOString(),
-      })
+      }
+
+      appendMessage(optimisticMessage)
 
       try {
         await sendTawkVisitorMessage(text)

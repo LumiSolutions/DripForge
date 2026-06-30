@@ -8,8 +8,12 @@ type MessageListener = (message: TawkUiMessage) => void
 
 let loadPromise: Promise<TawkApi> | null = null
 let scriptInjected = false
+let handlersWired = false
 const listeners = new Set<MessageListener>()
 const pendingVisitorTexts = new Set<string>()
+const seenIncomingKeys = new Set<string>()
+
+const MAX_SEEN_KEYS = 200
 
 function createMessageId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
@@ -26,49 +30,96 @@ export function normalizeTawkMessageContent(message: unknown): string {
   return ""
 }
 
+function extractTawkMessageId(raw: unknown): string | null {
+  if (!raw || typeof raw !== "object") return null
+  const record = raw as Record<string, unknown>
+  for (const key of ["id", "messageId", "msgId", "uuid"]) {
+    const value = record[key]
+    if (typeof value === "string" && value.trim()) return value.trim()
+  }
+  return null
+}
+
+function extractTawkTimestamp(raw: unknown): string | null {
+  if (!raw || typeof raw !== "object") return null
+  const record = raw as Record<string, unknown>
+  for (const key of ["time", "timestamp", "createdAt", "date"]) {
+    const value = record[key]
+    if (typeof value === "string" && value.trim()) return value.trim()
+    if (typeof value === "number" && Number.isFinite(value)) return String(value)
+  }
+  return null
+}
+
+export function buildIncomingMessageKey(
+  role: TawkChatRole,
+  content: string,
+  raw: unknown
+): string {
+  const tawkId = extractTawkMessageId(raw)
+  if (tawkId) return `${role}:id:${tawkId}`
+
+  const timestamp = extractTawkTimestamp(raw)
+  if (timestamp) return `${role}:ts:${timestamp}:${content}`
+
+  return `${role}:content:${content}`
+}
+
+function rememberIncomingKey(key: string): boolean {
+  if (seenIncomingKeys.has(key)) return false
+  seenIncomingKeys.add(key)
+  if (seenIncomingKeys.size > MAX_SEEN_KEYS) {
+    const first = seenIncomingKeys.values().next().value
+    if (first) seenIncomingKeys.delete(first)
+  }
+  return true
+}
+
 function hideTawkWidget(api: TawkApi): void {
   api.hideWidget?.()
 }
 
-function emitUiMessage(role: TawkChatRole, raw: unknown): void {
+function toUiMessage(role: TawkChatRole, raw: unknown, content: string): TawkUiMessage {
+  const tawkId = extractTawkMessageId(raw)
+  const timestamp = extractTawkTimestamp(raw)
+
+  return {
+    id: tawkId ?? createMessageId(role),
+    role,
+    content,
+    createdAt: timestamp ?? new Date().toISOString(),
+  }
+}
+
+/** Einziger Einstieg für eingehende Tawk-Nachrichten (Agent + Visitor). */
+function handleChatMessageReceived(raw: unknown, role: TawkChatRole): void {
   const content = normalizeTawkMessageContent(raw)
   if (!content) return
 
-  const uiMessage: TawkUiMessage = {
-    id: createMessageId(role),
-    role,
-    content,
-    createdAt: new Date().toISOString(),
+  if (role === "visitor" && pendingVisitorTexts.has(content)) {
+    pendingVisitorTexts.delete(content)
+    return
   }
 
+  const dedupeKey = buildIncomingMessageKey(role, content, raw)
+  if (!rememberIncomingKey(dedupeKey)) return
+
+  const uiMessage = toUiMessage(role, raw, content)
   listeners.forEach((listener) => listener(uiMessage))
 }
 
 function wireIncomingMessageHandlers(api: TawkApi): void {
-  const handleAgent = (message: unknown) => {
-    emitUiMessage("admin", message)
-    api.onChatMessageReceived?.(message)
+  if (handlersWired) return
+  handlersWired = true
+
+  // Ein Hook für Agent-Antworten (Tawk ruft onChatMessageAgent nativ auf).
+  api.onChatMessageAgent = (message) => {
+    handleChatMessageReceived(message, "admin")
   }
 
-  const handleVisitor = (message: unknown) => {
-    const content = normalizeTawkMessageContent(message)
-    if (content && pendingVisitorTexts.has(content)) {
-      pendingVisitorTexts.delete(content)
-      return
-    }
-    emitUiMessage("visitor", message)
-    api.onChatMessageReceived?.(message)
+  api.onChatMessageVisitor = (message) => {
+    handleChatMessageReceived(message, "visitor")
   }
-
-  api.onChatMessageAgent = handleAgent
-  api.onChatMessageVisitor = handleVisitor
-
-  window.addEventListener("tawkChatMessageAgent", (event) => {
-    handleAgent((event as CustomEvent).detail)
-  })
-  window.addEventListener("tawkChatMessageVisitor", (event) => {
-    handleVisitor((event as CustomEvent).detail)
-  })
 }
 
 function injectTawkScript(): void {
