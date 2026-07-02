@@ -19,13 +19,21 @@ export type InvoiceTemplateSettings = {
   introText: string
   closingText: string
   footerNote: string
+  /** Freitextzeile oben, z.B. "Rechnung Nr. {rechnungsnummer}" */
+  headerInvoiceLine: string
+  /** Zweite Kopfzeile, z.B. "I/Referenz {rechnungsnummer}" */
+  headerReferenceLine: string
+  /** Text im Zahlungsblock unter IBAN / Kontoinhaber */
+  paymentBlockText: string
+  /** Zentrierter Footer (ganz unten) */
+  centerFooterText: string
   updatedAt: string
 }
 
 export const DEFAULT_INVOICE_TEMPLATE: InvoiceTemplateSettings = {
   firmenname: DEFAULT_COMPANY_SETTINGS.firmenname,
-  inhaber: "",
-  firmenAdresse: DEFAULT_COMPANY_SETTINGS.firmenAdresse,
+  inhaber: "Robin Schulz",
+  firmenAdresse: "Mattenstrasse 7\n8330 Pfäffikon ZH",
   kontaktEmail: DEFAULT_COMPANY_SETTINGS.kontaktEmail,
   iban: DEFAULT_COMPANY_SETTINGS.iban,
   bankname: DEFAULT_COMPANY_SETTINGS.bankname,
@@ -35,6 +43,12 @@ export const DEFAULT_INVOICE_TEMPLATE: InvoiceTemplateSettings = {
   closingText:
     "Bitte ueberweisen Sie den Gesamtbetrag innerhalb von {zahlungsfrist} Tagen auf IBAN {iban}{bank}. Verwendungszweck: {rechnungsnummer}",
   footerNote: "",
+  headerInvoiceLine: "Rechnung Nr. {rechnungsnummer}",
+  headerReferenceLine: "I/Referenz {rechnungsnummer}",
+  paymentBlockText:
+    "Zahlbar innert {zahlungsfrist} Tagen. Bitte geben Sie die Referenz als Zahlungszweck an.",
+  centerFooterText:
+    "DripForge — Robin Schulz · Mattenstrasse 7 · 8330 Pfäffikon ZH · drip-forge@outlook.com",
   updatedAt: new Date(0).toISOString(),
 }
 
@@ -77,6 +91,10 @@ export function mergeInvoiceTemplateSettings(
     introText: trimString(stored.introText, base.introText),
     closingText: trimString(stored.closingText, base.closingText),
     footerNote: trimString(stored.footerNote, base.footerNote),
+    headerInvoiceLine: trimString(stored.headerInvoiceLine, base.headerInvoiceLine),
+    headerReferenceLine: trimString(stored.headerReferenceLine, base.headerReferenceLine),
+    paymentBlockText: trimString(stored.paymentBlockText, base.paymentBlockText),
+    centerFooterText: trimString(stored.centerFooterText, base.centerFooterText),
     updatedAt:
       typeof stored.updatedAt === "string" ? stored.updatedAt : new Date().toISOString(),
   }
@@ -111,6 +129,10 @@ export function sanitizeInvoiceTemplateInput(
     introText: trimString(b.introText, existing.introText),
     closingText: trimString(b.closingText, existing.closingText),
     footerNote: trimString(b.footerNote, existing.footerNote),
+    headerInvoiceLine: trimString(b.headerInvoiceLine, existing.headerInvoiceLine),
+    headerReferenceLine: trimString(b.headerReferenceLine, existing.headerReferenceLine),
+    paymentBlockText: trimString(b.paymentBlockText, existing.paymentBlockText),
+    centerFooterText: trimString(b.centerFooterText, existing.centerFooterText),
     updatedAt: new Date().toISOString(),
   }
 }

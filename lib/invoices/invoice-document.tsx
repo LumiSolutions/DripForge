@@ -8,12 +8,7 @@ import {
 } from "@react-pdf/renderer"
 import type { AdminSettings, StoredOrder } from "@/lib/admin/types"
 import { SHIPPING_OPTIONS } from "@/lib/dripforge/checkout-config"
-import {
-  formatChf,
-  formatInvoiceDate,
-  getInvoiceDueDateLabel,
-  getInvoicePaymentTermsLabel,
-} from "@/lib/invoices/invoice-format"
+import { formatChf, formatInvoiceDate } from "@/lib/invoices/invoice-format"
 import {
   formatInvoiceItemDetails,
   getInvoiceLineTotal,
@@ -23,160 +18,199 @@ import {
   type InvoiceTemplateSettings,
 } from "@/lib/invoices/invoice-template-types"
 
-const anthracite = "#2d3139"
+const MM = 2.834645669
+
+const anthracite = "#1f2937"
+const anthraciteMid = "#374151"
 const anthraciteLight = "#6b7280"
 const orange = "#f97316"
+const orangeSoft = "#fff7ed"
 const border = "#e5e7eb"
-const bgMuted = "#f9fafb"
+const bgMuted = "#f8fafc"
+const tableHeader = "#1e293b"
+
+/** Schweizer Fensterkuvert: Empfaenger links, Datum rechts — Positionen in pt */
+const ENVELOPE_LEFT = 20 * MM
+const ENVELOPE_WINDOW_TOP = 45 * MM
+const ENVELOPE_RETURN_TOP = 22 * MM
+const ENVELOPE_WIDTH = 90 * MM
+
+const PAYMENT_BLOCK_HEIGHT = 105 * MM
 
 const styles = StyleSheet.create({
   page: {
-    paddingTop: 44,
-    paddingBottom: 52,
-    paddingHorizontal: 48,
     fontFamily: "Helvetica",
-    fontSize: 9.5,
+    fontSize: 9,
     color: anthracite,
-    lineHeight: 1.45,
+    lineHeight: 1.4,
+    paddingBottom: PAYMENT_BLOCK_HEIGHT + 36,
   },
-  topRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 28,
-  },
-  companyBlock: {
-    maxWidth: "55%",
-  },
-  companyName: {
-    fontSize: 13,
-    fontFamily: "Helvetica-Bold",
-    color: anthracite,
-    marginBottom: 6,
-  },
-  companyLine: {
+  returnAddress: {
+    position: "absolute",
+    top: ENVELOPE_RETURN_TOP,
+    left: ENVELOPE_LEFT,
+    width: ENVELOPE_WIDTH,
+    fontSize: 7,
     color: anthraciteLight,
-    marginBottom: 2,
+    lineHeight: 1.3,
+  },
+  logoWrap: {
+    position: "absolute",
+    top: 20 * MM,
+    right: 20 * MM,
+    width: 22 * MM,
+    height: 22 * MM,
   },
   logo: {
-    width: 72,
-    height: 72,
+    width: "100%",
+    height: "100%",
     objectFit: "contain",
   },
-  accentBar: {
-    height: 3,
-    width: 72,
-    backgroundColor: orange,
-    marginBottom: 22,
-  },
-  title: {
-    fontSize: 22,
-    fontFamily: "Helvetica-Bold",
-    color: anthracite,
-    letterSpacing: 0.5,
-    marginBottom: 4,
-  },
-  subtitle: {
+  recipientBlock: {
+    position: "absolute",
+    top: ENVELOPE_WINDOW_TOP,
+    left: ENVELOPE_LEFT,
+    width: ENVELOPE_WIDTH,
     fontSize: 10,
-    color: anthraciteLight,
-    marginBottom: 24,
+    lineHeight: 1.45,
   },
-  twoCol: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    gap: 24,
-    marginBottom: 28,
+  recipientLine: {
+    marginBottom: 1,
   },
-  block: {
-    flex: 1,
+  dateBlock: {
+    position: "absolute",
+    top: ENVELOPE_WINDOW_TOP,
+    right: 20 * MM,
+    width: 55 * MM,
+    textAlign: "right",
+    fontSize: 9,
+    color: anthraciteMid,
   },
-  blockTitle: {
-    fontSize: 8,
-    fontFamily: "Helvetica-Bold",
-    textTransform: "uppercase",
-    letterSpacing: 1,
-    color: orange,
-    marginBottom: 8,
-  },
-  blockText: {
-    marginBottom: 2,
-  },
-  metaGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 16,
-    marginBottom: 24,
-    padding: 14,
-    backgroundColor: bgMuted,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: border,
-  },
-  metaItem: {
-    minWidth: "22%",
-  },
-  metaLabel: {
+  dateLabel: {
     fontSize: 7.5,
     color: anthraciteLight,
     textTransform: "uppercase",
     letterSpacing: 0.8,
     marginBottom: 3,
   },
-  metaValue: {
+  dateValue: {
     fontFamily: "Helvetica-Bold",
     fontSize: 10,
+    color: anthracite,
+  },
+  body: {
+    marginTop: 92 * MM,
+    paddingHorizontal: 20 * MM,
+  },
+  headerRule: {
+    height: 1,
+    backgroundColor: border,
+    marginBottom: 14,
+  },
+  headerAccent: {
+    height: 2,
+    width: 48,
+    backgroundColor: orange,
+    marginBottom: 12,
+  },
+  headerInvoiceLine: {
+    fontFamily: "Helvetica-Bold",
+    fontSize: 13,
+    color: anthracite,
+    marginBottom: 4,
+  },
+  headerReferenceLine: {
+    fontSize: 9.5,
+    color: anthraciteMid,
+    marginBottom: 8,
+  },
+  introText: {
+    fontSize: 9.5,
+    color: anthraciteLight,
+    marginBottom: 18,
+    maxWidth: "85%",
   },
   table: {
-    marginBottom: 20,
     borderWidth: 1,
     borderColor: border,
-    borderRadius: 4,
+    borderRadius: 3,
+    overflow: "hidden",
+    marginBottom: 14,
   },
   tableHeader: {
     flexDirection: "row",
-    backgroundColor: anthracite,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
+    backgroundColor: tableHeader,
+    paddingVertical: 7,
+    paddingHorizontal: 8,
   },
   th: {
     color: "#ffffff",
     fontFamily: "Helvetica-Bold",
-    fontSize: 8,
+    fontSize: 7.5,
     textTransform: "uppercase",
-    letterSpacing: 0.6,
+    letterSpacing: 0.5,
   },
   tableRow: {
     flexDirection: "row",
-    paddingVertical: 10,
-    paddingHorizontal: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
     borderBottomWidth: 1,
     borderBottomColor: border,
   },
   tableRowAlt: {
     backgroundColor: bgMuted,
   },
-  colProduct: { width: "28%" },
-  colDetails: { width: "32%" },
+  colProduct: { width: "24%" },
+  colDetails: { width: "36%" },
   colQty: { width: "8%", textAlign: "center" },
   colUnit: { width: "16%", textAlign: "right" },
   colTotal: { width: "16%", textAlign: "right" },
-  cellMuted: {
-    color: anthraciteLight,
+  cellProduct: {
+    fontFamily: "Helvetica-Bold",
     fontSize: 8.5,
-    marginTop: 2,
+    color: anthracite,
+  },
+  cellDetails: {
+    fontSize: 7.5,
+    color: anthraciteLight,
+    lineHeight: 1.35,
+  },
+  cellQty: {
+    fontSize: 8.5,
+    textAlign: "center",
+    color: anthraciteMid,
+  },
+  cellMoney: {
+    fontSize: 8.5,
+    textAlign: "right",
+    color: anthraciteMid,
+  },
+  cellMoneyBold: {
+    fontFamily: "Helvetica-Bold",
+    fontSize: 8.5,
+    textAlign: "right",
+    color: anthracite,
+  },
+  totalsWrap: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    marginBottom: 8,
   },
   totalsBox: {
-    marginLeft: "auto",
     width: "42%",
+    minWidth: 180,
     borderWidth: 1,
     borderColor: border,
-    borderRadius: 4,
-    padding: 14,
+    borderRadius: 3,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: "#ffffff",
   },
   totalRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 6,
+    marginBottom: 5,
+    fontSize: 8.5,
   },
   totalLabel: {
     color: anthraciteLight,
@@ -184,37 +218,103 @@ const styles = StyleSheet.create({
   totalGrand: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: 8,
-    paddingTop: 10,
+    marginTop: 6,
+    paddingTop: 8,
     borderTopWidth: 2,
     borderTopColor: orange,
   },
   totalGrandLabel: {
     fontFamily: "Helvetica-Bold",
-    fontSize: 11,
+    fontSize: 10,
+    color: anthracite,
   },
   totalGrandValue: {
     fontFamily: "Helvetica-Bold",
-    fontSize: 12,
+    fontSize: 11,
     color: anthracite,
   },
   vatNote: {
-    marginTop: 12,
-    fontSize: 8.5,
+    marginTop: 6,
+    fontSize: 7.5,
     color: anthraciteLight,
     fontStyle: "italic",
+    textAlign: "right",
   },
-  footer: {
+  paymentBlock: {
     position: "absolute",
-    bottom: 28,
-    left: 48,
-    right: 48,
+    bottom: 22,
+    left: 0,
+    right: 0,
+    height: PAYMENT_BLOCK_HEIGHT,
     borderTopWidth: 1,
-    borderTopColor: border,
-    paddingTop: 10,
+    borderTopColor: anthracite,
     flexDirection: "row",
-    justifyContent: "space-between",
+    paddingTop: 10,
+    paddingHorizontal: 20 * MM,
+    backgroundColor: orangeSoft,
+  },
+  paymentLeft: {
+    flex: 1,
+    paddingRight: 12,
+    borderRightWidth: 1,
+    borderRightColor: border,
+    justifyContent: "flex-start",
+  },
+  paymentSectionTitle: {
     fontSize: 8,
+    fontFamily: "Helvetica-Bold",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+    color: orange,
+    marginBottom: 8,
+  },
+  paymentLine: {
+    fontSize: 8.5,
+    marginBottom: 3,
+    color: anthraciteMid,
+  },
+  paymentLineBold: {
+    fontFamily: "Helvetica-Bold",
+    fontSize: 9,
+    color: anthracite,
+    marginBottom: 4,
+  },
+  paymentAmount: {
+    fontFamily: "Helvetica-Bold",
+    fontSize: 12,
+    color: anthracite,
+    marginTop: 6,
+    marginBottom: 8,
+  },
+  paymentNote: {
+    fontSize: 7.5,
+    color: anthraciteLight,
+    lineHeight: 1.35,
+    marginTop: 4,
+  },
+  paymentRight: {
+    width: 52 * MM,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingLeft: 10,
+  },
+  qrImage: {
+    width: 46 * MM,
+    height: 46 * MM,
+  },
+  qrLabel: {
+    fontSize: 6.5,
+    color: anthraciteLight,
+    marginTop: 4,
+    textAlign: "center",
+  },
+  centerFooter: {
+    position: "absolute",
+    bottom: 6,
+    left: 20 * MM,
+    right: 20 * MM,
+    textAlign: "center",
+    fontSize: 7,
     color: anthraciteLight,
   },
 })
@@ -223,212 +323,215 @@ export type InvoiceDocumentProps = {
   order: StoredOrder
   settings: AdminSettings
   template: InvoiceTemplateSettings
+  qrDataUrl?: string | null
 }
 
 function shippingLabel(method: StoredOrder["shippingMethod"]): string {
   return SHIPPING_OPTIONS.find((o) => o.id === method)?.label ?? method
 }
 
-export function InvoiceDocument({ order, settings, template }: InvoiceDocumentProps) {
+function buildReturnAddress(template: InvoiceTemplateSettings): string {
+  const lines = template.firmenAdresse.split("\n").filter(Boolean)
+  const cityLine = lines.slice(1).join(", ") || lines[0] || ""
+  return `${template.firmenname} · ${cityLine}`.trim()
+}
+
+export function InvoiceDocument({
+  order,
+  settings,
+  template,
+  qrDataUrl,
+}: InvoiceDocumentProps) {
   const { checkout } = settings
-  const company = template
-  const addressLines = company.firmenAdresse.split("\n").filter(Boolean)
   const mwstSatz = checkout.mwstSatz
   const paymentTermsDays = template.paymentTermsDays
   const logoUrl = template.logoUrl ?? undefined
 
   const placeholderValues = {
-    firmenname: company.firmenname,
-    inhaber: company.inhaber,
+    firmenname: template.firmenname,
+    inhaber: template.inhaber,
     rechnungsnummer: order.orderId,
     zahlungsfrist: String(paymentTermsDays),
-    iban: company.iban,
-    bank: company.bankname ? ` (${company.bankname})` : "",
+    iban: template.iban,
+    bank: template.bankname ? ` (${template.bankname})` : "",
+    datum: formatInvoiceDate(order.createdAt),
   }
 
+  const headerInvoiceLine = applyInvoiceTemplatePlaceholders(
+    template.headerInvoiceLine,
+    placeholderValues
+  )
+  const headerReferenceLine = applyInvoiceTemplatePlaceholders(
+    template.headerReferenceLine,
+    placeholderValues
+  )
   const introText = applyInvoiceTemplatePlaceholders(template.introText, placeholderValues)
-  const closingText = applyInvoiceTemplatePlaceholders(template.closingText, placeholderValues)
+  const paymentBlockText = applyInvoiceTemplatePlaceholders(
+    template.paymentBlockText,
+    placeholderValues
+  )
+  const centerFooterText = applyInvoiceTemplatePlaceholders(
+    template.centerFooterText,
+    placeholderValues
+  )
+
+  const recipient = order.delivery ?? order.billing
+  const accountHolder = template.inhaber
+    ? `${template.firmenname}\n${template.inhaber}`
+    : template.firmenname
+
+  const showPaymentBlock =
+    order.paymentMethod === "invoice" || Boolean(template.iban)
 
   return (
-    <Document title={`Rechnung ${order.orderId}`} author={company.firmenname}>
+    <Document title={`Rechnung ${order.orderId}`} author={template.firmenname}>
       <Page size="A4" style={styles.page}>
-        <View style={styles.topRow}>
-          <View style={styles.companyBlock}>
-            <Text style={styles.companyName}>{company.firmenname}</Text>
-            {company.inhaber ? (
-              <Text style={styles.companyLine}>{company.inhaber}</Text>
-            ) : null}
-            {addressLines.map((line) => (
-              <Text key={line} style={styles.companyLine}>
-                {line}
-              </Text>
-            ))}
-            {company.kontaktEmail ? (
-              <Text style={styles.companyLine}>{company.kontaktEmail}</Text>
-            ) : null}
-            {company.iban ? (
-              <Text style={[styles.companyLine, { marginTop: 6 }]}>
-                IBAN: {company.iban}
-              </Text>
-            ) : null}
-            {company.bankname ? (
-              <Text style={styles.companyLine}>{company.bankname}</Text>
-            ) : null}
-          </View>
-          {logoUrl ? (
-            /* eslint-disable-next-line jsx-a11y/alt-text -- @react-pdf Image */
+        <Text style={styles.returnAddress}>{buildReturnAddress(template)}</Text>
+
+        {logoUrl ? (
+          <View style={styles.logoWrap}>
+            {/* eslint-disable-next-line jsx-a11y/alt-text -- @react-pdf Image */}
             <Image style={styles.logo} src={logoUrl} />
-          ) : null}
-        </View>
-
-        <View style={styles.accentBar} />
-
-        <Text style={styles.title}>Rechnung</Text>
-        <Text style={styles.subtitle}>{introText}</Text>
-
-        <View style={styles.twoCol}>
-          <View style={styles.block}>
-            <Text style={styles.blockTitle}>Rechnungsadresse</Text>
-            <Text style={styles.blockText}>
-              {order.billing.firstName} {order.billing.lastName}
-            </Text>
-            <Text style={styles.blockText}>{order.billing.street}</Text>
-            <Text style={styles.blockText}>
-              {order.billing.zip} {order.billing.city}
-            </Text>
-            <Text style={styles.blockText}>{order.billing.country}</Text>
-            {order.kundennummer ? (
-              <Text style={[styles.blockText, { marginTop: 8 }]}>
-                Kundennummer: {order.kundennummer}
-              </Text>
-            ) : null}
           </View>
-          <View style={styles.block}>
-            <Text style={styles.blockTitle}>Lieferadresse</Text>
-            {order.delivery ? (
-              <>
-                <Text style={styles.blockText}>
-                  {order.delivery.firstName} {order.delivery.lastName}
-                </Text>
-                <Text style={styles.blockText}>{order.delivery.street}</Text>
-                <Text style={styles.blockText}>
-                  {order.delivery.zip} {order.delivery.city}
-                </Text>
-                <Text style={styles.blockText}>{order.delivery.country}</Text>
-              </>
-            ) : (
-              <Text style={styles.blockText}>Wie Rechnungsadresse</Text>
-            )}
-          </View>
-        </View>
-
-        <View style={styles.metaGrid}>
-          <View style={styles.metaItem}>
-            <Text style={styles.metaLabel}>Rechnungsnummer</Text>
-            <Text style={styles.metaValue}>{order.orderId}</Text>
-          </View>
-          <View style={styles.metaItem}>
-            <Text style={styles.metaLabel}>Rechnungsdatum</Text>
-            <Text style={styles.metaValue}>{formatInvoiceDate(order.createdAt)}</Text>
-          </View>
-          <View style={styles.metaItem}>
-            <Text style={styles.metaLabel}>Zahlungsfrist</Text>
-            <Text style={styles.metaValue}>
-              {getInvoicePaymentTermsLabel(order.paymentMethod, paymentTermsDays)}
-            </Text>
-          </View>
-          <View style={styles.metaItem}>
-            <Text style={styles.metaLabel}>Faellig am</Text>
-            <Text style={styles.metaValue}>
-              {getInvoiceDueDateLabel(order.createdAt, order.paymentMethod, paymentTermsDays)}
-            </Text>
-          </View>
-          <View style={styles.metaItem}>
-            <Text style={styles.metaLabel}>Zahlungsart</Text>
-            <Text style={styles.metaValue}>{order.paymentMethodLabel}</Text>
-          </View>
-          <View style={styles.metaItem}>
-            <Text style={styles.metaLabel}>Versand</Text>
-            <Text style={styles.metaValue}>{shippingLabel(order.shippingMethod)}</Text>
-          </View>
-        </View>
-
-        <View style={styles.table}>
-          <View style={styles.tableHeader}>
-            <Text style={[styles.colProduct, styles.th]}>Produkt</Text>
-            <Text style={[styles.colDetails, styles.th]}>Details</Text>
-            <Text style={[styles.colQty, styles.th]}>Menge</Text>
-            <Text style={[styles.colUnit, styles.th]}>Einzelpreis</Text>
-            <Text style={[styles.colTotal, styles.th]}>Total</Text>
-          </View>
-          {order.items.map((item, index) => (
-            <View
-              key={item.id}
-              style={[styles.tableRow, index % 2 === 1 ? styles.tableRowAlt : {}]}
-            >
-              <View style={styles.colProduct}>
-                <Text>{item.name}</Text>
-              </View>
-              <View style={styles.colDetails}>
-                <Text style={styles.cellMuted}>{formatInvoiceItemDetails(item)}</Text>
-              </View>
-              <Text style={styles.colQty}>{item.quantity}</Text>
-              <Text style={styles.colUnit}>{formatChf(item.price)}</Text>
-              <Text style={styles.colTotal}>{formatChf(getInvoiceLineTotal(item))}</Text>
-            </View>
-          ))}
-        </View>
-
-        <View style={styles.totalsBox}>
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Zwischensumme</Text>
-            <Text>{formatChf(order.totals.subtotal)}</Text>
-          </View>
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Versand ({shippingLabel(order.shippingMethod)})</Text>
-            <Text>{formatChf(order.totals.shippingCost)}</Text>
-          </View>
-          {(order.totals.discountAmount ?? 0) > 0 ? (
-            <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>
-                Rabatt{order.totals.couponCode ? ` (${order.totals.couponCode})` : ""}
-              </Text>
-              <Text>− {formatChf(order.totals.discountAmount ?? 0)}</Text>
-            </View>
-          ) : null}
-          {order.totals.mwstAktiv ? (
-            <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>MwSt. ({mwstSatz.toFixed(1)}%)</Text>
-              <Text>{formatChf(order.totals.vat)}</Text>
-            </View>
-          ) : null}
-          <View style={styles.totalGrand}>
-            <Text style={styles.totalGrandLabel}>Gesamtbetrag</Text>
-            <Text style={styles.totalGrandValue}>{formatChf(order.totals.total)}</Text>
-          </View>
-          {!order.totals.mwstAktiv ? (
-            <Text style={styles.vatNote}>
-              MwSt.-befreit (Kleinunternehmer gem. Art. 10 MWSTG)
-            </Text>
-          ) : null}
-        </View>
-
-        {order.paymentMethod === "invoice" && company.iban && closingText ? (
-          <Text style={[styles.vatNote, { marginTop: 18, fontStyle: "normal" }]}>
-            {closingText}
-          </Text>
         ) : null}
 
-        {template.footerNote ? (
-          <Text style={[styles.vatNote, { marginTop: 10, fontStyle: "normal" }]}>
-            {template.footerNote}
+        <View style={styles.recipientBlock}>
+          <Text style={styles.recipientLine}>
+            {recipient.firstName} {recipient.lastName}
           </Text>
+          <Text style={styles.recipientLine}>{recipient.street}</Text>
+          <Text style={styles.recipientLine}>
+            {recipient.zip} {recipient.city}
+          </Text>
+          <Text style={styles.recipientLine}>{recipient.country}</Text>
+        </View>
+
+        <View style={styles.dateBlock}>
+          <Text style={styles.dateLabel}>Datum</Text>
+          <Text style={styles.dateValue}>{formatInvoiceDate(order.createdAt)}</Text>
+        </View>
+
+        <View style={styles.body}>
+          <View style={styles.headerRule} />
+          <View style={styles.headerAccent} />
+          <Text style={styles.headerInvoiceLine}>{headerInvoiceLine}</Text>
+          {headerReferenceLine ? (
+            <Text style={styles.headerReferenceLine}>{headerReferenceLine}</Text>
+          ) : null}
+          {introText ? <Text style={styles.introText}>{introText}</Text> : null}
+
+          <View style={styles.table}>
+            <View style={styles.tableHeader}>
+              <Text style={[styles.colProduct, styles.th]}>Produkt</Text>
+              <Text style={[styles.colDetails, styles.th]}>Details</Text>
+              <Text style={[styles.colQty, styles.th]}>Menge</Text>
+              <Text style={[styles.colUnit, styles.th]}>Einzelpreis</Text>
+              <Text style={[styles.colTotal, styles.th]}>Total</Text>
+            </View>
+            {order.items.map((item, index) => (
+              <View
+                key={item.id}
+                style={[styles.tableRow, index % 2 === 1 ? styles.tableRowAlt : {}]}
+              >
+                <View style={styles.colProduct}>
+                  <Text style={styles.cellProduct}>{item.name}</Text>
+                </View>
+                <View style={styles.colDetails}>
+                  <Text style={styles.cellDetails}>{formatInvoiceItemDetails(item)}</Text>
+                </View>
+                <Text style={[styles.colQty, styles.cellQty]}>{item.quantity}</Text>
+                <Text style={[styles.colUnit, styles.cellMoney]}>{formatChf(item.price)}</Text>
+                <Text style={[styles.colTotal, styles.cellMoneyBold]}>
+                  {formatChf(getInvoiceLineTotal(item))}
+                </Text>
+              </View>
+            ))}
+          </View>
+
+          <View style={styles.totalsWrap}>
+            <View style={styles.totalsBox}>
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>Zwischensumme</Text>
+                <Text>{formatChf(order.totals.subtotal)}</Text>
+              </View>
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>
+                  Versand ({shippingLabel(order.shippingMethod)})
+                </Text>
+                <Text>{formatChf(order.totals.shippingCost)}</Text>
+              </View>
+              {(order.totals.discountAmount ?? 0) > 0 ? (
+                <View style={styles.totalRow}>
+                  <Text style={styles.totalLabel}>
+                    Rabatt{order.totals.couponCode ? ` (${order.totals.couponCode})` : ""}
+                  </Text>
+                  <Text>− {formatChf(order.totals.discountAmount ?? 0)}</Text>
+                </View>
+              ) : null}
+              {order.totals.mwstAktiv ? (
+                <View style={styles.totalRow}>
+                  <Text style={styles.totalLabel}>MwSt. ({mwstSatz.toFixed(1)}%)</Text>
+                  <Text>{formatChf(order.totals.vat)}</Text>
+                </View>
+              ) : null}
+              <View style={styles.totalGrand}>
+                <Text style={styles.totalGrandLabel}>Gesamtbetrag</Text>
+                <Text style={styles.totalGrandValue}>{formatChf(order.totals.total)}</Text>
+              </View>
+              {!order.totals.mwstAktiv ? (
+                <Text style={styles.vatNote}>
+                  MwSt.-befreit (Kleinunternehmer gem. Art. 10 MWSTG)
+                </Text>
+              ) : null}
+            </View>
+          </View>
+
+          {template.footerNote ? (
+            <Text style={[styles.introText, { marginBottom: 0 }]}>{template.footerNote}</Text>
+          ) : null}
+        </View>
+
+        {showPaymentBlock ? (
+          <View style={styles.paymentBlock} fixed>
+            <View style={styles.paymentLeft}>
+              <Text style={styles.paymentSectionTitle}>Zahlungsinformationen</Text>
+              <Text style={styles.paymentLineBold}>Kontoinhaber</Text>
+              <Text style={styles.paymentLine}>{accountHolder}</Text>
+              {template.iban ? (
+                <>
+                  <Text style={[styles.paymentLineBold, { marginTop: 6 }]}>IBAN</Text>
+                  <Text style={styles.paymentLine}>{template.iban}</Text>
+                </>
+              ) : null}
+              {template.bankname ? (
+                <Text style={styles.paymentLine}>{template.bankname}</Text>
+              ) : null}
+              <Text style={styles.paymentLineBold}>Referenz / Zahlungszweck</Text>
+              <Text style={styles.paymentLine}>{order.orderId}</Text>
+              <Text style={styles.paymentAmount}>{formatChf(order.totals.total)}</Text>
+              {paymentBlockText ? (
+                <Text style={styles.paymentNote}>{paymentBlockText}</Text>
+              ) : null}
+            </View>
+            <View style={styles.paymentRight}>
+              {qrDataUrl ? (
+                <>
+                  {/* eslint-disable-next-line jsx-a11y/alt-text -- @react-pdf Image */}
+                  <Image style={styles.qrImage} src={qrDataUrl} />
+                  <Text style={styles.qrLabel}>Swiss QR-Rechnung</Text>
+                </>
+              ) : (
+                <Text style={styles.qrLabel}>QR-Code nach IBAN-Eintrag verfuegbar</Text>
+              )}
+            </View>
+          </View>
         ) : null}
 
-        <View style={styles.footer} fixed>
-          <Text>{company.firmenname} · {company.kontaktEmail}</Text>
-          <Text>Rechnung {order.orderId}</Text>
-        </View>
+        {centerFooterText ? (
+          <Text style={styles.centerFooter} fixed>
+            {centerFooterText}
+          </Text>
+        ) : null}
       </Page>
     </Document>
   )

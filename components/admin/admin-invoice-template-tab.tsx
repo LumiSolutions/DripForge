@@ -144,7 +144,7 @@ export function AdminInvoiceTemplateTab() {
         <h1 className="text-2xl font-bold">Rechnungsvorlage</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Firmendaten, Texte und Logo fuer automatisch generierte PDF-Rechnungen.
-          Platzhalter: {"{firmenname}"}, {"{rechnungsnummer}"}, {"{zahlungsfrist}"}, {"{iban}"}, {"{bank}"}
+          Platzhalter: {"{firmenname}"}, {"{rechnungsnummer}"}, {"{zahlungsfrist}"}, {"{iban}"}, {"{bank}"}, {"{datum}"}
         </p>
       </div>
 
@@ -287,6 +287,22 @@ export function AdminInvoiceTemplateTab() {
         <CardContent className="space-y-4 p-6">
           <h2 className="font-semibold">Rechnungstexte</h2>
           <div className="space-y-2">
+            <Label htmlFor="headerInvoiceLine">Kopfzeile Rechnung</Label>
+            <Input
+              id="headerInvoiceLine"
+              value={template.headerInvoiceLine}
+              onChange={(e) => updateField("headerInvoiceLine", e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="headerReferenceLine">Kopfzeile Referenz (z.B. I/Referenz)</Label>
+            <Input
+              id="headerReferenceLine"
+              value={template.headerReferenceLine}
+              onChange={(e) => updateField("headerReferenceLine", e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
             <Label htmlFor="introText">Einleitungstext</Label>
             <Textarea
               id="introText"
@@ -296,7 +312,16 @@ export function AdminInvoiceTemplateTab() {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="closingText">Zahlungshinweis (Kauf auf Rechnung)</Label>
+            <Label htmlFor="paymentBlockText">Text im Zahlungsblock (unter IBAN)</Label>
+            <Textarea
+              id="paymentBlockText"
+              rows={3}
+              value={template.paymentBlockText}
+              onChange={(e) => updateField("paymentBlockText", e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="closingText">Zahlungshinweis (Legacy / E-Mail)</Label>
             <Textarea
               id="closingText"
               rows={3}
@@ -305,7 +330,16 @@ export function AdminInvoiceTemplateTab() {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="footerNote">Abschlusstext / Fussnote (optional)</Label>
+            <Label htmlFor="centerFooterText">Zentrierter Footer (ganz unten)</Label>
+            <Textarea
+              id="centerFooterText"
+              rows={2}
+              value={template.centerFooterText}
+              onChange={(e) => updateField("centerFooterText", e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="footerNote">Abschlusstext / Fussnote im Dokument (optional)</Label>
             <Textarea
               id="footerNote"
               rows={2}
