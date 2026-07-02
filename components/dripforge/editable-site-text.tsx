@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react"
+import { useEffect, useState, type ReactNode } from "react"
 import { Loader2, Pencil } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -42,6 +42,12 @@ function SiteTextEditor({
     if (open) setDraft(value)
   }, [open, value])
 
+  const handleCancel = () => {
+    setDraft(value)
+    setError(null)
+    setOpen(false)
+  }
+
   const handleSave = async () => {
     setSaving(true)
     setError(null)
@@ -61,24 +67,28 @@ function SiteTextEditor({
         <button
           type="button"
           className={cn(
-            "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md",
-            "text-muted-foreground/70 opacity-50 transition-opacity",
+            "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md",
+            "text-muted-foreground/80 opacity-60 transition-opacity",
             "hover:bg-primary/10 hover:text-primary hover:opacity-100",
             "group-hover/site-text:opacity-100 focus-visible:opacity-100",
+            open && "bg-primary/10 text-primary opacity-100",
             className
           )}
           aria-label={`${label} bearbeiten`}
+          onPointerDown={(event) => {
+            event.stopPropagation()
+          }}
           onClick={(event) => {
-            event.preventDefault()
             event.stopPropagation()
           }}
         >
-          <Pencil className="h-3 w-3" />
+          <Pencil className="h-3.5 w-3.5" />
         </button>
       </PopoverTrigger>
       <PopoverContent
-        className="w-80 space-y-3 p-4"
+        className="z-[350] w-80 space-y-3 p-4"
         align={align}
+        sideOffset={8}
         onOpenAutoFocus={(event) => event.preventDefault()}
       >
         <div className="space-y-1">
@@ -90,26 +100,47 @@ function SiteTextEditor({
             id={`site-text-${textKey}`}
             rows={4}
             value={draft}
+            autoFocus
             onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") handleCancel()
+            }}
           />
         ) : (
           <Input
             id={`site-text-${textKey}`}
             value={draft}
+            autoFocus
             onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") handleCancel()
+              if (event.key === "Enter") void handleSave()
+            }}
           />
         )}
         {error && <p className="text-xs text-red-600">{error}</p>}
-        <Button
-          type="button"
-          size="sm"
-          className="w-full"
-          disabled={saving}
-          onClick={() => void handleSave()}
-        >
-          {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-          Speichern
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="flex-1"
+            disabled={saving}
+            onClick={handleCancel}
+          >
+            Abbrechen
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            className="flex-1"
+            disabled={saving}
+            onClick={() => void handleSave()}
+          >
+            {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            Speichern
+          </Button>
+        </div>
       </PopoverContent>
     </Popover>
   )
