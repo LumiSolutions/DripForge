@@ -10,12 +10,11 @@ import { Input } from "@/components/ui/input"
 import { PasswordInput } from "@/components/ui/password-input"
 import { Label } from "@/components/ui/label"
 import { KontoShell } from "@/components/konto/konto-shell"
-import { useSiteTexts } from "@/components/dripforge/site-texts-provider"
+import { SiteText } from "@/components/dripforge/editable-site-text"
 import { readClientCart, writeClientCart } from "@/lib/dripforge/cart-storage"
 import type { CartItem } from "@/lib/dripforge/types"
 
 export function KontoLoginForm() {
-  const { t } = useSiteTexts()
   const router = useRouter()
   const searchParams = useSearchParams()
   const next = searchParams.get("next") || "/konto"
@@ -60,10 +59,10 @@ export function KontoLoginForm() {
         <CardContent className="space-y-6 p-8">
           <div className="flex items-center gap-2">
             <Lock className="h-5 w-5 text-primary" />
-            <h1 className="text-xl font-bold">{t("konto_login_title")}</h1>
+            <h1 className="text-xl font-bold"><SiteText k="konto_login_title" /></h1>
           </div>
           <p className="text-sm text-muted-foreground">
-            {t("konto_login_subtitle")}
+            <SiteText k="konto_login_subtitle" />
           </p>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
@@ -116,7 +115,6 @@ export function KontoLoginForm() {
 }
 
 export function KontoRegisterForm() {
-  const { t } = useSiteTexts()
   const router = useRouter()
   const searchParams = useSearchParams()
   const next = searchParams.get("next") || "/konto"
@@ -164,10 +162,10 @@ export function KontoRegisterForm() {
         <CardContent className="space-y-6 p-8">
           <div className="flex items-center gap-2">
             <UserPlus className="h-5 w-5 text-primary" />
-            <h1 className="text-xl font-bold">{t("konto_register_title")}</h1>
+            <h1 className="text-xl font-bold"><SiteText k="konto_register_title" /></h1>
           </div>
           <p className="text-sm text-muted-foreground">
-            {t("konto_register_subtitle")}
+            <SiteText k="konto_register_subtitle" />
           </p>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">

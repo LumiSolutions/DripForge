@@ -59,7 +59,7 @@ import { IndividualProcessBar } from "@/components/dripforge/shared/individual-p
 import { materials3D, laserMaterials, processSteps, products } from "@/lib/dripforge/data"
 import type { CartItem } from "@/lib/dripforge/types"
 import type { ServiceVisibilitySettings } from "@/lib/admin/types"
-import { useSiteTexts } from "@/components/dripforge/site-texts-provider"
+import { SiteText } from "@/components/dripforge/editable-site-text"
 import { useAiPublicSettings } from "@/hooks/use-ai-public-settings"
 import { SHOP_ROUTES } from "@/lib/dripforge/shop-routes"
 
@@ -70,7 +70,6 @@ export function HomePage({
   setCurrentView: (view: string) => void
   services: ServiceVisibilitySettings
 }) {
-  const { t } = useSiteTexts()
   const aiPublic = useAiPublicSettings()
   const showExpertise = services.druck3d || services.lasergravur
   const showAiKonfigurator = services.druck3d && aiPublic.enabled
@@ -83,14 +82,14 @@ export function HomePage({
             <div>
               <Badge variant="outline" className="mb-6 border-primary/30 bg-primary/10 text-primary">
                 <Sparkles className="mr-1 h-3 w-3" />
-                {t("landingpage_hero_badge")}
+                <SiteText k="landingpage_hero_badge" />
               </Badge>
               <h1 className="text-4xl font-bold leading-tight md:text-5xl lg:text-6xl">
-                <span className="text-foreground">{t("landingpage_hero_title")} </span>
-                <span className="bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent">{t("landingpage_hero_title_highlight")}</span>
+                <SiteText k="landingpage_hero_title" className="text-foreground" />{" "}
+                <SiteText k="landingpage_hero_title_highlight" className="bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent" />
               </h1>
               <p className="mt-6 text-lg text-muted-foreground">
-                {t("landingpage_hero_subtitle")}
+                <SiteText k="landingpage_hero_subtitle" />
               </p>
               <div className="mt-8 flex flex-wrap gap-4">
                 <Button 
@@ -99,12 +98,12 @@ export function HomePage({
                   className="bg-primary text-primary-foreground hover:bg-primary/90"
                 >
                   <Link href={SHOP_ROUTES.shop}>
-                    {t("landingpage_hero_cta_primary")}
+                    <SiteText k="landingpage_hero_cta_primary" />
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </Link>
                 </Button>
                 <Button size="lg" variant="outline" asChild>
-                  <Link href={SHOP_ROUTES.shop}>{t("landingpage_hero_cta_secondary")}</Link>
+                  <Link href={SHOP_ROUTES.shop}><SiteText k="landingpage_hero_cta_secondary" /></Link>
                 </Button>
               </div>
             </div>
@@ -129,13 +128,15 @@ export function HomePage({
         <div className="mx-auto max-w-7xl px-4">
           <div className="mb-12 text-center">
             <h2 className="text-3xl font-bold md:text-4xl">
-              <span className="text-foreground">{t("landingpage_expertise_prefix")}</span>
-              <span className="bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent">{t("landingpage_expertise_heading")}</span>
+              <SiteText k="landingpage_expertise_prefix" className="text-foreground" />
+              <SiteText k="landingpage_expertise_heading" className="bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent" />
             </h2>
             <p className="mt-4 text-muted-foreground">
-              {services.druck3d && services.lasergravur
-                ? t("landingpage_expertise_subtitle_both")
-                : t("landingpage_expertise_subtitle_single")}
+              {services.druck3d && services.lasergravur ? (
+                <SiteText k="landingpage_expertise_subtitle_both" />
+              ) : (
+                <SiteText k="landingpage_expertise_subtitle_single" />
+              )}
             </p>
           </div>
 
@@ -155,15 +156,15 @@ export function HomePage({
                     <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/20">
                       <Printer className="h-6 w-6 text-primary" />
                     </div>
-                    <h3 className="mb-2 text-xl font-bold">{t("landingpage_expertise_3d_title")}</h3>
+                    <h3 className="mb-2 text-xl font-bold"><SiteText k="landingpage_expertise_3d_title" /></h3>
                     <p className="mb-6 text-sm text-muted-foreground">
-                      {t("landingpage_expertise_3d_description")}
+                      <SiteText k="landingpage_expertise_3d_description" />
                     </p>
                     <Link
                       href={SHOP_ROUTES["3d-druck"]}
                       className="inline-flex items-center text-sm font-medium text-foreground hover:text-primary"
                     >
-                      {t("landingpage_expertise_3d_cta")}
+                      <SiteText k="landingpage_expertise_3d_cta" />
                       <ArrowRight className="ml-1 h-4 w-4" />
                     </Link>
                   </div>
@@ -188,15 +189,15 @@ export function HomePage({
                     <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-cyan-500/20">
                       <Zap className="h-6 w-6 text-cyan-400" />
                     </div>
-                    <h3 className="mb-2 text-xl font-bold">{t("landingpage_expertise_laser_title")}</h3>
+                    <h3 className="mb-2 text-xl font-bold"><SiteText k="landingpage_expertise_laser_title" /></h3>
                     <p className="mb-6 text-sm text-muted-foreground">
-                      {t("landingpage_expertise_laser_description")}
+                      <SiteText k="landingpage_expertise_laser_description" />
                     </p>
                     <Link
                       href={SHOP_ROUTES.laser}
                       className="inline-flex items-center text-sm font-medium text-foreground hover:text-primary"
                     >
-                      {t("landingpage_expertise_laser_cta")}
+                      <SiteText k="landingpage_expertise_laser_cta" />
                       <ArrowRight className="ml-1 h-4 w-4" />
                     </Link>
                   </div>
@@ -226,9 +227,9 @@ export function HomePage({
                 <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-violet-500/20">
                   <Sparkles className="h-6 w-6 text-violet-400" />
                 </div>
-                <h2 className="text-2xl font-bold">{t("landingpage_ai_title")}</h2>
+                <h2 className="text-2xl font-bold"><SiteText k="landingpage_ai_title" /></h2>
                 <p className="mt-2 max-w-xl text-muted-foreground">
-                  {t("landingpage_ai_description")}
+                  <SiteText k="landingpage_ai_description" />
                 </p>
               </div>
               <Button
@@ -237,7 +238,7 @@ export function HomePage({
                 className="bg-violet-600 text-white hover:bg-violet-500"
               >
                 <Link href={SHOP_ROUTES.aiKonfigurator}>
-                  {t("landingpage_ai_cta")}
+                  <SiteText k="landingpage_ai_cta" />
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Link>
               </Button>
@@ -252,11 +253,11 @@ export function HomePage({
         <div className="mx-auto max-w-7xl px-4">
           <div className="mb-12 text-center">
             <h2 className="text-3xl font-bold md:text-4xl">
-              <span className="text-foreground">{t("landingpage_why_prefix")}</span>
-              <span className="bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent">{t("landingpage_why_heading")}</span>
+              <SiteText k="landingpage_why_prefix" className="text-foreground" />
+              <SiteText k="landingpage_why_heading" className="bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent" />
             </h2>
             <p className="mt-4 text-muted-foreground">
-              {t("landingpage_why_subtitle")}
+              <SiteText k="landingpage_why_subtitle" />
             </p>
           </div>
 
@@ -278,8 +279,8 @@ export function HomePage({
                       i === 0 ? "text-primary" : i === 1 ? "text-cyan-400" : i === 2 ? "text-green-400" : "text-purple-400"
                     )} />
                   </div>
-                  <h3 className="mb-2 font-bold">{t(feature.titleKey)}</h3>
-                  <p className="text-sm text-muted-foreground">{t(feature.descKey)}</p>
+                  <h3 className="mb-2 font-bold"><SiteText k={feature.titleKey} /></h3>
+                  <p className="text-sm text-muted-foreground"><SiteText k={feature.descKey} /></p>
                 </CardContent>
               </Card>
             ))}
@@ -294,12 +295,12 @@ export function HomePage({
             <CardContent className="p-12 text-center">
               <Package className="mx-auto mb-4 h-10 w-10 text-cyan-400" />
               <h2 className="mb-4 text-3xl font-bold">
-                <span className="text-foreground">{t("landingpage_cta_title_prefix")}</span>
-                <span className="bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent">{t("landingpage_cta_title")}</span>
+                <SiteText k="landingpage_cta_title_prefix" className="text-foreground" />
+                <SiteText k="landingpage_cta_title" className="bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent" />
                 <span className="text-foreground">?</span>
               </h2>
               <p className="mb-8 text-muted-foreground">
-                {t("landingpage_cta_subtitle")}
+                <SiteText k="landingpage_cta_subtitle" />
               </p>
               <div className="flex flex-wrap justify-center gap-4">
                 <Button 
@@ -308,26 +309,26 @@ export function HomePage({
                   className="bg-primary text-primary-foreground hover:bg-primary/90"
                 >
                   <Link href={SHOP_ROUTES.shop}>
-                    {t("landingpage_cta_button_upload")}
+                    <SiteText k="landingpage_cta_button_upload" />
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </Link>
                 </Button>
                 <Button size="lg" variant="outline" asChild>
-                  <Link href={SHOP_ROUTES.kontakt}>{t("landingpage_cta_button_contact")}</Link>
+                  <Link href={SHOP_ROUTES.kontakt}><SiteText k="landingpage_cta_button_contact" /></Link>
                 </Button>
               </div>
               <div className="mt-8 flex flex-wrap justify-center gap-6 text-sm text-muted-foreground">
                 <span className="flex items-center gap-1">
                   <CheckCircle2 className="h-4 w-4 text-cyan-400" />
-                  {t("landingpage_trust_offer")}
+                  <SiteText k="landingpage_trust_offer" />
                 </span>
                 <span className="flex items-center gap-1">
                   <CheckCircle2 className="h-4 w-4 text-cyan-400" />
-                  {t("landingpage_trust_shipping")}
+                  <SiteText k="landingpage_trust_shipping" />
                 </span>
                 <span className="flex items-center gap-1">
                   <CheckCircle2 className="h-4 w-4 text-cyan-400" />
-                  {t("landingpage_trust_quality")}
+                  <SiteText k="landingpage_trust_quality" />
                 </span>
               </div>
             </CardContent>

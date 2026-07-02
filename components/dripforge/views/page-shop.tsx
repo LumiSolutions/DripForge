@@ -67,7 +67,7 @@ import type { ProductTag } from "@/lib/admin/product-tags"
 import { normalizeShopProduct } from "@/lib/dripforge/normalize-shop-product"
 import { SHOP_ROUTES } from "@/lib/dripforge/shop-routes"
 import { ProductDetailErrorBoundary } from "@/components/dripforge/product-detail-error-boundary"
-import { useSiteTexts } from "@/components/dripforge/site-texts-provider"
+import { SiteText } from "@/components/dripforge/editable-site-text"
 import {
   capture3dPreviewLeitbild,
   captureLaserPreviewLeitbild,
@@ -134,7 +134,6 @@ export function PageShop({
   shopConfigurators = DEFAULT_SHOP_CONFIGURATORS,
   servicesLoaded = false,
 }: PageShopProps) {
-  const { t } = useSiteTexts()
   const { materials: filamentMaterials, loading: filamentsLoading } =
     useFilamentCatalog()
 
@@ -665,7 +664,7 @@ export function PageShop({
                       </Card>
 
                       <p className="rounded-xl border border-border/40 bg-muted/20 px-4 py-3 text-sm leading-relaxed text-muted-foreground">
-                        {t("shop_delivery_notice")}{" "}
+                        <SiteText k="shop_delivery_notice" />{" "}
                         <Link
                           href="/kontakt"
                           className="font-medium text-primary underline-offset-2 hover:underline"
@@ -781,17 +780,15 @@ export function PageShop({
       <section className="py-16 text-center">
         <Badge variant="outline" className="mb-6 border-primary/30 bg-primary/10 text-primary">
           <ShoppingBag className="mr-1 h-3 w-3" />
-          {t("shop_hero_badge")}
+          <SiteText k="shop_hero_badge" />
         </Badge>
         <h1 className="text-4xl font-bold md:text-5xl">
-          <span className="text-foreground">{t("shop_hero_title_prefix")}</span>
-          <span className="bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent">
-            {t("shop_hero_title_brand")}
-          </span>
-          <span className="text-foreground">{t("shop_hero_title_suffix")}</span>
+          <SiteText k="shop_hero_title_prefix" className="text-foreground" />
+          <SiteText k="shop_hero_title_brand" className="bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent" />
+          <SiteText k="shop_hero_title_suffix" className="text-foreground" />
         </h1>
         <p className="mx-auto mt-4 max-w-2xl text-muted-foreground">
-          {t("shop_hero_subtitle")}
+          <SiteText k="shop_hero_subtitle" />
         </p>
       </section>
 
@@ -801,11 +798,11 @@ export function PageShop({
             <h2 className="text-2xl font-bold md:text-3xl">
               <span className="text-foreground">Erschaffen Sie etwas </span>
               <span className="bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent">
-                {t("shop_custom_section_title")}
+                <SiteText k="shop_custom_section_title" />
               </span>
             </h2>
             <p className="mx-auto mt-3 max-w-2xl text-muted-foreground">
-              {t("shop_custom_section_subtitle")}
+              <SiteText k="shop_custom_section_subtitle" />
             </p>
           </div>
 
@@ -827,9 +824,9 @@ export function PageShop({
                     <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/20">
                       <Printer className="h-6 w-6 text-primary" />
                     </div>
-                    <h3 className="mb-2 text-lg font-bold">{t("shop_custom_3d_title")}</h3>
+                    <h3 className="mb-2 text-lg font-bold"><SiteText k="shop_custom_3d_title" /></h3>
                     <p className="mb-6 flex-1 text-sm text-muted-foreground">
-                      {t("shop_custom_3d_description")}
+                      <SiteText k="shop_custom_3d_description" />
                     </p>
                     <span className="inline-flex items-center text-sm font-medium text-foreground">
                       Jetzt Erstellen
@@ -874,9 +871,9 @@ export function PageShop({
                     <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-cyan-500/20">
                       <Zap className="h-6 w-6 text-cyan-400" />
                     </div>
-                    <h3 className="mb-2 text-lg font-bold">{t("shop_custom_laser_title")}</h3>
+                    <h3 className="mb-2 text-lg font-bold"><SiteText k="shop_custom_laser_title" /></h3>
                     <p className="mb-6 flex-1 text-sm text-muted-foreground">
-                      {t("shop_custom_laser_description")}
+                      <SiteText k="shop_custom_laser_description" />
                     </p>
                     <span className="inline-flex items-center text-sm font-medium text-foreground">
                       Jetzt Erstellen
@@ -933,7 +930,7 @@ export function PageShop({
         {displayedProducts.length === 0 ? (
           <Card className="border-border/50 bg-card/50">
             <CardContent className="py-16 text-center">
-              <p className="text-muted-foreground">{t("shop_empty_category")}</p>
+              <p className="text-muted-foreground"><SiteText k="shop_empty_category" /></p>
             </CardContent>
           </Card>
         ) : (

@@ -13,6 +13,7 @@ import { usePathname } from "next/navigation"
 import {
   DEFAULT_SITE_TEXTS,
   mergeSiteTexts,
+  sanitizeSiteTextsInput,
   type SiteTextKey,
   type SiteTexts,
 } from "@/lib/admin/site-texts"
@@ -26,8 +27,10 @@ type SiteTextsContextValue = {
   texts: SiteTexts
   loading: boolean
   preview: boolean
+  canInlineEdit: boolean
   t: (key: SiteTextKey) => string
   refresh: () => Promise<void>
+  saveText: (key: SiteTextKey, value: string) => Promise<void>
 }
 
 const SiteTextsContext = createContext<SiteTextsContextValue | null>(null)
@@ -45,6 +48,7 @@ export function SiteTextsProvider({ children }: { children: ReactNode }) {
   const [texts, setTexts] = useState<SiteTexts>(mergeSiteTexts(null))
   const [loading, setLoading] = useState(true)
   const [preview, setPreview] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
 
   const refresh = useCallback(async () => {
     const previewNow = readPreviewFromBrowser()
@@ -73,15 +77,64 @@ export function SiteTextsProvider({ children }: { children: ReactNode }) {
     void refresh()
   }, [refresh, pathname])
 
+  useEffect(() => {
+    if (!preview) {
+      setIsAdmin(false)
+      return
+    }
+
+    let cancelled = false
+    void (async () => {
+      try {
+        const res = await fetch("/api/admin/auth/me", { credentials: "include" })
+        if (!cancelled) setIsAdmin(res.ok)
+      } catch {
+        if (!cancelled) setIsAdmin(false)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [preview, pathname])
+
+  const saveText = useCallback(async (key: SiteTextKey, value: string) => {
+    let previousTexts: SiteTexts | null = null
+    setTexts((prev) => {
+      previousTexts = prev
+      return sanitizeSiteTextsInput({ ...prev, [key]: value })
+    })
+
+    const res = await fetch("/api/admin/site-config", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ texts: { [key]: value } }),
+    })
+    const data = (await res.json().catch(() => null)) as {
+      error?: string
+      texts?: Partial<Record<string, string>>
+    } | null
+    if (!res.ok) {
+      if (previousTexts) setTexts(previousTexts)
+      throw new Error(data?.error ?? "Text konnte nicht gespeichert werden.")
+    }
+    setTexts(mergeSiteTexts(data?.texts))
+  }, [])
+
+  const canInlineEdit = preview && isAdmin
+
   const value = useMemo<SiteTextsContextValue>(
     () => ({
       texts,
       loading,
       preview,
+      canInlineEdit,
       t: (key) => texts[key] ?? DEFAULT_SITE_TEXTS[key],
       refresh,
+      saveText,
     }),
-    [texts, loading, preview, refresh]
+    [texts, loading, preview, canInlineEdit, refresh, saveText]
   )
 
   return (
@@ -96,8 +149,10 @@ export function useSiteTexts(): SiteTextsContextValue {
       texts: mergeSiteTexts(null),
       loading: false,
       preview: false,
+      canInlineEdit: false,
       t: (key) => DEFAULT_SITE_TEXTS[key],
       refresh: async () => {},
+      saveText: async () => {},
     }
   }
   return ctx

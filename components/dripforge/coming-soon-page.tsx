@@ -5,7 +5,7 @@ import Image from "next/image"
 import { StaffAuthFlow } from "@/components/admin/staff-auth-flow"
 import { SupportMissionLink } from "@/components/dripforge/support-nav-link"
 import { useSupportPageSettings } from "@/hooks/use-support-page-active"
-import { useSiteTexts } from "@/components/dripforge/site-texts-provider"
+import { SiteText } from "@/components/dripforge/editable-site-text"
 import { getLaunchCountdown, LAUNCH_DATE } from "@/lib/dripforge/launch-config"
 import { cn } from "@/lib/utils"
 
@@ -77,7 +77,6 @@ export function ComingSoonPage({
 }: {
   onAccessGranted?: () => void
 }) {
-  const { t } = useSiteTexts()
   const { showSupportOnCountdownPage: supportPageVisible } = useSupportPageSettings()
   const [countdown, setCountdown] = useState(getLaunchCountdown())
   const [testerOpen, setTesterOpen] = useState(false)
@@ -158,7 +157,7 @@ export function ComingSoonPage({
           {/* Countdown unterhalb des Logos */}
           <div className="flex w-full max-w-lg flex-col items-center gap-4 text-center">
             <p className="cs-metallic-gold text-[10px] font-semibold uppercase tracking-[0.45em] sm:text-xs">
-              {t("landingpage_countdown_label")}
+              <SiteText k="landingpage_countdown_label" />
             </p>
 
             <div className="w-full rounded-lg border border-orange-500/15 bg-black/40 px-3 py-3 shadow-[0_0_40px_rgba(249,115,22,0.12)] sm:px-5 sm:py-4">
@@ -182,15 +181,15 @@ export function ComingSoonPage({
         {/* Slogan unter Countdown — URL nur in der Logo-Grafik */}
         <section className="flex max-w-xl shrink-0 flex-col items-center space-y-4 text-center">
           <p className="text-xs font-medium uppercase tracking-[0.2em] text-zinc-500">
-            {t("landingpage_countdown_teaser")}
+            <SiteText k="landingpage_countdown_teaser" />
           </p>
           <h1 className="text-lg font-bold leading-snug text-zinc-200 sm:text-xl">
-            {t("landingpage_countdown_title")}
+            <SiteText k="landingpage_countdown_title" />
           </h1>
 
           {countdown.isPast && (
             <p className="text-sm text-orange-300">
-              {t("landingpage_countdown_past_message")}
+              <SiteText k="landingpage_countdown_past_message" />
             </p>
           )}
         </section>

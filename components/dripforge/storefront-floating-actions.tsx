@@ -15,20 +15,27 @@ import {
   Paperclip,
 } from "lucide-react"
 import { ChatMessageContent } from "@/components/dripforge/chat-message-content"
+import {
+  EditableSiteTextField,
+  SiteText,
+  useSiteTextValue,
+} from "@/components/dripforge/editable-site-text"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { useSupportPageSettings } from "@/hooks/use-support-page-active"
 import { useFloatingActionsVisible } from "@/hooks/use-floating-actions-visible"
 import { useTawkChat } from "@/hooks/use-tawk-chat"
-import { useSiteTexts } from "@/components/dripforge/site-texts-provider"
 import { SUPPORT_ROUTE } from "@/components/dripforge/support-nav-link"
 import { shopViewHref } from "@/lib/dripforge/shop-routes"
 
 /** Globale schwebende Aktionen: Support-Herz + Live-Chat (Mobil + Desktop). */
 export function StorefrontFloatingActions() {
   const router = useRouter()
-  const { t } = useSiteTexts()
+  const chatWelcome = useSiteTextValue("chat_welcome")
+  const chatInputPlaceholder = useSiteTextValue("chat_input_placeholder")
+  const chatSupportMission = useSiteTextValue("chat_support_mission")
+  const chatOpenLabel = useSiteTextValue("chat_open_label")
   const visible = useFloatingActionsVisible()
   const { showSupportOnMainSite: supportPageVisible } = useSupportPageSettings()
   const [mounted, setMounted] = useState(false)
@@ -39,7 +46,7 @@ export function StorefrontFloatingActions() {
 
   const { messages, loading, sending, uploading, sendMessage, uploadFile } = useTawkChat(
     chatOpen,
-    t("chat_welcome")
+    chatWelcome
   )
 
   useEffect(() => {
@@ -93,9 +100,15 @@ export function StorefrontFloatingActions() {
                 <Bot className="h-4 w-4 text-primary-foreground" />
               </div>
               <div>
-                <p className="text-sm font-medium">{t("chat_title")}</p>
+                <p className="text-sm font-medium">
+                  <SiteText k="chat_title" />
+                </p>
                 <p className="text-xs text-muted-foreground">
-                  {loading ? t("chat_status_connecting") : t("chat_status_live")}
+                  {loading ? (
+                    <SiteText k="chat_status_connecting" />
+                  ) : (
+                    <SiteText k="chat_status_live" />
+                  )}
                 </p>
               </div>
             </div>
@@ -112,7 +125,7 @@ export function StorefrontFloatingActions() {
             {loading ? (
               <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                {t("chat_loading")}
+                <SiteText k="chat_loading" />
               </div>
             ) : (
               <div className="space-y-4">
@@ -141,7 +154,11 @@ export function StorefrontFloatingActions() {
                           : "bg-secondary"
                       )}
                     >
-                      <ChatMessageContent message={msg} isVisitor={msg.role === "visitor"} />
+                      {msg.id === "welcome" ? (
+                        <SiteText k="chat_welcome" />
+                      ) : (
+                        <ChatMessageContent message={msg} isVisitor={msg.role === "visitor"} />
+                      )}
                     </div>
                   </div>
                 ))}
@@ -172,16 +189,18 @@ export function StorefrontFloatingActions() {
                   <Paperclip className="h-4 w-4" />
                 )}
               </Button>
-              <Input
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") void handleSendMessage()
-                }}
-                placeholder={t("chat_input_placeholder")}
-                className="flex-1"
-                disabled={loading || sending || uploading}
-              />
+              <EditableSiteTextField textKey="chat_input_placeholder" className="min-w-0 flex-1">
+                <Input
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") void handleSendMessage()
+                  }}
+                  placeholder={chatInputPlaceholder}
+                  className="w-full flex-1"
+                  disabled={loading || sending || uploading}
+                />
+              </EditableSiteTextField>
               <Button
                 size="icon"
                 onClick={() => void handleSendMessage()}
@@ -200,33 +219,37 @@ export function StorefrontFloatingActions() {
               onClick={() => router.push(shopViewHref("kontakt"))}
               className="mt-2 text-xs text-primary hover:underline"
             >
-              {t("chat_contact_link")}
+              <SiteText k="chat_contact_link" />
             </button>
           </div>
         </div>
       )}
 
       {supportPageVisible && (
-        <Link
-          href={SUPPORT_ROUTE}
-          prefetch
-          className="pointer-events-auto flex h-12 w-12 touch-manipulation items-center justify-center rounded-full border border-primary/30 bg-background/95 text-primary shadow-lg backdrop-blur-sm transition-transform hover:scale-105 hover:bg-primary/10"
-          title={t("chat_support_mission")}
-          aria-label={t("chat_support_mission")}
-        >
-          <Heart className="h-5 w-5 fill-primary/20 text-primary" />
-        </Link>
+        <EditableSiteTextField textKey="chat_support_mission">
+          <Link
+            href={SUPPORT_ROUTE}
+            prefetch
+            className="pointer-events-auto flex h-12 w-12 touch-manipulation items-center justify-center rounded-full border border-primary/30 bg-background/95 text-primary shadow-lg backdrop-blur-sm transition-transform hover:scale-105 hover:bg-primary/10"
+            title={chatSupportMission}
+            aria-label={chatSupportMission}
+          >
+            <Heart className="h-5 w-5 fill-primary/20 text-primary" />
+          </Link>
+        </EditableSiteTextField>
       )}
 
-      <button
-        type="button"
-        onClick={() => setChatOpen((open) => !open)}
-        className="pointer-events-auto flex h-14 w-14 touch-manipulation items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-105"
-        title={t("chat_open_label")}
-        aria-label={t("chat_open_label")}
-      >
-        <MessageCircle className="h-6 w-6" />
-      </button>
+      <EditableSiteTextField textKey="chat_open_label">
+        <button
+          type="button"
+          onClick={() => setChatOpen((open) => !open)}
+          className="pointer-events-auto flex h-14 w-14 touch-manipulation items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-105"
+          title={chatOpenLabel}
+          aria-label={chatOpenLabel}
+        >
+          <MessageCircle className="h-6 w-6" />
+        </button>
+      </EditableSiteTextField>
     </div>
   )
 

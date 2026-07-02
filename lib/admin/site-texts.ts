@@ -273,6 +273,19 @@ export const SITE_TEXT_SECTIONS: SiteTextSection[] = [
   },
 ]
 
+export function getSiteTextFieldMeta(key: SiteTextKey): {
+  label: string
+  multiline: boolean
+} {
+  for (const section of SITE_TEXT_SECTIONS) {
+    const field = section.fields.find((entry) => entry.key === key)
+    if (field) {
+      return { label: field.label, multiline: Boolean(field.multiline) }
+    }
+  }
+  return { label: key, multiline: false }
+}
+
 export function mergeSiteTexts(
   partial: Partial<Record<string, string>> | null | undefined
 ): SiteTexts {

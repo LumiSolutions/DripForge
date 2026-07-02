@@ -5,7 +5,7 @@ import Link from "next/link"
 import { ArrowRight, Loader2, Package, Palette, Coins, MapPin } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { KontoShell } from "@/components/konto/konto-shell"
-import { useSiteTexts } from "@/components/dripforge/site-texts-provider"
+import { SiteText } from "@/components/dripforge/editable-site-text"
 import { useRewardPointsEnabled } from "@/hooks/use-reward-points-enabled"
 import type { CustomerOrderSummary } from "@/lib/konto/customer-orders"
 import type { CustomerProfileResponse } from "@/lib/konto/customer-profile-service"
@@ -15,7 +15,6 @@ import {
 } from "@/components/konto/konto-order-parts"
 
 export function KontoDashboard() {
-  const { t } = useSiteTexts()
   const rewardPointsEnabled = useRewardPointsEnabled()
   const [profile, setProfile] = useState<CustomerProfileResponse | null>(null)
   const [orders, setOrders] = useState<CustomerOrderSummary[]>([])
@@ -92,15 +91,15 @@ export function KontoDashboard() {
     <KontoShell accountName={name}>
       <div className="space-y-8">
         <div>
-          <h1 className="text-2xl font-bold">{t("konto_welcome_title")}</h1>
+          <h1 className="text-2xl font-bold"><SiteText k="konto_welcome_title" /></h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            {t("konto_welcome_subtitle")},{" "}
+            <SiteText k="konto_welcome_subtitle" />,{" "}
             <span className="font-medium text-foreground">{name}</span>
           </p>
           {profile?.kundennummer ? (
             <div className="mt-3 inline-flex flex-wrap items-center gap-2 rounded-xl border border-primary/25 bg-primary/10 px-4 py-2">
               <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                {t("konto_customer_number_label")}
+                <SiteText k="konto_customer_number_label" />
               </span>
               <span className="font-mono text-base font-bold tracking-wide text-primary">
                 {profile.kundennummer}
@@ -233,7 +232,7 @@ export function KontoDashboard() {
         </section>
 
         <p className="rounded-xl border border-border/50 bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
-          {t("konto_support_hint")}
+          <SiteText k="konto_support_hint" />
         </p>
       </div>
     </KontoShell>
