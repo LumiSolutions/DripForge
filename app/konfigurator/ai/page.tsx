@@ -2,7 +2,6 @@
 
 import { useEffect } from "react"
 import { ShopHeader } from "@/components/dripforge/shop-header"
-import { ShopFooter } from "@/components/dripforge/shop-footer"
 import { PageAiConfigurator } from "@/components/dripforge/views/page-ai-configurator"
 
 export default function AiConfiguratorPage() {
@@ -16,7 +15,6 @@ export default function AiConfiguratorPage() {
       <main>
         <PageAiConfigurator />
       </main>
-      <ShopFooter />
     </div>
   )
 }

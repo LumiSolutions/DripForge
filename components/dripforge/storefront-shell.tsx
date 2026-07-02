@@ -2,7 +2,6 @@
 
 import { useEffect } from "react"
 import { ShopHeader } from "@/components/dripforge/shop-header"
-import { ShopFooter } from "@/components/dripforge/shop-footer"
 import { useCart } from "@/components/dripforge/cart-provider"
 
 export function StorefrontShell({ children }: { children: React.ReactNode }) {
@@ -20,8 +19,6 @@ export function StorefrontShell({ children }: { children: React.ReactNode }) {
       <ShopHeader mode="link" cartCount={cart.length} />
 
       <main>{children}</main>
-
-      <ShopFooter />
     </div>
   )
 }

@@ -25,7 +25,7 @@ type SiteTextEditorProps = {
   align?: "start" | "center" | "end"
 }
 
-function SiteTextEditor({
+export function SiteTextEditor({
   textKey,
   value,
   className,

@@ -11,6 +11,7 @@ import {
 } from "next/font/google"
 import "./globals.css"
 import { ParticleBackground } from "@/components/dripforge/particle-background"
+import { GlobalShopFooter } from "@/components/dripforge/global-shop-footer"
 import {
   SiteConfigPreviewBanner,
   SiteConfigPreviewProvider,
@@ -84,6 +85,7 @@ export default function RootLayout({
             <SiteTextsProvider>
               <SiteConfigPreviewBanner />
               {children}
+              <GlobalShopFooter />
               <StorefrontFloatingActions />
             </SiteTextsProvider>
           </SiteConfigPreviewProvider>

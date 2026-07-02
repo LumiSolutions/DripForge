@@ -12,7 +12,6 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { ShopHeader } from "@/components/dripforge/shop-header"
-import { ShopFooter } from "@/components/dripforge/shop-footer"
 import type { CartItem, Product } from "@/lib/dripforge/types"
 import { normalizeShopProduct } from "@/lib/dripforge/normalize-shop-product"
 import type {
@@ -230,8 +229,6 @@ export default function DripForgeApp() {
           />
         )}
       </main>
-
-      <ShopFooter />
 
       {/* Floating Chat Button */}
       <button

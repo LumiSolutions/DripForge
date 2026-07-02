@@ -4,7 +4,6 @@ import { useEffect, Suspense, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Loader2 } from "lucide-react"
 import { ShopHeader } from "@/components/dripforge/shop-header"
-import { ShopFooter } from "@/components/dripforge/shop-footer"
 import { SupportPageContent } from "@/components/dripforge/views/support-page-content"
 import { fetchSupportPageSettings } from "@/hooks/use-support-page-active"
 
@@ -91,8 +90,6 @@ export default function SupportPage() {
           </Suspense>
         </SupportPageGate>
       </main>
-
-      <ShopFooter />
     </div>
   )
 }

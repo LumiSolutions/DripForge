@@ -1,9 +1,10 @@
+import {
+  LEGAL_SITE_TEXT_DEFAULTS,
+  LEGAL_SITE_TEXT_SECTIONS,
+} from "@/lib/admin/legal-site-text-defaults"
+
 export const SITE_TEXTS_DOC_ID = "site-texts"
 export const SITE_TEXT_DOC_TYPE = "site-texts"
-
-export type SiteTextKey = keyof typeof DEFAULT_SITE_TEXTS
-
-export type SiteTexts = Record<SiteTextKey, string>
 
 export type SiteTextField = {
   key: SiteTextKey
@@ -12,7 +13,7 @@ export type SiteTextField = {
 }
 
 export type SiteTextSection = {
-  id: "landingpage" | "shop" | "konto" | "footer" | "chat"
+  id: "landingpage" | "shop" | "konto" | "footer" | "chat" | "agb" | "impressum" | "datenschutz" | "faq"
   label: string
   fields: SiteTextField[]
 }
@@ -121,7 +122,13 @@ export const DEFAULT_SITE_TEXTS = {
     "Von Ihrer Idee zur Realität - voll personalisierte Produkte.",
   landingpage_feature_4_title: "Vielfältige Materialien",
   landingpage_feature_4_description: "PLA, PETG, ASA, Holz, Acryl, Leder und mehr.",
+
+  ...LEGAL_SITE_TEXT_DEFAULTS,
 } as const
+
+export type SiteTextKey = keyof typeof DEFAULT_SITE_TEXTS
+
+export type SiteTexts = Record<SiteTextKey, string>
 
 export const SITE_TEXT_SECTIONS: SiteTextSection[] = [
   {
@@ -269,8 +276,10 @@ export const SITE_TEXT_SECTIONS: SiteTextSection[] = [
       { key: "footer_company_heading", label: "Spalte Unternehmen" },
       { key: "footer_contact_heading", label: "Spalte Kontakt" },
       { key: "footer_copyright_suffix", label: "Copyright-Zusatz" },
+      { key: "legal_subpage_back", label: "Zurueck-Link (Rechtsseiten)" },
     ],
   },
+  ...LEGAL_SITE_TEXT_SECTIONS as SiteTextSection[],
 ]
 
 export function getSiteTextFieldMeta(key: SiteTextKey): {
