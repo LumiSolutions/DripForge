@@ -24,6 +24,16 @@ export async function GET(request: Request, context: RouteContext) {
       )
     }
 
+    const canDownload =
+      order.paymentMethod === "invoice" || order.paymentConfirmed === true
+
+    if (!canDownload) {
+      return NextResponse.json(
+        { error: "Rechnung ist erst nach Zahlungsbestaetigung verfuegbar." },
+        { status: 403 }
+      )
+    }
+
     const wantsJson =
       request.headers.get("accept")?.includes("application/json") ||
       new URL(request.url).searchParams.get("format") === "json"

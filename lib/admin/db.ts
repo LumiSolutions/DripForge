@@ -85,6 +85,10 @@ import {
   cosmosSaveAiSettings,
 } from "@/lib/admin/cosmos-ai-settings"
 import {
+  cosmosGetInvoiceTemplateSettings,
+  cosmosSaveInvoiceTemplateSettings,
+} from "@/lib/admin/cosmos-invoice-template"
+import {
   cosmosGetPrintCalculatorSettings,
   cosmosSavePrintCalculatorSettings,
 } from "@/lib/admin/cosmos-print-calculator"
@@ -101,6 +105,10 @@ import {
   type LaserConfiguratorSettings,
 } from "@/lib/admin/laser-configurator-types"
 import { mergeAiSettings, type AiSettingsDocument } from "@/lib/ai/ai-settings-types"
+import {
+  mergeInvoiceTemplateSettings,
+  type InvoiceTemplateSettings,
+} from "@/lib/invoices/invoice-template-types"
 import { mergeSiteTexts, sanitizeSiteTextsInput, type SiteTexts } from "@/lib/admin/site-texts"
 import type { AdminFilament } from "@/lib/admin/filament-types"
 import {
@@ -124,6 +132,7 @@ const SITE_CONFIG_PRODUCTION_FILE = "site-config-production.json"
 const FILAMENTS_FILE = "filaments.json"
 const MATERIAL_STATS_FILE = "material-stats.json"
 const AI_SETTINGS_FILE = "ai-settings.json"
+const INVOICE_TEMPLATE_FILE = "invoice-template.json"
 const PRINT_CALCULATOR_FILE = "print-calculator-settings.json"
 const LASER_CONFIGURATOR_FILE = "laser-configurator-settings.json"
 const CUSTOMERS_FILE = "customers.json"
@@ -776,6 +785,43 @@ export async function saveAiSettings(
   settings: AiSettingsDocument
 ): Promise<AiSettingsDocument> {
   return withCosmosRequired("saveAiSettings", () => cosmosSaveAiSettings(settings))
+}
+
+export async function getInvoiceTemplateSettings(): Promise<InvoiceTemplateSettings> {
+  const company = (await getSettings()).company
+  return withCosmosFallback(
+    "getInvoiceTemplateSettings",
+    () => cosmosGetInvoiceTemplateSettings(company),
+    async () => {
+      const stored = await readJsonFile<Partial<InvoiceTemplateSettings> | null>(
+        INVOICE_TEMPLATE_FILE,
+        null
+      )
+      return mergeInvoiceTemplateSettings(stored, company)
+    }
+  )
+}
+
+export async function saveInvoiceTemplateSettings(
+  settings: InvoiceTemplateSettings
+): Promise<InvoiceTemplateSettings> {
+  const saved = await withCosmosRequired("saveInvoiceTemplateSettings", () =>
+    cosmosSaveInvoiceTemplateSettings(settings)
+  )
+
+  const current = await getSettings()
+  await saveSettings({
+    ...current,
+    company: {
+      firmenname: saved.firmenname,
+      firmenAdresse: saved.firmenAdresse,
+      iban: saved.iban,
+      bankname: saved.bankname,
+      kontaktEmail: saved.kontaktEmail,
+    },
+  })
+
+  return saved
 }
 
 export async function getPrintCalculatorSettings(): Promise<PrintCalculatorSettings> {

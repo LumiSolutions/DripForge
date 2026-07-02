@@ -30,6 +30,7 @@ export type CustomerOrderSummary = {
   itemCount: number
   paymentMethodLabel: string
   hasInvoice: boolean
+  canDownloadInvoice: boolean
   items: CustomerOrderItemView[]
 }
 
@@ -53,10 +54,15 @@ export function customerFacingOrderStatus(order: StoredOrder): string {
   return TIMELINE_LABELS[stepIndex] ?? orderStatusLabel(order.status)
 }
 
+function orderCanDownloadInvoice(order: StoredOrder): boolean {
+  return order.paymentMethod === "invoice" || order.paymentConfirmed === true
+}
+
 function mapOrderToCustomerSummary(order: StoredOrder): CustomerOrderSummary {
   const production = resolveProductionStatus(order)
-  const items = order.items.map(mapOrderItemToCustomerView)
+  const items = order.items.map((item) => mapOrderItemToCustomerView(item, order.orderId))
   const trackingUrl = resolveCustomerTrackingUrl(order)
+  const canDownloadInvoice = orderCanDownloadInvoice(order)
 
   return {
     orderId: order.orderId,
@@ -73,6 +79,7 @@ function mapOrderToCustomerSummary(order: StoredOrder): CustomerOrderSummary {
     itemCount: order.items.length,
     paymentMethodLabel: order.paymentMethodLabel,
     hasInvoice: Boolean(order.rechnungPdfUrl || order.rechnungPdfPath),
+    canDownloadInvoice,
     items,
   }
 }

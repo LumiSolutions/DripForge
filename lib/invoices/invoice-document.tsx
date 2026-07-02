@@ -11,15 +11,17 @@ import { SHIPPING_OPTIONS } from "@/lib/dripforge/checkout-config"
 import {
   formatChf,
   formatInvoiceDate,
-  DRIPFORGE_LOGO_URL,
   getInvoiceDueDateLabel,
   getInvoicePaymentTermsLabel,
-  INVOICE_PAYMENT_TERMS_DAYS,
 } from "@/lib/invoices/invoice-format"
 import {
   formatInvoiceItemDetails,
   getInvoiceLineTotal,
 } from "@/lib/invoices/invoice-item-details"
+import {
+  applyInvoiceTemplatePlaceholders,
+  type InvoiceTemplateSettings,
+} from "@/lib/invoices/invoice-template-types"
 
 const anthracite = "#2d3139"
 const anthraciteLight = "#6b7280"
@@ -220,16 +222,32 @@ const styles = StyleSheet.create({
 export type InvoiceDocumentProps = {
   order: StoredOrder
   settings: AdminSettings
+  template: InvoiceTemplateSettings
 }
 
 function shippingLabel(method: StoredOrder["shippingMethod"]): string {
   return SHIPPING_OPTIONS.find((o) => o.id === method)?.label ?? method
 }
 
-export function InvoiceDocument({ order, settings }: InvoiceDocumentProps) {
-  const { company, checkout } = settings
+export function InvoiceDocument({ order, settings, template }: InvoiceDocumentProps) {
+  const { checkout } = settings
+  const company = template
   const addressLines = company.firmenAdresse.split("\n").filter(Boolean)
   const mwstSatz = checkout.mwstSatz
+  const paymentTermsDays = template.paymentTermsDays
+  const logoUrl = template.logoUrl ?? undefined
+
+  const placeholderValues = {
+    firmenname: company.firmenname,
+    inhaber: company.inhaber,
+    rechnungsnummer: order.orderId,
+    zahlungsfrist: String(paymentTermsDays),
+    iban: company.iban,
+    bank: company.bankname ? ` (${company.bankname})` : "",
+  }
+
+  const introText = applyInvoiceTemplatePlaceholders(template.introText, placeholderValues)
+  const closingText = applyInvoiceTemplatePlaceholders(template.closingText, placeholderValues)
 
   return (
     <Document title={`Rechnung ${order.orderId}`} author={company.firmenname}>
@@ -237,6 +255,9 @@ export function InvoiceDocument({ order, settings }: InvoiceDocumentProps) {
         <View style={styles.topRow}>
           <View style={styles.companyBlock}>
             <Text style={styles.companyName}>{company.firmenname}</Text>
+            {company.inhaber ? (
+              <Text style={styles.companyLine}>{company.inhaber}</Text>
+            ) : null}
             {addressLines.map((line) => (
               <Text key={line} style={styles.companyLine}>
                 {line}
@@ -254,16 +275,16 @@ export function InvoiceDocument({ order, settings }: InvoiceDocumentProps) {
               <Text style={styles.companyLine}>{company.bankname}</Text>
             ) : null}
           </View>
-          {/* eslint-disable-next-line jsx-a11y/alt-text -- @react-pdf Image */}
-          <Image style={styles.logo} src={DRIPFORGE_LOGO_URL} />
+          {logoUrl ? (
+            /* eslint-disable-next-line jsx-a11y/alt-text -- @react-pdf Image */
+            <Image style={styles.logo} src={logoUrl} />
+          ) : null}
         </View>
 
         <View style={styles.accentBar} />
 
         <Text style={styles.title}>Rechnung</Text>
-        <Text style={styles.subtitle}>
-          Vielen Dank fuer Ihre Bestellung bei {company.firmenname}.
-        </Text>
+        <Text style={styles.subtitle}>{introText}</Text>
 
         <View style={styles.twoCol}>
           <View style={styles.block}>
@@ -313,13 +334,13 @@ export function InvoiceDocument({ order, settings }: InvoiceDocumentProps) {
           <View style={styles.metaItem}>
             <Text style={styles.metaLabel}>Zahlungsfrist</Text>
             <Text style={styles.metaValue}>
-              {getInvoicePaymentTermsLabel(order.paymentMethod)}
+              {getInvoicePaymentTermsLabel(order.paymentMethod, paymentTermsDays)}
             </Text>
           </View>
           <View style={styles.metaItem}>
             <Text style={styles.metaLabel}>Faellig am</Text>
             <Text style={styles.metaValue}>
-              {getInvoiceDueDateLabel(order.createdAt, order.paymentMethod)}
+              {getInvoiceDueDateLabel(order.createdAt, order.paymentMethod, paymentTermsDays)}
             </Text>
           </View>
           <View style={styles.metaItem}>
@@ -392,12 +413,15 @@ export function InvoiceDocument({ order, settings }: InvoiceDocumentProps) {
           ) : null}
         </View>
 
-        {order.paymentMethod === "invoice" && company.iban ? (
+        {order.paymentMethod === "invoice" && company.iban && closingText ? (
           <Text style={[styles.vatNote, { marginTop: 18, fontStyle: "normal" }]}>
-            Bitte ueberweisen Sie den Gesamtbetrag innerhalb von{" "}
-            {INVOICE_PAYMENT_TERMS_DAYS} Tagen auf IBAN {company.iban}
-            {company.bankname ? ` (${company.bankname})` : ""}. Verwendungszweck:{" "}
-            {order.orderId}
+            {closingText}
+          </Text>
+        ) : null}
+
+        {template.footerNote ? (
+          <Text style={[styles.vatNote, { marginTop: 10, fontStyle: "normal" }]}>
+            {template.footerNote}
           </Text>
         ) : null}
 

@@ -9,6 +9,10 @@ export type CustomerAccount = {
   zip?: string
   city?: string
   phone?: string
+  deliveryStreet?: string
+  deliveryZip?: string
+  deliveryCity?: string
+  deliverySameAsBilling?: boolean
   /** Verknuepfung zum CRM (falls bereits Bestellungen) */
   kundennummer?: string
   /** Portal-Kontostatus (Soft Delete) */

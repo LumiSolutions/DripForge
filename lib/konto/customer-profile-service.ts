@@ -13,6 +13,10 @@ export type CustomerAddressInput = {
   zip: string
   city: string
   phone: string
+  deliveryStreet: string
+  deliveryZip: string
+  deliveryCity: string
+  deliverySameAsBilling: boolean
 }
 
 export type CustomerProfileResponse = ReturnType<typeof toPublicAccount> & {
@@ -27,6 +31,10 @@ export function parseCustomerAddressInput(body: unknown): CustomerAddressInput |
     zip: typeof b.zip === "string" ? b.zip.trim() : "",
     city: typeof b.city === "string" ? b.city.trim() : "",
     phone: typeof b.phone === "string" ? b.phone.trim() : "",
+    deliveryStreet: typeof b.deliveryStreet === "string" ? b.deliveryStreet.trim() : "",
+    deliveryZip: typeof b.deliveryZip === "string" ? b.deliveryZip.trim() : "",
+    deliveryCity: typeof b.deliveryCity === "string" ? b.deliveryCity.trim() : "",
+    deliverySameAsBilling: b.deliverySameAsBilling === true,
   }
 }
 
@@ -64,6 +72,10 @@ export async function updateCustomerAddress(
     zip: input.zip,
     city: input.city,
     phone: input.phone,
+    deliveryStreet: input.deliverySameAsBilling ? input.street : input.deliveryStreet,
+    deliveryZip: input.deliverySameAsBilling ? input.zip : input.deliveryZip,
+    deliveryCity: input.deliverySameAsBilling ? input.city : input.deliveryCity,
+    deliverySameAsBilling: input.deliverySameAsBilling,
   })
   const synced = await syncAccountToCrm(saved)
   return toCustomerProfileResponse(synced)

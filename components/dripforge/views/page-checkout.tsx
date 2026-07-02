@@ -186,7 +186,12 @@ export function PageCheckout({
   useEffect(() => {
     void fetch("/api/konto/me", { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : null))
-      .then((data: { account?: Partial<CheckoutForm> } | null) => {
+      .then((data: { account?: Partial<CheckoutForm> & {
+        deliveryStreet?: string
+        deliveryZip?: string
+        deliveryCity?: string
+        deliverySameAsBilling?: boolean
+      } } | null) => {
         if (!data?.account) return
         const a = data.account
         setForm((prev) => ({
@@ -201,9 +206,18 @@ export function PageCheckout({
           deliveryFirstName:
             prev.deliveryFirstName || a.firstName || "",
           deliveryLastName: prev.deliveryLastName || a.lastName || "",
-          deliveryStreet: prev.deliveryStreet || a.street || "",
-          deliveryZip: prev.deliveryZip || a.zip || "",
-          deliveryCity: prev.deliveryCity || a.city || "",
+          deliveryStreet:
+            prev.deliveryStreet ||
+            (a.deliverySameAsBilling === false ? a.deliveryStreet : a.street) ||
+            "",
+          deliveryZip:
+            prev.deliveryZip ||
+            (a.deliverySameAsBilling === false ? a.deliveryZip : a.zip) ||
+            "",
+          deliveryCity:
+            prev.deliveryCity ||
+            (a.deliverySameAsBilling === false ? a.deliveryCity : a.city) ||
+            "",
         }))
       })
       .catch(() => {

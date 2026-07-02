@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Download, ExternalLink, LifeBuoy } from "lucide-react"
+import { Download, ExternalLink, FileDown, LifeBuoy } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import type { CustomerOrderSummary } from "@/lib/konto/customer-orders"
@@ -112,10 +112,27 @@ export function OrderItemList({ order }: { order: CustomerOrderSummary }) {
             )}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="font-medium leading-snug">{item.name}</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="font-medium leading-snug">{item.name}</p>
+              <Badge variant="secondary" className="text-[10px] uppercase">
+                {item.type === "3d" ? "3D-Druck" : "Laser"}
+              </Badge>
+            </div>
             <p className="text-xs text-muted-foreground">
               {item.quantity}× CHF {item.unitPriceChf.toFixed(2)}
             </p>
+            {item.engravingText ? (
+              <p className="mt-1 text-xs">
+                <span className="font-medium text-foreground">Gravur:</span>{" "}
+                <span className="text-muted-foreground">{item.engravingText}</span>
+              </p>
+            ) : null}
+            {item.fileName ? (
+              <p className="mt-1 text-xs">
+                <span className="font-medium text-foreground">3D-Datei:</span>{" "}
+                <span className="font-mono text-muted-foreground">{item.fileName}</span>
+              </p>
+            ) : null}
             {item.options.length > 0 && (
               <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground">
                 {item.options.map((option) => (
@@ -123,6 +140,20 @@ export function OrderItemList({ order }: { order: CustomerOrderSummary }) {
                 ))}
               </ul>
             )}
+            {item.downloads.length > 0 ? (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {item.downloads.map((download) => (
+                  <a
+                    key={download.id}
+                    href={download.href}
+                    className="inline-flex items-center gap-1 rounded-md border border-border/60 px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/5"
+                  >
+                    <FileDown className="h-3 w-3" />
+                    {download.label}
+                  </a>
+                ))}
+              </div>
+            ) : null}
           </div>
           <p className="shrink-0 text-sm font-semibold tabular-nums">
             CHF {item.lineTotalChf.toFixed(2)}
@@ -165,10 +196,16 @@ export function OrderActions({
 
   return (
     <div className="flex flex-wrap gap-2 border-t border-border/50 pt-4">
-      <Button type="button" size="sm" variant="outline" onClick={() => void handleInvoiceDownload()}>
-        <Download className="mr-2 h-4 w-4" />
-        Rechnung herunterladen (PDF)
-      </Button>
+      {order.canDownloadInvoice ? (
+        <Button type="button" size="sm" variant="outline" onClick={() => void handleInvoiceDownload()}>
+          <Download className="mr-2 h-4 w-4" />
+          Rechnung herunterladen (PDF)
+        </Button>
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          Rechnung verfuegbar, sobald die Zahlung bestaetigt ist.
+        </p>
+      )}
       <Button type="button" size="sm" variant="ghost" asChild>
         <Link href={`/kontakt?order=${encodeURIComponent(order.orderId)}`}>
           <LifeBuoy className="mr-2 h-4 w-4" />

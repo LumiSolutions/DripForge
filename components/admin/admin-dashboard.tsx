@@ -7,6 +7,7 @@ import {
   Calculator,
   ClipboardList,
   Factory,
+  FileText,
   LayoutDashboard,
   Warehouse,
   LogOut,
@@ -21,6 +22,7 @@ import {
   Users,
   X,
 } from "lucide-react"
+import { AdminInvoiceTemplateTab } from "@/components/admin/admin-invoice-template-tab"
 import { AdminAiSettingsTab } from "@/components/admin/admin-ai-settings-tab"
 import { AdminCustomersTab } from "@/components/admin/admin-customers-tab"
 import { AdminOrdersTab } from "@/components/admin/admin-orders-tab"
@@ -45,6 +47,7 @@ type AdminTab =
   | "inventory"
   | "coupons"
   | "orders"
+  | "invoice-template"
   | "products"
   | "customers"
   | "settings"
@@ -66,6 +69,7 @@ const NAV: { id: AdminTab; label: string; icon: typeof ClipboardList }[] = [
   { id: "inventory", label: "Lagerverwaltung", icon: Warehouse },
   { id: "coupons", label: "Gutscheine & Rabatte", icon: Tag },
   { id: "orders", label: "Bestellungen", icon: ClipboardList },
+  { id: "invoice-template", label: "Rechnungsvorlage", icon: FileText },
   { id: "products", label: "Produkte", icon: Package },
   { id: "customers", label: "Kundenverwaltung", icon: Users },
   { id: "settings", label: "Shop-Einstellungen", icon: Settings },
@@ -337,6 +341,7 @@ export function AdminDashboard() {
             onHighlightConsumed={() => setHighlightOrderId(null)}
           />
         )}
+        {tab === "invoice-template" && <AdminInvoiceTemplateTab />}
         {tab === "products" && <AdminProductsTab />}
         {tab === "customers" && (
           <AdminCustomersTab onOpenOrder={openOrderFromCustomers} />

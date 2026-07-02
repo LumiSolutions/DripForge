@@ -18,20 +18,22 @@ export const DRIPFORGE_LOGO_URL =
 export const INVOICE_PAYMENT_TERMS_DAYS = 30
 
 export function getInvoicePaymentTermsLabel(
-  paymentMethod: StoredOrder["paymentMethod"]
+  paymentMethod: StoredOrder["paymentMethod"],
+  paymentTermsDays = INVOICE_PAYMENT_TERMS_DAYS
 ): string {
   if (paymentMethod === "invoice") {
-    return `${INVOICE_PAYMENT_TERMS_DAYS} Tage netto`
+    return `${paymentTermsDays} Tage netto`
   }
   return "Bei Bestellung"
 }
 
 export function getInvoiceDueDateLabel(
   createdAt: string,
-  paymentMethod: StoredOrder["paymentMethod"]
+  paymentMethod: StoredOrder["paymentMethod"],
+  paymentTermsDays = INVOICE_PAYMENT_TERMS_DAYS
 ): string {
   if (paymentMethod !== "invoice") return "—"
   const due = new Date(createdAt)
-  due.setDate(due.getDate() + INVOICE_PAYMENT_TERMS_DAYS)
+  due.setDate(due.getDate() + paymentTermsDays)
   return formatInvoiceDate(due.toISOString())
 }
