@@ -68,6 +68,7 @@ import { normalizeShopProduct } from "@/lib/dripforge/normalize-shop-product"
 import { SHOP_ROUTES } from "@/lib/dripforge/shop-routes"
 import { ProductDetailErrorBoundary } from "@/components/dripforge/product-detail-error-boundary"
 import { SiteText } from "@/components/dripforge/editable-site-text"
+import { SiteTextPhrase } from "@/components/dripforge/site-text-phrase"
 import {
   capture3dPreviewLeitbild,
   captureLaserPreviewLeitbild,
@@ -783,9 +784,17 @@ export function PageShop({
           <SiteText k="shop_hero_badge" />
         </Badge>
         <h1 className="text-4xl font-bold md:text-5xl">
-          <SiteText k="shop_hero_title_prefix" className="text-foreground" />
-          <SiteText k="shop_hero_title_brand" className="bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent" />
-          <SiteText k="shop_hero_title_suffix" className="text-foreground" />
+          <SiteTextPhrase
+            parts={[
+              { key: "shop_hero_title_prefix", className: "text-foreground" },
+              {
+                key: "shop_hero_title_brand",
+                className:
+                  "bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent",
+              },
+              { key: "shop_hero_title_suffix", className: "text-foreground" },
+            ]}
+          />
         </h1>
         <p className="mx-auto mt-4 max-w-2xl text-muted-foreground">
           <SiteText k="shop_hero_subtitle" />

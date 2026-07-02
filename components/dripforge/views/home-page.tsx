@@ -60,6 +60,7 @@ import { materials3D, laserMaterials, processSteps, products } from "@/lib/dripf
 import type { CartItem } from "@/lib/dripforge/types"
 import type { ServiceVisibilitySettings } from "@/lib/admin/types"
 import { SiteText } from "@/components/dripforge/editable-site-text"
+import { SiteTextPhrase } from "@/components/dripforge/site-text-phrase"
 import { useAiPublicSettings } from "@/hooks/use-ai-public-settings"
 import { SHOP_ROUTES } from "@/lib/dripforge/shop-routes"
 
@@ -85,8 +86,16 @@ export function HomePage({
                 <SiteText k="landingpage_hero_badge" />
               </Badge>
               <h1 className="text-4xl font-bold leading-tight md:text-5xl lg:text-6xl">
-                <SiteText k="landingpage_hero_title" className="text-foreground" />{" "}
-                <SiteText k="landingpage_hero_title_highlight" className="bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent" />
+                <SiteTextPhrase
+                  parts={[
+                    { key: "landingpage_hero_title", className: "text-foreground" },
+                    {
+                      key: "landingpage_hero_title_highlight",
+                      className:
+                        "bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent",
+                    },
+                  ]}
+                />
               </h1>
               <p className="mt-6 text-lg text-muted-foreground">
                 <SiteText k="landingpage_hero_subtitle" />
@@ -128,8 +137,16 @@ export function HomePage({
         <div className="mx-auto max-w-7xl px-4">
           <div className="mb-12 text-center">
             <h2 className="text-3xl font-bold md:text-4xl">
-              <SiteText k="landingpage_expertise_prefix" className="text-foreground" />
-              <SiteText k="landingpage_expertise_heading" className="bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent" />
+              <SiteTextPhrase
+                parts={[
+                  { key: "landingpage_expertise_prefix", className: "text-foreground" },
+                  {
+                    key: "landingpage_expertise_heading",
+                    className:
+                      "bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent",
+                  },
+                ]}
+              />
             </h2>
             <p className="mt-4 text-muted-foreground">
               {services.druck3d && services.lasergravur ? (
@@ -253,8 +270,16 @@ export function HomePage({
         <div className="mx-auto max-w-7xl px-4">
           <div className="mb-12 text-center">
             <h2 className="text-3xl font-bold md:text-4xl">
-              <SiteText k="landingpage_why_prefix" className="text-foreground" />
-              <SiteText k="landingpage_why_heading" className="bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent" />
+              <SiteTextPhrase
+                parts={[
+                  { key: "landingpage_why_prefix", className: "text-foreground" },
+                  {
+                    key: "landingpage_why_heading",
+                    className:
+                      "bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent",
+                  },
+                ]}
+              />
             </h2>
             <p className="mt-4 text-muted-foreground">
               <SiteText k="landingpage_why_subtitle" />
@@ -295,8 +320,16 @@ export function HomePage({
             <CardContent className="p-12 text-center">
               <Package className="mx-auto mb-4 h-10 w-10 text-cyan-400" />
               <h2 className="mb-4 text-3xl font-bold">
-                <SiteText k="landingpage_cta_title_prefix" className="text-foreground" />
-                <SiteText k="landingpage_cta_title" className="bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent" />
+                <SiteTextPhrase
+                  parts={[
+                    { key: "landingpage_cta_title_prefix", className: "text-foreground" },
+                    {
+                      key: "landingpage_cta_title",
+                      className:
+                        "bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent",
+                    },
+                  ]}
+                />
                 <span className="text-foreground">?</span>
               </h2>
               <p className="mb-8 text-muted-foreground">

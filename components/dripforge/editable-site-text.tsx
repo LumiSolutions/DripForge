@@ -150,19 +150,22 @@ type SiteTextProps = {
   k: SiteTextKey
   className?: string
   as?: "span" | "p" | "h1" | "h2" | "h3" | "h4" | "div"
+  /** Trim surrounding whitespace in display (avoids double spaces with composed headings). */
+  trim?: boolean
 }
 
-export function SiteText({ k, className, as: Tag = "span" }: SiteTextProps) {
+export function SiteText({ k, className, as: Tag = "span", trim = false }: SiteTextProps) {
   const { t, canInlineEdit } = useSiteTexts()
   const value = t(k)
+  const displayValue = trim ? value.trim() : value
 
   if (!canInlineEdit) {
-    return <Tag className={className}>{value}</Tag>
+    return <Tag className={className}>{displayValue}</Tag>
   }
 
   return (
     <span className={cn("group/site-text inline-flex max-w-full items-start gap-1", className)}>
-      <Tag className="min-w-0 flex-1">{value}</Tag>
+      <Tag className="min-w-0 flex-1">{displayValue}</Tag>
       <SiteTextEditor textKey={k} value={value} />
     </span>
   )

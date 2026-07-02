@@ -2,7 +2,11 @@
 
 import { Badge } from "@/components/ui/badge"
 import { SiteText } from "@/components/dripforge/editable-site-text"
+import { SiteTextPhrase } from "@/components/dripforge/site-text-phrase"
 import type { SiteTextKey } from "@/lib/admin/site-texts"
+
+const HIGHLIGHT_CLASS =
+  "bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent"
 
 type LegalPageHeroProps = {
   badgeKey: SiteTextKey
@@ -23,12 +27,14 @@ export function LegalPageHero({
         <SiteText k={badgeKey} />
       </Badge>
       <h1 className="text-4xl font-bold tracking-tight md:text-5xl">
-        <SiteText k={titlePrefixKey} className="text-foreground" />
-        <SiteText
-          k={titleHighlightKey}
-          className="bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent"
+        <SiteTextPhrase
+          spaced={false}
+          parts={[
+            { key: titlePrefixKey, className: "text-foreground" },
+            { key: titleHighlightKey, className: HIGHLIGHT_CLASS },
+            { key: titleSuffixKey, className: "text-foreground" },
+          ]}
         />
-        <SiteText k={titleSuffixKey} className="text-foreground" />
       </h1>
     </div>
   )
