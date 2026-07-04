@@ -1,5 +1,6 @@
 import { renderToBuffer } from "@react-pdf/renderer"
 import type { AdminSettings, StoredOrder } from "@/lib/admin/types"
+import { ensureDocumentPdfFonts } from "@/lib/documents/pdf-fonts"
 import { InvoiceDocument } from "@/lib/invoices/invoice-document"
 import {
   type DocumentTemplateSettings,
@@ -14,6 +15,8 @@ export async function generateInvoicePdfBuffer(
   documentType: DocumentTemplateType = "invoice"
 ): Promise<Buffer> {
   const documentTemplate = template ?? (await getDocumentTemplateSettings())
+
+  ensureDocumentPdfFonts()
 
   const buffer = await renderToBuffer(
     <InvoiceDocument

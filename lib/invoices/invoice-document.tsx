@@ -8,10 +8,8 @@ import {
   type DocumentTemplateSettings,
   type DocumentTemplateType,
 } from "@/lib/documents/document-template-types"
-import {
-  PdfDocumentLayout,
-  pdfDocumentColors,
-} from "@/lib/documents/pdf-document-layout"
+import { PdfDocumentLayout, pdfDocumentColors } from "@/lib/documents/pdf-document-layout"
+import { pdfBoldStyle } from "@/lib/documents/pdf-fonts"
 import {
   formatChf,
   formatInvoiceDate,
@@ -22,123 +20,132 @@ import {
   getInvoiceLineTotal,
 } from "@/lib/invoices/invoice-item-details"
 
-const styles = StyleSheet.create({
-  table: {
-    borderWidth: 1,
-    borderColor: pdfDocumentColors.border,
-    borderRadius: 3,
-    overflow: "hidden",
-    marginBottom: 8,
-  },
-  tableHeader: {
-    flexDirection: "row",
-    backgroundColor: pdfDocumentColors.tableHeader,
-    paddingVertical: 7,
-    paddingHorizontal: 6,
-  },
-  th: {
-    color: "#ffffff",
-    fontFamily: "Helvetica-Bold",
-    fontSize: 6.5,
-    textTransform: "uppercase",
-    letterSpacing: 0.4,
-  },
-  tableRow: {
-    flexDirection: "row",
-    paddingVertical: 7,
-    paddingHorizontal: 6,
-    borderBottomWidth: 1,
-    borderBottomColor: pdfDocumentColors.border,
-  },
-  tableRowAlt: {
-    backgroundColor: pdfDocumentColors.bgMuted,
-  },
-  colProduct: { width: "18%" },
-  colDetails: { width: "28%" },
-  colQty: { width: "8%", textAlign: "center" },
-  colUnit: { width: "14%", textAlign: "right" },
-  colTotal: { width: "14%", textAlign: "right" },
-  colVat: { width: "10%", textAlign: "right" },
-  cellProduct: {
-    fontFamily: "Helvetica-Bold",
-    fontSize: 8,
-    color: pdfDocumentColors.anthracite,
-  },
-  cellDetails: {
-    fontSize: 7,
-    color: pdfDocumentColors.anthraciteLight,
-    lineHeight: 1.35,
-  },
-  cellQty: {
-    fontSize: 8,
-    textAlign: "center",
-    color: pdfDocumentColors.anthraciteMid,
-  },
-  cellMoney: {
-    fontSize: 8,
-    textAlign: "right",
-    color: pdfDocumentColors.anthraciteMid,
-  },
-  cellMoneyBold: {
-    fontFamily: "Helvetica-Bold",
-    fontSize: 8,
-    textAlign: "right",
-    color: pdfDocumentColors.anthracite,
-  },
-  cellVat: {
-    fontSize: 8,
-    textAlign: "right",
-    color: pdfDocumentColors.anthraciteMid,
-  },
-  legalNote: {
-    fontSize: 7,
-    color: pdfDocumentColors.anthraciteLight,
-    marginBottom: 12,
-    lineHeight: 1.35,
-  },
-  totalsWrap: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    marginBottom: 8,
-  },
-  totalsBox: {
-    width: "42%",
-    minWidth: 180,
-    borderWidth: 1,
-    borderColor: pdfDocumentColors.border,
-    borderRadius: 3,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    backgroundColor: "#ffffff",
-  },
-  totalRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 5,
-    fontSize: 8.5,
-  },
-  totalLabel: {
-    color: pdfDocumentColors.anthraciteLight,
-  },
-  totalGrand: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 6,
-    paddingTop: 8,
-    borderTopWidth: 2,
-    borderTopColor: pdfDocumentColors.orange,
-  },
-  totalGrandLabel: {
-    fontFamily: "Helvetica-Bold",
-    fontSize: 10,
-    color: pdfDocumentColors.anthracite,
-  },
-  totalGrandValue: {
-    fontFamily: "Helvetica-Bold",
-    fontSize: 11,
-    color: pdfDocumentColors.anthracite,
-  },
-})
+function scaledSize(baseFontSize: number, sizeAtBase9: number): number {
+  return Math.round(sizeAtBase9 * (baseFontSize / 9) * 10) / 10
+}
+
+function createInvoiceDocumentStyles(template: DocumentTemplateSettings) {
+  const base = template.baseFontSize
+  const bold = pdfBoldStyle(template.fontFamily)
+
+  return StyleSheet.create({
+    table: {
+      borderWidth: 1,
+      borderColor: pdfDocumentColors.border,
+      borderRadius: 3,
+      overflow: "hidden",
+      marginBottom: 8,
+    },
+    tableHeader: {
+      flexDirection: "row",
+      backgroundColor: pdfDocumentColors.tableHeader,
+      paddingVertical: 7,
+      paddingHorizontal: 6,
+    },
+    th: {
+      color: "#ffffff",
+      ...bold,
+      fontSize: scaledSize(base, 6.5),
+      textTransform: "uppercase",
+      letterSpacing: 0.4,
+    },
+    tableRow: {
+      flexDirection: "row",
+      paddingVertical: 7,
+      paddingHorizontal: 6,
+      borderBottomWidth: 1,
+      borderBottomColor: pdfDocumentColors.border,
+    },
+    tableRowAlt: {
+      backgroundColor: pdfDocumentColors.bgMuted,
+    },
+    colProduct: { width: "18%" },
+    colDetails: { width: "28%" },
+    colQty: { width: "8%", textAlign: "center" },
+    colUnit: { width: "14%", textAlign: "right" },
+    colTotal: { width: "14%", textAlign: "right" },
+    colVat: { width: "10%", textAlign: "right" },
+    cellProduct: {
+      ...bold,
+      fontSize: scaledSize(base, 8),
+      color: pdfDocumentColors.anthracite,
+    },
+    cellDetails: {
+      fontSize: scaledSize(base, 7),
+      color: pdfDocumentColors.anthraciteLight,
+      lineHeight: 1.35,
+    },
+    cellQty: {
+      fontSize: scaledSize(base, 8),
+      textAlign: "center",
+      color: pdfDocumentColors.anthraciteMid,
+    },
+    cellMoney: {
+      fontSize: scaledSize(base, 8),
+      textAlign: "right",
+      color: pdfDocumentColors.anthraciteMid,
+    },
+    cellMoneyBold: {
+      ...bold,
+      fontSize: scaledSize(base, 8),
+      textAlign: "right",
+      color: pdfDocumentColors.anthracite,
+    },
+    cellVat: {
+      fontSize: scaledSize(base, 8),
+      textAlign: "right",
+      color: pdfDocumentColors.anthraciteMid,
+    },
+    legalNote: {
+      fontSize: scaledSize(base, 7),
+      color: pdfDocumentColors.anthraciteLight,
+      marginBottom: 12,
+      lineHeight: 1.35,
+    },
+    totalsWrap: {
+      flexDirection: "row",
+      justifyContent: "flex-end",
+      marginBottom: 8,
+    },
+    totalsBox: {
+      width: "42%",
+      minWidth: 180,
+      borderWidth: 1,
+      borderColor: pdfDocumentColors.border,
+      borderRadius: 3,
+      paddingVertical: 10,
+      paddingHorizontal: 12,
+      backgroundColor: "#ffffff",
+    },
+    totalRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      marginBottom: 5,
+      fontSize: scaledSize(base, 8.5),
+    },
+    totalLabel: {
+      color: pdfDocumentColors.anthraciteLight,
+    },
+    totalGrand: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      marginTop: 6,
+      paddingTop: 8,
+      borderTopWidth: 2,
+      borderTopColor: pdfDocumentColors.orange,
+    },
+    totalGrandLabel: {
+      ...bold,
+      fontSize: scaledSize(base, 10),
+      color: pdfDocumentColors.anthracite,
+    },
+    totalGrandValue: {
+      ...bold,
+      fontSize: scaledSize(base, 11),
+      color: pdfDocumentColors.anthracite,
+    },
+  })
+}
 
 export type InvoiceDocumentProps = {
   order: StoredOrder
@@ -187,6 +194,8 @@ export function InvoiceDocument({
           qrImageUrl: template.qrPaymentImageUrl,
         }
       : null
+
+  const styles = createInvoiceDocumentStyles(template)
 
   return (
     <PdfDocumentLayout

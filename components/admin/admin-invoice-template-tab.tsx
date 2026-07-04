@@ -9,18 +9,33 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
 import {
+  DOCUMENT_BASE_FONT_SIZES,
+  DOCUMENT_FONT_CSS,
+  DOCUMENT_FONT_FAMILIES,
+  DOCUMENT_FONT_LABELS,
+  DOCUMENT_HEADER_HEIGHT_MM,
   DOCUMENT_TEMPLATE_TYPES,
   LOGO_ALIGNMENTS,
+  MAX_LOGO_WIDTH_PERCENT,
+  MIN_LOGO_WIDTH_PERCENT,
   MWST_EXEMPT_LEGAL_NOTE,
   applyDocumentTemplatePlaceholders,
-  buildDocumentFooterText,
   buildDocumentPlaceholderValues,
   formatDocumentDueDate,
+  resolveDocumentFooterLines,
+  type DocumentFontFamily,
   type DocumentLogoAlignment,
   type DocumentTemplateSettings,
   type DocumentTemplateType,
   type DocumentTypeTextSettings,
 } from "@/lib/documents/document-template-types"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 
 const DOCUMENT_TYPE_LABELS: Record<DocumentTemplateType, string> = {
@@ -81,13 +96,6 @@ function formatPreviewDate(date: Date): string {
   }).format(date)
 }
 
-function addressLines(value: string): string[] {
-  return value
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean)
-}
-
 function renderTemplateText(text: string, values: Record<string, string>): string {
   return applyDocumentTemplatePlaceholders(text, values)
 }
@@ -135,7 +143,7 @@ function DocumentLivePreview({
     placeholderValues
   )
   const customFooter = renderTemplateText(documentText.centerFooterText, placeholderValues)
-  const footerText = customFooter.trim() || buildDocumentFooterText(template)
+  const footerLines = resolveDocumentFooterLines(template, customFooter)
   const logoAlignClass =
     template.logoAlignment === "left"
       ? "justify-start"
@@ -160,17 +168,37 @@ function DocumentLivePreview({
       </div>
 
       <div className="mx-auto aspect-[210/297] w-full max-w-[620px] overflow-y-auto rounded-sm bg-white text-slate-900 shadow-2xl">
-        <div className="flex min-h-full flex-col p-[7%] text-[clamp(6px,0.68vw,9px)]">
-          <div className={cn("mb-4 flex min-h-[52px]", logoAlignClass)}>
+        <div
+          className="flex min-h-full flex-col px-[20mm] pb-[12mm] pt-0"
+          style={{
+            fontFamily: DOCUMENT_FONT_CSS[template.fontFamily],
+            fontSize: `${template.baseFontSize}px`,
+          }}
+        >
+          <div
+            className={cn("flex shrink-0 items-center", logoAlignClass)}
+            style={{ height: `${DOCUMENT_HEADER_HEIGHT_MM}mm` }}
+          >
             {template.logoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={template.logoUrl}
                 alt="Dokumentenlogo Vorschau"
-                className="h-12 w-auto max-w-[40%] object-contain"
+                className="h-auto object-contain"
+                style={{
+                  width: `${template.logoWidthPercent}%`,
+                  maxHeight: `${DOCUMENT_HEADER_HEIGHT_MM - 4}mm`,
+                }}
               />
             ) : (
-              <div className="flex h-12 w-24 items-center justify-center rounded border border-dashed border-slate-300 text-[0.7em] text-slate-400">
+              <div
+                className="flex items-center justify-center rounded border border-dashed border-slate-300 text-[0.7em] text-slate-400"
+                style={{
+                  width: `${template.logoWidthPercent}%`,
+                  maxHeight: `${DOCUMENT_HEADER_HEIGHT_MM - 4}mm`,
+                  minHeight: "24mm",
+                }}
+              >
                 Logo
               </div>
             )}
@@ -313,9 +341,17 @@ function DocumentLivePreview({
             </div>
           ) : null}
 
-          <p className="mt-auto pt-6 text-center text-[0.68em] leading-relaxed text-slate-400">
-            {footerText}
-          </p>
+          <div className="mt-auto pt-6 text-center leading-relaxed text-slate-400">
+            {footerLines.line1 ? (
+              <p className="text-[0.78em] font-bold text-slate-500">{footerLines.line1}</p>
+            ) : null}
+            {footerLines.line2 ? (
+              <p className="text-[0.72em]">{footerLines.line2}</p>
+            ) : null}
+            {footerLines.line3 ? (
+              <p className="text-[0.72em]">{footerLines.line3}</p>
+            ) : null}
+          </div>
         </div>
       </div>
     </div>
@@ -358,6 +394,17 @@ export function AdminInvoiceTemplateTab() {
     const timer = window.setTimeout(() => void loadTemplate(), 0)
     return () => window.clearTimeout(timer)
   }, [loadTemplate])
+
+  useEffect(() => {
+    const id = "document-preview-fonts"
+    if (document.getElementById(id)) return
+    const link = document.createElement("link")
+    link.id = id
+    link.rel = "stylesheet"
+    link.href =
+      "https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Roboto:wght@400;700&display=swap"
+    document.head.appendChild(link)
+  }, [])
 
   const updateField = <K extends keyof DocumentTemplateSettings>(
     key: K,
@@ -645,6 +692,77 @@ export function AdminInvoiceTemplateTab() {
                   ))}
                 </div>
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="logoWidthPercent">
+                  Logo-Breite ({template.logoWidthPercent}% der Inhaltsbreite)
+                </Label>
+                <input
+                  id="logoWidthPercent"
+                  type="range"
+                  min={MIN_LOGO_WIDTH_PERCENT}
+                  max={MAX_LOGO_WIDTH_PERCENT}
+                  value={template.logoWidthPercent}
+                  onChange={(e) =>
+                    updateField("logoWidthPercent", Number(e.target.value))
+                  }
+                  className="w-full accent-orange-500"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Kopfzeile fix {DOCUMENT_HEADER_HEIGHT_MM} mm hoch (Fensterbrief C5). Die
+                  Empfaengeradresse beginnt direkt darunter.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className={adminUi.section}>
+            <CardContent className="space-y-4 p-6">
+              <h2 className="font-semibold">Schrift &amp; Textformatierung</h2>
+              <p className="text-sm text-muted-foreground">
+                Gilt global fuer Live-Vorschau und PDF-Export aller Dokumenten-Vorlagen.
+              </p>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="fontFamily">Schriftart</Label>
+                  <Select
+                    value={template.fontFamily}
+                    onValueChange={(value) =>
+                      updateField("fontFamily", value as DocumentFontFamily)
+                    }
+                  >
+                    <SelectTrigger id="fontFamily" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {DOCUMENT_FONT_FAMILIES.map((family) => (
+                        <SelectItem key={family} value={family}>
+                          {DOCUMENT_FONT_LABELS[family]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="baseFontSize">Basis-Schriftgroesse</Label>
+                  <Select
+                    value={String(template.baseFontSize)}
+                    onValueChange={(value) =>
+                      updateField("baseFontSize", Number(value) as typeof template.baseFontSize)
+                    }
+                  >
+                    <SelectTrigger id="baseFontSize" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {DOCUMENT_BASE_FONT_SIZES.map((size) => (
+                        <SelectItem key={size} value={String(size)}>
+                          {size} pt
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
             </CardContent>
           </Card>
 
@@ -818,8 +936,8 @@ export function AdminInvoiceTemplateTab() {
                 QR-Zahlteil fuer diesen Dokumenttyp anzeigen
               </label>
               <p className="text-xs text-muted-foreground">
-                Footer-Kontaktdaten werden automatisch aus Firmenname, Inhaber, Adresse, E-Mail
-                und Website erzeugt, sofern kein eigener zentrierter Footer gesetzt ist.
+                Footer-Kontaktdaten werden automatisch als dreizeiliger Block erzeugt (Firma/Inhaber,
+                Adresse, E-Mail/Website), sofern kein eigener zentrierter Footer gesetzt ist.
               </p>
             </CardContent>
           </Card>

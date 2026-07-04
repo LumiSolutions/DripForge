@@ -9,14 +9,17 @@ import {
 import type { ReactNode } from "react"
 import {
   applyDocumentTemplatePlaceholders,
-  buildDocumentFooterText,
+  DOCUMENT_HEADER_HEIGHT_MM,
+  resolveDocumentFooterLines,
   type DocumentLogoAlignment,
   type DocumentTemplateSettings,
   type DocumentTypeTextSettings,
 } from "@/lib/documents/document-template-types"
+import { pdfBoldStyle, resolvePdfFontFamily } from "@/lib/documents/pdf-fonts"
 import { formatChf } from "@/lib/invoices/invoice-format"
 
 const MM = 2.834645669
+const PDF_CONTENT_WIDTH_MM = 170
 
 export const pdfDocumentColors = {
   anthracite: "#1f2937",
@@ -29,156 +32,180 @@ export const pdfDocumentColors = {
   tableHeader: "#1e293b",
 }
 
-const styles = StyleSheet.create({
-  page: {
-    fontFamily: "Helvetica",
-    fontSize: 9,
-    color: pdfDocumentColors.anthracite,
-    lineHeight: 1.4,
-    paddingTop: 15 * MM,
-    paddingHorizontal: 20 * MM,
-    paddingBottom: 32,
-  },
-  logoHeader: {
-    marginBottom: 14,
-    minHeight: 22 * MM,
-    justifyContent: "center",
-  },
-  logo: {
-    width: 22 * MM,
-    height: 22 * MM,
-    objectFit: "contain",
-  },
-  recipientBlock: {
-    marginBottom: 10,
-    maxWidth: "52%",
-    fontSize: 10,
-    lineHeight: 1.45,
-  },
-  recipientLine: {
-    marginBottom: 1,
-  },
-  infoPanel: {
-    flexDirection: "row",
-    backgroundColor: pdfDocumentColors.infoPanel,
-    borderRadius: 3,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    marginBottom: 14,
-  },
-  infoField: {
-    flex: 1,
-    paddingRight: 6,
-  },
-  infoLabel: {
-    fontSize: 6.5,
-    color: pdfDocumentColors.anthraciteLight,
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
-    marginBottom: 3,
-  },
-  infoValue: {
-    fontSize: 8.5,
-    fontFamily: "Helvetica-Bold",
-    color: pdfDocumentColors.anthracite,
-  },
-  headerRule: {
-    height: 1,
-    backgroundColor: pdfDocumentColors.border,
-    marginBottom: 10,
-  },
-  headerAccent: {
-    height: 2,
-    width: 48,
-    backgroundColor: pdfDocumentColors.orange,
-    marginBottom: 10,
-  },
-  headerLine: {
-    fontFamily: "Helvetica-Bold",
-    fontSize: 13,
-    color: pdfDocumentColors.anthracite,
-    marginBottom: 4,
-  },
-  referenceLine: {
-    fontSize: 9.5,
-    color: pdfDocumentColors.anthraciteMid,
-    marginBottom: 8,
-  },
-  introText: {
-    fontSize: 9.5,
-    color: pdfDocumentColors.anthraciteLight,
-    marginBottom: 14,
-    maxWidth: "90%",
-  },
-  footerNote: {
-    fontSize: 9,
-    color: pdfDocumentColors.anthraciteLight,
-    marginTop: 8,
-    maxWidth: "90%",
-  },
-  paymentSection: {
-    marginTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: pdfDocumentColors.border,
-    paddingTop: 12,
-    flexDirection: "row",
-  },
-  paymentLeft: {
-    flex: 1,
-    paddingRight: 12,
-  },
-  paymentSectionTitle: {
-    fontSize: 8,
-    fontFamily: "Helvetica-Bold",
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
-    color: pdfDocumentColors.orange,
-    marginBottom: 8,
-  },
-  paymentLine: {
-    fontSize: 8.5,
-    marginBottom: 3,
-    color: pdfDocumentColors.anthraciteMid,
-  },
-  paymentLineBold: {
-    fontFamily: "Helvetica-Bold",
-    fontSize: 9,
-    color: pdfDocumentColors.anthracite,
-    marginBottom: 4,
-  },
-  paymentAmount: {
-    fontFamily: "Helvetica-Bold",
-    fontSize: 12,
-    color: pdfDocumentColors.anthracite,
-    marginTop: 6,
-  },
-  paymentNote: {
-    fontSize: 7.5,
-    color: pdfDocumentColors.anthraciteLight,
-    lineHeight: 1.35,
-    marginTop: 4,
-  },
-  paymentRight: {
-    width: 52 * MM,
-    alignItems: "center",
-    justifyContent: "flex-start",
-  },
-  qrImage: {
-    width: 46 * MM,
-    height: 46 * MM,
-    objectFit: "contain",
-  },
-  centerFooter: {
-    position: "absolute",
-    bottom: 10,
-    left: 20 * MM,
-    right: 20 * MM,
-    textAlign: "center",
-    fontSize: 7,
-    color: pdfDocumentColors.anthraciteLight,
-    lineHeight: 1.35,
-  },
-})
+function scaledSize(baseFontSize: number, sizeAtBase9: number): number {
+  return Math.round(sizeAtBase9 * (baseFontSize / 9) * 10) / 10
+}
+
+export function createPdfDocumentLayoutStyles(template: DocumentTemplateSettings) {
+  const base = template.baseFontSize
+  const font = resolvePdfFontFamily(template.fontFamily)
+  const bold = pdfBoldStyle(template.fontFamily)
+  const logoWidthMm = (PDF_CONTENT_WIDTH_MM * template.logoWidthPercent) / 100
+
+  return StyleSheet.create({
+    page: {
+      fontFamily: font,
+      fontSize: base,
+      color: pdfDocumentColors.anthracite,
+      lineHeight: 1.4,
+      paddingTop: 0,
+      paddingHorizontal: 20 * MM,
+      paddingBottom: 32,
+    },
+    logoHeader: {
+      height: DOCUMENT_HEADER_HEIGHT_MM * MM,
+      marginBottom: 0,
+      justifyContent: "center",
+    },
+    logo: {
+      width: logoWidthMm * MM,
+      maxHeight: (DOCUMENT_HEADER_HEIGHT_MM - 6) * MM,
+      objectFit: "contain",
+    },
+    recipientBlock: {
+      marginBottom: 10,
+      maxWidth: "52%",
+      fontSize: scaledSize(base, 10),
+      lineHeight: 1.45,
+    },
+    recipientLine: {
+      marginBottom: 1,
+    },
+    infoPanel: {
+      flexDirection: "row",
+      backgroundColor: pdfDocumentColors.infoPanel,
+      borderRadius: 3,
+      paddingVertical: 8,
+      paddingHorizontal: 10,
+      marginBottom: 14,
+    },
+    infoField: {
+      flex: 1,
+      paddingRight: 6,
+    },
+    infoLabel: {
+      fontSize: scaledSize(base, 6.5),
+      color: pdfDocumentColors.anthraciteLight,
+      textTransform: "uppercase",
+      letterSpacing: 0.6,
+      marginBottom: 3,
+    },
+    infoValue: {
+      fontSize: scaledSize(base, 8.5),
+      ...bold,
+      color: pdfDocumentColors.anthracite,
+    },
+    headerRule: {
+      height: 1,
+      backgroundColor: pdfDocumentColors.border,
+      marginBottom: 10,
+    },
+    headerAccent: {
+      height: 2,
+      width: 48,
+      backgroundColor: pdfDocumentColors.orange,
+      marginBottom: 10,
+    },
+    headerLine: {
+      ...bold,
+      fontSize: scaledSize(base, 13),
+      color: pdfDocumentColors.anthracite,
+      marginBottom: 4,
+    },
+    referenceLine: {
+      fontSize: scaledSize(base, 9.5),
+      color: pdfDocumentColors.anthraciteMid,
+      marginBottom: 8,
+    },
+    introText: {
+      fontSize: scaledSize(base, 9.5),
+      color: pdfDocumentColors.anthraciteLight,
+      marginBottom: 14,
+      maxWidth: "90%",
+    },
+    footerNote: {
+      fontSize: scaledSize(base, 9),
+      color: pdfDocumentColors.anthraciteLight,
+      marginTop: 8,
+      maxWidth: "90%",
+    },
+    paymentSection: {
+      marginTop: 16,
+      borderTopWidth: 1,
+      borderTopColor: pdfDocumentColors.border,
+      paddingTop: 12,
+      flexDirection: "row",
+    },
+    paymentLeft: {
+      flex: 1,
+      paddingRight: 12,
+    },
+    paymentSectionTitle: {
+      fontSize: scaledSize(base, 8),
+      ...bold,
+      textTransform: "uppercase",
+      letterSpacing: 0.8,
+      color: pdfDocumentColors.orange,
+      marginBottom: 8,
+    },
+    paymentLine: {
+      fontSize: scaledSize(base, 8.5),
+      marginBottom: 3,
+      color: pdfDocumentColors.anthraciteMid,
+    },
+    paymentLineBold: {
+      ...bold,
+      fontSize: scaledSize(base, 9),
+      color: pdfDocumentColors.anthracite,
+      marginBottom: 4,
+    },
+    paymentAmount: {
+      ...bold,
+      fontSize: scaledSize(base, 12),
+      color: pdfDocumentColors.anthracite,
+      marginTop: 6,
+    },
+    paymentNote: {
+      fontSize: scaledSize(base, 7.5),
+      color: pdfDocumentColors.anthraciteLight,
+      lineHeight: 1.35,
+      marginTop: 4,
+    },
+    paymentRight: {
+      width: 52 * MM,
+      alignItems: "center",
+      justifyContent: "flex-start",
+    },
+    qrImage: {
+      width: 46 * MM,
+      height: 46 * MM,
+      objectFit: "contain",
+    },
+    centerFooter: {
+      position: "absolute",
+      bottom: 10,
+      left: 20 * MM,
+      right: 20 * MM,
+      textAlign: "center",
+      lineHeight: 1.4,
+    },
+    footerLine1: {
+      ...bold,
+      fontSize: scaledSize(base, 7.5),
+      color: pdfDocumentColors.anthraciteMid,
+      marginBottom: 2,
+    },
+    footerLine2: {
+      fontSize: scaledSize(base, 7),
+      color: pdfDocumentColors.anthraciteLight,
+      marginBottom: 2,
+    },
+    footerLine3: {
+      fontSize: scaledSize(base, 7),
+      color: pdfDocumentColors.anthraciteLight,
+    },
+  })
+}
 
 export type PdfDocumentRecipient = {
   firstName: string
@@ -230,6 +257,7 @@ export function PdfDocumentLayout({
   payment,
   children,
 }: PdfDocumentLayoutProps) {
+  const styles = createPdfDocumentLayoutStyles(template)
   const logoUrl = template.logoUrl ?? undefined
   const headerLine = applyDocumentTemplatePlaceholders(
     documentText.headerLine,
@@ -255,12 +283,13 @@ export function PdfDocumentLayout({
     documentText.centerFooterText,
     placeholderValues
   )
-  const footerText = customFooter.trim() || buildDocumentFooterText(template)
+  const footerLines = resolveDocumentFooterLines(template, customFooter)
   const accountHolder = template.inhaber
     ? `${template.firmenname}\n${template.inhaber}`
     : template.firmenname
   const showPaymentBlock = documentText.showPaymentBlock && Boolean(payment)
   const qrImageUrl = payment?.qrImageUrl ?? template.qrPaymentImageUrl
+  const hasFooter = footerLines.line1 || footerLines.line2 || footerLines.line3
 
   return (
     <Document title={title} author={template.firmenname}>
@@ -354,10 +383,18 @@ export function PdfDocumentLayout({
           </View>
         ) : null}
 
-        {footerText ? (
-          <Text style={styles.centerFooter} fixed>
-            {footerText}
-          </Text>
+        {hasFooter ? (
+          <View style={styles.centerFooter} fixed>
+            {footerLines.line1 ? (
+              <Text style={styles.footerLine1}>{footerLines.line1}</Text>
+            ) : null}
+            {footerLines.line2 ? (
+              <Text style={styles.footerLine2}>{footerLines.line2}</Text>
+            ) : null}
+            {footerLines.line3 ? (
+              <Text style={styles.footerLine3}>{footerLines.line3}</Text>
+            ) : null}
+          </View>
         ) : null}
       </Page>
     </Document>

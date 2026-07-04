@@ -20,6 +20,33 @@ export type DocumentTemplateType = (typeof DOCUMENT_TEMPLATE_TYPES)[number]
 export const LOGO_ALIGNMENTS = ["left", "center", "right"] as const
 export type DocumentLogoAlignment = (typeof LOGO_ALIGNMENTS)[number]
 
+export const DOCUMENT_FONT_FAMILIES = ["helvetica", "arial", "inter", "roboto"] as const
+export type DocumentFontFamily = (typeof DOCUMENT_FONT_FAMILIES)[number]
+
+export const DOCUMENT_BASE_FONT_SIZES = [9, 10, 11, 12] as const
+export type DocumentBaseFontSize = (typeof DOCUMENT_BASE_FONT_SIZES)[number]
+
+/** Fixed header height for Swiss C5 window envelope (Fensterbrief). */
+export const DOCUMENT_HEADER_HEIGHT_MM = 50
+
+export const DEFAULT_LOGO_WIDTH_PERCENT = 22
+export const MIN_LOGO_WIDTH_PERCENT = 8
+export const MAX_LOGO_WIDTH_PERCENT = 60
+
+export const DOCUMENT_FONT_CSS: Record<DocumentFontFamily, string> = {
+  helvetica: "Helvetica, Arial, sans-serif",
+  arial: "Arial, Helvetica, sans-serif",
+  inter: '"Inter", Helvetica, Arial, sans-serif',
+  roboto: '"Roboto", Helvetica, Arial, sans-serif',
+}
+
+export const DOCUMENT_FONT_LABELS: Record<DocumentFontFamily, string> = {
+  helvetica: "Helvetica",
+  arial: "Arial",
+  inter: "Inter",
+  roboto: "Roboto",
+}
+
 export const MWST_EXEMPT_LEGAL_NOTE =
   "*Befreit von der Mehrwertsteuerpflicht aufgrund der Umsatzgrenze gemäss Art. 10 MWSTG."
 
@@ -46,6 +73,9 @@ export type DocumentTemplateSettings = {
   bankname: string
   logoUrl: string | null
   logoAlignment: DocumentLogoAlignment
+  logoWidthPercent: number
+  fontFamily: DocumentFontFamily
+  baseFontSize: DocumentBaseFontSize
   qrPaymentImageUrl: string | null
   paymentTermsDays: number
   documentTypes: Record<DocumentTemplateType, DocumentTypeTextSettings>
@@ -62,6 +92,9 @@ type LegacyInvoiceTemplateSettings = Partial<{
   bankname: string
   logoUrl: string | null
   logoAlignment: DocumentLogoAlignment
+  logoWidthPercent: number
+  fontFamily: DocumentFontFamily
+  baseFontSize: DocumentBaseFontSize
   qrPaymentImageUrl: string | null
   paymentTermsDays: number
   introText: string
@@ -89,8 +122,7 @@ export const DEFAULT_DOCUMENT_TYPE_TEXTS: Record<
     footerNote: "",
     paymentBlockText:
       "Zahlbar innert {zahlungsfrist} Tagen. Bitte geben Sie die Referenz als Zahlungszweck an.",
-    centerFooterText:
-      "DripForge - Robin Schulz · Mattenstrasse 7 · 8330 Pfaeffikon ZH · drip-forge@outlook.com",
+    centerFooterText: "",
     showPaymentBlock: true,
   },
   quote: {
@@ -102,8 +134,7 @@ export const DEFAULT_DOCUMENT_TYPE_TEXTS: Record<
     closingText: "Dieses Angebot ist ab {datum} erstellt und freibleibend.",
     footerNote: "",
     paymentBlockText: "",
-    centerFooterText:
-      "DripForge - Robin Schulz · Mattenstrasse 7 · 8330 Pfaeffikon ZH · drip-forge@outlook.com",
+    centerFooterText: "",
     showPaymentBlock: false,
   },
   deliveryNote: {
@@ -115,8 +146,7 @@ export const DEFAULT_DOCUMENT_TYPE_TEXTS: Record<
     closingText: "",
     footerNote: "",
     paymentBlockText: "",
-    centerFooterText:
-      "DripForge - Robin Schulz · Mattenstrasse 7 · 8330 Pfaeffikon ZH · drip-forge@outlook.com",
+    centerFooterText: "",
     showPaymentBlock: false,
   },
 }
@@ -131,6 +161,9 @@ export const DEFAULT_DOCUMENT_TEMPLATE: DocumentTemplateSettings = {
   bankname: DEFAULT_COMPANY_SETTINGS.bankname,
   logoUrl: DRIPFORGE_LOGO_URL,
   logoAlignment: "right",
+  logoWidthPercent: DEFAULT_LOGO_WIDTH_PERCENT,
+  fontFamily: "helvetica",
+  baseFontSize: 10,
   qrPaymentImageUrl: null,
   paymentTermsDays: 30,
   documentTypes: DEFAULT_DOCUMENT_TYPE_TEXTS,
@@ -160,6 +193,24 @@ function normalizeLogoAlignment(
     : fallback
 }
 
+function normalizeLogoWidthPercent(value: unknown, fallback: number): number {
+  if (typeof value !== "number" || Number.isNaN(value)) return fallback
+  return Math.min(MAX_LOGO_WIDTH_PERCENT, Math.max(MIN_LOGO_WIDTH_PERCENT, Math.round(value)))
+}
+
+function normalizeFontFamily(value: unknown, fallback: DocumentFontFamily): DocumentFontFamily {
+  return DOCUMENT_FONT_FAMILIES.includes(value as DocumentFontFamily)
+    ? (value as DocumentFontFamily)
+    : fallback
+}
+
+function normalizeBaseFontSize(value: unknown, fallback: DocumentBaseFontSize): DocumentBaseFontSize {
+  const rounded = typeof value === "number" ? Math.round(value) : fallback
+  return DOCUMENT_BASE_FONT_SIZES.includes(rounded as DocumentBaseFontSize)
+    ? (rounded as DocumentBaseFontSize)
+    : fallback
+}
+
 export function formatDocumentDueDate(isoDate: string, paymentTermsDays: number): string {
   const due = new Date(isoDate)
   due.setDate(due.getDate() + paymentTermsDays)
@@ -170,16 +221,52 @@ export function formatDocumentDueDate(isoDate: string, paymentTermsDays: number)
   }).format(due)
 }
 
+export type DocumentFooterLines = {
+  line1: string
+  line2: string
+  line3: string
+}
+
+export function buildDocumentFooterLines(
+  template: DocumentTemplateSettings
+): DocumentFooterLines {
+  const line1 = template.inhaber
+    ? `${template.firmenname} - ${template.inhaber}`
+    : template.firmenname
+
+  const addressParts = template.firmenAdresse
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+  const line2 =
+    addressParts.length >= 2
+      ? `${addressParts[0]} | ${addressParts.slice(1).join(" ")}`
+      : addressParts[0] ?? ""
+
+  const line3 = [template.kontaktEmail, template.website].filter(Boolean).join(" | ")
+
+  return { line1, line2, line3 }
+}
+
+export function resolveDocumentFooterLines(
+  template: DocumentTemplateSettings,
+  customFooterText?: string
+): DocumentFooterLines {
+  const custom = customFooterText?.trim()
+  if (custom) {
+    const lines = custom.split(/\n/).map((line) => line.trim()).filter(Boolean)
+    return {
+      line1: lines[0] ?? "",
+      line2: lines[1] ?? "",
+      line3: lines[2] ?? lines.slice(2).join(" | "),
+    }
+  }
+  return buildDocumentFooterLines(template)
+}
+
 export function buildDocumentFooterText(template: DocumentTemplateSettings): string {
-  const address = template.firmenAdresse.replace(/\n/g, " · ")
-  const parts = [
-    template.firmenname,
-    template.inhaber,
-    address,
-    template.kontaktEmail,
-    template.website,
-  ].filter(Boolean)
-  return parts.join(" · ")
+  const lines = buildDocumentFooterLines(template)
+  return [lines.line1, lines.line2, lines.line3].filter(Boolean).join("\n")
 }
 
 function mergeDocumentTypeTextSettings(
@@ -275,6 +362,9 @@ export function mergeDocumentTemplateSettings(
     bankname: trimString(stored.bankname, base.bankname),
     logoUrl: normalizeLogoUrl(stored.logoUrl, base.logoUrl ?? DRIPFORGE_LOGO_URL),
     logoAlignment: normalizeLogoAlignment(stored.logoAlignment, base.logoAlignment),
+    logoWidthPercent: normalizeLogoWidthPercent(stored.logoWidthPercent, base.logoWidthPercent),
+    fontFamily: normalizeFontFamily(stored.fontFamily, base.fontFamily),
+    baseFontSize: normalizeBaseFontSize(stored.baseFontSize, base.baseFontSize),
     qrPaymentImageUrl: normalizeLogoUrl(stored.qrPaymentImageUrl, base.qrPaymentImageUrl),
     paymentTermsDays: normalizePaymentTerms(stored.paymentTermsDays, base.paymentTermsDays),
     documentTypes,
@@ -317,6 +407,9 @@ export function sanitizeDocumentTemplateInput(
     bankname: trimString(b.bankname, existing.bankname),
     logoUrl: normalizeLogoUrl(b.logoUrl, existing.logoUrl),
     logoAlignment: normalizeLogoAlignment(b.logoAlignment, existing.logoAlignment),
+    logoWidthPercent: normalizeLogoWidthPercent(b.logoWidthPercent, existing.logoWidthPercent),
+    fontFamily: normalizeFontFamily(b.fontFamily, existing.fontFamily),
+    baseFontSize: normalizeBaseFontSize(b.baseFontSize, existing.baseFontSize),
     qrPaymentImageUrl: normalizeLogoUrl(b.qrPaymentImageUrl, existing.qrPaymentImageUrl),
     paymentTermsDays: normalizePaymentTerms(b.paymentTermsDays, existing.paymentTermsDays),
     documentTypes,
