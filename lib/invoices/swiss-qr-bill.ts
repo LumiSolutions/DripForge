@@ -1,10 +1,10 @@
 import QRCode from "qrcode"
 import type { StoredOrder } from "@/lib/admin/types"
-import type { InvoiceTemplateSettings } from "@/lib/invoices/invoice-template-types"
+import type { DocumentTemplateSettings } from "@/lib/documents/document-template-types"
 
 export type SwissQrBillInput = {
   order: StoredOrder
-  template: InvoiceTemplateSettings
+  template: DocumentTemplateSettings
 }
 
 function parseCompanyAddress(firmenAdresse: string): {

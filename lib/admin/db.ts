@@ -85,8 +85,8 @@ import {
   cosmosSaveAiSettings,
 } from "@/lib/admin/cosmos-ai-settings"
 import {
-  cosmosGetInvoiceTemplateSettings,
-  cosmosSaveInvoiceTemplateSettings,
+  cosmosGetDocumentTemplateSettings,
+  cosmosSaveDocumentTemplateSettings,
 } from "@/lib/admin/cosmos-invoice-template"
 import {
   cosmosGetPrintCalculatorSettings,
@@ -106,9 +106,9 @@ import {
 } from "@/lib/admin/laser-configurator-types"
 import { mergeAiSettings, type AiSettingsDocument } from "@/lib/ai/ai-settings-types"
 import {
-  mergeInvoiceTemplateSettings,
-  type InvoiceTemplateSettings,
-} from "@/lib/invoices/invoice-template-types"
+  mergeDocumentTemplateSettings,
+  type DocumentTemplateSettings,
+} from "@/lib/documents/document-template-types"
 import { mergeSiteTexts, sanitizeSiteTextsInput, type SiteTexts } from "@/lib/admin/site-texts"
 import type { AdminFilament } from "@/lib/admin/filament-types"
 import {
@@ -132,7 +132,8 @@ const SITE_CONFIG_PRODUCTION_FILE = "site-config-production.json"
 const FILAMENTS_FILE = "filaments.json"
 const MATERIAL_STATS_FILE = "material-stats.json"
 const AI_SETTINGS_FILE = "ai-settings.json"
-const INVOICE_TEMPLATE_FILE = "invoice-template.json"
+const DOCUMENT_TEMPLATE_FILE = "document-template.json"
+const LEGACY_INVOICE_TEMPLATE_FILE = "invoice-template.json"
 const PRINT_CALCULATOR_FILE = "print-calculator-settings.json"
 const LASER_CONFIGURATOR_FILE = "laser-configurator-settings.json"
 const CUSTOMERS_FILE = "customers.json"
@@ -787,26 +788,32 @@ export async function saveAiSettings(
   return withCosmosRequired("saveAiSettings", () => cosmosSaveAiSettings(settings))
 }
 
-export async function getInvoiceTemplateSettings(): Promise<InvoiceTemplateSettings> {
+export async function getDocumentTemplateSettings(): Promise<DocumentTemplateSettings> {
   const company = (await getSettings()).company
   return withCosmosFallback(
-    "getInvoiceTemplateSettings",
-    () => cosmosGetInvoiceTemplateSettings(company),
+    "getDocumentTemplateSettings",
+    () => cosmosGetDocumentTemplateSettings(company),
     async () => {
-      const stored = await readJsonFile<Partial<InvoiceTemplateSettings> | null>(
-        INVOICE_TEMPLATE_FILE,
+      const stored = await readJsonFile<Partial<DocumentTemplateSettings> | null>(
+        DOCUMENT_TEMPLATE_FILE,
         null
       )
-      return mergeInvoiceTemplateSettings(stored, company)
+      if (stored) return mergeDocumentTemplateSettings(stored, company)
+
+      const legacyStored = await readJsonFile<Partial<DocumentTemplateSettings> | null>(
+        LEGACY_INVOICE_TEMPLATE_FILE,
+        null
+      )
+      return mergeDocumentTemplateSettings(legacyStored, company)
     }
   )
 }
 
-export async function saveInvoiceTemplateSettings(
-  settings: InvoiceTemplateSettings
-): Promise<InvoiceTemplateSettings> {
-  const saved = await withCosmosRequired("saveInvoiceTemplateSettings", () =>
-    cosmosSaveInvoiceTemplateSettings(settings)
+export async function saveDocumentTemplateSettings(
+  settings: DocumentTemplateSettings
+): Promise<DocumentTemplateSettings> {
+  const saved = await withCosmosRequired("saveDocumentTemplateSettings", () =>
+    cosmosSaveDocumentTemplateSettings(settings)
   )
 
   const current = await getSettings()
@@ -823,6 +830,9 @@ export async function saveInvoiceTemplateSettings(
 
   return saved
 }
+
+export const getInvoiceTemplateSettings = getDocumentTemplateSettings
+export const saveInvoiceTemplateSettings = saveDocumentTemplateSettings
 
 export async function getPrintCalculatorSettings(): Promise<PrintCalculatorSettings> {
   return withCosmosFallback(

@@ -69,7 +69,7 @@ const NAV: { id: AdminTab; label: string; icon: typeof ClipboardList }[] = [
   { id: "inventory", label: "Lagerverwaltung", icon: Warehouse },
   { id: "coupons", label: "Gutscheine & Rabatte", icon: Tag },
   { id: "orders", label: "Bestellungen", icon: ClipboardList },
-  { id: "invoice-template", label: "Rechnungsvorlage", icon: FileText },
+  { id: "invoice-template", label: "Dokumenten-Vorlagen", icon: FileText },
   { id: "products", label: "Produkte", icon: Package },
   { id: "customers", label: "Kundenverwaltung", icon: Users },
   { id: "settings", label: "Shop-Einstellungen", icon: Settings },

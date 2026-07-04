@@ -8,10 +8,36 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
-import type { InvoiceTemplateSettings } from "@/lib/invoices/invoice-template-types"
+import {
+  DOCUMENT_TEMPLATE_TYPES,
+  type DocumentTemplateSettings,
+  type DocumentTemplateType,
+  type DocumentTypeTextSettings,
+} from "@/lib/documents/document-template-types"
+import { cn } from "@/lib/utils"
+
+const DOCUMENT_TYPE_LABELS: Record<DocumentTemplateType, string> = {
+  invoice: "Rechnung",
+  quote: "Angebot",
+  deliveryNote: "Lieferschein",
+}
+
+const DOCUMENT_PLACEHOLDERS = [
+  "{firmenname}",
+  "{belegnummer}",
+  "{dokumenttyp}",
+  "{datum}",
+  "{zahlungsfrist}",
+  "{iban}",
+  "{bank}",
+  "{rechnungsnummer}",
+  "{angebotsnummer}",
+  "{lieferscheinnummer}",
+]
 
 export function AdminInvoiceTemplateTab() {
-  const [template, setTemplate] = useState<InvoiceTemplateSettings | null>(null)
+  const [template, setTemplate] = useState<DocumentTemplateSettings | null>(null)
+  const [selectedType, setSelectedType] = useState<DocumentTemplateType>("invoice")
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [uploadingLogo, setUploadingLogo] = useState(false)
@@ -24,16 +50,16 @@ export function AdminInvoiceTemplateTab() {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch("/api/admin/invoice-template", {
+      const res = await fetch("/api/admin/document-template", {
         cache: "no-store",
         credentials: "include",
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? "Laden fehlgeschlagen")
-      setTemplate(data.template as InvoiceTemplateSettings)
+      setTemplate(data.template as DocumentTemplateSettings)
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Rechnungsvorlage konnte nicht geladen werden."
+        err instanceof Error ? err.message : "Dokumenten-Vorlage konnte nicht geladen werden."
       )
     } finally {
       setLoading(false)
@@ -41,14 +67,35 @@ export function AdminInvoiceTemplateTab() {
   }, [])
 
   useEffect(() => {
-    void loadTemplate()
+    const timer = window.setTimeout(() => void loadTemplate(), 0)
+    return () => window.clearTimeout(timer)
   }, [loadTemplate])
 
-  const updateField = <K extends keyof InvoiceTemplateSettings>(
+  const updateField = <K extends keyof DocumentTemplateSettings>(
     key: K,
-    value: InvoiceTemplateSettings[K]
+    value: DocumentTemplateSettings[K]
   ) => {
     setTemplate((prev) => (prev ? { ...prev, [key]: value } : prev))
+  }
+
+  const updateDocumentField = <K extends keyof DocumentTypeTextSettings>(
+    key: K,
+    value: DocumentTypeTextSettings[K]
+  ) => {
+    setTemplate((prev) =>
+      prev
+        ? {
+            ...prev,
+            documentTypes: {
+              ...prev.documentTypes,
+              [selectedType]: {
+                ...prev.documentTypes[selectedType],
+                [key]: value,
+              },
+            },
+          }
+        : prev
+    )
   }
 
   const saveTemplate = async () => {
@@ -57,7 +104,7 @@ export function AdminInvoiceTemplateTab() {
     setError(null)
     setSuccess(null)
     try {
-      const res = await fetch("/api/admin/invoice-template", {
+      const res = await fetch("/api/admin/document-template", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -65,8 +112,8 @@ export function AdminInvoiceTemplateTab() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? "Speichern fehlgeschlagen")
-      setTemplate(data.template as InvoiceTemplateSettings)
-      setSuccess("Rechnungsvorlage gespeichert. Firmendaten wurden mit Shop-Einstellungen synchronisiert.")
+      setTemplate(data.template as DocumentTemplateSettings)
+      setSuccess("Dokumenten-Vorlage gespeichert. Firmendaten wurden mit Shop-Einstellungen synchronisiert.")
     } catch (err) {
       setError(err instanceof Error ? err.message : "Speichern fehlgeschlagen")
     } finally {
@@ -80,15 +127,15 @@ export function AdminInvoiceTemplateTab() {
     try {
       const formData = new FormData()
       formData.append("file", file)
-      const res = await fetch("/api/admin/invoice-template/logo", {
+      const res = await fetch("/api/admin/document-template/logo", {
         method: "POST",
         credentials: "include",
         body: formData,
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? "Upload fehlgeschlagen")
-      setTemplate(data.template as InvoiceTemplateSettings)
-      setSuccess("Rechnungslogo hochgeladen.")
+      setTemplate(data.template as DocumentTemplateSettings)
+      setSuccess("Dokumentenlogo hochgeladen.")
     } catch (err) {
       setError(err instanceof Error ? err.message : "Logo-Upload fehlgeschlagen")
     } finally {
@@ -100,11 +147,11 @@ export function AdminInvoiceTemplateTab() {
     setPreviewing(true)
     setError(null)
     try {
-      const res = await fetch("/api/admin/invoice-template/preview", {
+      const res = await fetch("/api/admin/document-template/preview", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId: "preview" }),
+        body: JSON.stringify({ orderId: "preview", documentType: selectedType }),
       })
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as { error?: string }
@@ -125,7 +172,7 @@ export function AdminInvoiceTemplateTab() {
     return (
       <div className="flex items-center justify-center py-24 text-muted-foreground">
         <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-        Rechnungsvorlage wird geladen…
+        Dokumenten-Vorlage wird geladen…
       </div>
     )
   }
@@ -133,18 +180,20 @@ export function AdminInvoiceTemplateTab() {
   if (!template) {
     return (
       <p className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-600">
-        {error ?? "Rechnungsvorlage konnte nicht geladen werden."}
+        {error ?? "Dokumenten-Vorlage konnte nicht geladen werden."}
       </p>
     )
   }
 
+  const documentText = template.documentTypes[selectedType]
+
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="mx-auto max-w-4xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Rechnungsvorlage</h1>
+        <h1 className="text-2xl font-bold">Dokumenten-Vorlagen</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Firmendaten, Texte und Logo fuer automatisch generierte PDF-Rechnungen.
-          Platzhalter: {"{firmenname}"}, {"{rechnungsnummer}"}, {"{zahlungsfrist}"}, {"{iban}"}, {"{bank}"}, {"{datum}"}
+          Globales Master-Layout fuer Rechnungen, Angebote, Lieferscheine und weitere
+          PDF-Belege. Platzhalter: {DOCUMENT_PLACEHOLDERS.join(", ")}
         </p>
       </div>
 
@@ -161,7 +210,7 @@ export function AdminInvoiceTemplateTab() {
 
       <Card className={adminUi.section}>
         <CardContent className="space-y-4 p-6">
-          <h2 className="font-semibold">Firmendaten</h2>
+          <h2 className="font-semibold">Globale Firmendaten</h2>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2 sm:col-span-2">
               <Label htmlFor="firmenname">Firmenname</Label>
@@ -232,13 +281,13 @@ export function AdminInvoiceTemplateTab() {
 
       <Card className={adminUi.section}>
         <CardContent className="space-y-4 p-6">
-          <h2 className="font-semibold">Rechnungslogo</h2>
+          <h2 className="font-semibold">Dokumentenlogo</h2>
           <div className="flex flex-wrap items-center gap-4">
             {template.logoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={template.logoUrl}
-                alt="Rechnungslogo"
+                alt="Dokumentenlogo"
                 className="h-16 w-16 rounded-lg border border-border object-contain bg-white p-1"
               />
             ) : (
@@ -285,21 +334,59 @@ export function AdminInvoiceTemplateTab() {
 
       <Card className={adminUi.section}>
         <CardContent className="space-y-4 p-6">
-          <h2 className="font-semibold">Rechnungstexte</h2>
+          <div>
+            <h2 className="font-semibold">Texte pro Dokumenttyp</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Jeder Belegtyp nutzt dieselben globalen Daten, kann aber eigene Kopfzeilen,
+              Hinweise und Footer-Texte haben.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {DOCUMENT_TEMPLATE_TYPES.map((type) => (
+              <button
+                key={type}
+                type="button"
+                onClick={() => setSelectedType(type)}
+                className={cn(
+                  "rounded-lg px-4 py-2 text-sm font-medium transition-colors",
+                  selectedType === type ? adminUi.navActive : adminUi.navInactive
+                )}
+              >
+                {DOCUMENT_TYPE_LABELS[type]}
+              </button>
+            ))}
+          </div>
           <div className="space-y-2">
-            <Label htmlFor="headerInvoiceLine">Kopfzeile Rechnung</Label>
+            <Label htmlFor="documentLabel">Belegname</Label>
             <Input
-              id="headerInvoiceLine"
-              value={template.headerInvoiceLine}
-              onChange={(e) => updateField("headerInvoiceLine", e.target.value)}
+              id="documentLabel"
+              value={documentText.label}
+              onChange={(e) => updateDocumentField("label", e.target.value)}
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="headerReferenceLine">Kopfzeile Referenz (z.B. I/Referenz)</Label>
+            <Label htmlFor="numberPlaceholder">Nummern-Platzhalter</Label>
             <Input
-              id="headerReferenceLine"
-              value={template.headerReferenceLine}
-              onChange={(e) => updateField("headerReferenceLine", e.target.value)}
+              id="numberPlaceholder"
+              value={documentText.numberPlaceholder}
+              onChange={(e) => updateDocumentField("numberPlaceholder", e.target.value)}
+              placeholder="z.B. rechnungsnummer"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="headerLine">Kopfzeile</Label>
+            <Input
+              id="headerLine"
+              value={documentText.headerLine}
+              onChange={(e) => updateDocumentField("headerLine", e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="referenceLine">Referenzzeile</Label>
+            <Input
+              id="referenceLine"
+              value={documentText.referenceLine}
+              onChange={(e) => updateDocumentField("referenceLine", e.target.value)}
             />
           </div>
           <div className="space-y-2">
@@ -307,26 +394,27 @@ export function AdminInvoiceTemplateTab() {
             <Textarea
               id="introText"
               rows={2}
-              value={template.introText}
-              onChange={(e) => updateField("introText", e.target.value)}
+              value={documentText.introText}
+              onChange={(e) => updateDocumentField("introText", e.target.value)}
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="paymentBlockText">Text im Zahlungsblock (unter IBAN)</Label>
+            <Label htmlFor="paymentBlockText">Text im QR-Zahlteil / Zahlungsblock</Label>
             <Textarea
               id="paymentBlockText"
               rows={3}
-              value={template.paymentBlockText}
-              onChange={(e) => updateField("paymentBlockText", e.target.value)}
+              value={documentText.paymentBlockText}
+              onChange={(e) => updateDocumentField("paymentBlockText", e.target.value)}
+              disabled={!documentText.showPaymentBlock}
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="closingText">Zahlungshinweis (Legacy / E-Mail)</Label>
+            <Label htmlFor="closingText">Zahlungs- oder Schlusstext (E-Mail / Legacy)</Label>
             <Textarea
               id="closingText"
               rows={3}
-              value={template.closingText}
-              onChange={(e) => updateField("closingText", e.target.value)}
+              value={documentText.closingText}
+              onChange={(e) => updateDocumentField("closingText", e.target.value)}
             />
           </div>
           <div className="space-y-2">
@@ -334,8 +422,8 @@ export function AdminInvoiceTemplateTab() {
             <Textarea
               id="centerFooterText"
               rows={2}
-              value={template.centerFooterText}
-              onChange={(e) => updateField("centerFooterText", e.target.value)}
+              value={documentText.centerFooterText}
+              onChange={(e) => updateDocumentField("centerFooterText", e.target.value)}
             />
           </div>
           <div className="space-y-2">
@@ -343,10 +431,19 @@ export function AdminInvoiceTemplateTab() {
             <Textarea
               id="footerNote"
               rows={2}
-              value={template.footerNote}
-              onChange={(e) => updateField("footerNote", e.target.value)}
+              value={documentText.footerNote}
+              onChange={(e) => updateDocumentField("footerNote", e.target.value)}
             />
           </div>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={documentText.showPaymentBlock}
+              onChange={(e) => updateDocumentField("showPaymentBlock", e.target.checked)}
+              className="h-4 w-4 rounded border-border"
+            />
+            QR-Zahlteil fuer diesen Dokumenttyp anzeigen
+          </label>
         </CardContent>
       </Card>
 

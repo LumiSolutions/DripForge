@@ -1,55 +1,71 @@
 import { getSettingsContainer } from "@/lib/cosmos/client"
 import { logCosmosError } from "@/lib/cosmos/log-error"
 import {
-  INVOICE_TEMPLATE_DOC_ID,
-  INVOICE_TEMPLATE_DOC_TYPE,
-  mergeInvoiceTemplateSettings,
-  sanitizeInvoiceTemplateInput,
-  type InvoiceTemplateSettings,
-} from "@/lib/invoices/invoice-template-types"
+  DOCUMENT_TEMPLATE_DOC_ID,
+  DOCUMENT_TEMPLATE_DOC_TYPE,
+  LEGACY_INVOICE_TEMPLATE_DOC_ID,
+  LEGACY_INVOICE_TEMPLATE_DOC_TYPE,
+  mergeDocumentTemplateSettings,
+  sanitizeDocumentTemplateInput,
+  type DocumentTemplateSettings,
+} from "@/lib/documents/document-template-types"
 
-type InvoiceTemplateCosmosDoc = InvoiceTemplateSettings & {
+type DocumentTemplateCosmosDoc = Partial<DocumentTemplateSettings> & {
   id: string
   docType: string
 }
 
-export async function cosmosGetInvoiceTemplateSettings(
-  company?: import("@/lib/admin/types").CompanySettings
-): Promise<InvoiceTemplateSettings> {
+async function readTemplateDoc(id: string): Promise<DocumentTemplateCosmosDoc | null> {
   const container = await getSettingsContainer()
   try {
-    const { resource } = await container
-      .item(INVOICE_TEMPLATE_DOC_ID, INVOICE_TEMPLATE_DOC_ID)
-      .read<InvoiceTemplateCosmosDoc>()
-    if (resource?.docType === INVOICE_TEMPLATE_DOC_TYPE) {
-      return mergeInvoiceTemplateSettings(resource, company)
-    }
+    const { resource } = await container.item(id, id).read<DocumentTemplateCosmosDoc>()
+    return resource ?? null
   } catch (error) {
     const code = (error as { code?: number }).code
     if (code !== 404) {
-      logCosmosError("cosmosGetInvoiceTemplateSettings", error)
+      logCosmosError(`cosmosGetDocumentTemplateSettings:${id}`, error)
       throw error
     }
   }
-  return mergeInvoiceTemplateSettings(null, company)
+  return null
 }
 
-export async function cosmosSaveInvoiceTemplateSettings(
-  settings: InvoiceTemplateSettings
-): Promise<InvoiceTemplateSettings> {
+export async function cosmosGetDocumentTemplateSettings(
+  company?: import("@/lib/admin/types").CompanySettings
+): Promise<DocumentTemplateSettings> {
+  const current = await readTemplateDoc(DOCUMENT_TEMPLATE_DOC_ID)
+  if (current?.docType === DOCUMENT_TEMPLATE_DOC_TYPE) {
+    return mergeDocumentTemplateSettings(current, company)
+  }
+
+  const legacy = await readTemplateDoc(LEGACY_INVOICE_TEMPLATE_DOC_ID)
+  if (legacy?.docType === LEGACY_INVOICE_TEMPLATE_DOC_TYPE) {
+    return mergeDocumentTemplateSettings(legacy, company)
+  }
+
+  return mergeDocumentTemplateSettings(null, company)
+}
+
+export async function cosmosSaveDocumentTemplateSettings(
+  settings: DocumentTemplateSettings
+): Promise<DocumentTemplateSettings> {
   const container = await getSettingsContainer()
-  const doc: InvoiceTemplateCosmosDoc = {
-    id: INVOICE_TEMPLATE_DOC_ID,
-    docType: INVOICE_TEMPLATE_DOC_TYPE,
+  const doc: DocumentTemplateCosmosDoc = {
+    id: DOCUMENT_TEMPLATE_DOC_ID,
+    docType: DOCUMENT_TEMPLATE_DOC_TYPE,
     ...settings,
   }
   await container.items.upsert(doc)
   return settings
 }
 
-export function sanitizeAndMergeInvoiceTemplate(
+export function sanitizeAndMergeDocumentTemplate(
   body: unknown,
-  existing: InvoiceTemplateSettings
-): InvoiceTemplateSettings {
-  return sanitizeInvoiceTemplateInput(body, existing)
+  existing: DocumentTemplateSettings
+): DocumentTemplateSettings {
+  return sanitizeDocumentTemplateInput(body, existing)
 }
+
+export const cosmosGetInvoiceTemplateSettings = cosmosGetDocumentTemplateSettings
+export const cosmosSaveInvoiceTemplateSettings = cosmosSaveDocumentTemplateSettings
+export const sanitizeAndMergeInvoiceTemplate = sanitizeAndMergeDocumentTemplate
