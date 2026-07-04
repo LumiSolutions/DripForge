@@ -17,6 +17,12 @@ export const DOCUMENT_TEMPLATE_TYPES = [
 
 export type DocumentTemplateType = (typeof DOCUMENT_TEMPLATE_TYPES)[number]
 
+export const LOGO_ALIGNMENTS = ["left", "center", "right"] as const
+export type DocumentLogoAlignment = (typeof LOGO_ALIGNMENTS)[number]
+
+export const MWST_EXEMPT_LEGAL_NOTE =
+  "*Befreit von der Mehrwertsteuerpflicht aufgrund der Umsatzgrenze gemäss Art. 10 MWSTG."
+
 export type DocumentTypeTextSettings = {
   label: string
   numberPlaceholder: string
@@ -35,9 +41,12 @@ export type DocumentTemplateSettings = {
   inhaber: string
   firmenAdresse: string
   kontaktEmail: string
+  website: string
   iban: string
   bankname: string
   logoUrl: string | null
+  logoAlignment: DocumentLogoAlignment
+  qrPaymentImageUrl: string | null
   paymentTermsDays: number
   documentTypes: Record<DocumentTemplateType, DocumentTypeTextSettings>
   updatedAt: string
@@ -48,9 +57,12 @@ type LegacyInvoiceTemplateSettings = Partial<{
   inhaber: string
   firmenAdresse: string
   kontaktEmail: string
+  website: string
   iban: string
   bankname: string
   logoUrl: string | null
+  logoAlignment: DocumentLogoAlignment
+  qrPaymentImageUrl: string | null
   paymentTermsDays: number
   introText: string
   closingText: string
@@ -114,9 +126,12 @@ export const DEFAULT_DOCUMENT_TEMPLATE: DocumentTemplateSettings = {
   inhaber: "Robin Schulz",
   firmenAdresse: "Mattenstrasse 7\n8330 Pfäffikon ZH",
   kontaktEmail: DEFAULT_COMPANY_SETTINGS.kontaktEmail,
+  website: "www.dripforge.ch",
   iban: DEFAULT_COMPANY_SETTINGS.iban,
   bankname: DEFAULT_COMPANY_SETTINGS.bankname,
   logoUrl: DRIPFORGE_LOGO_URL,
+  logoAlignment: "right",
+  qrPaymentImageUrl: null,
   paymentTermsDays: 30,
   documentTypes: DEFAULT_DOCUMENT_TYPE_TEXTS,
   updatedAt: new Date(0).toISOString(),
@@ -134,6 +149,37 @@ function normalizeLogoUrl(value: unknown, fallback: string | null): string | nul
 
 function normalizePaymentTerms(value: unknown, fallback: number): number {
   return typeof value === "number" && value > 0 ? Math.min(120, Math.round(value)) : fallback
+}
+
+function normalizeLogoAlignment(
+  value: unknown,
+  fallback: DocumentLogoAlignment
+): DocumentLogoAlignment {
+  return LOGO_ALIGNMENTS.includes(value as DocumentLogoAlignment)
+    ? (value as DocumentLogoAlignment)
+    : fallback
+}
+
+export function formatDocumentDueDate(isoDate: string, paymentTermsDays: number): string {
+  const due = new Date(isoDate)
+  due.setDate(due.getDate() + paymentTermsDays)
+  return new Intl.DateTimeFormat("de-CH", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(due)
+}
+
+export function buildDocumentFooterText(template: DocumentTemplateSettings): string {
+  const address = template.firmenAdresse.replace(/\n/g, " · ")
+  const parts = [
+    template.firmenname,
+    template.inhaber,
+    address,
+    template.kontaktEmail,
+    template.website,
+  ].filter(Boolean)
+  return parts.join(" · ")
 }
 
 function mergeDocumentTypeTextSettings(
@@ -224,9 +270,12 @@ export function mergeDocumentTemplateSettings(
     inhaber: trimString(stored.inhaber, base.inhaber),
     firmenAdresse: trimString(stored.firmenAdresse, base.firmenAdresse),
     kontaktEmail: trimString(stored.kontaktEmail, base.kontaktEmail),
+    website: trimString(stored.website, base.website),
     iban: trimString(stored.iban, base.iban),
     bankname: trimString(stored.bankname, base.bankname),
     logoUrl: normalizeLogoUrl(stored.logoUrl, base.logoUrl ?? DRIPFORGE_LOGO_URL),
+    logoAlignment: normalizeLogoAlignment(stored.logoAlignment, base.logoAlignment),
+    qrPaymentImageUrl: normalizeLogoUrl(stored.qrPaymentImageUrl, base.qrPaymentImageUrl),
     paymentTermsDays: normalizePaymentTerms(stored.paymentTermsDays, base.paymentTermsDays),
     documentTypes,
     updatedAt:
@@ -263,9 +312,12 @@ export function sanitizeDocumentTemplateInput(
     inhaber: trimString(b.inhaber, existing.inhaber),
     firmenAdresse: trimString(b.firmenAdresse, existing.firmenAdresse),
     kontaktEmail: trimString(b.kontaktEmail, existing.kontaktEmail),
+    website: trimString(b.website, existing.website),
     iban: trimString(b.iban, existing.iban),
     bankname: trimString(b.bankname, existing.bankname),
     logoUrl: normalizeLogoUrl(b.logoUrl, existing.logoUrl),
+    logoAlignment: normalizeLogoAlignment(b.logoAlignment, existing.logoAlignment),
+    qrPaymentImageUrl: normalizeLogoUrl(b.qrPaymentImageUrl, existing.qrPaymentImageUrl),
     paymentTermsDays: normalizePaymentTerms(b.paymentTermsDays, existing.paymentTermsDays),
     documentTypes,
     updatedAt: new Date().toISOString(),

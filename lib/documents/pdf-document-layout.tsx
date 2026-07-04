@@ -9,6 +9,8 @@ import {
 import type { ReactNode } from "react"
 import {
   applyDocumentTemplatePlaceholders,
+  buildDocumentFooterText,
+  type DocumentLogoAlignment,
   type DocumentTemplateSettings,
   type DocumentTypeTextSettings,
 } from "@/lib/documents/document-template-types"
@@ -21,17 +23,11 @@ export const pdfDocumentColors = {
   anthraciteMid: "#374151",
   anthraciteLight: "#6b7280",
   orange: "#f97316",
-  orangeSoft: "#fff7ed",
   border: "#e5e7eb",
   bgMuted: "#f8fafc",
+  infoPanel: "#f3f4f6",
   tableHeader: "#1e293b",
 }
-
-const ENVELOPE_LEFT = 20 * MM
-const ENVELOPE_WINDOW_TOP = 45 * MM
-const ENVELOPE_RETURN_TOP = 22 * MM
-const ENVELOPE_WIDTH = 90 * MM
-const PAYMENT_BLOCK_HEIGHT = 105 * MM
 
 const styles = StyleSheet.create({
   page: {
@@ -39,75 +35,63 @@ const styles = StyleSheet.create({
     fontSize: 9,
     color: pdfDocumentColors.anthracite,
     lineHeight: 1.4,
-    paddingBottom: PAYMENT_BLOCK_HEIGHT + 36,
+    paddingTop: 15 * MM,
+    paddingHorizontal: 20 * MM,
+    paddingBottom: 32,
   },
-  returnAddress: {
-    position: "absolute",
-    top: ENVELOPE_RETURN_TOP,
-    left: ENVELOPE_LEFT,
-    width: ENVELOPE_WIDTH,
-    fontSize: 7,
-    color: pdfDocumentColors.anthraciteLight,
-    lineHeight: 1.3,
-  },
-  logoWrap: {
-    position: "absolute",
-    top: 20 * MM,
-    right: 20 * MM,
-    width: 22 * MM,
-    height: 22 * MM,
+  logoHeader: {
+    marginBottom: 14,
+    minHeight: 22 * MM,
+    justifyContent: "center",
   },
   logo: {
-    width: "100%",
-    height: "100%",
+    width: 22 * MM,
+    height: 22 * MM,
     objectFit: "contain",
   },
   recipientBlock: {
-    position: "absolute",
-    top: ENVELOPE_WINDOW_TOP,
-    left: ENVELOPE_LEFT,
-    width: ENVELOPE_WIDTH,
+    marginBottom: 10,
+    maxWidth: "52%",
     fontSize: 10,
     lineHeight: 1.45,
   },
   recipientLine: {
     marginBottom: 1,
   },
-  dateBlock: {
-    position: "absolute",
-    top: ENVELOPE_WINDOW_TOP,
-    right: 20 * MM,
-    width: 55 * MM,
-    textAlign: "right",
-    fontSize: 9,
-    color: pdfDocumentColors.anthraciteMid,
+  infoPanel: {
+    flexDirection: "row",
+    backgroundColor: pdfDocumentColors.infoPanel,
+    borderRadius: 3,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    marginBottom: 14,
   },
-  dateLabel: {
-    fontSize: 7.5,
+  infoField: {
+    flex: 1,
+    paddingRight: 6,
+  },
+  infoLabel: {
+    fontSize: 6.5,
     color: pdfDocumentColors.anthraciteLight,
     textTransform: "uppercase",
-    letterSpacing: 0.8,
+    letterSpacing: 0.6,
     marginBottom: 3,
   },
-  dateValue: {
+  infoValue: {
+    fontSize: 8.5,
     fontFamily: "Helvetica-Bold",
-    fontSize: 10,
     color: pdfDocumentColors.anthracite,
-  },
-  body: {
-    marginTop: 92 * MM,
-    paddingHorizontal: 20 * MM,
   },
   headerRule: {
     height: 1,
     backgroundColor: pdfDocumentColors.border,
-    marginBottom: 14,
+    marginBottom: 10,
   },
   headerAccent: {
     height: 2,
     width: 48,
     backgroundColor: pdfDocumentColors.orange,
-    marginBottom: 12,
+    marginBottom: 10,
   },
   headerLine: {
     fontFamily: "Helvetica-Bold",
@@ -123,28 +107,25 @@ const styles = StyleSheet.create({
   introText: {
     fontSize: 9.5,
     color: pdfDocumentColors.anthraciteLight,
-    marginBottom: 18,
-    maxWidth: "85%",
+    marginBottom: 14,
+    maxWidth: "90%",
   },
-  paymentBlock: {
-    position: "absolute",
-    bottom: 22,
-    left: 0,
-    right: 0,
-    height: PAYMENT_BLOCK_HEIGHT,
+  footerNote: {
+    fontSize: 9,
+    color: pdfDocumentColors.anthraciteLight,
+    marginTop: 8,
+    maxWidth: "90%",
+  },
+  paymentSection: {
+    marginTop: 16,
     borderTopWidth: 1,
-    borderTopColor: pdfDocumentColors.anthracite,
+    borderTopColor: pdfDocumentColors.border,
+    paddingTop: 12,
     flexDirection: "row",
-    paddingTop: 10,
-    paddingHorizontal: 20 * MM,
-    backgroundColor: pdfDocumentColors.orangeSoft,
   },
   paymentLeft: {
     flex: 1,
     paddingRight: 12,
-    borderRightWidth: 1,
-    borderRightColor: pdfDocumentColors.border,
-    justifyContent: "flex-start",
   },
   paymentSectionTitle: {
     fontSize: 8,
@@ -170,7 +151,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: pdfDocumentColors.anthracite,
     marginTop: 6,
-    marginBottom: 8,
   },
   paymentNote: {
     fontSize: 7.5,
@@ -181,27 +161,22 @@ const styles = StyleSheet.create({
   paymentRight: {
     width: 52 * MM,
     alignItems: "center",
-    justifyContent: "center",
-    paddingLeft: 10,
+    justifyContent: "flex-start",
   },
   qrImage: {
     width: 46 * MM,
     height: 46 * MM,
-  },
-  qrLabel: {
-    fontSize: 6.5,
-    color: pdfDocumentColors.anthraciteLight,
-    marginTop: 4,
-    textAlign: "center",
+    objectFit: "contain",
   },
   centerFooter: {
     position: "absolute",
-    bottom: 6,
+    bottom: 10,
     left: 20 * MM,
     right: 20 * MM,
     textAlign: "center",
     fontSize: 7,
     color: pdfDocumentColors.anthraciteLight,
+    lineHeight: 1.35,
   },
 })
 
@@ -214,10 +189,18 @@ export type PdfDocumentRecipient = {
   country: string
 }
 
+export type PdfDocumentMeta = {
+  documentNumber: string
+  documentDate: string
+  paymentTermsLabel: string
+  dueDate: string
+  shippingLabel: string
+}
+
 export type PdfDocumentPayment = {
   amount: number
   reference: string
-  qrDataUrl?: string | null
+  qrImageUrl?: string | null
 }
 
 export type PdfDocumentLayoutProps = {
@@ -225,16 +208,16 @@ export type PdfDocumentLayoutProps = {
   template: DocumentTemplateSettings
   documentText: DocumentTypeTextSettings
   recipient: PdfDocumentRecipient
-  date: string
+  documentMeta: PdfDocumentMeta
   placeholderValues: Record<string, string>
   payment?: PdfDocumentPayment | null
   children: ReactNode
 }
 
-function buildReturnAddress(template: DocumentTemplateSettings): string {
-  const lines = template.firmenAdresse.split("\n").filter(Boolean)
-  const cityLine = lines.slice(1).join(", ") || lines[0] || ""
-  return `${template.firmenname} · ${cityLine}`.trim()
+function logoJustifyContent(alignment: DocumentLogoAlignment) {
+  if (alignment === "left") return "flex-start"
+  if (alignment === "center") return "center"
+  return "flex-end"
 }
 
 export function PdfDocumentLayout({
@@ -242,7 +225,7 @@ export function PdfDocumentLayout({
   template,
   documentText,
   recipient,
-  date,
+  documentMeta,
   placeholderValues,
   payment,
   children,
@@ -268,26 +251,31 @@ export function PdfDocumentLayout({
     documentText.paymentBlockText,
     placeholderValues
   )
-  const centerFooterText = applyDocumentTemplatePlaceholders(
+  const customFooter = applyDocumentTemplatePlaceholders(
     documentText.centerFooterText,
     placeholderValues
   )
+  const footerText = customFooter.trim() || buildDocumentFooterText(template)
   const accountHolder = template.inhaber
     ? `${template.firmenname}\n${template.inhaber}`
     : template.firmenname
   const showPaymentBlock = documentText.showPaymentBlock && Boolean(payment)
+  const qrImageUrl = payment?.qrImageUrl ?? template.qrPaymentImageUrl
 
   return (
     <Document title={title} author={template.firmenname}>
       <Page size="A4" style={styles.page}>
-        <Text style={styles.returnAddress}>{buildReturnAddress(template)}</Text>
-
-        {logoUrl ? (
-          <View style={styles.logoWrap}>
-            {/* eslint-disable-next-line jsx-a11y/alt-text -- @react-pdf Image */}
+        <View
+          style={[
+            styles.logoHeader,
+            { flexDirection: "row", justifyContent: logoJustifyContent(template.logoAlignment) },
+          ]}
+        >
+          {logoUrl ? (
+            // eslint-disable-next-line jsx-a11y/alt-text -- @react-pdf Image
             <Image style={styles.logo} src={logoUrl} />
-          </View>
-        ) : null}
+          ) : null}
+        </View>
 
         <View style={styles.recipientBlock}>
           <Text style={styles.recipientLine}>
@@ -300,27 +288,43 @@ export function PdfDocumentLayout({
           <Text style={styles.recipientLine}>{recipient.country}</Text>
         </View>
 
-        <View style={styles.dateBlock}>
-          <Text style={styles.dateLabel}>Datum</Text>
-          <Text style={styles.dateValue}>{date}</Text>
+        <View style={styles.infoPanel}>
+          <View style={styles.infoField}>
+            <Text style={styles.infoLabel}>Rechnungsnummer</Text>
+            <Text style={styles.infoValue}>{documentMeta.documentNumber}</Text>
+          </View>
+          <View style={styles.infoField}>
+            <Text style={styles.infoLabel}>Rechnungsdatum</Text>
+            <Text style={styles.infoValue}>{documentMeta.documentDate}</Text>
+          </View>
+          <View style={styles.infoField}>
+            <Text style={styles.infoLabel}>Zahlungsfrist</Text>
+            <Text style={styles.infoValue}>{documentMeta.paymentTermsLabel}</Text>
+          </View>
+          <View style={styles.infoField}>
+            <Text style={styles.infoLabel}>Faelligkeitsdatum</Text>
+            <Text style={styles.infoValue}>{documentMeta.dueDate}</Text>
+          </View>
+          <View style={styles.infoField}>
+            <Text style={styles.infoLabel}>Versandart</Text>
+            <Text style={styles.infoValue}>{documentMeta.shippingLabel}</Text>
+          </View>
         </View>
 
-        <View style={styles.body}>
-          <View style={styles.headerRule} />
-          <View style={styles.headerAccent} />
-          <Text style={styles.headerLine}>{headerLine}</Text>
-          {referenceLine ? <Text style={styles.referenceLine}>{referenceLine}</Text> : null}
-          {introText ? <Text style={styles.introText}>{introText}</Text> : null}
-          {children}
-          {footerNote ? (
-            <Text style={[styles.introText, { marginBottom: 0 }]}>{footerNote}</Text>
-          ) : null}
-        </View>
+        <View style={styles.headerRule} />
+        <View style={styles.headerAccent} />
+        <Text style={styles.headerLine}>{headerLine}</Text>
+        {referenceLine ? <Text style={styles.referenceLine}>{referenceLine}</Text> : null}
+        {introText ? <Text style={styles.introText}>{introText}</Text> : null}
+
+        {children}
+
+        {footerNote ? <Text style={styles.footerNote}>{footerNote}</Text> : null}
 
         {showPaymentBlock && payment ? (
-          <View style={styles.paymentBlock} fixed>
+          <View style={styles.paymentSection}>
             <View style={styles.paymentLeft}>
-              <Text style={styles.paymentSectionTitle}>Zahlungsinformationen</Text>
+              <Text style={styles.paymentSectionTitle}>Zahlungsverbindung</Text>
               <Text style={styles.paymentLineBold}>Kontoinhaber</Text>
               <Text style={styles.paymentLine}>{accountHolder}</Text>
               {template.iban ? (
@@ -332,30 +336,27 @@ export function PdfDocumentLayout({
               {template.bankname ? (
                 <Text style={styles.paymentLine}>{template.bankname}</Text>
               ) : null}
-              <Text style={styles.paymentLineBold}>Referenz / Zahlungszweck</Text>
+              <Text style={[styles.paymentLineBold, { marginTop: 6 }]}>
+                Referenz / Zahlungszweck
+              </Text>
               <Text style={styles.paymentLine}>{payment.reference}</Text>
               <Text style={styles.paymentAmount}>{formatChf(payment.amount)}</Text>
               {paymentBlockText ? (
                 <Text style={styles.paymentNote}>{paymentBlockText}</Text>
               ) : null}
             </View>
-            <View style={styles.paymentRight}>
-              {payment.qrDataUrl ? (
-                <>
-                  {/* eslint-disable-next-line jsx-a11y/alt-text -- @react-pdf Image */}
-                  <Image style={styles.qrImage} src={payment.qrDataUrl} />
-                  <Text style={styles.qrLabel}>Swiss QR-Zahlteil</Text>
-                </>
-              ) : (
-                <Text style={styles.qrLabel}>QR-Code nach IBAN-Eintrag verfuegbar</Text>
-              )}
-            </View>
+            {qrImageUrl ? (
+              <View style={styles.paymentRight}>
+                {/* eslint-disable-next-line jsx-a11y/alt-text -- @react-pdf Image */}
+                <Image style={styles.qrImage} src={qrImageUrl} />
+              </View>
+            ) : null}
           </View>
         ) : null}
 
-        {centerFooterText ? (
+        {footerText ? (
           <Text style={styles.centerFooter} fixed>
-            {centerFooterText}
+            {footerText}
           </Text>
         ) : null}
       </Page>

@@ -1,13 +1,10 @@
 import { StyleSheet, Text, View } from "@react-pdf/renderer"
 import type { AdminSettings, StoredOrder } from "@/lib/admin/types"
 import { SHIPPING_OPTIONS } from "@/lib/dripforge/checkout-config"
-import { formatChf, formatInvoiceDate } from "@/lib/invoices/invoice-format"
 import {
-  formatInvoiceItemDetails,
-  getInvoiceLineTotal,
-} from "@/lib/invoices/invoice-item-details"
-import {
+  MWST_EXEMPT_LEGAL_NOTE,
   buildDocumentPlaceholderValues,
+  formatDocumentDueDate,
   type DocumentTemplateSettings,
   type DocumentTemplateType,
 } from "@/lib/documents/document-template-types"
@@ -15,6 +12,15 @@ import {
   PdfDocumentLayout,
   pdfDocumentColors,
 } from "@/lib/documents/pdf-document-layout"
+import {
+  formatChf,
+  formatInvoiceDate,
+  getInvoicePaymentTermsLabel,
+} from "@/lib/invoices/invoice-format"
+import {
+  formatInvoiceItemDetails,
+  getInvoiceLineTotal,
+} from "@/lib/invoices/invoice-item-details"
 
 const styles = StyleSheet.create({
   table: {
@@ -22,61 +28,73 @@ const styles = StyleSheet.create({
     borderColor: pdfDocumentColors.border,
     borderRadius: 3,
     overflow: "hidden",
-    marginBottom: 14,
+    marginBottom: 8,
   },
   tableHeader: {
     flexDirection: "row",
     backgroundColor: pdfDocumentColors.tableHeader,
     paddingVertical: 7,
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
   },
   th: {
     color: "#ffffff",
     fontFamily: "Helvetica-Bold",
-    fontSize: 7.5,
+    fontSize: 6.5,
     textTransform: "uppercase",
-    letterSpacing: 0.5,
+    letterSpacing: 0.4,
   },
   tableRow: {
     flexDirection: "row",
-    paddingVertical: 8,
-    paddingHorizontal: 8,
+    paddingVertical: 7,
+    paddingHorizontal: 6,
     borderBottomWidth: 1,
     borderBottomColor: pdfDocumentColors.border,
   },
   tableRowAlt: {
     backgroundColor: pdfDocumentColors.bgMuted,
   },
-  colProduct: { width: "24%" },
-  colDetails: { width: "36%" },
+  colProduct: { width: "18%" },
+  colDetails: { width: "28%" },
   colQty: { width: "8%", textAlign: "center" },
-  colUnit: { width: "16%", textAlign: "right" },
-  colTotal: { width: "16%", textAlign: "right" },
+  colUnit: { width: "14%", textAlign: "right" },
+  colTotal: { width: "14%", textAlign: "right" },
+  colVat: { width: "10%", textAlign: "right" },
   cellProduct: {
     fontFamily: "Helvetica-Bold",
-    fontSize: 8.5,
+    fontSize: 8,
     color: pdfDocumentColors.anthracite,
   },
   cellDetails: {
-    fontSize: 7.5,
+    fontSize: 7,
     color: pdfDocumentColors.anthraciteLight,
     lineHeight: 1.35,
   },
   cellQty: {
-    fontSize: 8.5,
+    fontSize: 8,
     textAlign: "center",
     color: pdfDocumentColors.anthraciteMid,
   },
   cellMoney: {
-    fontSize: 8.5,
+    fontSize: 8,
     textAlign: "right",
     color: pdfDocumentColors.anthraciteMid,
   },
   cellMoneyBold: {
     fontFamily: "Helvetica-Bold",
-    fontSize: 8.5,
+    fontSize: 8,
     textAlign: "right",
     color: pdfDocumentColors.anthracite,
+  },
+  cellVat: {
+    fontSize: 8,
+    textAlign: "right",
+    color: pdfDocumentColors.anthraciteMid,
+  },
+  legalNote: {
+    fontSize: 7,
+    color: pdfDocumentColors.anthraciteLight,
+    marginBottom: 12,
+    lineHeight: 1.35,
   },
   totalsWrap: {
     flexDirection: "row",
@@ -120,20 +138,12 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: pdfDocumentColors.anthracite,
   },
-  vatNote: {
-    marginTop: 6,
-    fontSize: 7.5,
-    color: pdfDocumentColors.anthraciteLight,
-    fontStyle: "italic",
-    textAlign: "right",
-  },
 })
 
 export type InvoiceDocumentProps = {
   order: StoredOrder
   settings: AdminSettings
   template: DocumentTemplateSettings
-  qrDataUrl?: string | null
   documentType?: DocumentTemplateType
 }
 
@@ -141,17 +151,21 @@ function shippingLabel(method: StoredOrder["shippingMethod"]): string {
   return SHIPPING_OPTIONS.find((o) => o.id === method)?.label ?? method
 }
 
+function itemVatLabel(mwstAktiv: boolean, mwstSatz: number): string {
+  return mwstAktiv ? `${mwstSatz.toFixed(1)}%` : "0%"
+}
+
 export function InvoiceDocument({
   order,
   settings,
   template,
-  qrDataUrl,
   documentType = "invoice",
 }: InvoiceDocumentProps) {
   const { checkout } = settings
   const mwstSatz = checkout.mwstSatz
   const documentText = template.documentTypes[documentType]
   const formattedDate = formatInvoiceDate(order.createdAt)
+  const vatLabel = itemVatLabel(order.totals.mwstAktiv, mwstSatz)
 
   const placeholderValues = buildDocumentPlaceholderValues(template, {
     belegnummer: order.orderId,
@@ -170,7 +184,7 @@ export function InvoiceDocument({
       ? {
           amount: order.totals.total,
           reference: order.orderId,
-          qrDataUrl,
+          qrImageUrl: template.qrPaymentImageUrl,
         }
       : null
 
@@ -180,7 +194,16 @@ export function InvoiceDocument({
       template={template}
       documentText={documentText}
       recipient={recipient}
-      date={formattedDate}
+      documentMeta={{
+        documentNumber: order.orderId,
+        documentDate: formattedDate,
+        paymentTermsLabel: getInvoicePaymentTermsLabel(
+          order.paymentMethod,
+          template.paymentTermsDays
+        ),
+        dueDate: formatDocumentDueDate(order.createdAt, template.paymentTermsDays),
+        shippingLabel: shippingLabel(order.shippingMethod),
+      }}
       placeholderValues={placeholderValues}
       payment={payment}
     >
@@ -191,6 +214,7 @@ export function InvoiceDocument({
           <Text style={[styles.colQty, styles.th]}>Menge</Text>
           <Text style={[styles.colUnit, styles.th]}>Einzelpreis</Text>
           <Text style={[styles.colTotal, styles.th]}>Total</Text>
+          <Text style={[styles.colVat, styles.th]}>MWST</Text>
         </View>
         {order.items.map((item, index) => (
           <View
@@ -208,9 +232,14 @@ export function InvoiceDocument({
             <Text style={[styles.colTotal, styles.cellMoneyBold]}>
               {formatChf(getInvoiceLineTotal(item))}
             </Text>
+            <Text style={[styles.colVat, styles.cellVat]}>{vatLabel}</Text>
           </View>
         ))}
       </View>
+
+      {!order.totals.mwstAktiv ? (
+        <Text style={styles.legalNote}>{MWST_EXEMPT_LEGAL_NOTE}</Text>
+      ) : null}
 
       <View style={styles.totalsWrap}>
         <View style={styles.totalsBox}>
@@ -242,11 +271,6 @@ export function InvoiceDocument({
             <Text style={styles.totalGrandLabel}>Gesamtbetrag</Text>
             <Text style={styles.totalGrandValue}>{formatChf(order.totals.total)}</Text>
           </View>
-          {!order.totals.mwstAktiv ? (
-            <Text style={styles.vatNote}>
-              MwSt.-befreit (Kleinunternehmer gem. Art. 10 MWSTG)
-            </Text>
-          ) : null}
         </View>
       </View>
     </PdfDocumentLayout>

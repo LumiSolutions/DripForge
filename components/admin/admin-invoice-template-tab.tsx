@@ -10,8 +10,13 @@ import { Textarea } from "@/components/ui/textarea"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
 import {
   DOCUMENT_TEMPLATE_TYPES,
+  LOGO_ALIGNMENTS,
+  MWST_EXEMPT_LEGAL_NOTE,
   applyDocumentTemplatePlaceholders,
+  buildDocumentFooterText,
   buildDocumentPlaceholderValues,
+  formatDocumentDueDate,
+  type DocumentLogoAlignment,
   type DocumentTemplateSettings,
   type DocumentTemplateType,
   type DocumentTypeTextSettings,
@@ -43,6 +48,12 @@ const PREVIEW_NUMBERS: Record<DocumentTemplateType, string> = {
   deliveryNote: "LI-00001",
 }
 
+const LOGO_ALIGNMENT_LABELS: Record<DocumentLogoAlignment, string> = {
+  left: "Links",
+  center: "Mitte",
+  right: "Rechts",
+}
+
 const PREVIEW_ITEMS = [
   {
     name: "3D-Druck Prototyp",
@@ -50,6 +61,7 @@ const PREVIEW_ITEMS = [
     quantity: 2,
     unit: "CHF 45.50",
     total: "CHF 91.00",
+    vat: "0%",
   },
   {
     name: "Lasergravur Holz",
@@ -57,6 +69,7 @@ const PREVIEW_ITEMS = [
     quantity: 1,
     unit: "CHF 28.00",
     total: "CHF 28.00",
+    vat: "0%",
   },
 ]
 
@@ -79,6 +92,18 @@ function renderTemplateText(text: string, values: Record<string, string>): strin
   return applyDocumentTemplatePlaceholders(text, values)
 }
 
+function previewNumberLabel(documentType: DocumentTemplateType): string {
+  if (documentType === "quote") return "Angebotsnummer"
+  if (documentType === "deliveryNote") return "Lieferscheinnummer"
+  return "Rechnungsnummer"
+}
+
+function previewDateLabel(documentType: DocumentTemplateType): string {
+  if (documentType === "quote") return "Angebotsdatum"
+  if (documentType === "deliveryNote") return "Lieferscheindatum"
+  return "Rechnungsdatum"
+}
+
 function DocumentLivePreview({
   template,
   documentType,
@@ -88,7 +113,9 @@ function DocumentLivePreview({
 }) {
   const documentText = template.documentTypes[documentType]
   const documentNumber = PREVIEW_NUMBERS[documentType]
+  const previewIso = new Date().toISOString()
   const formattedDate = formatPreviewDate(new Date())
+  const dueDate = formatDocumentDueDate(previewIso, template.paymentTermsDays)
   const placeholderValues = buildDocumentPlaceholderValues(template, {
     belegnummer: documentNumber,
     dokumentnummer: documentNumber,
@@ -99,9 +126,6 @@ function DocumentLivePreview({
       documentType === "deliveryNote" ? documentNumber : "LI-00001",
     datum: formattedDate,
   })
-  const companyAddressLines = addressLines(template.firmenAdresse)
-  const returnAddress =
-    `${template.firmenname} · ${companyAddressLines.slice(1).join(", ") || companyAddressLines[0] || ""}`.trim()
   const headerLine = renderTemplateText(documentText.headerLine, placeholderValues)
   const referenceLine = renderTemplateText(documentText.referenceLine, placeholderValues)
   const introText = renderTemplateText(documentText.introText, placeholderValues)
@@ -110,10 +134,14 @@ function DocumentLivePreview({
     documentText.paymentBlockText,
     placeholderValues
   )
-  const centerFooterText = renderTemplateText(
-    documentText.centerFooterText,
-    placeholderValues
-  )
+  const customFooter = renderTemplateText(documentText.centerFooterText, placeholderValues)
+  const footerText = customFooter.trim() || buildDocumentFooterText(template)
+  const logoAlignClass =
+    template.logoAlignment === "left"
+      ? "justify-start"
+      : template.logoAlignment === "center"
+        ? "justify-center"
+        : "justify-end"
 
   return (
     <div className="rounded-2xl border border-border bg-slate-100 p-4 shadow-inner dark:bg-slate-950/60">
@@ -131,64 +159,87 @@ function DocumentLivePreview({
         </span>
       </div>
 
-      <div className="mx-auto aspect-[210/297] w-full max-w-[620px] overflow-hidden rounded-sm bg-white text-slate-900 shadow-2xl">
-        <div className="relative flex h-full flex-col p-[7%] text-[clamp(7px,0.72vw,10px)]">
-          <div className="absolute left-[9.5%] top-[7.5%] max-w-[42%] truncate text-[0.7em] text-slate-400">
-            {returnAddress}
+      <div className="mx-auto aspect-[210/297] w-full max-w-[620px] overflow-y-auto rounded-sm bg-white text-slate-900 shadow-2xl">
+        <div className="flex min-h-full flex-col p-[7%] text-[clamp(6px,0.68vw,9px)]">
+          <div className={cn("mb-4 flex min-h-[52px]", logoAlignClass)}>
+            {template.logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={template.logoUrl}
+                alt="Dokumentenlogo Vorschau"
+                className="h-12 w-auto max-w-[40%] object-contain"
+              />
+            ) : (
+              <div className="flex h-12 w-24 items-center justify-center rounded border border-dashed border-slate-300 text-[0.7em] text-slate-400">
+                Logo
+              </div>
+            )}
           </div>
 
-          {template.logoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={template.logoUrl}
-              alt="Dokumentenlogo Vorschau"
-              className="absolute right-[9.5%] top-[7%] h-[7.5%] w-[12%] object-contain"
-            />
-          ) : (
-            <div className="absolute right-[9.5%] top-[7%] flex h-[7.5%] w-[12%] items-center justify-center rounded border border-dashed border-slate-300 text-[0.6em] text-slate-400">
-              Logo
-            </div>
-          )}
-
-          <div className="absolute left-[9.5%] top-[15.5%] w-[42%] leading-relaxed">
+          <div className="mb-3 max-w-[52%] leading-relaxed">
             <p>Max Muster</p>
             <p>Musterstrasse 12</p>
             <p>8000 Zuerich</p>
             <p>Schweiz</p>
           </div>
 
-          <div className="absolute right-[9.5%] top-[15.5%] text-right">
-            <p className="text-[0.7em] uppercase tracking-widest text-slate-400">Datum</p>
-            <p className="font-semibold">{formattedDate}</p>
-          </div>
-
-          <div className="mt-[36%]">
-            <div className="mb-3 h-px bg-slate-200" />
-            <div className="mb-3 h-0.5 w-12 bg-orange-500" />
-            <h3 className="text-[1.35em] font-bold">{headerLine}</h3>
-            {referenceLine ? (
-              <p className="mt-1 text-[0.95em] text-slate-600">{referenceLine}</p>
-            ) : null}
-            {introText ? (
-              <p className="mt-3 max-w-[82%] text-[0.9em] leading-relaxed text-slate-500">
-                {introText}
+          <div className="mb-4 grid grid-cols-5 gap-2 rounded bg-slate-100 px-3 py-2">
+            <div>
+              <p className="text-[0.65em] uppercase tracking-wide text-slate-400">
+                {previewNumberLabel(documentType)}
               </p>
-            ) : null}
+              <p className="font-semibold">{documentNumber}</p>
+            </div>
+            <div>
+              <p className="text-[0.65em] uppercase tracking-wide text-slate-400">
+                {previewDateLabel(documentType)}
+              </p>
+              <p className="font-semibold">{formattedDate}</p>
+            </div>
+            <div>
+              <p className="text-[0.65em] uppercase tracking-wide text-slate-400">
+                Zahlungsfrist
+              </p>
+              <p className="font-semibold">{template.paymentTermsDays} Tage</p>
+            </div>
+            <div>
+              <p className="text-[0.65em] uppercase tracking-wide text-slate-400">
+                Faelligkeitsdatum
+              </p>
+              <p className="font-semibold">{dueDate}</p>
+            </div>
+            <div>
+              <p className="text-[0.65em] uppercase tracking-wide text-slate-400">Versandart</p>
+              <p className="font-semibold">A-Post</p>
+            </div>
           </div>
 
-          <div className="mt-5 overflow-hidden rounded border border-slate-200">
-            <div className="grid grid-cols-[1.15fr_1.65fr_0.45fr_0.8fr_0.8fr] bg-slate-800 px-3 py-2 text-[0.72em] font-bold uppercase tracking-wider text-white">
+          <div className="mb-3 h-px bg-slate-200" />
+          <div className="mb-3 h-0.5 w-12 bg-orange-500" />
+          <h3 className="text-[1.35em] font-bold">{headerLine}</h3>
+          {referenceLine ? (
+            <p className="mt-1 text-[0.95em] text-slate-600">{referenceLine}</p>
+          ) : null}
+          {introText ? (
+            <p className="mt-3 max-w-[90%] text-[0.9em] leading-relaxed text-slate-500">
+              {introText}
+            </p>
+          ) : null}
+
+          <div className="mt-4 overflow-hidden rounded border border-slate-200">
+            <div className="grid grid-cols-[1fr_1.4fr_0.45fr_0.75fr_0.75fr_0.55fr] bg-slate-800 px-2 py-2 text-[0.65em] font-bold uppercase tracking-wider text-white">
               <span>Produkt</span>
               <span>Details</span>
               <span className="text-center">Menge</span>
               <span className="text-right">Einzelpreis</span>
               <span className="text-right">Total</span>
+              <span className="text-right">MWST</span>
             </div>
             {PREVIEW_ITEMS.map((item, index) => (
               <div
                 key={item.name}
                 className={cn(
-                  "grid grid-cols-[1.15fr_1.65fr_0.45fr_0.8fr_0.8fr] border-t border-slate-200 px-3 py-2",
+                  "grid grid-cols-[1fr_1.4fr_0.45fr_0.75fr_0.75fr_0.55fr] border-t border-slate-200 px-2 py-2",
                   index % 2 === 1 && "bg-slate-50"
                 )}
               >
@@ -197,11 +248,14 @@ function DocumentLivePreview({
                 <span className="text-center text-slate-600">{item.quantity}</span>
                 <span className="text-right text-slate-600">{item.unit}</span>
                 <span className="text-right font-semibold">{item.total}</span>
+                <span className="text-right text-slate-600">{item.vat}</span>
               </div>
             ))}
           </div>
 
-          <div className="mt-4 flex justify-end">
+          <p className="mt-2 text-[0.72em] text-slate-500">{MWST_EXEMPT_LEGAL_NOTE}</p>
+
+          <div className="mt-3 flex justify-end">
             <div className="w-[42%] rounded border border-slate-200 bg-white px-3 py-2">
               <div className="flex justify-between text-slate-500">
                 <span>Zwischensumme</span>
@@ -215,71 +269,53 @@ function DocumentLivePreview({
                 <span>Gesamtbetrag</span>
                 <span>CHF 128.00</span>
               </div>
-              <p className="mt-2 text-right text-[0.72em] italic text-slate-400">
-                MwSt.-befreit (Kleinunternehmer gem. Art. 10 MWSTG)
-              </p>
             </div>
           </div>
 
           {footerNote ? (
-            <p className="mt-3 max-w-[82%] text-[0.85em] text-slate-500">{footerNote}</p>
+            <p className="mt-3 max-w-[90%] text-[0.85em] text-slate-500">{footerNote}</p>
           ) : null}
 
-          <div className="mt-auto">
-            {documentText.showPaymentBlock ? (
-              <div className="grid h-[22%] grid-cols-[1fr_32%] border-t border-slate-900 bg-orange-50 px-3 py-3">
-                <div className="border-r border-orange-100 pr-3">
-                  <p className="mb-2 text-[0.72em] font-bold uppercase tracking-widest text-orange-500">
-                    Zahlungsinformationen
-                  </p>
-                  <p className="font-bold">Kontoinhaber</p>
-                  <p className="whitespace-pre-line text-slate-600">
-                    {template.firmenname}
-                    {template.inhaber ? `\n${template.inhaber}` : ""}
-                  </p>
-                  {template.iban ? (
-                    <>
-                      <p className="mt-2 font-bold">IBAN</p>
-                      <p className="text-slate-600">{template.iban}</p>
-                    </>
-                  ) : null}
-                  {template.bankname ? (
-                    <p className="text-slate-600">{template.bankname}</p>
-                  ) : null}
-                  <p className="mt-2 font-bold">Referenz / Zahlungszweck</p>
-                  <p className="text-slate-600">{documentNumber}</p>
-                  {paymentBlockText ? (
-                    <p className="mt-2 line-clamp-2 text-[0.8em] text-slate-500">
-                      {paymentBlockText}
-                    </p>
-                  ) : null}
-                </div>
-                <div className="flex flex-col items-center justify-center pl-3">
-                  <div className="grid aspect-square w-[72%] grid-cols-4 grid-rows-4 gap-1 bg-white p-2 shadow-sm">
-                    {Array.from({ length: 16 }).map((_, index) => (
-                      <span
-                        key={index}
-                        className={cn(
-                          "block",
-                          [0, 1, 4, 5, 10, 11, 14].includes(index)
-                            ? "bg-slate-900"
-                            : "bg-slate-200"
-                        )}
-                      />
-                    ))}
-                  </div>
-                  <p className="mt-2 text-center text-[0.7em] text-slate-500">
-                    Swiss QR-Zahlteil
-                  </p>
-                </div>
+          {documentText.showPaymentBlock ? (
+            <div className="mt-4 grid grid-cols-[1fr_auto] gap-4 border-t border-slate-200 pt-4">
+              <div>
+                <p className="mb-2 text-[0.72em] font-bold uppercase tracking-widest text-orange-500">
+                  Zahlungsverbindung
+                </p>
+                <p className="font-bold">Kontoinhaber</p>
+                <p className="whitespace-pre-line text-slate-600">
+                  {template.firmenname}
+                  {template.inhaber ? `\n${template.inhaber}` : ""}
+                </p>
+                {template.iban ? (
+                  <>
+                    <p className="mt-2 font-bold">IBAN</p>
+                    <p className="text-slate-600">{template.iban}</p>
+                  </>
+                ) : null}
+                {template.bankname ? (
+                  <p className="text-slate-600">{template.bankname}</p>
+                ) : null}
+                <p className="mt-2 font-bold">Referenz / Zahlungszweck</p>
+                <p className="text-slate-600">{documentNumber}</p>
+                {paymentBlockText ? (
+                  <p className="mt-2 text-[0.8em] text-slate-500">{paymentBlockText}</p>
+                ) : null}
               </div>
-            ) : null}
-            {centerFooterText ? (
-              <p className="mt-2 truncate text-center text-[0.72em] text-slate-400">
-                {centerFooterText}
-              </p>
-            ) : null}
-          </div>
+              {template.qrPaymentImageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={template.qrPaymentImageUrl}
+                  alt="QR-Zahlteil"
+                  className="h-28 w-28 object-contain"
+                />
+              ) : null}
+            </div>
+          ) : null}
+
+          <p className="mt-auto pt-6 text-center text-[0.68em] leading-relaxed text-slate-400">
+            {footerText}
+          </p>
         </div>
       </div>
     </div>
@@ -292,9 +328,11 @@ export function AdminInvoiceTemplateTab() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [uploadingLogo, setUploadingLogo] = useState(false)
+  const [uploadingQrPayment, setUploadingQrPayment] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const qrFileInputRef = useRef<HTMLInputElement>(null)
 
   const loadTemplate = useCallback(async () => {
     setLoading(true)
@@ -393,6 +431,28 @@ export function AdminInvoiceTemplateTab() {
     }
   }
 
+  const handleQrPaymentUpload = async (file: File) => {
+    setUploadingQrPayment(true)
+    setError(null)
+    try {
+      const formData = new FormData()
+      formData.append("file", file)
+      const res = await fetch("/api/admin/document-template/qr-payment", {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? "Upload fehlgeschlagen")
+      setTemplate(data.template as DocumentTemplateSettings)
+      setSuccess("QR-Zahlteil hochgeladen.")
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "QR-Zahlteil-Upload fehlgeschlagen")
+    } finally {
+      setUploadingQrPayment(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-24 text-muted-foreground">
@@ -471,6 +531,15 @@ export function AdminInvoiceTemplateTab() {
                     type="email"
                     value={template.kontaktEmail}
                     onChange={(e) => updateField("kontaktEmail", e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="website">Website (Footer)</Label>
+                  <Input
+                    id="website"
+                    value={template.website}
+                    onChange={(e) => updateField("website", e.target.value)}
+                    placeholder="www.dripforge.ch"
                   />
                 </div>
                 <div className="space-y-2">
@@ -553,6 +622,83 @@ export function AdminInvoiceTemplateTab() {
                     onClick={() => updateField("logoUrl", null)}
                   >
                     Logo entfernen
+                  </Button>
+                ) : null}
+              </div>
+              <div className="space-y-2">
+                <Label>Logo-Ausrichtung in der Kopfzeile</Label>
+                <div className="flex flex-wrap gap-2">
+                  {LOGO_ALIGNMENTS.map((alignment) => (
+                    <button
+                      key={alignment}
+                      type="button"
+                      onClick={() => updateField("logoAlignment", alignment)}
+                      className={cn(
+                        "rounded-lg px-4 py-2 text-sm font-medium transition-colors",
+                        template.logoAlignment === alignment
+                          ? adminUi.navActive
+                          : adminUi.navInactive
+                      )}
+                    >
+                      {LOGO_ALIGNMENT_LABELS[alignment]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className={adminUi.section}>
+            <CardContent className="space-y-4 p-6">
+              <h2 className="font-semibold">QR-Code Zahlteil (Bild hochladen)</h2>
+              <p className="text-sm text-muted-foreground">
+                Fuer normale IBAN-Zahlungen: QR-Zahlteil als Bild hochladen. Wird neben den
+                Zahlungsdaten in der Vorschau und im PDF angezeigt.
+              </p>
+              <div className="flex flex-wrap items-center gap-4">
+                {template.qrPaymentImageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={template.qrPaymentImageUrl}
+                    alt="QR-Zahlteil"
+                    className="h-20 w-20 rounded-lg border border-border object-contain bg-white p-1"
+                  />
+                ) : (
+                  <div className="flex h-20 w-20 items-center justify-center rounded-lg border border-dashed text-xs text-muted-foreground">
+                    Kein QR
+                  </div>
+                )}
+                <input
+                  ref={qrFileInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (file) void handleQrPaymentUpload(file)
+                    e.target.value = ""
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={uploadingQrPayment}
+                  onClick={() => qrFileInputRef.current?.click()}
+                >
+                  {uploadingQrPayment ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Upload className="mr-2 h-4 w-4" />
+                  )}
+                  QR-Zahlteil hochladen
+                </Button>
+                {template.qrPaymentImageUrl ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => updateField("qrPaymentImageUrl", null)}
+                  >
+                    QR entfernen
                   </Button>
                 ) : null}
               </div>
@@ -671,6 +817,10 @@ export function AdminInvoiceTemplateTab() {
                 />
                 QR-Zahlteil fuer diesen Dokumenttyp anzeigen
               </label>
+              <p className="text-xs text-muted-foreground">
+                Footer-Kontaktdaten werden automatisch aus Firmenname, Inhaber, Adresse, E-Mail
+                und Website erzeugt, sofern kein eigener zentrierter Footer gesetzt ist.
+              </p>
             </CardContent>
           </Card>
 
