@@ -210,7 +210,7 @@ export default function DripForgeApp() {
         {currentView === "faq" && <PageFAQ setCurrentView={setCurrentView} />}
         {currentView === "impressum" && <PageImpressum setCurrentView={setCurrentView} />}
         {currentView === "agb" && <PageAGB setCurrentView={setCurrentView} />}
-        {currentView === "individual-3d" && <PageIndividual3D setCurrentView={setCurrentView} addToCart={addToCart} />}
+        {currentView === "individual-3d" && <PageIndividual3D />}
         {currentView === "individual-laser" && <PageIndividualLaser setCurrentView={setCurrentView} addToCart={addToCart} />}
         {currentView === "ai-konfigurator" && aiPublic.enabled && (
           <PageAiConfigurator setCurrentView={setCurrentView} />

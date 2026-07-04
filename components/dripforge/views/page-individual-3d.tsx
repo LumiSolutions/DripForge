@@ -6,19 +6,21 @@ import type { Object3D, Vector3 } from "three"
 import * as THREE from "three"
 import {
   CheckCircle2,
+  Mail,
+  MessageCircle,
   Minus,
   Plus,
-  ShoppingCart,
+  Send,
   Upload,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
 import {
   ColorInstructionsPanel,
-  readImageFileAsDataUrl,
 } from "@/components/dripforge/shared/color-instructions-panel"
 import {
   FilamentMultiColorPicker,
@@ -48,7 +50,11 @@ import { exceedsMaxPrintVolume } from "@/lib/dripforge/print-limits"
 import { PrintVolumeWarning } from "@/components/dripforge/shared/print-volume-warning"
 import { useFilamentMaterials } from "@/hooks/use-filament-materials"
 import { capture3dPreviewLeitbild } from "@/lib/dripforge/capture-leitbild"
-import type { CartItem } from "@/lib/dripforge/types"
+import {
+  isValidContactEmail,
+  isValidContactPhone,
+  type DruckanfrageContactMethod,
+} from "@/lib/admin/druckanfrage-types"
 
 const SCALE_MIN = 10
 const SCALE_MAX = 200
@@ -73,13 +79,7 @@ const Model3DPreview = dynamic(
   }
 )
 
-export function PageIndividual3D({
-  setCurrentView,
-  addToCart,
-}: {
-  setCurrentView: (view: string) => void
-  addToCart: (item: CartItem) => void
-}) {
+export function PageIndividual3D() {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
   const [meshParts, setMeshParts] = useState<ModelMeshPart[]>([])
   const [nativeScene, setNativeScene] = useState<Object3D | null>(null)
@@ -106,6 +106,14 @@ export function PageIndividual3D({
   )
   const [priceLoading, setPriceLoading] = useState(false)
   const [multiColorSurchargePercent, setMultiColorSurchargePercent] = useState(15)
+  const [contactMethod, setContactMethod] = useState<DruckanfrageContactMethod | null>(
+    null
+  )
+  const [customerEmail, setCustomerEmail] = useState("")
+  const [customerPhone, setCustomerPhone] = useState("")
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [submitSuccess, setSubmitSuccess] = useState<string | null>(null)
   const previewCanvasRef = useRef<HTMLCanvasElement>(null)
   const filamentMaterials = useFilamentMaterials()
 
@@ -329,7 +337,7 @@ export function PageIndividual3D({
     if (file) void parseUploadedFile(file)
   }
 
-  const handleAddToCart = async () => {
+  const handleSubmitInquiry = async () => {
     if (
       !uploadedFile ||
       !dimensions ||
@@ -337,56 +345,110 @@ export function PageIndividual3D({
       !multiColorSelection ||
       !allColorsInStock ||
       colorCount < 1 ||
-      isOversized
-    )
+      isOversized ||
+      !contactMethod
+    ) {
       return
-
-    const colorSummary = multiColorSelection.colors
-      .sort((a, b) => a.slot - b.slot)
-      .map((c) => `Farbe ${c.slot}: ${c.colorName}`)
-      .join(", ")
-
-    let colorReferenceImageDataUrl: string | null = null
-    if (colorReferenceImageFile) {
-      try {
-        colorReferenceImageDataUrl = await readImageFileAsDataUrl(
-          colorReferenceImageFile
-        )
-      } catch {
-        colorReferenceImageDataUrl = colorReferenceImagePreview
-      }
     }
 
-    let leitbild: string | undefined
+    if (contactMethod === "email" && !isValidContactEmail(customerEmail)) {
+      setSubmitError("Bitte geben Sie eine gueltige E-Mail-Adresse an.")
+      return
+    }
+
+    if (contactMethod === "whatsapp" && !isValidContactPhone(customerPhone)) {
+      setSubmitError("Bitte geben Sie eine gueltige Telefonnummer fuer WhatsApp an.")
+      return
+    }
+
+    setIsSubmitting(true)
+    setSubmitError(null)
+    setSubmitSuccess(null)
+
     try {
-      const leitbildUrl = await capture3dPreviewLeitbild(previewCanvasRef.current)
-      leitbild = leitbildUrl ?? undefined
-    } catch {
-      console.warn("Leitbild: 3D-Snapshot konnte nicht erstellt werden.")
+      const colorSummary = multiColorSelection.colors
+        .sort((a, b) => a.slot - b.slot)
+        .map((c) => `Farbe ${c.slot}: ${c.colorName}`)
+
+      let leitbildFile: File | null = null
+      try {
+        const leitbildUrl = await capture3dPreviewLeitbild(previewCanvasRef.current)
+        if (leitbildUrl) {
+          const response = await fetch(leitbildUrl)
+          const blob = await response.blob()
+          leitbildFile = new File([blob], "leitbild.png", {
+            type: blob.type || "image/png",
+          })
+        }
+      } catch {
+        console.warn("Leitbild: 3D-Snapshot konnte nicht erstellt werden.")
+      }
+
+      const formData = new FormData()
+      formData.append("modelFile", uploadedFile)
+      if (leitbildFile) formData.append("leitbild", leitbildFile)
+      if (colorReferenceImageFile) {
+        formData.append("colorReferenceImage", colorReferenceImageFile)
+      }
+      formData.append(
+        "metadata",
+        JSON.stringify({
+          contactMethod,
+          customerEmail: customerEmail.trim(),
+          customerPhone: customerPhone.trim(),
+          quantity,
+          scalePercent: scale,
+          dimensionsMm: {
+            x: dimensions.x,
+            y: dimensions.y,
+            z: dimensions.z,
+          },
+          volumeCm3: priceBreakdown.volumeCm3,
+          filamentMaterial: multiColorSelection.materialName,
+          filamentColors: colorSummary,
+          colorWishes: colorWishes.trim() || undefined,
+          hasEmbeddedModelColors: hasEmbeddedColors,
+          priceBreakdown,
+        })
+      )
+
+      const res = await fetch("/api/druckanfragen", {
+        method: "POST",
+        body: formData,
+      })
+      const data = (await res.json()) as { error?: string; message?: string }
+
+      if (!res.ok) {
+        throw new Error(data.error ?? "Anfrage konnte nicht gesendet werden.")
+      }
+
+      setSubmitSuccess(
+        data.message ??
+          "Ihre unverbindliche Anfrage wurde uebermittelt. Wir melden uns mit dem exakten Festpreis."
+      )
+    } catch (err) {
+      setSubmitError(
+        err instanceof Error ? err.message : "Anfrage konnte nicht gesendet werden."
+      )
+    } finally {
+      setIsSubmitting(false)
     }
-
-    addToCart({
-      id: `custom-3d-${Date.now()}`,
-      name: `Individueller 3D-Druck: ${uploadedFile.name}`,
-      price: priceBreakdown.unitPrice,
-      quantity,
-      type: "3d",
-      leitbild,
-      customDetails: {
-        fileName: uploadedFile.name,
-        filament: multiColorSelection.materialName,
-        color: colorSummary,
-        dimensions: `${dimensions.x.toFixed(1)} x ${dimensions.y.toFixed(1)} x ${dimensions.z.toFixed(1)} mm`,
-        scale: `${scale}% (laengste Achse ${longestAxisMm.toFixed(1)} mm bei ${NORMALIZED_LONGEST_AXIS_MM} mm = 100 %)`,
-        colorWishes: colorWishes.trim() || undefined,
-        colorReferenceImage: colorReferenceImageDataUrl,
-        colorReferenceImageName: colorReferenceImageName ?? undefined,
-        hasEmbeddedModelColors: hasEmbeddedColors,
-      },
-    })
-
-    setCurrentView("shop")
   }
+
+  const canSubmitInquiry =
+    Boolean(uploadedFile) &&
+    Boolean(dimensions) &&
+    Boolean(priceBreakdown) &&
+    Boolean(multiColorSelection) &&
+    allColorsInStock &&
+    colorCount >= 1 &&
+    !loadError &&
+    hasModel &&
+    !isOversized &&
+    contactMethod !== null &&
+    (contactMethod === "email"
+      ? isValidContactEmail(customerEmail)
+      : isValidContactPhone(customerPhone))
 
   const activeStep = uploadedFile
     ? allColorsInStock && colorCount > 0
@@ -414,7 +476,12 @@ export function PageIndividual3D({
 
       <div className="mx-auto max-w-3xl px-4">
         <IndividualProcessBar
-          steps={["Datei hochladen", "Material waehlen", "Farbe & Groesse", "Warenkorb"]}
+          steps={[
+            "Datei hochladen",
+            "Material waehlen",
+            "Farbe & Groesse",
+            "Anfrage senden",
+          ]}
           activeStep={activeStep}
         />
       </div>
@@ -727,33 +794,118 @@ export function PageIndividual3D({
                       </>
                     )}
                     <div className="my-3 border-t border-border" />
-                    <div className="flex justify-between text-lg font-bold">
-                      <span>Gesamtpreis</span>
-                      <span className="text-primary">
-                        CHF {priceBreakdown.totalPrice.toFixed(2)}
+                    <div className="text-lg font-bold">
+                      <span>
+                        Voraussichtlicher Richtpreis: ab CHF{" "}
+                        {priceBreakdown.totalPrice.toFixed(2)}
                       </span>
                     </div>
+                    <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                      *Dies ist eine unverbindliche Schaetzung. Wir pruefen Ihre Datei nach
+                      der Uebermittlung in unserem Slicing-System (Bambulab) und kontaktieren
+                      Sie mit dem exakten Festpreis.
+                    </p>
                   </div>
 
+                  <div className="mt-6 space-y-4 rounded-xl border border-border/60 bg-background/40 p-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="customerEmail">
+                        E-Mail{" "}
+                        {contactMethod === "email" ? (
+                          <span className="text-red-500">*</span>
+                        ) : null}
+                      </Label>
+                      <Input
+                        id="customerEmail"
+                        type="email"
+                        value={customerEmail}
+                        onChange={(e) => setCustomerEmail(e.target.value)}
+                        placeholder="ihre@email.com"
+                        required={contactMethod === "email"}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="customerPhone">
+                        Telefonnummer{" "}
+                        {contactMethod === "whatsapp" ? (
+                          <span className="text-red-500">*</span>
+                        ) : null}
+                      </Label>
+                      <Input
+                        id="customerPhone"
+                        type="tel"
+                        value={customerPhone}
+                        onChange={(e) => setCustomerPhone(e.target.value)}
+                        placeholder="+41 79 000 00 00"
+                        required={contactMethod === "whatsapp"}
+                      />
+                    </div>
+
+                    <fieldset className="space-y-3">
+                      <legend className="text-sm font-medium">
+                        Wie moechten Sie kontaktiert werden?{" "}
+                        <span className="text-red-500">*</span>
+                      </legend>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-border/60 px-3 py-2 text-sm">
+                          <input
+                            type="radio"
+                            name="contactMethod"
+                            value="email"
+                            checked={contactMethod === "email"}
+                            onChange={() => setContactMethod("email")}
+                            className="h-4 w-4 accent-primary"
+                          />
+                          <Mail className="h-4 w-4 text-muted-foreground" />
+                          Per E-Mail
+                        </label>
+                        <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-border/60 px-3 py-2 text-sm">
+                          <input
+                            type="radio"
+                            name="contactMethod"
+                            value="whatsapp"
+                            checked={contactMethod === "whatsapp"}
+                            onChange={() => setContactMethod("whatsapp")}
+                            className="h-4 w-4 accent-primary"
+                          />
+                          <MessageCircle className="h-4 w-4 text-muted-foreground" />
+                          Per WhatsApp
+                        </label>
+                      </div>
+                    </fieldset>
+                  </div>
+
+                  {submitError ? (
+                    <p className="mt-4 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-600">
+                      {submitError}
+                    </p>
+                  ) : null}
+
+                  {submitSuccess ? (
+                    <p className="mt-4 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300">
+                      {submitSuccess}
+                    </p>
+                  ) : null}
+
                   <Button
-                    onClick={handleAddToCart}
-                    disabled={
-                      !allColorsInStock ||
-                      colorCount < 1 ||
-                      !!loadError ||
-                      !hasModel ||
-                      isOversized
-                    }
+                    onClick={() => void handleSubmitInquiry()}
+                    disabled={!canSubmitInquiry || isSubmitting || Boolean(submitSuccess)}
                     className="mt-6 w-full bg-primary hover:bg-primary/90"
                     size="lg"
                   >
-                    <ShoppingCart className="mr-2 h-5 w-5" />
-                    In den Warenkorb
+                    {isSubmitting ? (
+                      "Anfrage wird gesendet…"
+                    ) : (
+                      <>
+                        <Send className="mr-2 h-5 w-5" />
+                        Unverbindliche Anfrage senden
+                      </>
+                    )}
                   </Button>
                   {isOversized && (
                     <p className="mt-3 text-center text-sm font-medium text-red-500">
-                      Warenkorb gesperrt: Modell ueberschreitet den maximalen
-                      Druckbereich.
+                      Anfrage gesperrt: Modell ueberschreitet den maximalen Druckbereich.
                     </p>
                   )}
                   {multiColorSelection && !allColorsInStock && (

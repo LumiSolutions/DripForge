@@ -59,7 +59,7 @@ export const DEFAULT_SITE_TEXTS = {
     "Laden Sie Ihr eigenes Design hoch und verwirklichen Sie Ihre Vision",
   shop_custom_3d_title: "Ihr Individueller 3D-Druck",
   shop_custom_3d_description:
-    "Laden Sie Ihre STL/OBJ-Datei hoch und erhalten Sie eine sofortige Offerte.",
+    "Laden Sie Ihre STL/OBJ-Datei hoch und erhalten Sie einen unverbindlichen Richtpreis sowie ein exaktes Angebot.",
   shop_custom_laser_title: "Personalisierte Laserkreation",
   shop_custom_laser_description:
     "Laden Sie Ihr Bild oder Text hoch und wir gravieren es auf dem Material Ihrer Wahl.",

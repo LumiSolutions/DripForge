@@ -255,7 +255,7 @@ export function Page3DDruck({
                 <span className="text-foreground">?</span>
               </h2>
               <p className="mb-8 text-muted-foreground">
-                Laden Sie Ihr 3D-Modell hoch und erhalten Sie eine sofortige Offerte. Unser Team ist bereit, 
+                Laden Sie Ihr 3D-Modell hoch und erhalten Sie einen unverbindlichen Richtpreis sowie ein exaktes Angebot. Unser Team ist bereit, 
                 Ihre Vision mit Präzision und Qualität umzusetzen.
               </p>
               <div className="flex flex-wrap justify-center gap-4">
