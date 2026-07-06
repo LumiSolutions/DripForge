@@ -11,7 +11,6 @@ import type { OrderPayload } from "@/lib/dripforge/submit-order"
 import { processOrderPayload } from "@/lib/shop/order-processing"
 import { upsertCustomerFromOrder, getSettings } from "@/lib/admin/db"
 import { applyInventoryReservationForOrder } from "@/lib/admin/order-inventory-hook"
-import { processOrderInvoice } from "@/lib/invoices/process-order-invoice"
 import { normalizeEnableRewardPointsSystem } from "@/lib/dripforge/reward-points-settings"
 import {
   grantLoyaltyPoints,
@@ -103,16 +102,6 @@ export async function POST(request: Request) {
     }
 
     await applyInventoryReservationForOrder(orderWithCustomer)
-
-    try {
-      await processOrderInvoice(orderWithCustomer, settings)
-      console.info(`Bestell-API: Rechnung/E-Mail verarbeitet (${orderId}).`)
-    } catch (invoiceError) {
-      console.error(
-        `Bestell-API: Rechnung/E-Mail fehlgeschlagen — Bestellung ${orderId} ist trotzdem gespeichert.`,
-        invoiceError
-      )
-    }
 
     return NextResponse.json({
       orderId,

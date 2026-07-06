@@ -9,6 +9,7 @@ import {
   isAuthError,
   requireAdminSession,
 } from "@/lib/admin/require-admin-session"
+import { maybeNotifyOrderConfirmed } from "@/lib/email/order-notifications"
 import type { OrderStatus } from "@/lib/admin/types"
 
 type RouteContext = { params: Promise<{ id: string }> }
@@ -42,6 +43,14 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   try {
     const { id } = await context.params
+    const existing = await getOrderById(id)
+    if (!existing) {
+      return NextResponse.json(
+        { error: "Bestellung nicht gefunden." },
+        { status: 404 }
+      )
+    }
+
     const body = (await request.json()) as {
       status?: OrderStatus
       productionStatus?: string
@@ -61,7 +70,8 @@ export async function PATCH(request: Request, context: RouteContext) {
           { status: 404 }
         )
       }
-      return NextResponse.json({ order })
+      const emailSent = await maybeNotifyOrderConfirmed(existing, order)
+      return NextResponse.json({ order, emailSent })
     }
 
     if (!body.status) {
@@ -77,7 +87,8 @@ export async function PATCH(request: Request, context: RouteContext) {
         { status: 404 }
       )
     }
-    return NextResponse.json({ order })
+    const emailSent = await maybeNotifyOrderConfirmed(existing, order)
+    return NextResponse.json({ order, emailSent })
   } catch (error) {
     console.warn("Admin-API: Status konnte nicht aktualisiert werden.", error)
     return NextResponse.json(

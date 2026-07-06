@@ -70,6 +70,14 @@ export type StoredOrder = {
   materialReservations?: import("@/lib/admin/material-types").OrderMaterialReservation[]
   /** Schweizer Post Sendungsnummer (nach Versand) */
   trackingNumber?: string
+  /** Versand-E-Mail-Benachrichtigungen (Idempotenz) */
+  emailNotifications?: OrderEmailNotifications
+}
+
+export type OrderEmailNotifications = {
+  receivedAt?: string
+  confirmedAt?: string
+  shippedAt?: string
 }
 
 export type CompanySettings = {

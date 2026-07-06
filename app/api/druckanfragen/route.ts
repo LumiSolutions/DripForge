@@ -11,6 +11,7 @@ import {
   type DruckanfrageDimensionsMm,
 } from "@/lib/admin/druckanfrage-types"
 import { notifyAdminDruckanfrage } from "@/lib/admin/notify-druckanfrage-admin"
+import { notifyDruckanfrageReceived } from "@/lib/email/order-notifications"
 import { uploadDruckanfrageFile } from "@/lib/azure/upload-druckanfrage-file"
 import {
   bufferToDataUrl,
@@ -240,6 +241,22 @@ export async function POST(request: Request) {
     )
 
     await notifyAdminDruckanfrage(anfrage)
+
+    if (contactMethod === "email") {
+      try {
+        await notifyDruckanfrageReceived({
+          customerEmail,
+          anfrageId: anfrage.id,
+          fileName: modelFile.name,
+          estimatedTotalPrice: priceBreakdown.totalPrice,
+        })
+      } catch (emailError) {
+        console.error(
+          `[Druckanfrage] Eingangs-E-Mail fehlgeschlagen (${anfrage.id}).`,
+          emailError
+        )
+      }
+    }
 
     return NextResponse.json({
       ok: true,

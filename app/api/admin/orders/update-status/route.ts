@@ -16,7 +16,10 @@ import {
   isAuthError,
   requireAdminSession,
 } from "@/lib/admin/require-admin-session"
-import { sendShippingConfirmationEmail } from "@/lib/email/send-shipping-confirmation"
+import {
+  maybeNotifyOrderConfirmed,
+  notifyOrderShipped,
+} from "@/lib/email/order-notifications"
 import type { OrderStatus, ProductionStatus } from "@/lib/admin/types"
 
 type UpdateStatusBody = {
@@ -61,7 +64,7 @@ export async function PATCH(request: Request) {
       }
 
       const settings = await getSettings()
-      const emailSent = await sendShippingConfirmationEmail(result.order, settings)
+      const emailSent = await notifyOrderShipped(result.order, settings)
 
       return NextResponse.json({
         order: result.order,
@@ -80,7 +83,8 @@ export async function PATCH(request: Request) {
       if (!order) {
         return NextResponse.json({ error: "Bestellung nicht gefunden." }, { status: 404 })
       }
-      return NextResponse.json({ order })
+      const emailSent = await maybeNotifyOrderConfirmed(existing, order)
+      return NextResponse.json({ order, emailSent })
     }
 
     if (body.status) {
@@ -88,7 +92,8 @@ export async function PATCH(request: Request) {
       if (!order) {
         return NextResponse.json({ error: "Bestellung nicht gefunden." }, { status: 404 })
       }
-      return NextResponse.json({ order })
+      const emailSent = await maybeNotifyOrderConfirmed(existing, order)
+      return NextResponse.json({ order, emailSent })
     }
 
     if (body.trackingNumber != null) {

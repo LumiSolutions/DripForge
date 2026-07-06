@@ -8,7 +8,6 @@ import {
 import { getCouponByCode, incrementCouponRedemption } from "@/lib/admin/coupon-db"
 import { validateCouponForCheckout } from "@/lib/admin/coupon-validation"
 import { normalizeCouponCode } from "@/lib/admin/coupon-types"
-import { processOrderInvoice } from "@/lib/invoices/process-order-invoice"
 import {
   DEFAULT_PRODUCTION_STATUS,
   getPaymentMethodLabel,
@@ -32,6 +31,7 @@ import {
 } from "@/lib/konto/loyalty-points"
 import { orderHasCustomerInbound } from "@/lib/admin/customer-inbound-order"
 import { applyInventoryReservationForOrder } from "@/lib/admin/order-inventory-hook"
+import { notifyOrderReceived } from "@/lib/email/order-notifications"
 import { normalizeEnableRewardPointsSystem } from "@/lib/dripforge/reward-points-settings"
 import { resolveCheckoutPointsPurchase } from "@/lib/shop/points-purchase"
 
@@ -191,6 +191,15 @@ export async function processOrderPayload(
 
   await saveOrder(order)
 
+  try {
+    await notifyOrderReceived(order, settings)
+  } catch (emailError) {
+    console.error(
+      `Bestellung: Eingangs-E-Mail fehlgeschlagen (${orderId}).`,
+      emailError
+    )
+  }
+
   if (appliedCoupon && order.paymentConfirmed) {
     await incrementCouponRedemption(appliedCoupon.code)
   }
@@ -297,15 +306,6 @@ export async function fulfillPaidShopOrder(
   }
 
   await applyInventoryReservationForOrder(orderWithCustomer)
-
-  try {
-    await processOrderInvoice(orderWithCustomer, settings)
-  } catch (invoiceError) {
-    console.error(
-      `Shop-Fulfillment: Rechnung fehlgeschlagen (${orderId}).`,
-      invoiceError
-    )
-  }
 
   const creditEmail = options.userId?.trim() || order.billing.email
   const rewardPointsEnabled = normalizeEnableRewardPointsSystem(

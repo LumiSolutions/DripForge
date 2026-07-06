@@ -124,6 +124,23 @@ export async function cosmosUpdateOrderInvoice(
   return next
 }
 
+export async function cosmosUpdateOrderEmailNotifications(
+  orderId: string,
+  patch: Partial<NonNullable<StoredOrder["emailNotifications"]>>
+): Promise<StoredOrder | null> {
+  const order = await cosmosGetOrderById(orderId)
+  if (!order) return null
+  const next = {
+    ...order,
+    emailNotifications: {
+      ...order.emailNotifications,
+      ...patch,
+    },
+  }
+  await cosmosSaveOrder(next)
+  return next
+}
+
 export async function cosmosGetCustomers(): Promise<StoredCustomer[]> {
   const container = await getCustomersContainer()
     const { resources } = await container.items

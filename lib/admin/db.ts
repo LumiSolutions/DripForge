@@ -55,6 +55,7 @@ import {
   cosmosSaveSettings,
   cosmosUpsertProduct,
   cosmosUpdateOrderInvoice,
+  cosmosUpdateOrderEmailNotifications,
   cosmosUpdateOrderProductionStatus,
   cosmosUpdateOrderShipment,
   cosmosUpdateOrderStatus,
@@ -413,6 +414,35 @@ export async function updateOrderInvoice(
     "updateOrderInvoice",
     () => cosmosUpdateOrderInvoice(orderId, data),
     () => updateOrderInvoiceInFile(orderId, data)
+  )
+}
+
+async function updateOrderEmailNotificationsInFile(
+  orderId: string,
+  patch: Partial<NonNullable<StoredOrder["emailNotifications"]>>
+): Promise<StoredOrder | null> {
+  const orders = await readJsonFile<StoredOrder[]>(ORDERS_FILE, [])
+  const index = orders.findIndex((o) => o.orderId === orderId)
+  if (index === -1) return null
+  orders[index] = {
+    ...orders[index],
+    emailNotifications: {
+      ...orders[index].emailNotifications,
+      ...patch,
+    },
+  }
+  await writeJsonFile(ORDERS_FILE, orders)
+  return orders[index]
+}
+
+export async function updateOrderEmailNotifications(
+  orderId: string,
+  patch: Partial<NonNullable<StoredOrder["emailNotifications"]>>
+): Promise<StoredOrder | null> {
+  return withCosmosFallback(
+    "updateOrderEmailNotifications",
+    () => cosmosUpdateOrderEmailNotifications(orderId, patch),
+    () => updateOrderEmailNotificationsInFile(orderId, patch)
   )
 }
 
