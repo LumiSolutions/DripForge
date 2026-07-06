@@ -2,6 +2,11 @@ export type OrderAnalyticsRow = {
   orderId: string
   createdAt: string
   status: string
+  billing?: {
+    firstName?: string
+    lastName?: string
+    email?: string
+  }
   totals: {
     total: number
     subtotal?: number
@@ -47,10 +52,18 @@ export type AdminAnalyticsTopOption = {
   count: number
 }
 
+export type AdminAnalyticsTopBuyer = {
+  name: string
+  email: string
+  orderCount: number
+  revenueChf: number
+}
+
 export type AdminAnalytics = {
   summary: AdminAnalyticsSummary
   timeSeries: AdminAnalyticsTimePoint[]
   topProducts: AdminAnalyticsTopProduct[]
   topOptions: AdminAnalyticsTopOption[]
+  topBuyers: AdminAnalyticsTopBuyer[]
   generatedAt: string
 }

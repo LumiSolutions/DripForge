@@ -10,7 +10,7 @@ type CosmosAnalyticsDoc = OrderAnalyticsRow & { id: string }
 export async function cosmosFetchOrdersForAnalytics(): Promise<OrderAnalyticsRow[]> {
   const container = await getOrdersContainer()
   const query =
-    "SELECT c.orderId, c.createdAt, c.status, c.totals, c.items FROM c"
+    "SELECT c.orderId, c.createdAt, c.status, c.totals, c.items, c.billing FROM c"
 
   try {
     const { resources } = await container.items

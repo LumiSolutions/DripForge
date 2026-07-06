@@ -426,6 +426,69 @@ export function AdminStatsTab() {
           </CardContent>
         </Card>
       </div>
+
+      <Card className={adminUi.card}>
+        <CardHeader>
+          <CardTitle className={cn("text-base", adminUi.heading)}>
+            Top-Käufer (Top 10)
+          </CardTitle>
+          <p className={cn("text-sm", adminUi.muted)}>
+            Nach Gesamtumsatz ohne stornierte Bestellungen
+          </p>
+        </CardHeader>
+        <CardContent>
+          {(data?.topBuyers ?? []).length === 0 ? (
+            <p className={cn("py-8 text-center text-sm", adminUi.muted)}>
+              Noch keine Kundendaten vorhanden.
+            </p>
+          ) : (
+            <div className={adminUi.tableWrap}>
+              <Table>
+                <TableHeader>
+                  <TableRow className={adminUi.tableHeadRow}>
+                    <TableHead className={cn("w-14", adminUi.tableHead)}>Rang</TableHead>
+                    <TableHead className={adminUi.tableHead}>Kunde</TableHead>
+                    <TableHead className={cn("text-right", adminUi.tableHead)}>
+                      Bestellungen
+                    </TableHead>
+                    <TableHead className={cn("text-right", adminUi.tableHead)}>
+                      Gesamtumsatz
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {data?.topBuyers.map((row, index) => (
+                    <TableRow key={row.email} className={adminUi.tableRow}>
+                      <TableCell
+                        className={cn("font-semibold tabular-nums", adminUi.accentTitle)}
+                      >
+                        #{index + 1}
+                      </TableCell>
+                      <TableCell className={adminUi.tableCell}>
+                        <p className="font-medium">{row.name}</p>
+                        <p className={cn("text-xs", adminUi.muted)}>{row.email}</p>
+                      </TableCell>
+                      <TableCell
+                        className={cn("text-right tabular-nums", adminUi.bodyText)}
+                      >
+                        {row.orderCount}
+                      </TableCell>
+                      <TableCell
+                        className={cn(
+                          "text-right font-medium tabular-nums",
+                          adminUi.accentTitle
+                        )}
+                      >
+                        {formatChf(row.revenueChf)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }

@@ -11,6 +11,7 @@ const OPEN_STATUSES = new Set(["ausstehend", "in_produktion"])
 const CHART_DAYS = 90
 const TOP_PRODUCTS_LIMIT = 10
 const TOP_OPTIONS_LIMIT = 12
+const TOP_BUYERS_LIMIT = 10
 
 function toDateKey(iso: string): string {
   return new Intl.DateTimeFormat("en-CA", {
@@ -32,6 +33,11 @@ function mapStoredOrderToRow(order: StoredOrder): OrderAnalyticsRow {
     orderId: order.orderId,
     createdAt: order.createdAt,
     status: order.status,
+    billing: {
+      firstName: order.billing.firstName,
+      lastName: order.billing.lastName,
+      email: order.billing.email,
+    },
     totals: {
       total: order.totals.total,
       subtotal: order.totals.subtotal,
@@ -73,6 +79,18 @@ function bumpOption(
   }
 }
 
+function buyerDisplayName(billing: OrderAnalyticsRow["billing"], email: string): string {
+  const firstName = billing?.firstName?.trim() ?? ""
+  const lastName = billing?.lastName?.trim() ?? ""
+  const fullName = [firstName, lastName].filter(Boolean).join(" ")
+  return fullName || email
+}
+
+function buyerEmailKey(billing: OrderAnalyticsRow["billing"]): string | null {
+  const email = billing?.email?.trim().toLowerCase()
+  return email || null
+}
+
 export function aggregateOrderAnalytics(
   orders: OrderAnalyticsRow[]
 ): AdminAnalytics {
@@ -88,6 +106,10 @@ export function aggregateOrderAnalytics(
   const optionMap = new Map<
     string,
     { label: string; category: string; count: number }
+  >()
+  const buyerMap = new Map<
+    string,
+    { name: string; email: string; orderCount: number; revenueChf: number }
   >()
 
   for (const order of orders) {
@@ -107,6 +129,24 @@ export function aggregateOrderAnalytics(
       bucket.orders += 1
       bucket.revenueChf += total
       dayMap.set(day, bucket)
+
+      const emailKey = buyerEmailKey(order.billing)
+      if (emailKey) {
+        const displayEmail = order.billing?.email?.trim() ?? emailKey
+        const buyer = buyerMap.get(emailKey) ?? {
+          name: buyerDisplayName(order.billing, displayEmail),
+          email: displayEmail,
+          orderCount: 0,
+          revenueChf: 0,
+        }
+        buyer.orderCount += 1
+        buyer.revenueChf += total
+        const name = buyerDisplayName(order.billing, displayEmail)
+        if (name && name !== displayEmail) {
+          buyer.name = name
+        }
+        buyerMap.set(emailKey, buyer)
+      }
     }
 
     for (const item of order.items ?? []) {
@@ -163,6 +203,14 @@ export function aggregateOrderAnalytics(
     .sort((a, b) => b.count - a.count)
     .slice(0, TOP_OPTIONS_LIMIT)
 
+  const topBuyers = [...buyerMap.values()]
+    .sort((a, b) => b.revenueChf - a.revenueChf || b.orderCount - a.orderCount)
+    .slice(0, TOP_BUYERS_LIMIT)
+    .map((buyer) => ({
+      ...buyer,
+      revenueChf: Math.round(buyer.revenueChf * 100) / 100,
+    }))
+
   const averageOrderValueChf =
     revenueOrderCount > 0
       ? Math.round((totalRevenueChf / revenueOrderCount) * 100) / 100
@@ -178,6 +226,7 @@ export function aggregateOrderAnalytics(
     timeSeries,
     topProducts,
     topOptions,
+    topBuyers,
     generatedAt: new Date().toISOString(),
   }
 }

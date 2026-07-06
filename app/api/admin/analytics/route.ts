@@ -17,6 +17,7 @@ const EMPTY_ANALYTICS: AdminAnalytics = {
   timeSeries: [],
   topProducts: [],
   topOptions: [],
+  topBuyers: [],
   generatedAt: new Date().toISOString(),
 }
 
