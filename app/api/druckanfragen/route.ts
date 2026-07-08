@@ -11,6 +11,7 @@ import {
   type DruckanfrageDimensionsMm,
 } from "@/lib/admin/druckanfrage-types"
 import { notifyAdminDruckanfrage } from "@/lib/admin/notify-druckanfrage-admin"
+import { notifyAdminNewDruckanfrage } from "@/lib/email/admin-inbound-notifications"
 import { notifyDruckanfrageReceived } from "@/lib/email/order-notifications"
 import { uploadDruckanfrageFile } from "@/lib/azure/upload-druckanfrage-file"
 import {
@@ -240,20 +241,28 @@ export async function POST(request: Request) {
       draftId
     )
 
-    await notifyAdminDruckanfrage(anfrage)
+    const notifications: Promise<unknown>[] = [
+      notifyAdminDruckanfrage(anfrage),
+      notifyAdminNewDruckanfrage(anfrage),
+    ]
 
     if (contactMethod === "email") {
-      try {
-        await notifyDruckanfrageReceived({
+      notifications.push(
+        notifyDruckanfrageReceived({
           customerEmail,
           anfrageId: anfrage.id,
           fileName: modelFile.name,
           estimatedTotalPrice: priceBreakdown.totalPrice,
         })
-      } catch (emailError) {
+      )
+    }
+
+    const results = await Promise.allSettled(notifications)
+    for (const result of results) {
+      if (result.status === "rejected") {
         console.error(
-          `[Druckanfrage] Eingangs-E-Mail fehlgeschlagen (${anfrage.id}).`,
-          emailError
+          `[Druckanfrage] Benachrichtigung fehlgeschlagen (${anfrage.id}).`,
+          result.reason
         )
       }
     }

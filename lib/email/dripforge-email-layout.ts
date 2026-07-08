@@ -68,6 +68,12 @@ export function renderDripForgeEmailHtml(options: {
 </html>`
 }
 
+export function renderEmailCtaButton(href: string, label: string): string {
+  return `<p style="margin:24px 0;text-align:center;">
+    <a href="${escapeHtml(href)}" style="display:inline-block;padding:12px 24px;background:#ea580c;color:#ffffff;text-decoration:none;border-radius:10px;font-weight:700;">${escapeHtml(label)}</a>
+  </p>`
+}
+
 export function renderOrderItemsTableHtml(
   items: { name: string; quantity: number; price: number }[]
 ): string {

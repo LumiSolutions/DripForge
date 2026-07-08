@@ -32,6 +32,7 @@ import {
 import { orderHasCustomerInbound } from "@/lib/admin/customer-inbound-order"
 import { applyInventoryReservationForOrder } from "@/lib/admin/order-inventory-hook"
 import { notifyOrderReceived } from "@/lib/email/order-notifications"
+import { notifyAdminNewOrder } from "@/lib/email/admin-inbound-notifications"
 import { normalizeEnableRewardPointsSystem } from "@/lib/dripforge/reward-points-settings"
 import { resolveCheckoutPointsPurchase } from "@/lib/shop/points-purchase"
 
@@ -191,11 +192,24 @@ export async function processOrderPayload(
 
   await saveOrder(order)
 
+  const inboundNotifications = Promise.allSettled([
+    notifyOrderReceived(order, settings),
+    notifyAdminNewOrder(order, settings),
+  ])
+
   try {
-    await notifyOrderReceived(order, settings)
+    const results = await inboundNotifications
+    for (const result of results) {
+      if (result.status === "rejected") {
+        console.error(
+          `Bestellung: Eingangs-Benachrichtigung fehlgeschlagen (${orderId}).`,
+          result.reason
+        )
+      }
+    }
   } catch (emailError) {
     console.error(
-      `Bestellung: Eingangs-E-Mail fehlgeschlagen (${orderId}).`,
+      `Bestellung: Eingangs-Benachrichtigung fehlgeschlagen (${orderId}).`,
       emailError
     )
   }

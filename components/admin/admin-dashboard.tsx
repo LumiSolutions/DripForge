@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { Suspense, useEffect, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import Image from "next/image"
 import Link from "next/link"
 import {
@@ -78,7 +79,14 @@ const NAV: { id: AdminTab; label: string; icon: typeof ClipboardList }[] = [
   { id: "print-calculator", label: "Druck-Kalkulator", icon: Calculator },
 ]
 
-export function AdminDashboard() {
+const ADMIN_TABS = new Set<AdminTab>(NAV.map((item) => item.id))
+
+function isAdminTab(value: string): value is AdminTab {
+  return ADMIN_TABS.has(value as AdminTab)
+}
+
+function AdminDashboardContent() {
+  const searchParams = useSearchParams()
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [hydrated, setHydrated] = useState(false)
   const [tab, setTab] = useState<AdminTab>("stats")
@@ -106,6 +114,19 @@ export function AdminDashboard() {
       document.body.style.overflow = prev
     }
   }, [mobileNavOpen])
+
+  useEffect(() => {
+    const tabParam = searchParams.get("tab")
+    const orderParam = searchParams.get("order")?.trim()
+
+    if (tabParam && isAdminTab(tabParam)) {
+      setTab(tabParam)
+    }
+    if (orderParam) {
+      setHighlightOrderId(orderParam)
+      setTab("orders")
+    }
+  }, [searchParams])
 
   useEffect(() => {
     void (async () => {
@@ -352,5 +373,19 @@ export function AdminDashboard() {
         {tab === "print-calculator" && <AdminPrintCalculatorTab />}
       </main>
     </div>
+  )
+}
+
+export function AdminDashboard() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center text-muted-foreground">
+          Wird geladen…
+        </div>
+      }
+    >
+      <AdminDashboardContent />
+    </Suspense>
   )
 }
