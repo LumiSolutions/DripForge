@@ -97,7 +97,17 @@ async function uploadOptionalImage(
 
 export async function POST(request: Request) {
   try {
-    const formData = await request.formData()
+    let formData: FormData
+    try {
+      formData = await request.formData()
+    } catch (parseError) {
+      console.error("[Druckanfrage] FormData konnte nicht gelesen werden.", parseError)
+      return NextResponse.json(
+        { error: "Upload zu gross oder unvollstaendig (max. 50 MB)." },
+        { status: 413 }
+      )
+    }
+
     const modelFile = formData.get("modelFile")
     const metadataRaw = formData.get("metadata")
     const leitbildFile = formData.get("leitbild")

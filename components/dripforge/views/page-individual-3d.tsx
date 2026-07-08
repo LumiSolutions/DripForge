@@ -337,17 +337,51 @@ export function PageIndividual3D() {
     if (file) void parseUploadedFile(file)
   }
 
+  const resolveInquiryValidationError = (): string | null => {
+    if (!uploadedFile) {
+      return "Bitte laden Sie eine 3D-Modell-Datei hoch (STL, OBJ, GLB, GLTF oder 3MF)."
+    }
+    if (loadError) return loadError
+    if (!hasModel) {
+      return "Das Modell konnte nicht geladen werden. Bitte versuchen Sie eine andere Datei."
+    }
+    if (!dimensions) {
+      return "Modellabmessungen werden noch berechnet — bitte kurz warten."
+    }
+    if (isOversized) {
+      return "Das Modell ueberschreitet den maximalen Druckbereich. Bitte verkleinern Sie die Skalierung."
+    }
+    if (priceLoading || !priceBreakdown) {
+      return "Der Richtpreis wird noch berechnet — bitte kurz warten."
+    }
+    if (!multiColorSelection) {
+      return "Bitte waehlen Sie Material und mindestens eine Farbe."
+    }
+    if (colorCount < 1) {
+      return "Bitte waehlen Sie mindestens eine Farbe."
+    }
+    if (!allColorsInStock) {
+      return "Mindestens eine gewaehlte Farbe ist nicht auf Lager."
+    }
+    if (!contactMethod) {
+      return "Bitte waehlen Sie einen Kontaktkanal (E-Mail oder WhatsApp)."
+    }
+    return null
+  }
+
   const handleSubmitInquiry = async () => {
-    if (
-      !uploadedFile ||
-      !dimensions ||
-      !priceBreakdown ||
-      !multiColorSelection ||
-      !allColorsInStock ||
-      colorCount < 1 ||
-      isOversized ||
-      !contactMethod
-    ) {
+    const validationError = resolveInquiryValidationError()
+    if (validationError) {
+      setSubmitError(validationError)
+      setSubmitSuccess(null)
+      return
+    }
+
+    const resolvedSelection = multiColorSelection
+    const resolvedBreakdown = priceBreakdown
+    const resolvedDimensions = dimensions
+    if (!resolvedSelection || !resolvedBreakdown || !resolvedDimensions || !uploadedFile) {
+      setSubmitError("Bitte vervollstaendigen Sie alle Angaben.")
       return
     }
 
@@ -366,7 +400,7 @@ export function PageIndividual3D() {
     setSubmitSuccess(null)
 
     try {
-      const colorSummary = multiColorSelection.colors
+      const colorSummary = resolvedSelection.colors
         .sort((a, b) => a.slot - b.slot)
         .map((c) => `Farbe ${c.slot}: ${c.colorName}`)
 
@@ -399,16 +433,16 @@ export function PageIndividual3D() {
           quantity,
           scalePercent: scale,
           dimensionsMm: {
-            x: dimensions.x,
-            y: dimensions.y,
-            z: dimensions.z,
+            x: resolvedDimensions.x,
+            y: resolvedDimensions.y,
+            z: resolvedDimensions.z,
           },
-          volumeCm3: priceBreakdown.volumeCm3,
-          filamentMaterial: multiColorSelection.materialName,
+          volumeCm3: resolvedBreakdown.volumeCm3,
+          filamentMaterial: resolvedSelection.materialName,
           filamentColors: colorSummary,
           colorWishes: colorWishes.trim() || undefined,
           hasEmbeddedModelColors: hasEmbeddedColors,
-          priceBreakdown,
+          priceBreakdown: resolvedBreakdown,
         })
       )
 
@@ -416,7 +450,19 @@ export function PageIndividual3D() {
         method: "POST",
         body: formData,
       })
-      const data = (await res.json()) as { error?: string; message?: string }
+
+      let data: { error?: string; message?: string } = {}
+      try {
+        data = (await res.json()) as { error?: string; message?: string }
+      } catch {
+        if (!res.ok) {
+          throw new Error(
+            res.status === 413
+              ? "Upload zu gross (max. 50 MB)."
+              : "Anfrage konnte nicht gesendet werden."
+          )
+        }
+      }
 
       if (!res.ok) {
         throw new Error(data.error ?? "Anfrage konnte nicht gesendet werden.")
@@ -434,21 +480,6 @@ export function PageIndividual3D() {
       setIsSubmitting(false)
     }
   }
-
-  const canSubmitInquiry =
-    Boolean(uploadedFile) &&
-    Boolean(dimensions) &&
-    Boolean(priceBreakdown) &&
-    Boolean(multiColorSelection) &&
-    allColorsInStock &&
-    colorCount >= 1 &&
-    !loadError &&
-    hasModel &&
-    !isOversized &&
-    contactMethod !== null &&
-    (contactMethod === "email"
-      ? isValidContactEmail(customerEmail)
-      : isValidContactPhone(customerPhone))
 
   const activeStep = uploadedFile
     ? allColorsInStock && colorCount > 0
@@ -890,7 +921,7 @@ export function PageIndividual3D() {
 
                   <Button
                     onClick={() => void handleSubmitInquiry()}
-                    disabled={!canSubmitInquiry || isSubmitting || Boolean(submitSuccess)}
+                    disabled={isSubmitting || Boolean(submitSuccess)}
                     className="mt-6 w-full bg-primary hover:bg-primary/90"
                     size="lg"
                   >

@@ -5,6 +5,10 @@ import {
 } from "@/lib/admin/db"
 import type { AdminSettings, StoredOrder } from "@/lib/admin/types"
 import {
+  KONTAKT_INQUIRY_LABELS,
+  type Kontaktanfrage,
+} from "@/lib/admin/kontaktanfrage-types"
+import {
   renderDripForgeEmailHtml,
   renderOrderItemsTableHtml,
   textToHtmlParagraphs,
@@ -30,56 +34,61 @@ export async function notifyOrderReceived(
 ): Promise<boolean> {
   if (order.emailNotifications?.receivedAt) return false
 
-  const adminSettings = settings ?? (await getSettings())
-  const branding = await resolveEmailBranding(adminSettings)
-  const customerName = `${order.billing.firstName} ${order.billing.lastName}`.trim()
-  const subject = "Deine DripForge Bestellung/Anfrage ist eingegangen"
+  try {
+    const adminSettings = settings ?? (await getSettings())
+    const branding = await resolveEmailBranding(adminSettings)
+    const customerName = `${order.billing.firstName} ${order.billing.lastName}`.trim()
+    const subject = "Deine DripForge Bestellung/Anfrage ist eingegangen"
 
-  const plain = [
-    `Guten Tag ${customerName},`,
-    "",
-    "vielen Dank — wir haben deine Bestellung bzw. Anfrage erfolgreich erhalten.",
-    "",
-    `Bestellnummer: ${order.orderId}`,
-    `Datum: ${formatInvoiceDate(order.createdAt)}`,
-    "",
-    "Wir prüfen deine Angaben und melden uns mit dem nächsten Schritt oder dem exakten Festpreis.",
-    "",
-    "Freundliche Grüsse",
-    branding.companyName,
-  ].join("\n")
+    const plain = [
+      `Guten Tag ${customerName},`,
+      "",
+      "vielen Dank — wir haben deine Bestellung bzw. Anfrage erfolgreich erhalten.",
+      "",
+      `Bestellnummer: ${order.orderId}`,
+      `Datum: ${formatInvoiceDate(order.createdAt)}`,
+      "",
+      "Wir prüfen deine Angaben und melden uns mit dem nächsten Schritt oder dem exakten Festpreis.",
+      "",
+      "Freundliche Grüsse",
+      branding.companyName,
+    ].join("\n")
 
-  const bodyHtml =
-    textToHtmlParagraphs(plain) +
-    renderOrderItemsTableHtml(
-      order.items.map((item) => ({
-        name: item.name,
-        quantity: item.quantity,
-        price: item.price,
-      }))
-    )
+    const bodyHtml =
+      textToHtmlParagraphs(plain) +
+      renderOrderItemsTableHtml(
+        order.items.map((item) => ({
+          name: item.name,
+          quantity: item.quantity,
+          price: item.price,
+        }))
+      )
 
-  const html = renderDripForgeEmailHtml({
-    title: "Bestellung eingegangen",
-    bodyHtml,
-    footerLines: branding.footerLines,
-    logoUrl: branding.logoUrl ?? undefined,
-  })
+    const html = renderDripForgeEmailHtml({
+      title: "Bestellung eingegangen",
+      bodyHtml,
+      footerLines: branding.footerLines,
+      logoUrl: branding.logoUrl ?? undefined,
+    })
 
-  const sent = await sendSmtpMail({
-    from: resolveSmtpFrom(branding.companyName, branding.contactEmail),
-    to: order.billing.email,
-    subject,
-    text: plain,
-    html,
-  })
+    const sent = await sendSmtpMail({
+      from: resolveSmtpFrom(branding.companyName, branding.contactEmail),
+      to: order.billing.email,
+      subject,
+      text: plain,
+      html,
+    })
 
-  if (sent) {
-    await markEmailSent(order.orderId, "receivedAt")
-    console.info(`E-Mail: Eingangsbestätigung gesendet (${order.orderId}).`)
+    if (sent) {
+      await markEmailSent(order.orderId, "receivedAt")
+      console.info(`E-Mail: Eingangsbestätigung gesendet (${order.orderId}).`)
+    }
+
+    return sent
+  } catch (error) {
+    console.error(`E-Mail: Eingangsbestätigung fehlgeschlagen (${order.orderId}).`, error)
+    return false
   }
-
-  return sent
 }
 
 export async function notifyOrderConfirmed(
@@ -290,40 +299,96 @@ export async function notifyDruckanfrageReceived(options: {
 }): Promise<boolean> {
   if (!options.customerEmail.trim()) return false
 
-  const settings = await getSettings()
-  const branding = await resolveEmailBranding(settings)
-  const customerName = options.customerName?.trim() || "dort"
-  const subject = "Deine DripForge Bestellung/Anfrage ist eingegangen"
+  try {
+    const settings = await getSettings()
+    const branding = await resolveEmailBranding(settings)
+    const customerName = options.customerName?.trim() || "dort"
+    const subject = "Deine DripForge Bestellung/Anfrage ist eingegangen"
 
-  const plain = [
-    `Guten Tag ${customerName},`,
-    "",
-    "vielen Dank — wir haben deine 3D-Druckanfrage erfolgreich erhalten.",
-    "",
-    `Anfrage-Nr.: ${options.anfrageId}`,
-    `Datei: ${options.fileName}`,
-    `Voraussichtlicher Richtpreis: ab CHF ${options.estimatedTotalPrice.toFixed(2)}`,
-    "",
-    "Wir prüfen deine Datei in unserem Slicing-System (Bambulab) und melden uns mit dem exakten Festpreis.",
-    "",
-    "Freundliche Grüsse",
-    branding.companyName,
-  ].join("\n")
+    const plain = [
+      `Guten Tag ${customerName},`,
+      "",
+      "vielen Dank — wir haben deine 3D-Druckanfrage erfolgreich erhalten.",
+      "",
+      `Anfrage-Nr.: ${options.anfrageId}`,
+      `Datei: ${options.fileName}`,
+      `Voraussichtlicher Richtpreis: ab CHF ${options.estimatedTotalPrice.toFixed(2)}`,
+      "",
+      "Wir prüfen deine Datei in unserem Slicing-System (Bambulab) und melden uns mit dem exakten Festpreis.",
+      "",
+      "Freundliche Grüsse",
+      branding.companyName,
+    ].join("\n")
 
-  const html = renderDripForgeEmailHtml({
-    title: "Anfrage eingegangen",
-    bodyHtml: textToHtmlParagraphs(plain),
-    footerLines: branding.footerLines,
-    logoUrl: branding.logoUrl ?? undefined,
-  })
+    const html = renderDripForgeEmailHtml({
+      title: "Anfrage eingegangen",
+      bodyHtml: textToHtmlParagraphs(plain),
+      footerLines: branding.footerLines,
+      logoUrl: branding.logoUrl ?? undefined,
+    })
 
-  return sendSmtpMail({
-    from: resolveSmtpFrom(branding.companyName, branding.contactEmail),
-    to: options.customerEmail,
-    subject,
-    text: plain,
-    html,
-  })
+    return sendSmtpMail({
+      from: resolveSmtpFrom(branding.companyName, branding.contactEmail),
+      to: options.customerEmail,
+      subject,
+      text: plain,
+      html,
+    })
+  } catch (error) {
+    console.error(
+      `E-Mail: Druckanfrage-Eingangsbestätigung fehlgeschlagen (${options.anfrageId}).`,
+      error
+    )
+    return false
+  }
+}
+
+export async function notifyKontaktanfrageReceived(
+  anfrage: Kontaktanfrage
+): Promise<boolean> {
+  if (!anfrage.email.trim()) return false
+
+  try {
+    const settings = await getSettings()
+    const branding = await resolveEmailBranding(settings)
+    const subject = "Deine DripForge Bestellung/Anfrage ist eingegangen"
+
+    const plain = [
+      `Guten Tag ${anfrage.name},`,
+      "",
+      "vielen Dank — wir haben deine Nachricht erfolgreich erhalten.",
+      "",
+      `Anfrage-Nr.: ${anfrage.id}`,
+      `Betreff: ${anfrage.subject}`,
+      `Anfrage-Typ: ${KONTAKT_INQUIRY_LABELS[anfrage.inquiryType]}`,
+      "",
+      "Wir prüfen deine Anfrage und melden uns so schnell wie möglich.",
+      "",
+      "Freundliche Grüsse",
+      branding.companyName,
+    ].join("\n")
+
+    const html = renderDripForgeEmailHtml({
+      title: "Nachricht eingegangen",
+      bodyHtml: textToHtmlParagraphs(plain),
+      footerLines: branding.footerLines,
+      logoUrl: branding.logoUrl ?? undefined,
+    })
+
+    return sendSmtpMail({
+      from: resolveSmtpFrom(branding.companyName, branding.contactEmail),
+      to: anfrage.email,
+      subject,
+      text: plain,
+      html,
+    })
+  } catch (error) {
+    console.error(
+      `E-Mail: Kontakt-Eingangsbestätigung fehlgeschlagen (${anfrage.id}).`,
+      error
+    )
+    return false
+  }
 }
 
 export async function refreshOrderAndNotifyConfirmed(orderId: string): Promise<boolean> {

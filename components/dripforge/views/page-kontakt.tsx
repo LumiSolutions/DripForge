@@ -1,47 +1,14 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
-import Image from "next/image"
+import { useState, type FormEvent } from "react"
 import {
-  Home,
-  Printer,
-  Zap,
-  ShoppingBag,
   MessageSquare,
-  Menu,
-  X,
-  ChevronRight,
   Mail,
-  Phone,
   MapPin,
   Clock,
   Send,
-  Leaf,
-  Scissors,
-  Stamp,
   CheckCircle2,
-  Circle,
-  Sparkles,
-  Package,
-  Timer,
-  Gem,
-  Layers,
-  ArrowRight,
-  MessageCircle,
-  User,
-  Bot,
-  Upload,
-  Box,
-  RotateCcw,
-  ZoomIn,
-  Minus,
-  Plus,
-  ShoppingCart,
-  Image as ImageIcon,
-  Tag,
-  Search,
-  Moon,
-  Sun,
+  Loader2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -50,16 +17,77 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { cn } from "@/lib/utils"
-import { FilamentColorPicker } from "@/components/dripforge/shared/filament-color-picker"
-import { ProcessStepItem } from "@/components/dripforge/shared/process-step-item"
-import { LaserProcessStep } from "@/components/dripforge/shared/laser-process-step"
-import { IndividualProcessBar } from "@/components/dripforge/shared/individual-process-bar"
-import { materials3D, laserMaterials, processSteps, products } from "@/lib/dripforge/data"
-import type { CartItem } from "@/lib/dripforge/types"
+import { isValidKontaktEmail } from "@/lib/admin/kontaktanfrage-types"
 
 export function PageKontakt({ setCurrentView }: { setCurrentView: (view: string) => void }) {
   const [inquiryType, setInquiryType] = useState("")
+  const [name, setName] = useState("")
+  const [email, setEmail] = useState("")
+  const [company, setCompany] = useState("")
+  const [subject, setSubject] = useState("")
+  const [message, setMessage] = useState("")
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [submitSuccess, setSubmitSuccess] = useState<string | null>(null)
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setSubmitError(null)
+    setSubmitSuccess(null)
+
+    if (!name.trim()) {
+      setSubmitError("Bitte geben Sie Ihren Namen an.")
+      return
+    }
+    if (!email.trim() || !isValidKontaktEmail(email)) {
+      setSubmitError("Bitte geben Sie eine gueltige E-Mail-Adresse an.")
+      return
+    }
+    if (!inquiryType) {
+      setSubmitError("Bitte waehlen Sie einen Anfrage-Typ.")
+      return
+    }
+    if (!subject.trim()) {
+      setSubmitError("Bitte geben Sie einen Betreff an.")
+      return
+    }
+    if (!message.trim()) {
+      setSubmitError("Bitte geben Sie eine Nachricht ein.")
+      return
+    }
+
+    setIsSubmitting(true)
+    try {
+      const res = await fetch("/api/kontakt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(),
+          email: email.trim(),
+          company: company.trim() || undefined,
+          inquiryType,
+          subject: subject.trim(),
+          message: message.trim(),
+        }),
+      })
+      const data = (await res.json()) as { error?: string; message?: string }
+
+      if (!res.ok) {
+        throw new Error(data.error ?? "Nachricht konnte nicht gesendet werden.")
+      }
+
+      setSubmitSuccess(
+        data.message ??
+          "Vielen Dank — Ihre Nachricht wurde uebermittelt. Wir melden uns so schnell wie moeglich."
+      )
+    } catch (err) {
+      setSubmitError(
+        err instanceof Error ? err.message : "Nachricht konnte nicht gesendet werden."
+      )
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
 
   return (
     <div className="py-16">
@@ -85,26 +113,51 @@ export function PageKontakt({ setCurrentView }: { setCurrentView: (view: string)
             <Card className="border-border/50 bg-card/50">
               <CardContent className="p-8">
                 <h2 className="mb-6 text-xl font-bold">Nachricht Senden</h2>
-                <form className="space-y-6">
+                <form className="space-y-6" onSubmit={(event) => void handleSubmit(event)}>
                   <div className="grid gap-6 md:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="name">Name <span className="text-red-500">*</span></Label>
-                      <Input id="name" placeholder="Ihr Name" />
+                      <Input
+                        id="name"
+                        placeholder="Ihr Name"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        disabled={isSubmitting || Boolean(submitSuccess)}
+                        required
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="email">E-Mail <span className="text-red-500">*</span></Label>
-                      <Input id="email" type="email" placeholder="ihre@email.com" />
+                      <Input
+                        id="email"
+                        type="email"
+                        placeholder="ihre@email.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        disabled={isSubmitting || Boolean(submitSuccess)}
+                        required
+                      />
                     </div>
                   </div>
                   <div className="grid gap-6 md:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="company">Firma (optional)</Label>
-                      <Input id="company" placeholder="Ihre Firma" />
+                      <Input
+                        id="company"
+                        placeholder="Ihre Firma"
+                        value={company}
+                        onChange={(e) => setCompany(e.target.value)}
+                        disabled={isSubmitting || Boolean(submitSuccess)}
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="type">Anfrage-Typ <span className="text-red-500">*</span></Label>
-                      <Select value={inquiryType} onValueChange={setInquiryType}>
-                        <SelectTrigger>
+                      <Select
+                        value={inquiryType}
+                        onValueChange={setInquiryType}
+                        disabled={isSubmitting || Boolean(submitSuccess)}
+                      >
+                        <SelectTrigger id="type">
                           <SelectValue placeholder="Typ auswählen" />
                         </SelectTrigger>
                         <SelectContent>
@@ -118,19 +171,57 @@ export function PageKontakt({ setCurrentView }: { setCurrentView: (view: string)
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="subject">Betreff <span className="text-red-500">*</span></Label>
-                    <Input id="subject" placeholder="Kurzer Betreff Ihrer Anfrage" />
+                    <Input
+                      id="subject"
+                      placeholder="Kurzer Betreff Ihrer Anfrage"
+                      value={subject}
+                      onChange={(e) => setSubject(e.target.value)}
+                      disabled={isSubmitting || Boolean(submitSuccess)}
+                      required
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="message">Nachricht <span className="text-red-500">*</span></Label>
-                    <Textarea 
-                      id="message" 
-                      placeholder="Erzählen Sie uns von Ihrem Projekt oder Ihrer Frage..." 
+                    <Textarea
+                      id="message"
+                      placeholder="Erzählen Sie uns von Ihrem Projekt oder Ihrer Frage..."
                       rows={5}
+                      value={message}
+                      onChange={(e) => setMessage(e.target.value)}
+                      disabled={isSubmitting || Boolean(submitSuccess)}
+                      required
                     />
                   </div>
-                  <Button type="submit" className="bg-primary text-primary-foreground hover:bg-primary/90">
-                    Nachricht Senden
-                    <Send className="ml-2 h-4 w-4" />
+
+                  {submitError ? (
+                    <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-600">
+                      {submitError}
+                    </p>
+                  ) : null}
+
+                  {submitSuccess ? (
+                    <p className="flex items-start gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300">
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+                      {submitSuccess}
+                    </p>
+                  ) : null}
+
+                  <Button
+                    type="submit"
+                    className="bg-primary text-primary-foreground hover:bg-primary/90"
+                    disabled={isSubmitting || Boolean(submitSuccess)}
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Wird gesendet…
+                      </>
+                    ) : (
+                      <>
+                        Nachricht Senden
+                        <Send className="ml-2 h-4 w-4" />
+                      </>
+                    )}
                   </Button>
                 </form>
               </CardContent>

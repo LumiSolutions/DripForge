@@ -46,6 +46,14 @@ export async function sendSmtpMail(options: SendSmtpMailOptions): Promise<boolea
   }
 
   const transporter = buildSmtpTransporter()
-  await transporter.sendMail(options)
-  return true
+  try {
+    await transporter.sendMail(options)
+    return true
+  } catch (error) {
+    console.error(
+      "E-Mail: SMTP-Versand fehlgeschlagen — Request wird trotzdem fortgesetzt.",
+      { to: options.to, subject: options.subject, error }
+    )
+    return false
+  }
 }

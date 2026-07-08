@@ -1,4 +1,8 @@
 import type { Druckanfrage } from "@/lib/admin/druckanfrage-types"
+import {
+  KONTAKT_INQUIRY_LABELS,
+  type Kontaktanfrage,
+} from "@/lib/admin/kontaktanfrage-types"
 import { adminPortalPath } from "@/lib/admin/admin-portal-path"
 import { customerDisplayName } from "@/lib/admin/customers"
 import { getSettings } from "@/lib/admin/db"
@@ -25,6 +29,10 @@ export function buildAdminOrderDetailUrl(orderId: string): string {
 
 export function buildAdminDruckanfrageDetailUrl(anfrageId: string): string {
   return buildAdminPortalUrl({ tab: "print-calculator", anfrage: anfrageId })
+}
+
+export function buildAdminKontaktDetailUrl(anfrageId: string): string {
+  return buildAdminPortalUrl({ tab: "customers", kontakt: anfrageId })
 }
 
 function formatItemOptionLines(item: StoredOrderItem): string[] {
@@ -126,49 +134,57 @@ async function sendAdminInboundEmail(options: {
   dashboardUrl: string
   settings?: AdminSettings
 }): Promise<boolean> {
-  const adminSettings = options.settings ?? (await getSettings())
-  const to = resolveAdminNotifyEmail(adminSettings)
-  if (!to) {
-    console.info(
-      "E-Mail: Admin-Benachrichtigung übersprungen — keine Zieladresse.",
-      { referenceId: options.referenceId }
+  try {
+    const adminSettings = options.settings ?? (await getSettings())
+    const to = resolveAdminNotifyEmail(adminSettings)
+    if (!to) {
+      console.info(
+        "E-Mail: Admin-Benachrichtigung übersprungen — keine Zieladresse.",
+        { referenceId: options.referenceId }
+      )
+      return false
+    }
+
+    const branding = await resolveEmailBranding(adminSettings)
+    const plain = [
+      options.plainBody,
+      "",
+      `Im Admin-Dashboard öffnen: ${options.dashboardUrl}`,
+    ].join("\n")
+
+    const bodyHtml =
+      textToHtmlParagraphs(options.plainBody) +
+      renderEmailCtaButton(options.dashboardUrl, "Im Admin-Dashboard öffnen")
+
+    const html = renderDripForgeEmailHtml({
+      title: options.title,
+      bodyHtml,
+      footerLines: branding.footerLines,
+      logoUrl: branding.logoUrl ?? undefined,
+    })
+
+    const sent = await sendSmtpMail({
+      from: resolveSmtpFrom(branding.companyName, branding.contactEmail),
+      to,
+      subject: options.subject,
+      text: plain,
+      html,
+    })
+
+    if (sent) {
+      console.info(
+        `E-Mail: Admin-Benachrichtigung gesendet (${options.referenceId} → ${to}).`
+      )
+    }
+
+    return sent
+  } catch (error) {
+    console.error(
+      `E-Mail: Admin-Benachrichtigung fehlgeschlagen (${options.referenceId}).`,
+      error
     )
     return false
   }
-
-  const branding = await resolveEmailBranding(adminSettings)
-  const plain = [
-    options.plainBody,
-    "",
-    `Im Admin-Dashboard öffnen: ${options.dashboardUrl}`,
-  ].join("\n")
-
-  const bodyHtml =
-    textToHtmlParagraphs(options.plainBody) +
-    renderEmailCtaButton(options.dashboardUrl, "Im Admin-Dashboard öffnen")
-
-  const html = renderDripForgeEmailHtml({
-    title: options.title,
-    bodyHtml,
-    footerLines: branding.footerLines,
-    logoUrl: branding.logoUrl ?? undefined,
-  })
-
-  const sent = await sendSmtpMail({
-    from: resolveSmtpFrom(branding.companyName, branding.contactEmail),
-    to,
-    subject: options.subject,
-    text: plain,
-    html,
-  })
-
-  if (sent) {
-    console.info(
-      `E-Mail: Admin-Benachrichtigung gesendet (${options.referenceId} → ${to}).`
-    )
-  }
-
-  return sent
 }
 
 export async function notifyAdminNewOrder(
@@ -218,6 +234,39 @@ export async function notifyAdminNewDruckanfrage(
   return sendAdminInboundEmail({
     referenceId: anfrage.id,
     title: "Neue Druckanfrage",
+    subject: `🚨 Neue Anfrage/Bestellung eingegangen! #${anfrage.id}`,
+    plainBody,
+    dashboardUrl,
+    settings,
+  })
+}
+
+export async function notifyAdminNewKontaktanfrage(
+  anfrage: Kontaktanfrage,
+  settings?: AdminSettings
+): Promise<boolean> {
+  const dashboardUrl = buildAdminKontaktDetailUrl(anfrage.id)
+  const plainBody = [
+    "Es ist eine neue Kontaktanfrage eingegangen.",
+    "",
+    `Name: ${anfrage.name}`,
+    `E-Mail: ${anfrage.email}`,
+    anfrage.company ? `Firma: ${anfrage.company}` : null,
+    `Anfrage-Typ: ${KONTAKT_INQUIRY_LABELS[anfrage.inquiryType]}`,
+    "",
+    `Anfrage-Nr.: ${anfrage.id}`,
+    `Betreff: ${anfrage.subject}`,
+    `Eingegangen: ${formatInvoiceDate(anfrage.createdAt)}`,
+    "",
+    "Nachricht:",
+    anfrage.message,
+  ]
+    .filter(Boolean)
+    .join("\n")
+
+  return sendAdminInboundEmail({
+    referenceId: anfrage.id,
+    title: "Neue Kontaktanfrage",
     subject: `🚨 Neue Anfrage/Bestellung eingegangen! #${anfrage.id}`,
     plainBody,
     dashboardUrl,
