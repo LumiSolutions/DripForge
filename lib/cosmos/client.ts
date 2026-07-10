@@ -163,6 +163,7 @@ export async function warmCosmosCore(): Promise<void> {
   logCosmosConfigStatus()
   await ensureDatabase()
   await getSettingsContainer()
+  await getCustomersContainer()
   const { resolveProductsContainer } = await import("@/lib/cosmos/products-container")
   await resolveProductsContainer()
 }

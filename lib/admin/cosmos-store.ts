@@ -167,18 +167,36 @@ export async function cosmosGetCustomerByNumber(
   }
 }
 
+export async function cosmosGetCustomerByEmail(
+  email: string
+): Promise<StoredCustomer | null> {
+  const normalized = normalizeCustomerEmail(email)
+  if (!normalized) return null
+
+  const container = await getCustomersContainer()
+  const { resources } = await container.items
+    .query<CosmosDoc<StoredCustomer>>({
+      query: "SELECT * FROM c WHERE LOWER(c.email) = @email",
+      parameters: [{ name: "@email", value: normalized }],
+    })
+    .fetchAll()
+
+  const match = resources.find(
+    (doc) => normalizeCustomerEmail(doc.email) === normalized
+  )
+  return match ? (stripCosmosId(match) as StoredCustomer) : null
+}
+
 export async function cosmosUpsertCustomerFromOrder(
   order: StoredOrder
 ): Promise<StoredCustomer> {
   const container = await getCustomersContainer()
-  const email = normalizeCustomerEmail(order.billing.email)
-  const customers = await cosmosGetCustomers()
-  const index = customers.findIndex((c) => c.email === email)
+  const existing = await cosmosGetCustomerByEmail(order.billing.email)
 
   let customer: StoredCustomer
 
-  if (index >= 0) {
-    customer = mergeOrderIntoCustomer(customers[index], order)
+  if (existing) {
+    customer = mergeOrderIntoCustomer(existing, order)
   } else {
     customer = buildCustomerFromOrder(
       order,

@@ -2,12 +2,6 @@ import { promises as fs } from "fs"
 import path from "path"
 import { products as seedProducts } from "@/lib/dripforge/data"
 import { DEFAULT_CHECKOUT_RUNTIME_CONFIG } from "@/lib/dripforge/checkout-config"
-import {
-  buildCustomerFromOrder,
-  mergeOrderIntoCustomer,
-  normalizeCustomerEmail,
-} from "@/lib/admin/customers"
-import { allocateNextCustomerNumber } from "@/lib/admin/customer-number-service"
 import { reconcilePortalAccounts } from "@/lib/konto/crm-sync"
 import type {
   AdminProduct,
@@ -137,8 +131,6 @@ const DOCUMENT_TEMPLATE_FILE = "document-template.json"
 const LEGACY_INVOICE_TEMPLATE_FILE = "invoice-template.json"
 const PRINT_CALCULATOR_FILE = "print-calculator-settings.json"
 const LASER_CONFIGURATOR_FILE = "laser-configurator-settings.json"
-const CUSTOMERS_FILE = "customers.json"
-
 async function ensureDataDir(): Promise<void> {
   await fs.mkdir(DATA_DIR, { recursive: true })
 }
@@ -212,116 +204,24 @@ export async function saveOrder(order: StoredOrder): Promise<void> {
   )
 }
 
-async function attachCustomerToOrder(
-  orderId: string,
-  kundennummer: string
-): Promise<void> {
-  const orders = await readJsonFile<StoredOrder[]>(ORDERS_FILE, [])
-  const index = orders.findIndex((o) => o.orderId === orderId)
-  if (index === -1) return
-  if (orders[index].kundennummer === kundennummer) return
-  orders[index] = { ...orders[index], kundennummer }
-  await writeJsonFile(ORDERS_FILE, orders)
-}
-
-async function upsertCustomerFromOrderFile(
-  order: StoredOrder
-): Promise<StoredCustomer> {
-  const customers = await readJsonFile<StoredCustomer[]>(CUSTOMERS_FILE, [])
-  const email = normalizeCustomerEmail(order.billing.email)
-  const index = customers.findIndex((c) => c.email === email)
-
-  let customer: StoredCustomer
-
-  if (index >= 0) {
-    customer = mergeOrderIntoCustomer(customers[index], order)
-    customers[index] = customer
-  } else {
-    const kundennummer = await allocateNextCustomerNumber()
-    customer = buildCustomerFromOrder(order, kundennummer)
-    customers.push(customer)
-  }
-
-  await writeJsonFile(CUSTOMERS_FILE, customers)
-  await attachCustomerToOrder(order.orderId, customer.kundennummer)
-  return customer
-}
-
 export async function upsertCustomerFromOrder(
   order: StoredOrder
 ): Promise<StoredCustomer> {
-  return withCosmosFallback(
-    "upsertCustomerFromOrder",
-    () => cosmosUpsertCustomerFromOrder(order),
-    () => upsertCustomerFromOrderFile(order)
-  )
-}
-
-export async function reconcileCustomersFromOrders(): Promise<void> {
-  const customers = await readJsonFile<StoredCustomer[]>(CUSTOMERS_FILE, [])
-  const orders = await readJsonFile<StoredOrder[]>(ORDERS_FILE, [])
-  const byEmail = new Map(customers.map((c) => [c.email, c]))
-  let changed = false
-
-  for (const order of orders) {
-    const email = normalizeCustomerEmail(order.billing.email)
-    const existing = byEmail.get(email)
-
-    if (existing) {
-      const merged = mergeOrderIntoCustomer(existing, order)
-      if (
-        merged.orderIds.length !== existing.orderIds.length ||
-        merged.updatedAt !== existing.updatedAt
-      ) {
-        byEmail.set(email, merged)
-        changed = true
-      }
-      if (order.kundennummer !== merged.kundennummer) {
-        await attachCustomerToOrder(order.orderId, merged.kundennummer)
-      }
-    } else {
-      const kundennummer = await allocateNextCustomerNumber()
-      const created = buildCustomerFromOrder(order, kundennummer)
-      byEmail.set(email, created)
-      changed = true
-      await attachCustomerToOrder(order.orderId, kundennummer)
-    }
-  }
-
-  if (changed) {
-    await writeJsonFile(CUSTOMERS_FILE, [...byEmail.values()])
-  }
-}
-
-async function getCustomersFromFile(): Promise<StoredCustomer[]> {
-  await reconcileCustomersFromOrders()
-  const customers = await readJsonFile<StoredCustomer[]>(CUSTOMERS_FILE, [])
-  return customers.sort(
-    (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+  return withCosmosRequired("upsertCustomerFromOrder", () =>
+    cosmosUpsertCustomerFromOrder(order)
   )
 }
 
 export async function getCustomers(): Promise<StoredCustomer[]> {
-  try {
-    await reconcilePortalAccounts()
-    return await withCosmosFallback("getCustomers", cosmosGetCustomers, getCustomersFromFile)
-  } catch (error) {
-    logCosmosError("getCustomers:total-failure", error)
-    return []
-  }
+  await reconcilePortalAccounts()
+  return withCosmosRequired("getCustomers", cosmosGetCustomers)
 }
 
 export async function getCustomerByNumber(
   kundennummer: string
 ): Promise<StoredCustomer | null> {
-  return withCosmosFallback(
-    "getCustomerByNumber",
-    () => cosmosGetCustomerByNumber(kundennummer),
-    async () => {
-      await reconcileCustomersFromOrders()
-      const customers = await readJsonFile<StoredCustomer[]>(CUSTOMERS_FILE, [])
-      return customers.find((c) => c.kundennummer === kundennummer) ?? null
-    }
+  return withCosmosRequired("getCustomerByNumber", () =>
+    cosmosGetCustomerByNumber(kundennummer)
   )
 }
 

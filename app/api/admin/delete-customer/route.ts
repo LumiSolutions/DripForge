@@ -7,6 +7,7 @@ import {
   isAuthError,
   requireAdminSession,
 } from "@/lib/admin/require-admin-session"
+import { CosmosDatabaseError } from "@/lib/admin/storage-bridge"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -28,6 +29,12 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof HardDeleteCustomerError) {
       return NextResponse.json({ error: error.message }, { status: error.status })
+    }
+    if (error instanceof CosmosDatabaseError) {
+      return NextResponse.json(
+        { error: "Kundendatenbank nicht erreichbar." },
+        { status: 503 }
+      )
     }
 
     console.error("Admin-API: Hard-Delete fehlgeschlagen.", error)

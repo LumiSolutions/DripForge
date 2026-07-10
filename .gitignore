@@ -36,6 +36,7 @@ yarn-error.log*
 
 # local admin credentials (Cosmos fallback — never commit)
 data/admin/staff-accounts.json
+data/admin/customers.json
 
 # vercel
 .vercel

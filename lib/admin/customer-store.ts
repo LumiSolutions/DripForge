@@ -1,7 +1,5 @@
-import { promises as fs } from "fs"
-import path from "path"
 import { normalizeCustomerEmail } from "@/lib/admin/customers"
-import { withCosmosFallback } from "@/lib/admin/storage-bridge"
+import { withCosmosRequired } from "@/lib/admin/storage-bridge"
 import type { StoredCustomer } from "@/lib/admin/types"
 import {
   cosmosGetCustomers,
@@ -10,32 +8,9 @@ import {
   cosmosDeleteCustomer,
 } from "@/lib/admin/cosmos-store"
 
-const DATA_DIR = path.join(process.cwd(), "data", "admin")
-const CUSTOMERS_FILE = "customers.json"
-
-async function readCustomersFile(): Promise<StoredCustomer[]> {
-  const filePath = path.join(DATA_DIR, CUSTOMERS_FILE)
-  try {
-    const raw = await fs.readFile(filePath, "utf-8")
-    return JSON.parse(raw) as StoredCustomer[]
-  } catch {
-    return []
-  }
-}
-
-async function writeCustomersFile(customers: StoredCustomer[]): Promise<void> {
-  await fs.mkdir(DATA_DIR, { recursive: true })
-  const filePath = path.join(DATA_DIR, CUSTOMERS_FILE)
-  await fs.writeFile(filePath, JSON.stringify(customers, null, 2), "utf-8")
-}
-
 /** CRM-Kunden ohne Reconciliation (fuer Nummernvergabe / Sync). */
 export async function getCustomersSnapshot(): Promise<StoredCustomer[]> {
-  return withCosmosFallback(
-    "getCustomersSnapshot",
-    cosmosGetCustomers,
-    readCustomersFile
-  )
+  return withCosmosRequired("getCustomersSnapshot", cosmosGetCustomers)
 }
 
 export async function saveCustomer(customer: StoredCustomer): Promise<StoredCustomer> {
@@ -44,28 +19,7 @@ export async function saveCustomer(customer: StoredCustomer): Promise<StoredCust
     updatedAt: new Date().toISOString(),
   }
 
-  await withCosmosFallback(
-    "saveCustomer",
-    () => cosmosSaveCustomer(next),
-    async () => {
-      const customers = await readCustomersFile()
-      const duplicate = customers.find(
-        (entry) =>
-          entry.kundennummer === next.kundennummer &&
-          normalizeCustomerEmail(entry.email) !== normalizeCustomerEmail(next.email)
-      )
-      if (duplicate) {
-        throw new Error(`Kundennummer ${next.kundennummer} ist bereits vergeben.`)
-      }
-      const index = customers.findIndex((c) => c.kundennummer === next.kundennummer)
-      if (index >= 0) customers[index] = next
-      else customers.push(next)
-      await writeCustomersFile(customers)
-      return next
-    }
-  )
-
-  return next
+  return withCosmosRequired("saveCustomer", () => cosmosSaveCustomer(next))
 }
 
 /** Ersetzt CRM-Stammdaten inkl. Kundennummern-Wechsel (Legacy → YY-#####). */
@@ -74,66 +28,22 @@ export async function replaceCustomerForEmail(
   customer: StoredCustomer,
   previousKundennummer?: string
 ): Promise<StoredCustomer> {
-  const normalizedEmail = normalizeCustomerEmail(email)
   const next: StoredCustomer = {
     ...customer,
-    email: normalizedEmail,
+    email: normalizeCustomerEmail(email),
     updatedAt: new Date().toISOString(),
   }
 
-  await withCosmosFallback(
-    "replaceCustomerForEmail",
-    () => cosmosReplaceCustomerRecord(next, previousKundennummer),
-    async () => {
-      const customers = await readCustomersFile()
-      const duplicate = customers.find(
-        (entry) =>
-          entry.kundennummer === next.kundennummer &&
-          normalizeCustomerEmail(entry.email) !== normalizedEmail
-      )
-      if (duplicate) {
-        throw new Error(`Kundennummer ${next.kundennummer} ist bereits vergeben.`)
-      }
-
-      const withoutPrevious = customers.filter((entry) => {
-        if (normalizeCustomerEmail(entry.email) === normalizedEmail) return false
-        if (
-          previousKundennummer &&
-          entry.kundennummer === previousKundennummer
-        ) {
-          return false
-        }
-        return true
-      })
-
-      const index = withoutPrevious.findIndex(
-        (entry) => entry.kundennummer === next.kundennummer
-      )
-      if (index >= 0) withoutPrevious[index] = next
-      else withoutPrevious.push(next)
-
-      await writeCustomersFile(withoutPrevious)
-      return next
-    }
+  return withCosmosRequired("replaceCustomerForEmail", () =>
+    cosmosReplaceCustomerRecord(next, previousKundennummer)
   )
-
-  return next
 }
 
 export async function deleteCustomerByNumber(kundennummer: string): Promise<boolean> {
   const trimmed = kundennummer.trim()
   if (!trimmed) return false
 
-  return withCosmosFallback(
-    "deleteCustomerByNumber",
-    () => cosmosDeleteCustomer(trimmed),
-    async () => {
-      const customers = await readCustomersFile()
-      const index = customers.findIndex((c) => c.kundennummer === trimmed)
-      if (index === -1) return false
-      customers.splice(index, 1)
-      await writeCustomersFile(customers)
-      return true
-    }
+  return withCosmosRequired("deleteCustomerByNumber", () =>
+    cosmosDeleteCustomer(trimmed)
   )
 }

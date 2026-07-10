@@ -5,6 +5,7 @@ import {
   isAuthError,
   requireAdminSession,
 } from "@/lib/admin/require-admin-session"
+import { CosmosDatabaseError } from "@/lib/admin/storage-bridge"
 import { listAllAccounts } from "@/lib/konto/account-db"
 import { normalizeAccountStatus } from "@/lib/konto/account-status"
 
@@ -43,6 +44,12 @@ export async function GET(request: Request) {
     })
   } catch (error) {
     console.error("Admin-API: Kunden konnten nicht geladen werden.", error)
+    if (error instanceof CosmosDatabaseError) {
+      return NextResponse.json(
+        { error: "Kundendatenbank nicht erreichbar.", customers: [] },
+        { status: 503 }
+      )
+    }
     return NextResponse.json(
       { customers: [] },
       { headers: { "X-DripForge-Degraded": "1" } }
