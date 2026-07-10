@@ -11,8 +11,18 @@ import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
-import type { CompanySettings, ServiceVisibilitySettings, ShopConfiguratorSettings } from "@/lib/admin/types"
-import { DEFAULT_COMPANY_SETTINGS, DEFAULT_SERVICE_VISIBILITY, DEFAULT_SHOP_CONFIGURATORS } from "@/lib/admin/types"
+import type {
+  CompanySettings,
+  LaunchSettings,
+  ServiceVisibilitySettings,
+  ShopConfiguratorSettings,
+} from "@/lib/admin/types"
+import {
+  DEFAULT_COMPANY_SETTINGS,
+  DEFAULT_LAUNCH_SETTINGS,
+  DEFAULT_SERVICE_VISIBILITY,
+  DEFAULT_SHOP_CONFIGURATORS,
+} from "@/lib/admin/types"
 import { AdminTesterPasswordSection } from "@/components/admin/admin-tester-password-section"
 import { AdminTwoFactorSection } from "@/components/admin/admin-two-factor-section"
 import { SERVICE_TOGGLE_OPTIONS } from "@/lib/dripforge/service-visibility"
@@ -32,6 +42,21 @@ import {
   DEFAULT_ONBOARDING_TOUR_TEXT,
 } from "@/lib/dripforge/theme-inbound-tour-settings"
 import { normalizeEnableRewardPointsSystem } from "@/lib/dripforge/reward-points-settings"
+import {
+  COUNTDOWN_TEMPLATE_OPTIONS,
+  fromDatetimeLocalInput,
+  getCountdownTemplateContent,
+  resolveCountdownHeroImageUrl,
+  shouldUseUnoptimizedCountdownHero,
+  toDatetimeLocalInput,
+} from "@/lib/dripforge/countdown-settings"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 
 type SettingsPanelId = "general" | "content" | "store"
@@ -57,6 +82,7 @@ export function AdminSettingsTab() {
     createDefaultLaserConfiguratorSettings()
   )
   const [shopLive, setShopLive] = useState(false)
+  const [launch, setLaunch] = useState<LaunchSettings>(DEFAULT_LAUNCH_SETTINGS)
   const [showSupportOnMainSite, setShowSupportOnMainSite] = useState(false)
   const [showSupportOnCountdownPage, setShowSupportOnCountdownPage] = useState(false)
   const [enableOnboardingTour, setEnableOnboardingTour] = useState(true)
@@ -66,7 +92,9 @@ export function AdminSettingsTab() {
     null
   )
   const [uploadingThemeTourImage, setUploadingThemeTourImage] = useState(false)
+  const [uploadingCountdownHero, setUploadingCountdownHero] = useState(false)
   const themeTourImageInputRef = useRef<HTMLInputElement>(null)
+  const countdownHeroInputRef = useRef<HTMLInputElement>(null)
   const [goingLive, setGoingLive] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -85,6 +113,10 @@ export function AdminSettingsTab() {
       setCheckout(data.checkout ?? DEFAULT_CHECKOUT_RUNTIME_CONFIG)
       setCompany({ ...DEFAULT_COMPANY_SETTINGS, ...data.company })
       setShopLive(Boolean(data.launch?.shopLive))
+      setLaunch({
+        ...DEFAULT_LAUNCH_SETTINGS,
+        ...data.launch,
+      })
       const support = buildSupportPageSettings(data)
       setShowSupportOnMainSite(support.showSupportOnMainSite)
       setShowSupportOnCountdownPage(support.showSupportOnCountdownPage)
@@ -146,6 +178,7 @@ export function AdminSettingsTab() {
           onboardingTourText,
           themeInboundTourImageUrl,
           enableRewardPointsSystem,
+          launch,
         }),
       })
       const data = await res.json()
@@ -163,6 +196,11 @@ export function AdminSettingsTab() {
       }
       setCheckout(data.checkout)
       setCompany({ ...DEFAULT_COMPANY_SETTINGS, ...data.company })
+      setLaunch({
+        ...DEFAULT_LAUNCH_SETTINGS,
+        ...data.launch,
+      })
+      setShopLive(Boolean(data.launch?.shopLive))
       const support = buildSupportPageSettings(data)
       setShowSupportOnMainSite(support.showSupportOnMainSite)
       setShowSupportOnCountdownPage(support.showSupportOnCountdownPage)
@@ -271,6 +309,49 @@ export function AdminSettingsTab() {
     }
   }
 
+  const handleCountdownHeroUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ""
+    if (!file) return
+
+    setUploadingCountdownHero(true)
+    setError(null)
+    setSuccess(null)
+
+    try {
+      const formData = new FormData()
+      formData.append("file", file)
+
+      const res = await fetch("/api/admin/settings/countdown-hero-image", {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data.error ?? "Upload fehlgeschlagen")
+      }
+
+      setLaunch((prev) => ({
+        ...prev,
+        heroImageUrl: data.heroImageUrl ?? prev.heroImageUrl,
+      }))
+      setSuccess("Countdown-Teaser-Bild hochgeladen — live auf der Coming-Soon-Seite.")
+    } catch (err) {
+      console.warn("Admin: Countdown-Hero-Upload fehlgeschlagen.", err)
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Countdown-Teaser-Bild konnte nicht hochgeladen werden."
+      )
+    } finally {
+      setUploadingCountdownHero(false)
+    }
+  }
+
+  const countdownTemplatePreview = getCountdownTemplateContent(launch.countdownTemplate)
+  const countdownHeroPreview = resolveCountdownHeroImageUrl(launch.heroImageUrl)
+
   if (loading) {
     return (
       <div className={cn("flex items-center justify-center py-24", adminUi.loader)}>
@@ -358,6 +439,146 @@ export function AdminSettingsTab() {
                   Website offiziell live schalten
                 </Button>
               )}
+            </CardContent>
+          </Card>
+
+          <Card className={adminUi.card}>
+            <CardContent className="space-y-5 p-6">
+              <div>
+                <h3 className={cn("text-lg font-bold", adminUi.heading)}>
+                  Coming-Soon / Countdown
+                </h3>
+                <p className={cn("mt-1 text-sm", adminUi.muted)}>
+                  Vorlage, Texte, Ziel-Datum und Teaser-Bild für die Countdown-Landingpage.
+                  Wiederverwendbar für Shop-Updates und Wartungsarbeiten.
+                </p>
+              </div>
+
+              <div className={cn("space-y-2 rounded-xl border p-4", adminUi.section)}>
+                <Label className={adminUi.label}>Vorlage</Label>
+                <Select
+                  value={launch.countdownTemplate}
+                  onValueChange={(value) =>
+                    setLaunch((prev) => ({
+                      ...prev,
+                      countdownTemplate: value as LaunchSettings["countdownTemplate"],
+                    }))
+                  }
+                >
+                  <SelectTrigger className={cn("w-full max-w-md", adminUi.input)}>
+                    <SelectValue placeholder="Vorlage wählen" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {COUNTDOWN_TEMPLATE_OPTIONS.map((option) => (
+                      <SelectItem key={option.id} value={option.id}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className={cn("text-xs", adminUi.muted)}>
+                  Subtext: «{countdownTemplatePreview.teaser}»
+                </p>
+              </div>
+
+              <div className={cn("space-y-2 rounded-xl border p-4", adminUi.section)}>
+                <Label htmlFor="countdownLabel" className={adminUi.label}>
+                  Titel über der Uhr
+                </Label>
+                <Input
+                  id="countdownLabel"
+                  value={launch.countdownLabel}
+                  onChange={(event) =>
+                    setLaunch((prev) => ({
+                      ...prev,
+                      countdownLabel: event.target.value.slice(0, 120),
+                    }))
+                  }
+                  placeholder="COUNTDOWN ZUM LAUNCH"
+                  className={adminUi.input}
+                />
+              </div>
+
+              <div className={cn("space-y-2 rounded-xl border p-4", adminUi.section)}>
+                <Label htmlFor="countdownTargetAt" className={adminUi.label}>
+                  Ziel-Datum & Uhrzeit
+                </Label>
+                <Input
+                  id="countdownTargetAt"
+                  type="datetime-local"
+                  value={toDatetimeLocalInput(launch.targetAt)}
+                  onChange={(event) =>
+                    setLaunch((prev) => ({
+                      ...prev,
+                      targetAt: fromDatetimeLocalInput(event.target.value),
+                    }))
+                  }
+                  className={cn("max-w-xs", adminUi.input)}
+                />
+                <p className={cn("text-xs", adminUi.muted)}>
+                  Der Countdown zählt live bis zu diesem Zeitpunkt (lokale Zeitzone).
+                </p>
+              </div>
+
+              <div className={cn("rounded-xl border p-4", adminUi.section)}>
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+                  <div className="flex shrink-0 flex-col items-center gap-2">
+                    <div className="relative h-36 w-36 overflow-hidden rounded-xl border border-border/60 bg-background/40">
+                      <Image
+                        src={countdownHeroPreview}
+                        alt="Vorschau Countdown-Teaser"
+                        fill
+                        unoptimized={shouldUseUnoptimizedCountdownHero(countdownHeroPreview)}
+                        className="object-contain p-2"
+                      />
+                    </div>
+                    <p className={cn("text-center text-[11px]", adminUi.muted)}>
+                      Aktive Vorschau
+                    </p>
+                  </div>
+
+                  <div className="min-w-0 flex-1 space-y-3">
+                    <div className="space-y-1">
+                      <Label className={cn("text-sm font-semibold", adminUi.heading)}>
+                        Teaser-Bild (Coming-Soon)
+                      </Label>
+                      <p className={cn("text-xs", adminUi.muted)}>
+                        PNG, JPG oder WebP, max. 5 MB. Wird in Cosmos gespeichert und auf
+                        der Countdown-Seite zentral angezeigt.
+                      </p>
+                    </div>
+
+                    <input
+                      ref={countdownHeroInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/jpg,image/webp,.png,.jpg,.jpeg,.webp"
+                      className="hidden"
+                      onChange={(event) => void handleCountdownHeroUpload(event)}
+                    />
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={uploadingCountdownHero}
+                      className={adminUi.input}
+                      onClick={() => countdownHeroInputRef.current?.click()}
+                    >
+                      {uploadingCountdownHero ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Upload className="mr-2 h-4 w-4" />
+                      )}
+                      Teaser-Bild hochladen
+                    </Button>
+
+                    {launch.heroImageUrl && (
+                      <p className={cn("break-all text-[11px]", adminUi.muted)}>
+                        Aktive URL: {launch.heroImageUrl}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

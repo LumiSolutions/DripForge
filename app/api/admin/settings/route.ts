@@ -6,7 +6,12 @@ import {
 } from "@/lib/admin/require-admin-session"
 import { DEFAULT_COMPANY_SETTINGS } from "@/lib/admin/types"
 import type { CheckoutRuntimeConfig } from "@/lib/dripforge/checkout-config"
-import type { CompanySettings, ServiceVisibilitySettings, ShopConfiguratorSettings } from "@/lib/admin/types"
+import type {
+  CompanySettings,
+  LaunchSettings,
+  ServiceVisibilitySettings,
+  ShopConfiguratorSettings,
+} from "@/lib/admin/types"
 import { normalizeServiceVisibility } from "@/lib/dripforge/service-visibility"
 import { normalizeShopConfigurators } from "@/lib/dripforge/shop-configurators"
 import { buildDefaultAdminSettings } from "@/lib/admin/safe-defaults"
@@ -42,6 +47,7 @@ export async function PUT(request: Request) {
       onboardingTourText?: string | null
       themeInboundTourImageUrl?: string | null
       enableRewardPointsSystem?: boolean
+      launch?: Partial<LaunchSettings>
     }
 
     if (!body.checkout) {
@@ -84,6 +90,7 @@ export async function PUT(request: Request) {
       onboardingTourText: body.onboardingTourText,
       themeInboundTourImageUrl: body.themeInboundTourImageUrl,
       enableRewardPointsSystem: body.enableRewardPointsSystem,
+      launch: body.launch,
     })
     return NextResponse.json(settings)
   } catch (error) {

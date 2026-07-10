@@ -108,13 +108,27 @@ export type StoredCustomer = {
   updatedAt: string
 }
 
+export type CountdownTemplateId = "website_launch" | "shop_update"
+
 export type LaunchSettings = {
   /** true = Coming-Soon-Wand ist dauerhaft deaktiviert */
   shopLive: boolean
+  /** Vorlage für Coming-Soon / Countdown */
+  countdownTemplate: CountdownTemplateId
+  /** Titel über der Uhr (z. B. COUNTDOWN ZUM LAUNCH) */
+  countdownLabel: string
+  /** Ziel-Zeitpunkt des Countdowns (ISO 8601) */
+  targetAt: string
+  /** Teaser-Bild (Azure Blob URL) — Fallback: /images/launch-hero.png */
+  heroImageUrl?: string | null
 }
 
 export const DEFAULT_LAUNCH_SETTINGS: LaunchSettings = {
   shopLive: false,
+  countdownTemplate: "website_launch",
+  countdownLabel: "COUNTDOWN ZUM LAUNCH",
+  targetAt: "2026-08-01T00:00:00.000Z",
+  heroImageUrl: null,
 }
 
 /** Sichtbarkeit einzelner Dienstleistungen auf der Website */

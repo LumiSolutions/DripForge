@@ -20,6 +20,7 @@ import {
   normalizeThemeInboundTourImageUrl,
   DEFAULT_ONBOARDING_TOUR_TEXT,
 } from "@/lib/dripforge/theme-inbound-tour-settings"
+import { normalizeLaunchSettings } from "@/lib/dripforge/countdown-settings"
 import { normalizeEnableRewardPointsSystem } from "@/lib/dripforge/reward-points-settings"
 import {
   buildCustomerFromOrder,
@@ -279,7 +280,7 @@ export async function cosmosGetSettings(): Promise<AdminSettings> {
       return {
         checkout: resource.checkout,
         company: { ...DEFAULT_COMPANY, ...resource.company },
-        launch: { ...DEFAULT_LAUNCH_SETTINGS, ...resource.launch },
+        launch: normalizeLaunchSettings(resource.launch),
         services,
         shopConfigurators: normalizeShopConfigurators(
           resource.shopConfigurators,

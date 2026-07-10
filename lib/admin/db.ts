@@ -30,6 +30,7 @@ import {
   normalizeThemeInboundTourImageUrl,
   DEFAULT_ONBOARDING_TOUR_TEXT,
 } from "@/lib/dripforge/theme-inbound-tour-settings"
+import { normalizeLaunchSettings } from "@/lib/dripforge/countdown-settings"
 import { normalizeEnableRewardPointsSystem } from "@/lib/dripforge/reward-points-settings"
 import {
   withCosmosFallback,
@@ -422,7 +423,7 @@ async function getSettingsFromFile(): Promise<AdminSettings> {
     return {
       checkout: stored.checkout,
       company: { ...DEFAULT_COMPANY, ...stored.company },
-      launch: { ...DEFAULT_LAUNCH_SETTINGS, ...stored.launch },
+    launch: normalizeLaunchSettings(stored.launch),
       services,
       shopConfigurators: normalizeShopConfigurators(
         stored.shopConfigurators,
@@ -501,10 +502,10 @@ export async function saveSettings(input: {
       ...current.company,
       ...input.company,
     },
-    launch: {
+    launch: normalizeLaunchSettings({
       ...current.launch,
       ...input.launch,
-    },
+    }),
     services,
     shopConfigurators: normalizeShopConfigurators(
       { ...current.shopConfigurators, ...input.shopConfigurators },

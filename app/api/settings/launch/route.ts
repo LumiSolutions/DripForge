@@ -1,10 +1,8 @@
 import { NextResponse } from "next/server"
 import { cookies } from "next/headers"
 import { getSettings } from "@/lib/admin/db"
-import {
-  LAUNCH_DATE_ISO,
-  PREVIEW_ACCESS_COOKIE,
-} from "@/lib/dripforge/launch-config"
+import { PREVIEW_ACCESS_COOKIE } from "@/lib/dripforge/launch-config"
+import { buildPublicCountdownConfig } from "@/lib/dripforge/countdown-settings"
 import { buildSupportPageSettings } from "@/lib/dripforge/support-page-settings"
 import { logCosmosError } from "@/lib/cosmos/log-error"
 
@@ -19,16 +17,18 @@ export async function GET() {
   try {
     const settings = await getSettings()
     const support = buildSupportPageSettings(settings)
+    const countdown = buildPublicCountdownConfig(settings.launch)
 
     return NextResponse.json(
       {
         shopLive: settings.launch.shopLive,
-        launchAt: LAUNCH_DATE_ISO,
+        launchAt: countdown.targetAt,
         previewMode: !settings.launch.shopLive,
         hasPreviewAccess,
         canAccessShop: settings.launch.shopLive || hasPreviewAccess,
         showSupportOnMainSite: support.showSupportOnMainSite,
         showSupportOnCountdownPage: support.showSupportOnCountdownPage,
+        countdown,
       },
       {
         headers: {
@@ -39,15 +39,17 @@ export async function GET() {
     )
   } catch (error) {
     logCosmosError("launch-api:getSettings", error)
+    const countdown = buildPublicCountdownConfig(null)
 
     return NextResponse.json({
       shopLive: false,
-      launchAt: LAUNCH_DATE_ISO,
+      launchAt: countdown.targetAt,
       previewMode: true,
       hasPreviewAccess,
       canAccessShop: hasPreviewAccess,
       showSupportOnMainSite: false,
       showSupportOnCountdownPage: false,
+      countdown,
       degraded: true,
     })
   }
