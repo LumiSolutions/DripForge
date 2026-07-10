@@ -1,6 +1,5 @@
 import type { CountdownTemplateId, LaunchSettings } from "@/lib/admin/types"
 import { DEFAULT_LAUNCH_SETTINGS } from "@/lib/admin/types"
-import { LAUNCH_DATE, LAUNCH_DATE_ISO } from "@/lib/dripforge/launch-config"
 
 export type { CountdownTemplateId }
 
@@ -13,7 +12,7 @@ export const COUNTDOWN_TEMPLATE_OPTIONS: {
 ]
 
 export const DEFAULT_COUNTDOWN_LABEL = DEFAULT_LAUNCH_SETTINGS.countdownLabel
-export const DEFAULT_COUNTDOWN_TARGET_ISO = LAUNCH_DATE.toISOString()
+export const DEFAULT_COUNTDOWN_TARGET_ISO = DEFAULT_LAUNCH_SETTINGS.targetAt
 export const DEFAULT_COUNTDOWN_HERO = "/images/launch-hero.png"
 
 export type CountdownTemplateContent = {
@@ -62,6 +61,49 @@ export function normalizeCountdownHeroImageUrl(value: unknown): string | null {
   return trimmed || null
 }
 
+/** Normalisiert einen Shop-Pfad (führender Slash, kein trailing Slash). */
+export function normalizeRequestPath(pathname: string): string {
+  let path = pathname.split("?")[0]?.split("#")[0]?.trim() ?? "/"
+  if (!path.startsWith("/")) path = `/${path}`
+  if (path.length > 1 && path.endsWith("/")) path = path.slice(0, -1)
+  return path
+}
+
+export function normalizeBlockedPath(value: unknown): string | null {
+  if (value == null || value === "") return null
+  if (typeof value !== "string") return null
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  return normalizeRequestPath(trimmed)
+}
+
+export function pathMatchesBlocked(pathname: string, blockedPath: string): boolean {
+  const path = normalizeRequestPath(pathname)
+  const blocked = normalizeBlockedPath(blockedPath)
+  if (!blocked) return false
+  return path === blocked || path.startsWith(`${blocked}/`)
+}
+
+export function isCountdownActive(
+  launch: Partial<LaunchSettings> | null | undefined,
+  now = Date.now()
+): boolean {
+  const normalized = normalizeLaunchSettings(launch)
+  return !getCountdownForTarget(normalized.targetAt, now).isPast
+}
+
+export function shouldShowPathCountdown(
+  pathname: string,
+  launch: Partial<LaunchSettings> | null | undefined,
+  options?: { canBypass?: boolean; now?: number }
+): boolean {
+  if (options?.canBypass) return false
+  const normalized = normalizeLaunchSettings(launch)
+  if (!normalized.blockedPath) return false
+  if (!isCountdownActive(normalized, options?.now)) return false
+  return pathMatchesBlocked(pathname, normalized.blockedPath)
+}
+
 export function normalizeLaunchSettings(
   input?: Partial<LaunchSettings> | null
 ): LaunchSettings {
@@ -71,6 +113,7 @@ export function normalizeLaunchSettings(
     countdownLabel: normalizeCountdownLabel(input?.countdownLabel),
     targetAt: normalizeCountdownTargetAt(input?.targetAt),
     heroImageUrl: normalizeCountdownHeroImageUrl(input?.heroImageUrl),
+    blockedPath: normalizeBlockedPath(input?.blockedPath),
   }
 }
 
@@ -168,6 +211,3 @@ export function fromDatetimeLocalInput(value: string): string {
   if (Number.isNaN(parsed.getTime())) return DEFAULT_COUNTDOWN_TARGET_ISO
   return parsed.toISOString()
 }
-
-/** Legacy-Fallback für Middleware und alte Aufrufer. */
-export { LAUNCH_DATE_ISO }

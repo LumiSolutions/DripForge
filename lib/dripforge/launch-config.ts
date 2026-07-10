@@ -16,8 +16,24 @@ export function getTesterPassword(): string {
   )
 }
 
-import { getCountdownForTarget } from "@/lib/dripforge/countdown-settings"
+export function getLaunchCountdown(now = Date.now()): {
+  totalMs: number
+  days: number
+  hours: number
+  minutes: number
+  seconds: number
+  isPast: boolean
+} {
+  const totalMs = LAUNCH_DATE.getTime() - now
+  const isPast = totalMs <= 0
+  const abs = Math.max(0, totalMs)
 
-export function getLaunchCountdown(now = Date.now()) {
-  return getCountdownForTarget(LAUNCH_DATE, now)
+  return {
+    totalMs,
+    isPast,
+    days: Math.floor(abs / (1000 * 60 * 60 * 24)),
+    hours: Math.floor((abs / (1000 * 60 * 60)) % 24),
+    minutes: Math.floor((abs / (1000 * 60)) % 60),
+    seconds: Math.floor((abs / 1000) % 60),
+  }
 }

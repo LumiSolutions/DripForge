@@ -18,6 +18,7 @@ import {
 } from "@/components/dripforge/site-config-preview-banner"
 import { SiteTextsProvider } from "@/components/dripforge/site-texts-provider"
 import { StorefrontFloatingActions } from "@/components/dripforge/storefront-floating-actions"
+import { LaunchGateShell } from "@/components/dripforge/launch-gate-shell"
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -84,7 +85,7 @@ export default function RootLayout({
           <SiteConfigPreviewProvider>
             <SiteTextsProvider>
               <SiteConfigPreviewBanner />
-              {children}
+              <LaunchGateShell>{children}</LaunchGateShell>
               <GlobalShopFooter />
               <StorefrontFloatingActions />
             </SiteTextsProvider>

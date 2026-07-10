@@ -500,6 +500,31 @@ export function AdminSettingsTab() {
               </div>
 
               <div className={cn("space-y-2 rounded-xl border p-4", adminUi.section)}>
+                <Label htmlFor="blockedPath" className={adminUi.label}>
+                  Gesperrte Unterseite / Pfad
+                </Label>
+                <Input
+                  id="blockedPath"
+                  value={launch.blockedPath ?? ""}
+                  onChange={(event) =>
+                    setLaunch((prev) => ({
+                      ...prev,
+                      blockedPath: event.target.value,
+                    }))
+                  }
+                  placeholder="/laser"
+                  className={adminUi.input}
+                />
+                <p className={cn("text-xs", adminUi.muted)}>
+                  Nur diese Route zeigt den Countdown, solange das Ziel-Datum nicht
+                  erreicht ist (z. B. <code className="text-[11px]">/laser</code> oder{" "}
+                  <code className="text-[11px]">/shop/neu</code>). Feld leer lassen =
+                  gesamte Website (Coming-Soon wie bisher). Tester und Admins mit
+                  Vorschau-Zugang sehen die Seite normal.
+                </p>
+              </div>
+
+              <div className={cn("space-y-2 rounded-xl border p-4", adminUi.section)}>
                 <Label htmlFor="countdownTargetAt" className={adminUi.label}>
                   Ziel-Datum & Uhrzeit
                 </Label>

@@ -121,6 +121,8 @@ export type LaunchSettings = {
   targetAt: string
   /** Teaser-Bild (Azure Blob URL) — Fallback: /images/launch-hero.png */
   heroImageUrl?: string | null
+  /** Gesperrte Unterseite (z. B. /laser). Leer = gesamte Website (shopLive-Gate). */
+  blockedPath?: string | null
 }
 
 export const DEFAULT_LAUNCH_SETTINGS: LaunchSettings = {
@@ -129,6 +131,7 @@ export const DEFAULT_LAUNCH_SETTINGS: LaunchSettings = {
   countdownLabel: "COUNTDOWN ZUM LAUNCH",
   targetAt: "2026-08-01T00:00:00.000Z",
   heroImageUrl: null,
+  blockedPath: null,
 }
 
 /** Sichtbarkeit einzelner Dienstleistungen auf der Website */
