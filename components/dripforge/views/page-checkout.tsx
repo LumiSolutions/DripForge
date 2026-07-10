@@ -569,7 +569,10 @@ export function PageCheckout({
 
     setIsSubmitting(true)
 
-    if (paymentMethod === "card" && stripeConfigured) {
+    if (
+      (paymentMethod === "card" || paymentMethod === "twint") &&
+      stripeConfigured
+    ) {
       const stripeResult = await startStripeCheckout(orderPayload)
       setIsSubmitting(false)
       if (!stripeResult.ok) {
@@ -605,12 +608,13 @@ export function PageCheckout({
 
     if (
       paymentMethod === "twint" &&
+      !stripeConfigured &&
       checkoutConfig.twintGatewayAktiv &&
       !payrexxConfigured
     ) {
       setIsSubmitting(false)
       setSubmitError(
-        "TWINT-Gateway ist derzeit nicht verfügbar (Payrexx nicht konfiguriert)."
+        "TWINT-Gateway ist derzeit nicht verfügbar (Stripe/Payrexx nicht konfiguriert)."
       )
       return
     }
@@ -985,7 +989,9 @@ export function PageCheckout({
                     const selected = paymentMethod === option.id
                     const description =
                       option.id === "twint"
-                        ? getTwintPaymentDescription(checkoutConfig)
+                        ? getTwintPaymentDescription(checkoutConfig, {
+                            stripeConfigured,
+                          })
                         : option.description
                     return (
                       <label
@@ -1017,7 +1023,18 @@ export function PageCheckout({
 
                 {paymentMethod === "twint" && (
                   <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-4">
-                    {checkoutConfig.twintGatewayAktiv ? (
+                    {stripeConfigured ? (
+                      <div className="space-y-1">
+                        <p className="text-sm font-semibold text-foreground">
+                          TWINT via Stripe
+                        </p>
+                        <p className="text-xs leading-relaxed text-muted-foreground">
+                          Nach dem Klick auf «Jetzt bezahlen» wirst du zur sicheren
+                          Stripe-Kasse weitergeleitet und kannst dort mit TWINT
+                          abschliessen.
+                        </p>
+                      </div>
+                    ) : checkoutConfig.twintGatewayAktiv ? (
                       <div className="flex flex-col items-center gap-3 text-center sm:flex-row sm:text-left">
                         <div className="flex h-28 w-28 shrink-0 items-center justify-center rounded-xl border border-dashed border-cyan-500/40 bg-background/80">
                           <QrCode className="h-10 w-10 text-cyan-600 dark:text-cyan-400" />
@@ -1251,8 +1268,12 @@ export function PageCheckout({
               >
                 <Lock className="mr-2 h-4 w-4" />
                 {isSubmitting
-                  ? "Bestellung wird uebermittelt…"
-                  : "Jetzt zahlungspflichtig bestellen"}
+                  ? paymentMethod === "invoice"
+                    ? "Bestellung wird uebermittelt…"
+                    : "Weiterleitung zur Kasse…"
+                  : paymentMethod === "invoice"
+                    ? "Jetzt zahlungspflichtig bestellen"
+                    : "Jetzt bezahlen"}
               </Button>
 
               {submitError && (

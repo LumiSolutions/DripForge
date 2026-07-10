@@ -4,7 +4,13 @@ import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
 import type { OrderPayload } from "@/lib/dripforge/submit-order"
 import { getSessionEmailFromRequest } from "@/lib/konto/api-auth"
 import { createOrderId, fulfillPaidShopOrder, processOrderPayload } from "@/lib/shop/order-processing"
-import { getSiteOrigin, getStripe, isStripeConfigured } from "@/lib/stripe/client"
+import {
+  buildCheckoutDiscounts,
+  buildCheckoutLineItems,
+  sumLineItemsCents,
+} from "@/lib/stripe/build-checkout-line-items"
+import { getStripeCheckoutUrls } from "@/lib/stripe/checkout-urls"
+import { getStripe, isStripeConfigured } from "@/lib/stripe/client"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -46,13 +52,6 @@ export async function POST(request: Request) {
       )
     }
 
-    if (payload.paymentMethod === "twint") {
-      return NextResponse.json(
-        { error: "TWINT-Zahlungen nutzen /api/checkout/twint (Payrexx)." },
-        { status: 400 }
-      )
-    }
-
     const sessionEmail = await getSessionEmailFromRequest()
     const billingEmail = normalizeCustomerEmail(payload.billing.email)
     const userId =
@@ -66,6 +65,8 @@ export async function POST(request: Request) {
     })
 
     const totalCents = Math.round(order.totals.total * 100)
+    const { successUrl, cancelUrl } = getStripeCheckoutUrls()
+
     if (totalCents < 50) {
       await fulfillPaidShopOrder(orderId, {
         userId,
@@ -75,31 +76,21 @@ export async function POST(request: Request) {
         configured: true,
         orderId,
         pointsOnly: true,
-        url: `${getSiteOrigin(request)}/checkout?order_success=1`,
+        url: successUrl.replace("?session_id={CHECKOUT_SESSION_ID}", ""),
       })
     }
 
-    const origin = getSiteOrigin(request)
     const stripe = getStripe()
-    const itemSummary = `${order.items.length} Artikel — ${order.paymentMethodLabel}`
+    const lineItems = buildCheckoutLineItems(order)
+    const lineTotalCents = sumLineItemsCents(lineItems)
+    const discounts = await buildCheckoutDiscounts(stripe, lineTotalCents, totalCents)
 
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
-      payment_method_types: ["card"],
+      payment_method_types: ["card", "twint"],
       customer_email: billingEmail,
-      line_items: [
-        {
-          quantity: 1,
-          price_data: {
-            currency: "chf",
-            unit_amount: totalCents,
-            product_data: {
-              name: "DripForge Shop-Bestellung",
-              description: itemSummary.slice(0, 500),
-            },
-          },
-        },
-      ],
+      line_items: lineItems,
+      ...(discounts ? { discounts } : {}),
       metadata: {
         purpose: "shop-order",
         orderId,
@@ -107,9 +98,10 @@ export async function POST(request: Request) {
         customerEmail: billingEmail,
         totalChf: order.totals.total.toFixed(2),
         pointsRedeemed: String(order.totals.pointsRedeemed ?? 0),
+        paymentMethod: payload.paymentMethod,
       },
-      success_url: `${origin}/checkout?order_success=1&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${origin}/checkout?canceled=1`,
+      success_url: successUrl,
+      cancel_url: cancelUrl,
     })
 
     if (!session.url) {

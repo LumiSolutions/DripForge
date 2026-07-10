@@ -38,12 +38,13 @@ export const PAYMENT_OPTIONS: {
   {
     id: "card",
     label: "Kreditkarte (Stripe)",
-    description: "Visa, Mastercard, American Express via Stripe",
+    description:
+      "Visa, Mastercard, American Express, Apple Pay, Google Pay via Stripe",
   },
   {
     id: "twint",
     label: "TWINT",
-    description: "Bezahlung per TWINT-App (Payrexx)",
+    description: "Bezahlung per TWINT-App via Stripe Checkout",
   },
   {
     id: "invoice",
@@ -53,8 +54,12 @@ export const PAYMENT_OPTIONS: {
 ]
 
 export function getTwintPaymentDescription(
-  config: Pick<CheckoutRuntimeConfig, "twintGatewayAktiv">
+  config: Pick<CheckoutRuntimeConfig, "twintGatewayAktiv">,
+  options?: { stripeConfigured?: boolean }
 ): string {
+  if (options?.stripeConfigured) {
+    return "Sicher bezahlen per TWINT-App via Stripe Checkout"
+  }
   return config.twintGatewayAktiv
     ? "Sicher bezahlen via TWINT (Payrexx QR-Code)"
     : "Manuelle Überweisung an unsere TWINT-Nummer"

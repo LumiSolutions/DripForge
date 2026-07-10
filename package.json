@@ -45,6 +45,7 @@
     "@react-pdf/renderer": "^4.5.1",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.6.1",
+    "@stripe/stripe-js": "^9.9.0",
     "@types/three": "^0.184.1",
     "canvas": "^3.2.3",
     "class-variance-authority": "^0.7.1",
@@ -61,7 +62,7 @@
     "react-dom": "19.2.4",
     "react-konva": "^19.2.4",
     "recharts": "^3.8.1",
-    "stripe": "^22.2.0",
+    "stripe": "^22.3.1",
     "tailwind-merge": "^3.6.0",
     "three": "^0.184.0"
   },
