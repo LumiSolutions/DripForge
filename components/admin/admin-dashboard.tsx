@@ -64,20 +64,42 @@ const INVENTORY_SUB: { id: InventorySubTab; label: string }[] = [
   { id: "lasermaterial", label: "Lasermaterial" },
 ]
 
-const NAV: { id: AdminTab; label: string; icon: typeof ClipboardList }[] = [
-  { id: "stats", label: "Dashboard / Statistiken", icon: LayoutDashboard },
-  { id: "production", label: "Produktions-Cockpit", icon: Factory },
-  { id: "inventory", label: "Lagerverwaltung", icon: Warehouse },
-  { id: "coupons", label: "Gutscheine & Rabatte", icon: Tag },
-  { id: "orders", label: "Bestellungen", icon: ClipboardList },
-  { id: "invoice-template", label: "Dokumenten-Vorlagen", icon: FileText },
-  { id: "products", label: "Produkte", icon: Package },
-  { id: "customers", label: "Kundenverwaltung", icon: Users },
-  { id: "settings", label: "Shop-Einstellungen", icon: Settings },
-  { id: "site-texts", label: "Texte & Inhalte", icon: Type },
-  { id: "ai-settings", label: "KI-Modell-Konfiguration", icon: Sparkles },
-  { id: "print-calculator", label: "Druck-Kalkulator", icon: Calculator },
+type NavItem = { id: AdminTab; label: string; icon: typeof ClipboardList }
+
+const NAV_SECTIONS: { title: string; items: NavItem[] }[] = [
+  {
+    title: "ÜBERSICHT",
+    items: [{ id: "stats", label: "Dashboard / Statistiken", icon: LayoutDashboard }],
+  },
+  {
+    title: "TAGESGESCHÄFT",
+    items: [
+      { id: "orders", label: "Bestellungen", icon: ClipboardList },
+      { id: "production", label: "Produktions-Cockpit", icon: Factory },
+      { id: "inventory", label: "Lagerverwaltung", icon: Warehouse },
+      { id: "customers", label: "Kundenverwaltung", icon: Users },
+    ],
+  },
+  {
+    title: "PRODUKTE & MARKETING",
+    items: [
+      { id: "products", label: "Produkte", icon: Package },
+      { id: "coupons", label: "Gutscheine & Rabatte", icon: Tag },
+      { id: "invoice-template", label: "Dokumenten-Vorlagen", icon: FileText },
+    ],
+  },
+  {
+    title: "EINSTELLUNGEN & TOOLS",
+    items: [
+      { id: "settings", label: "Shop-Einstellungen", icon: Settings },
+      { id: "site-texts", label: "Texte & Inhalte", icon: Type },
+      { id: "print-calculator", label: "Druck-Kalkulator", icon: Calculator },
+      { id: "ai-settings", label: "KI-Modell-Konfiguration", icon: Sparkles },
+    ],
+  },
 ]
+
+const NAV: NavItem[] = NAV_SECTIONS.flatMap((section) => section.items)
 
 const ADMIN_TABS = new Set<AdminTab>(NAV.map((item) => item.id))
 
@@ -267,25 +289,40 @@ function AdminDashboardContent() {
           </Link>
         </div>
 
-        <nav className="flex-1 space-y-1 p-4">
-          {NAV.map((item) => {
-            const Icon = item.icon
-            const active = tab === item.id
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => selectTab(item.id)}
+        <nav className="flex-1 overflow-y-auto p-4">
+          {NAV_SECTIONS.map((section, sectionIndex) => (
+            <div key={section.title}>
+              <p
                 className={cn(
-                  "flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-colors",
-                  active ? adminUi.navActive : adminUi.navInactive
+                  "px-4 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em]",
+                  sectionIndex > 0 ? "pt-4" : "pt-0",
+                  adminUi.muted
                 )}
               >
-                <Icon className="h-4 w-4 shrink-0" />
-                {item.label}
-              </button>
-            )
-          })}
+                {section.title}
+              </p>
+              <div className="space-y-1">
+                {section.items.map((item) => {
+                  const Icon = item.icon
+                  const active = tab === item.id
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => selectTab(item.id)}
+                      className={cn(
+                        "flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-colors",
+                        active ? adminUi.navActive : adminUi.navInactive
+                      )}
+                    >
+                      <Icon className="h-4 w-4 shrink-0" />
+                      {item.label}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
         </nav>
 
         <div className={cn("space-y-1 border-t p-4", adminUi.sidebarBorder)}>
