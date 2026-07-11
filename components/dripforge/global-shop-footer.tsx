@@ -2,6 +2,8 @@
 
 import { usePathname } from "next/navigation"
 import { ShopFooter } from "@/components/dripforge/shop-footer"
+import { isLaunchGateBypassPath } from "@/lib/dripforge/launch-gate-paths"
+import { useLaunchGateStatus } from "@/hooks/use-launch-gate-status"
 
 const HIDDEN_PREFIXES = [
   "/dripforgehq",
@@ -17,10 +19,33 @@ function shouldHideFooter(pathname: string): boolean {
   return false
 }
 
+function shouldHideFooterForCountdown(
+  pathname: string,
+  loading: boolean,
+  showGlobalCountdown: boolean,
+  showPathCountdown: boolean
+): boolean {
+  if (isLaunchGateBypassPath(pathname)) return false
+  if (loading) return true
+  return showGlobalCountdown || showPathCountdown
+}
+
 export function GlobalShopFooter() {
-  const pathname = usePathname()
+  const pathname = usePathname() ?? "/"
+  const { status, loading } = useLaunchGateStatus()
 
   if (shouldHideFooter(pathname)) {
+    return null
+  }
+
+  if (
+    shouldHideFooterForCountdown(
+      pathname,
+      loading,
+      Boolean(status?.showGlobalCountdown),
+      Boolean(status?.showPathCountdown)
+    )
+  ) {
     return null
   }
 
