@@ -35,6 +35,7 @@ import { notifyOrderReceived } from "@/lib/email/order-notifications"
 import { notifyAdminNewOrder } from "@/lib/email/admin-inbound-notifications"
 import { normalizeEnableRewardPointsSystem } from "@/lib/dripforge/reward-points-settings"
 import { resolveCheckoutPointsPurchase } from "@/lib/shop/points-purchase"
+import { recordOrderPaymentJournalEntry } from "@/lib/accounting/order-journal"
 
 function stripLeitbildPayload(item: StoredOrderItem): StoredOrderItem {
   const { leitbild: _removed, ...rest } = item
@@ -218,6 +219,17 @@ export async function processOrderPayload(
     await incrementCouponRedemption(appliedCoupon.code)
   }
 
+  if (order.paymentConfirmed) {
+    try {
+      await recordOrderPaymentJournalEntry(order)
+    } catch (journalError) {
+      console.error(
+        `Buchhaltung: Journal für Bestellung ${order.orderId} fehlgeschlagen.`,
+        journalError
+      )
+    }
+  }
+
   return {
     order,
     itemResults,
@@ -376,6 +388,15 @@ export async function fulfillPaidShopOrder(
   console.info(
     `Shop-Fulfillment: ${orderId} bezahlt${grant.granted ? `, +${grant.credits} KI-Credits` : ""}${loyaltyPointsGranted > 0 ? `, +${loyaltyPointsGranted} Treuepunkte` : ""}.`
   )
+
+  try {
+    await recordOrderPaymentJournalEntry(orderWithCustomer)
+  } catch (journalError) {
+    console.error(
+      `Buchhaltung: Journal für Bestellung ${orderId} fehlgeschlagen.`,
+      journalError
+    )
+  }
 
   return {
     fulfilled: true,
