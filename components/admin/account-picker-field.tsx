@@ -1,12 +1,26 @@
 "use client"
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from "react"
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from "react"
 import { createPortal } from "react-dom"
 import type { Account } from "@/lib/accounting/account-types"
 import { normalizeAccountNumber } from "@/lib/accounting/account-types"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
+
+export type AccountPickerHandle = {
+  /** Commitiert aktuellen Suchtext in den Row-State und liefert die Kontonummer. */
+  commitPending: () => string
+}
 
 type AccountPickerFieldProps = {
   value: string
@@ -17,6 +31,8 @@ type AccountPickerFieldProps = {
   /** Nur buchbare Konten (keine Gruppen). */
   bookableOnly?: boolean
   className?: string
+  /** Visueller Fehlerzustand (rote Umrandung). */
+  invalid?: boolean
 }
 
 function resolveAccountFromQuery(
@@ -40,23 +56,32 @@ function resolveAccountFromQuery(
   )
   if (exactLabel) return exactLabel
 
-  const prefixMatch = selectableAccounts.find((account) =>
+  const prefixMatches = selectableAccounts.filter((account) =>
     account.number.startsWith(normalized)
   )
-  if (prefixMatch && normalized.length >= 3) return prefixMatch
+  if (prefixMatches.length === 1 && normalized.length >= 3) {
+    return prefixMatches[0]
+  }
 
   return null
 }
 
-export function AccountPickerField({
-  value,
-  onChange,
-  accounts,
-  placeholder = "Kontonummer oder Name suchen…",
-  disabled = false,
-  bookableOnly = false,
-  className,
-}: AccountPickerFieldProps) {
+export const AccountPickerField = forwardRef<
+  AccountPickerHandle,
+  AccountPickerFieldProps
+>(function AccountPickerField(
+  {
+    value,
+    onChange,
+    accounts,
+    placeholder = "Kontonummer oder Name suchen…",
+    disabled = false,
+    bookableOnly = false,
+    className,
+    invalid = false,
+  },
+  ref
+) {
   const [query, setQuery] = useState(value)
   const [open, setOpen] = useState(false)
   const [highlightIndex, setHighlightIndex] = useState(0)
@@ -68,6 +93,8 @@ export function AccountPickerField({
   const rootRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLUListElement>(null)
+  const queryRef = useRef(query)
+  const valueRef = useRef(value)
 
   const selectableAccounts = useMemo(
     () =>
@@ -78,6 +105,11 @@ export function AccountPickerField({
         : accounts.filter((account) => account.isActive !== false),
     [accounts, bookableOnly]
   )
+
+  const selectableRef = useRef(selectableAccounts)
+  selectableRef.current = selectableAccounts
+  queryRef.current = query
+  valueRef.current = value
 
   const normalizedValue = normalizeAccountNumber(value)
 
@@ -130,7 +162,26 @@ export function AccountPickerField({
     setQuery(number)
     setOpen(false)
     setHighlightIndex(0)
+    return number
   }
+
+  useImperativeHandle(ref, () => ({
+    commitPending: () => {
+      const resolved = resolveAccountFromQuery(
+        queryRef.current,
+        selectableRef.current
+      )
+      if (resolved) {
+        return commitAccount(resolved)
+      }
+      const current = normalizeAccountNumber(valueRef.current)
+      if (current) {
+        setQuery(current)
+        return current
+      }
+      return ""
+    },
+  }))
 
   const updateDropdownPosition = () => {
     const input = inputRef.current
@@ -255,6 +306,7 @@ export function AccountPickerField({
         role="combobox"
         aria-expanded={open}
         aria-autocomplete="list"
+        aria-invalid={invalid}
         onFocus={() => {
           setOpen(true)
           updateDropdownPosition()
@@ -280,7 +332,10 @@ export function AccountPickerField({
             onChange(normalizeAccountNumber(resolved.number))
           }
         }}
-        className={adminUi.input}
+        className={cn(
+          adminUi.input,
+          invalid && "border-red-500 ring-1 ring-red-500 focus-visible:ring-red-500"
+        )}
       />
       {selected && (
         <p className={cn("mt-1 line-clamp-2 text-xs leading-snug", adminUi.muted)}>
@@ -290,4 +345,4 @@ export function AccountPickerField({
       {dropdown}
     </div>
   )
-}
+})

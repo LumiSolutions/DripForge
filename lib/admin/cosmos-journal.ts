@@ -79,14 +79,24 @@ export async function cosmosGetJournalEntries(options?: {
 }): Promise<JournalEntry[]> {
   const limit = Math.min(500, Math.max(1, options?.limit ?? 200))
   const container = await getSettingsContainer()
-  const querySpec: SqlQuerySpec = {
-    query:
-      "SELECT * FROM c WHERE c.docType = @docType ORDER BY c.date DESC, c.createdAt DESC OFFSET 0 LIMIT @limit",
-    parameters: [
-      { name: "@docType", value: JOURNAL_ENTRY_DOC_TYPE },
-      { name: "@limit", value: limit },
-    ],
-  }
+  const querySpec: SqlQuerySpec = options?.source
+    ? {
+        query:
+          "SELECT * FROM c WHERE c.docType = @docType AND c.source = @source ORDER BY c.date DESC, c.createdAt DESC OFFSET 0 LIMIT @limit",
+        parameters: [
+          { name: "@docType", value: JOURNAL_ENTRY_DOC_TYPE },
+          { name: "@source", value: options.source },
+          { name: "@limit", value: limit },
+        ],
+      }
+    : {
+        query:
+          "SELECT * FROM c WHERE c.docType = @docType ORDER BY c.date DESC, c.createdAt DESC OFFSET 0 LIMIT @limit",
+        parameters: [
+          { name: "@docType", value: JOURNAL_ENTRY_DOC_TYPE },
+          { name: "@limit", value: limit },
+        ],
+      }
   const { resources } = await container.items
     .query<JournalEntryCosmosDoc>(querySpec)
     .fetchAll()
@@ -97,9 +107,6 @@ export async function cosmosGetJournalEntries(options?: {
   }
   if (options?.to) {
     entries = entries.filter((entry) => entry.date <= options.to!)
-  }
-  if (options?.source) {
-    entries = entries.filter((entry) => entry.source === options.source)
   }
   return entries
 }

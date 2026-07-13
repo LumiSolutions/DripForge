@@ -2,7 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ArrowLeftRight, Check, Loader2, Paperclip, Plus, X } from "lucide-react"
-import { AccountPickerField } from "@/components/admin/account-picker-field"
+import {
+  AccountPickerField,
+  type AccountPickerHandle,
+} from "@/components/admin/account-picker-field"
 import { TaxCodeSelectField } from "@/components/admin/tax-code-select-field"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -21,6 +24,7 @@ import {
   defaultBookingDescription,
   emptyManualBookingRow,
   normalizeManualBookingRow,
+  stripAttachmentPayload,
   toManualBookingApiRows,
   validateManualBookingRows,
   type ManualBookingAttachment,
@@ -124,9 +128,17 @@ export function AdminAccountingManualPanel({
   const [rows, setRows] = useState<ManualBookingRow[]>([emptyManualBookingRow()])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [history, setHistory] = useState<ManualHistoryRow[]>([])
   const [loadingHistory, setLoadingHistory] = useState(true)
   const fileInputRefs = useRef<Record<number, HTMLInputElement | null>>({})
+  const debitPickerRefs = useRef<Record<number, AccountPickerHandle | null>>({})
+  const creditPickerRefs = useRef<Record<number, AccountPickerHandle | null>>({})
+
+  const showSaveError = (message: string) => {
+    setError(message)
+    window.alert(`Fehler beim Speichern der Buchung: ${message}`)
+  }
 
   const normalizedRows = useMemo(
     () => rows.map((row) => normalizeManualBookingRow(row, taxCodes)),
@@ -219,24 +231,79 @@ export function AdminAccountingManualPanel({
     console.log("Speichern gestartet", rows)
     setSaving(true)
     setError(null)
+    setFieldErrors({})
 
     try {
-      const apiRows = toManualBookingApiRows(rows, taxCodes)
+      // 1) Konten aus offenen Input-Feldern hard committen (verhindert Blur-Race)
+      const flushedRows: ManualBookingRow[] = rows.map((row, index) => {
+        const debit =
+          debitPickerRefs.current[index]?.commitPending() ||
+          row.debitAccountNumber
+        const credit =
+          creditPickerRefs.current[index]?.commitPending() ||
+          row.creditAccountNumber
+        return {
+          ...row,
+          debitAccountNumber: debit,
+          creditAccountNumber: credit,
+          amount: Number(row.amount) || 0,
+          taxRate: Number(row.taxRate) || 0,
+          taxAmount: Number(row.taxAmount) || 0,
+          taxCode: row.taxCode || "",
+        }
+      })
+      setRows(flushedRows)
+      console.log("Zeilen nach Konto-Commit", flushedRows)
+
+      // 2) Feldweise Validierung mit sichtbarem Feedback
+      const nextFieldErrors: Record<string, string> = {}
+      for (const [index, row] of flushedRows.entries()) {
+        if (!row.debitAccountNumber.trim()) {
+          nextFieldErrors[`debit-${index}`] = "Soll-Konto fehlt"
+        }
+        if (!row.creditAccountNumber.trim()) {
+          nextFieldErrors[`credit-${index}`] = "Haben-Konto fehlt"
+        }
+        if (
+          row.debitAccountNumber &&
+          row.creditAccountNumber &&
+          row.debitAccountNumber === row.creditAccountNumber
+        ) {
+          nextFieldErrors[`debit-${index}`] = "Soll und Haben dürfen nicht gleich sein"
+          nextFieldErrors[`credit-${index}`] = "Soll und Haben dürfen nicht gleich sein"
+        }
+        const amount = Number(row.amount)
+        if (!Number.isFinite(amount) || amount <= 0) {
+          nextFieldErrors[`amount-${index}`] = "Betrag muss > 0 sein"
+        }
+      }
+
+      if (Object.keys(nextFieldErrors).length > 0) {
+        setFieldErrors(nextFieldErrors)
+        const firstMessage = Object.values(nextFieldErrors)[0]
+        showSaveError(firstMessage)
+        console.error("Validierung Feldfehler:", nextFieldErrors)
+        return
+      }
+
+      const bookingDate = String(date ?? "").slice(0, 10)
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(bookingDate)) {
+        nextFieldErrors.date = "Datum muss YYYY-MM-DD sein"
+        setFieldErrors(nextFieldErrors)
+        showSaveError("Ungültiges Datumsformat (erwartet YYYY-MM-DD).")
+        return
+      }
+
+      // Belegnummer ist optional – nie als Pflicht validieren
+      const apiRows = toManualBookingApiRows(flushedRows, taxCodes).map(
+        stripAttachmentPayload
+      )
       const check = validateManualBookingRows(apiRows)
       console.log("Validierung", check, apiRows)
 
       if (!check.valid) {
-        const message = check.error ?? "Buchung ungültig."
-        setError(message)
-        window.alert(message)
-        return
-      }
-
-      const bookingDate = date.slice(0, 10)
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(bookingDate)) {
-        const message = "Ungültiges Datumsformat (erwartet YYYY-MM-DD)."
-        setError(message)
-        window.alert(message)
+        showSaveError(check.error ?? "Buchung ungültig.")
+        console.error("Validierung fehlgeschlagen:", check)
         return
       }
 
@@ -245,18 +312,38 @@ export function AdminAccountingManualPanel({
         belegNummer: belegNummer.trim() || undefined,
         description: defaultBookingDescription(apiRows),
         rows: apiRows.map((row) => ({
-          debitAccountNumber: row.debitAccountNumber,
-          creditAccountNumber: row.creditAccountNumber,
+          debitAccountNumber: String(row.debitAccountNumber),
+          creditAccountNumber: String(row.creditAccountNumber),
           description: row.description || defaultBookingDescription([row]),
-          taxCode: row.taxCode,
+          taxCode: row.taxCode || "",
           taxRate: Number(row.taxRate) || 0,
           taxAmount: Number(row.taxAmount) || 0,
           amount: Number(row.amount) || 0,
-          attachment: row.attachment ?? null,
+          attachment: row.attachment
+            ? {
+                name: row.attachment.name,
+                mimeType: row.attachment.mimeType,
+                size: Number(row.attachment.size) || 0,
+                dataUrl: row.attachment.dataUrl || "",
+              }
+            : null,
         })),
       }
 
-      console.log("API-Payload", payload)
+      console.log("API-Payload", {
+        ...payload,
+        rows: payload.rows.map((row) => ({
+          ...row,
+          attachment: row.attachment
+            ? {
+                ...row.attachment,
+                dataUrl: row.attachment.dataUrl
+                  ? `[base64 ${row.attachment.dataUrl.length} chars]`
+                  : "",
+              }
+            : null,
+        })),
+      })
 
       const res = await fetch("/api/admin/accounting/journal", {
         method: "POST",
@@ -267,15 +354,20 @@ export function AdminAccountingManualPanel({
       let data: { error?: string; entry?: JournalEntry } = {}
       try {
         data = (await res.json()) as { error?: string; entry?: JournalEntry }
-      } catch {
+      } catch (parseError) {
+        console.error(parseError)
         data = { error: `Unerwartete Server-Antwort (HTTP ${res.status}).` }
       }
 
       if (!res.ok) {
-        const message = data.error ?? `Buchung fehlgeschlagen (HTTP ${res.status}).`
-        console.error("Buchung Fehler:", message, data)
-        setError(message)
-        window.alert(message)
+        console.error("Buchung Fehler:", data)
+        showSaveError(data.error ?? `Buchung fehlgeschlagen (HTTP ${res.status}).`)
+        return
+      }
+
+      if (!data.entry?.id) {
+        showSaveError("Server hat keine gültige Buchung zurückgegeben.")
+        console.error("Unerwartete Antwort:", data)
         return
       }
 
@@ -283,14 +375,16 @@ export function AdminAccountingManualPanel({
       setRows([emptyManualBookingRow()])
       setBelegNummer("")
       setError(null)
+      setFieldErrors({})
       await loadHistory()
       onBooked()
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Buchung fehlgeschlagen."
-      console.error("Buchung Exception:", err)
-      setError(message)
-      window.alert(message)
+    } catch (error) {
+      console.error(error)
+      window.alert(
+        "Fehler beim Speichern der Buchung: " +
+          (error instanceof Error ? error.message : String(error))
+      )
+      setError(error instanceof Error ? error.message : String(error))
     } finally {
       setSaving(false)
     }
@@ -308,8 +402,15 @@ export function AdminAccountingManualPanel({
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className={adminUi.input}
+              className={cn(
+                adminUi.input,
+                fieldErrors.date &&
+                  "border-red-500 ring-1 ring-red-500 focus-visible:ring-red-500"
+              )}
             />
+            {fieldErrors.date && (
+              <p className="text-xs text-red-500">{fieldErrors.date}</p>
+            )}
           </div>
           <div className="space-y-1">
             <label className={cn("text-sm font-medium", adminUi.label)}>Belegnummer</label>
@@ -337,10 +438,14 @@ export function AdminAccountingManualPanel({
                 <div className="min-w-[190px] flex-[1.2] basis-[190px]">
                   <label className={cn("mb-1 block text-xs", adminUi.muted)}>Soll-Konto</label>
                   <AccountPickerField
+                    ref={(handle) => {
+                      debitPickerRefs.current[index] = handle
+                    }}
                     value={row.debitAccountNumber}
                     accounts={accounts}
                     bookableOnly
                     className="w-full"
+                    invalid={Boolean(fieldErrors[`debit-${index}`])}
                     onChange={(value) => {
                       const account = accounts.find((item) => item.number === value)
                       const patch: Partial<ManualBookingRow> = { debitAccountNumber: value }
@@ -348,8 +453,16 @@ export function AdminAccountingManualPanel({
                         patch.taxCode = account.defaultTaxCode
                       }
                       updateRow(index, patch)
+                      setFieldErrors((current) => {
+                        const next = { ...current }
+                        delete next[`debit-${index}`]
+                        return next
+                      })
                     }}
                   />
+                  {fieldErrors[`debit-${index}`] && (
+                    <p className="text-xs text-red-500">{fieldErrors[`debit-${index}`]}</p>
+                  )}
                 </div>
                 <div className="hidden shrink-0 items-center justify-center self-center pb-6 lg:flex">
                   <ArrowLeftRight className="h-4 w-4 text-zinc-400" />
@@ -357,12 +470,26 @@ export function AdminAccountingManualPanel({
                 <div className="min-w-[190px] flex-[1.2] basis-[190px]">
                   <label className={cn("mb-1 block text-xs", adminUi.muted)}>Haben-Konto</label>
                   <AccountPickerField
+                    ref={(handle) => {
+                      creditPickerRefs.current[index] = handle
+                    }}
                     value={row.creditAccountNumber}
                     accounts={accounts}
                     bookableOnly
                     className="w-full"
-                    onChange={(value) => updateRow(index, { creditAccountNumber: value })}
+                    invalid={Boolean(fieldErrors[`credit-${index}`])}
+                    onChange={(value) => {
+                      updateRow(index, { creditAccountNumber: value })
+                      setFieldErrors((current) => {
+                        const next = { ...current }
+                        delete next[`credit-${index}`]
+                        return next
+                      })
+                    }}
                   />
+                  {fieldErrors[`credit-${index}`] && (
+                    <p className="text-xs text-red-500">{fieldErrors[`credit-${index}`]}</p>
+                  )}
                 </div>
                 <div className="min-w-[240px] flex-[2] basis-[240px]">
                   <label className={cn("mb-1 block text-xs", adminUi.muted)}>Beschreibung</label>
@@ -400,9 +527,23 @@ export function AdminAccountingManualPanel({
                     type="number"
                     step="0.01"
                     value={row.amount || ""}
-                    onChange={(e) => updateRow(index, { amount: Number(e.target.value) })}
-                    className={adminUi.input}
+                    onChange={(e) => {
+                      updateRow(index, { amount: Number(e.target.value) })
+                      setFieldErrors((current) => {
+                        const next = { ...current }
+                        delete next[`amount-${index}`]
+                        return next
+                      })
+                    }}
+                    className={cn(
+                      adminUi.input,
+                      fieldErrors[`amount-${index}`] &&
+                        "border-red-500 ring-1 ring-red-500 focus-visible:ring-red-500"
+                    )}
                   />
+                  {fieldErrors[`amount-${index}`] && (
+                    <p className="text-xs text-red-500">{fieldErrors[`amount-${index}`]}</p>
+                  )}
                 </div>
                 <div className="flex shrink-0 items-end self-center pb-2">
                   <input
@@ -457,7 +598,7 @@ export function AdminAccountingManualPanel({
         </div>
 
         {error && <p className={adminUi.error}>{error}</p>}
-        {!validation.valid && (
+        {!validation.valid && !error && (
           <p className="text-sm text-amber-600 dark:text-amber-400">{validation.error}</p>
         )}
 

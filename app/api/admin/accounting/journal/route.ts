@@ -12,6 +12,7 @@ import {
   defaultBookingDescription,
   manualRowsToJournalLines,
   normalizeManualBookingRow,
+  stripAttachmentPayload,
   validateManualBookingRows,
   type ManualBookingRow,
 } from "@/lib/accounting/manual-booking"
@@ -71,22 +72,39 @@ export async function POST(request: Request) {
     let description = body.description?.trim() ?? ""
 
     if (body.rows?.length) {
-      const taxCodes = await cosmosGetTaxCodes()
-      bookingRows = body.rows.map((row) => normalizeManualBookingRow(row, taxCodes))
+      let taxCodes: Awaited<ReturnType<typeof cosmosGetTaxCodes>> = []
+      try {
+        taxCodes = await cosmosGetTaxCodes()
+      } catch (taxError) {
+        console.error("Admin-API: Steuercodes für Buchung nicht geladen.", taxError)
+        taxCodes = []
+      }
+
+      bookingRows = body.rows.map((row) =>
+        stripAttachmentPayload(normalizeManualBookingRow(row, taxCodes))
+      )
       const rowValidation = validateManualBookingRows(bookingRows)
       if (!rowValidation.valid) {
-        return NextResponse.json({ error: rowValidation.error }, { status: 400 })
+        return NextResponse.json(
+          { error: rowValidation.error ?? "Buchungszeilen ungültig." },
+          { status: 400 }
+        )
       }
       lines = manualRowsToJournalLines(bookingRows)
       if (!description) {
         description = defaultBookingDescription(bookingRows)
       }
+    } else if (body.lines?.length) {
+      lines = body.lines.map(normalizeJournalLine)
     } else {
-      lines = (body.lines ?? []).map(normalizeJournalLine)
+      return NextResponse.json(
+        { error: "Keine Buchungszeilen (rows) oder lines übergeben." },
+        { status: 400 }
+      )
     }
 
     if (!description) {
-      return NextResponse.json({ error: "Buchungstext fehlt." }, { status: 400 })
+      description = "Manuelle Buchung"
     }
 
     const validation = validateJournalEntryLines(lines)

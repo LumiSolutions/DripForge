@@ -74,11 +74,29 @@ function normalizeAttachment(
   if (!value || typeof value !== "object") return null
   const att = value as Partial<ManualBookingAttachment>
   const name = String(att.name ?? "").trim()
-  const mimeType = String(att.mimeType ?? "").trim()
+  const mimeType = String(att.mimeType ?? "").trim() || "application/octet-stream"
   const dataUrl = String(att.dataUrl ?? "").trim()
   const size = Number(att.size) || 0
-  if (!name || !mimeType || !dataUrl) return null
+  if (!name) return null
   return { name, mimeType, size, dataUrl }
+}
+
+/** Für Cosmos: grosse Base64-Inhalte entfernen (Dokument-Limit ~2 MB). */
+export function stripAttachmentPayload(
+  row: ManualBookingRow
+): ManualBookingRow {
+  if (!row.attachment) return { ...row, attachment: null }
+  const dataUrl = row.attachment.dataUrl ?? ""
+  const keepContent = dataUrl.length > 0 && dataUrl.length <= 180_000
+  return {
+    ...row,
+    attachment: {
+      name: row.attachment.name,
+      mimeType: row.attachment.mimeType,
+      size: row.attachment.size,
+      dataUrl: keepContent ? dataUrl : "",
+    },
+  }
 }
 
 export function normalizeManualBookingRow(
