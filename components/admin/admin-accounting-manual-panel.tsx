@@ -39,9 +39,15 @@ import { cn } from "@/lib/utils"
 const MAX_ATTACHMENT_BYTES = 2 * 1024 * 1024
 
 function formatDate(iso: string): string {
-  return new Intl.DateTimeFormat("de-CH", { dateStyle: "medium" }).format(
-    new Date(iso)
-  )
+  try {
+    const value = String(iso ?? "").slice(0, 10)
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return value || "—"
+    const date = new Date(`${value}T12:00:00`)
+    if (Number.isNaN(date.getTime())) return value
+    return new Intl.DateTimeFormat("de-CH", { dateStyle: "medium" }).format(date)
+  } catch {
+    return String(iso ?? "—")
+  }
 }
 
 function accountLabel(number: string, accounts: Account[]): string {
@@ -77,37 +83,45 @@ function flattenManualHistory(
 ): ManualHistoryRow[] {
   const rows: ManualHistoryRow[] = []
   for (const entry of entries) {
-    if (entry.source !== "manual") continue
-    if (entry.bookingRows?.length) {
-      for (const row of entry.bookingRows) {
-        rows.push({
-          entryId: entry.id,
-          date: entry.date,
-          belegNummer: entry.belegNummer,
-          row: normalizeManualBookingRow(row, taxCodes),
-        })
+    try {
+      if (entry.source !== "manual") continue
+      if (entry.bookingRows?.length) {
+        for (const row of entry.bookingRows) {
+          try {
+            rows.push({
+              entryId: entry.id,
+              date: entry.date || "",
+              belegNummer: entry.belegNummer || "",
+              row: normalizeManualBookingRow(row, taxCodes),
+            })
+          } catch (error) {
+            console.error("Historie-Zeile übersprungen:", entry.id, error)
+          }
+        }
+        continue
       }
-      continue
+      const soll = entry.lines?.find((line) => line.type === "SOLL")
+      const haben = entry.lines?.find((line) => line.type === "HABEN")
+      if (!soll || !haben) continue
+      rows.push({
+        entryId: entry.id,
+        date: entry.date || "",
+        belegNummer: entry.belegNummer || "",
+        row: normalizeManualBookingRow(
+          {
+            debitAccountNumber: soll.accountNumber,
+            creditAccountNumber: haben.accountNumber,
+            description: entry.description,
+            taxCode: soll.taxCode ?? "",
+            taxRate: soll.taxRate,
+            amount: soll.amount,
+          },
+          taxCodes
+        ),
+      })
+    } catch (error) {
+      console.error("Historie-Eintrag übersprungen:", entry?.id, error)
     }
-    const soll = entry.lines.find((line) => line.type === "SOLL")
-    const haben = entry.lines.find((line) => line.type === "HABEN")
-    if (!soll || !haben) continue
-    rows.push({
-      entryId: entry.id,
-      date: entry.date,
-      belegNummer: entry.belegNummer,
-      row: normalizeManualBookingRow(
-        {
-          debitAccountNumber: soll.accountNumber,
-          creditAccountNumber: haben.accountNumber,
-          description: entry.description,
-          taxCode: soll.taxCode ?? "",
-          taxRate: soll.taxRate,
-          amount: soll.amount,
-        },
-        taxCodes
-      ),
-    })
   }
   return rows.slice(0, 30)
 }
@@ -155,16 +169,29 @@ export function AdminAccountingManualPanel({
       const res = await fetch("/api/admin/accounting/journal?source=manual&limit=80", {
         cache: "no-store",
       })
-      const data = (await res.json()) as { entries?: JournalEntry[]; error?: string }
+      const data = (await res.json()) as {
+        entries?: JournalEntry[]
+        error?: string
+        warning?: string
+      }
       if (!res.ok) {
         console.error("Historie laden fehlgeschlagen:", data.error)
         setHistory([])
+        setError(
+          data.error
+            ? `Historie: ${data.error} (Buchungsmaske bleibt nutzbar.)`
+            : null
+        )
         return
+      }
+      if (data.warning) {
+        console.warn(data.warning)
       }
       setHistory(flattenManualHistory(data.entries ?? [], taxCodes))
     } catch (err) {
       console.error("Historie laden fehlgeschlagen:", err)
       setHistory([])
+      // Maske bleibt bedienbar – kein harter Crash
     } finally {
       setLoadingHistory(false)
     }

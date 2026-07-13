@@ -142,17 +142,71 @@ export function normalizeJournalEntry(
   input: Partial<JournalEntry> & { id: string }
 ): JournalEntry {
   const now = new Date().toISOString()
+  const rawDate = String(input.date ?? "").trim()
+  const date = /^\d{4}-\d{2}-\d{2}/.test(rawDate)
+    ? rawDate.slice(0, 10)
+    : now.slice(0, 10)
+
+  let bookingRows: ManualBookingRow[] | undefined
+  if (Array.isArray(input.bookingRows)) {
+    try {
+      bookingRows = input.bookingRows.map((row) => {
+        try {
+          // Lazy import avoided – use inline safe shape so parser never throws
+          return {
+            debitAccountNumber: String(row?.debitAccountNumber ?? "").trim(),
+            creditAccountNumber: String(row?.creditAccountNumber ?? "").trim(),
+            description: String(row?.description ?? "").trim(),
+            taxCode: String(row?.taxCode ?? "").trim().toUpperCase(),
+            taxRate: Number(row?.taxRate) || 0,
+            taxAmount: Number(row?.taxAmount) || 0,
+            amount: Number(row?.amount) || 0,
+            attachment: row?.attachment ?? null,
+          } as ManualBookingRow
+        } catch {
+          return {
+            debitAccountNumber: "",
+            creditAccountNumber: "",
+            description: "",
+            taxCode: "",
+            taxRate: 0,
+            taxAmount: 0,
+            amount: 0,
+            attachment: null,
+          } as ManualBookingRow
+        }
+      })
+    } catch (error) {
+      console.error("normalizeJournalEntry: bookingRows fehlerhaft", error)
+      bookingRows = undefined
+    }
+  }
+
+  let lines: JournalLine[] = []
+  try {
+    lines = (Array.isArray(input.lines) ? input.lines : []).map((line) =>
+      normalizeJournalLine(line ?? {})
+    )
+  } catch (error) {
+    console.error("normalizeJournalEntry: lines fehlerhaft", error)
+    lines = []
+  }
+
   return {
-    id: input.id,
-    date: String(input.date ?? "").slice(0, 10),
-    belegNummer: String(input.belegNummer ?? "").trim(),
+    id: String(input.id ?? "").trim() || `je-${Date.now()}`,
+    date,
+    belegNummer: String(
+      (input as { belegnummer?: string }).belegnummer ??
+        input.belegNummer ??
+        ""
+    ).trim(),
     description: String(input.description ?? "").trim(),
-    lines: (input.lines ?? []).map(normalizeJournalLine),
-    bookingRows: input.bookingRows,
+    lines,
+    bookingRows,
     source: input.source === "order" ? "order" : "manual",
     sourceOrderId: input.sourceOrderId?.trim() || undefined,
-    createdAt: input.createdAt ?? now,
-    updatedAt: input.updatedAt ?? now,
+    createdAt: String(input.createdAt ?? now),
+    updatedAt: String(input.updatedAt ?? now),
   }
 }
 
@@ -165,8 +219,24 @@ export function toJournalEntryCosmosDoc(entry: JournalEntry): JournalEntryCosmos
 }
 
 export function fromJournalEntryCosmosDoc(doc: JournalEntryCosmosDoc): JournalEntry {
-  const rawId = doc.id.startsWith(`${JOURNAL_ENTRY_DOC_TYPE}:`)
-    ? doc.id.slice(JOURNAL_ENTRY_DOC_TYPE.length + 1)
-    : doc.id
-  return normalizeJournalEntry({ ...doc, id: rawId })
+  try {
+    const rawId =
+      typeof doc.id === "string" && doc.id.startsWith(`${JOURNAL_ENTRY_DOC_TYPE}:`)
+        ? doc.id.slice(JOURNAL_ENTRY_DOC_TYPE.length + 1)
+        : String(doc.id ?? "")
+    return normalizeJournalEntry({ ...doc, id: rawId || `je-${Date.now()}` })
+  } catch (error) {
+    console.error("fromJournalEntryCosmosDoc: Dokument übersprungen", doc?.id, error)
+    const now = new Date().toISOString()
+    return {
+      id: String(doc?.id ?? `je-${Date.now()}`),
+      date: now.slice(0, 10),
+      belegNummer: "",
+      description: "",
+      lines: [],
+      source: "manual",
+      createdAt: now,
+      updatedAt: now,
+    }
+  }
 }

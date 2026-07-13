@@ -30,7 +30,7 @@ export async function GET(request: Request) {
     const url = new URL(request.url)
     const limit = Math.min(
       500,
-      Math.max(1, Number(url.searchParams.get("limit") ?? 100))
+      Math.max(1, Number(url.searchParams.get("limit") ?? 100) || 100)
     )
     const from = url.searchParams.get("from")?.trim() || undefined
     const to = url.searchParams.get("to")?.trim() || undefined
@@ -38,14 +38,51 @@ export async function GET(request: Request) {
     const source =
       sourceParam === "manual" || sourceParam === "order" ? sourceParam : undefined
 
-    const entries = await cosmosGetJournalEntries({ limit, from, to, source })
-    return NextResponse.json({ entries })
+    let entries: Awaited<ReturnType<typeof cosmosGetJournalEntries>> = []
+    try {
+      entries = await cosmosGetJournalEntries({ limit, from, to, source })
+    } catch (error) {
+      console.error("Admin-API: Journal-Abfrage fehlgeschlagen.", error)
+      return NextResponse.json({
+        entries: [],
+        warning: "Journal konnte teilweise nicht geladen werden.",
+      })
+    }
+
+    const safeEntries = []
+    for (const entry of entries) {
+      try {
+        safeEntries.push({
+          ...entry,
+          id: String(entry.id ?? ""),
+          date: String(entry.date ?? "").slice(0, 10),
+          belegNummer: String(entry.belegNummer ?? ""),
+          description: String(entry.description ?? ""),
+          lines: Array.isArray(entry.lines) ? entry.lines : [],
+          bookingRows: Array.isArray(entry.bookingRows)
+            ? entry.bookingRows
+            : undefined,
+          source: entry.source === "order" ? "order" : "manual",
+          createdAt: String(entry.createdAt ?? ""),
+          updatedAt: String(entry.updatedAt ?? ""),
+        })
+      } catch (error) {
+        console.error(
+          "Admin-API: Journal-Eintrag übersprungen.",
+          entry?.id,
+          error
+        )
+      }
+    }
+
+    return NextResponse.json({ entries: safeEntries })
   } catch (error) {
     console.error("Admin-API: Journal konnte nicht geladen werden.", error)
-    return NextResponse.json(
-      { error: "Journal konnte nicht geladen werden." },
-      { status: 500 }
-    )
+    // Nie hart abstürzen – UI bleibt bedienbar
+    return NextResponse.json({
+      entries: [],
+      error: "Journal konnte nicht geladen werden.",
+    })
   }
 }
 

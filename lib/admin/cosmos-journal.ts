@@ -49,8 +49,12 @@ export async function cosmosAllocateJournalBelegNummer(
         }
       }
 
+      const nextSequenceRaw =
+        current?.year === year ? Number(current.lastSequence) + 1 : 1
       const nextSequence =
-        current?.year === year ? current.lastSequence + 1 : 1
+        Number.isFinite(nextSequenceRaw) && nextSequenceRaw > 0
+          ? Math.floor(nextSequenceRaw)
+          : 1
       const nextDoc: JournalCounterDoc = {
         id: JOURNAL_COUNTER_DOC_ID,
         year,
@@ -79,36 +83,58 @@ export async function cosmosGetJournalEntries(options?: {
 }): Promise<JournalEntry[]> {
   const limit = Math.min(500, Math.max(1, options?.limit ?? 200))
   const container = await getSettingsContainer()
-  const querySpec: SqlQuerySpec = options?.source
-    ? {
-        query:
-          "SELECT * FROM c WHERE c.docType = @docType AND c.source = @source ORDER BY c.date DESC, c.createdAt DESC OFFSET 0 LIMIT @limit",
-        parameters: [
-          { name: "@docType", value: JOURNAL_ENTRY_DOC_TYPE },
-          { name: "@source", value: options.source },
-          { name: "@limit", value: limit },
-        ],
-      }
-    : {
-        query:
-          "SELECT * FROM c WHERE c.docType = @docType ORDER BY c.date DESC, c.createdAt DESC OFFSET 0 LIMIT @limit",
-        parameters: [
-          { name: "@docType", value: JOURNAL_ENTRY_DOC_TYPE },
-          { name: "@limit", value: limit },
-        ],
-      }
-  const { resources } = await container.items
-    .query<JournalEntryCosmosDoc>(querySpec)
-    .fetchAll()
 
-  let entries = resources.map(fromJournalEntryCosmosDoc)
+  // Einfache Query ohne ORDER BY / Source-Filter:
+  // Composite-Index-Anforderungen von Cosmos verursachen sonst leicht 400/500.
+  const querySpec: SqlQuerySpec = {
+    query: "SELECT * FROM c WHERE c.docType = @docType",
+    parameters: [{ name: "@docType", value: JOURNAL_ENTRY_DOC_TYPE }],
+  }
+
+  let resources: JournalEntryCosmosDoc[] = []
+  try {
+    const result = await container.items
+      .query<JournalEntryCosmosDoc>(querySpec)
+      .fetchAll()
+    resources = result.resources ?? []
+  } catch (error) {
+    logCosmosError("cosmosGetJournalEntries:query", error)
+    throw error
+  }
+
+  const entries: JournalEntry[] = []
+  for (const doc of resources) {
+    try {
+      if (!doc || doc.docType !== JOURNAL_ENTRY_DOC_TYPE) continue
+      const entry = fromJournalEntryCosmosDoc(doc)
+      entries.push(entry)
+    } catch (error) {
+      console.error(
+        "cosmosGetJournalEntries: Dokument konnte nicht geparst werden.",
+        doc?.id,
+        error
+      )
+    }
+  }
+
+  let filtered = entries
+  if (options?.source) {
+    filtered = filtered.filter((entry) => entry.source === options.source)
+  }
   if (options?.from) {
-    entries = entries.filter((entry) => entry.date >= options.from!)
+    filtered = filtered.filter((entry) => entry.date >= options.from!)
   }
   if (options?.to) {
-    entries = entries.filter((entry) => entry.date <= options.to!)
+    filtered = filtered.filter((entry) => entry.date <= options.to!)
   }
-  return entries
+
+  filtered.sort((a, b) => {
+    const dateCmp = String(b.date ?? "").localeCompare(String(a.date ?? ""))
+    if (dateCmp !== 0) return dateCmp
+    return String(b.createdAt ?? "").localeCompare(String(a.createdAt ?? ""))
+  })
+
+  return filtered.slice(0, limit)
 }
 
 export async function cosmosGetJournalEntryById(
