@@ -57,6 +57,20 @@ function percentToRating(percent: number): number {
   return clampStat(Math.round(percent / 20), 3)
 }
 
+/** Textbereich „eine Zeile pro Punkt“ → string[] (auch wenn schon Array). */
+export function toStringList(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item ?? "").trim()).filter(Boolean)
+  }
+  if (typeof value === "string") {
+    return value
+      .split(/\r?\n/)
+      .map((item) => item.trim())
+      .filter(Boolean)
+  }
+  return []
+}
+
 export function createMaterialTypeId(name: string): string {
   const slug = name
     .trim()
@@ -152,15 +166,13 @@ export function normalizeMaterialCategoryStat(
     appearance: clampStat(input?.appearance ?? fallback.appearance),
     easeOfUse,
     surfaceFinish,
-    vorteile: Array.isArray(input?.vorteile)
-      ? input.vorteile.map((s) => String(s).trim()).filter(Boolean)
-      : fallback.vorteile,
-    hinweise: Array.isArray(input?.hinweise)
-      ? input.hinweise.map((s) => String(s).trim()).filter(Boolean)
-      : fallback.hinweise,
-    idealFuer: input?.idealFuer?.trim() || fallback.idealFuer,
+    vorteile:
+      input?.vorteile !== undefined ? toStringList(input.vorteile) : fallback.vorteile,
+    hinweise:
+      input?.hinweise !== undefined ? toStringList(input.hinweise) : fallback.hinweise,
+    idealFuer: String(input?.idealFuer ?? "").trim() || fallback.idealFuer,
     compositionDescription:
-      input?.compositionDescription?.trim() ||
+      String(input?.compositionDescription ?? "").trim() ||
       fallback.compositionDescription ||
       DEFAULT_COMPOSITION_DESCRIPTIONS[fallbackName.toUpperCase()] ||
       undefined,
@@ -171,18 +183,24 @@ export function normalizeMaterialTypeDefinition(
   input: Partial<MaterialTypeDefinition>,
   existing?: MaterialTypeDefinition
 ): MaterialTypeDefinition {
-  const name = String(input.name ?? existing?.name ?? "Neues Material").trim() || "Neues Material"
-  const id = (input.id ?? existing?.id ?? createMaterialTypeId(name)).trim()
+  const name =
+    String(input.name ?? existing?.name ?? "Neues Material").trim() ||
+    "Neues Material"
+  const rawId = String(input.id ?? existing?.id ?? "").trim()
+  const id = rawId || createMaterialTypeId(name)
   const stats = normalizeMaterialCategoryStat(input, name)
+
+  const sortRaw = Number(input.sortOrder ?? existing?.sortOrder ?? 0)
+  const sortOrder = Number.isFinite(sortRaw) ? Math.max(0, Math.round(sortRaw)) : 0
 
   return {
     id,
     name,
-    isActive: input.isActive !== undefined ? Boolean(input.isActive) : existing?.isActive !== false,
-    sortOrder:
-      input.sortOrder != null
-        ? Math.max(0, Math.round(Number(input.sortOrder)))
-        : existing?.sortOrder ?? 0,
+    isActive:
+      input.isActive !== undefined
+        ? Boolean(input.isActive)
+        : existing?.isActive !== false,
+    sortOrder,
     ...stats,
   }
 }
@@ -244,15 +262,41 @@ export function sanitizeMaterialTypesInput(
   const seen = new Set<string>()
   return input
     .map((raw, index) => {
-      const name = String(raw.name ?? "").trim() || "Neues Material"
-      const id =
-        raw.id.startsWith("type-") && name !== "Neues Material"
-          ? createMaterialTypeId(name)
-          : raw.id.trim() || createMaterialTypeId(name)
-      return normalizeMaterialTypeDefinition(
-        { ...raw, id, name, sortOrder: raw.sortOrder ?? index },
-        undefined
-      )
+      try {
+        const name = String(raw?.name ?? "").trim() || "Neues Material"
+        const rawId = String(raw?.id ?? "").trim()
+        const id =
+          rawId.startsWith("type-") && name !== "Neues Material"
+            ? createMaterialTypeId(name)
+            : rawId || createMaterialTypeId(name)
+        return normalizeMaterialTypeDefinition(
+          {
+            ...raw,
+            id,
+            name,
+            sortOrder: Number(raw?.sortOrder ?? index) || index,
+            strength: Number(raw?.strength),
+            flexibility: Number(raw?.flexibility),
+            heatResistance: Number(raw?.heatResistance),
+            appearance: Number(raw?.appearance),
+            easeOfUse: Number(raw?.easeOfUse),
+            vorteile: toStringList(raw?.vorteile),
+            hinweise: toStringList(raw?.hinweise),
+          },
+          undefined
+        )
+      } catch (error) {
+        console.error(
+          "sanitizeMaterialTypesInput: Eintrag fehlgeschlagen.",
+          { index, id: raw?.id, name: raw?.name },
+          error
+        )
+        throw new Error(
+          `Material-Art Zeile ${index + 1} (${raw?.name || raw?.id || "?"}) ungültig: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        )
+      }
     })
     .filter((type) => {
       if (seen.has(type.id)) return false

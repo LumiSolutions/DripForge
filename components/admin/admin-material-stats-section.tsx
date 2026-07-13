@@ -143,12 +143,49 @@ export function AdminMaterialStatsSection() {
     setError(null)
     setSuccess(null)
     try {
-      const payload = materialTypes.map((type, index) => ({
-        ...type,
-        id: type.id.trim() || createMaterialTypeId(type.name || `type-${index}`),
-        name: type.name.trim() || "Neues Material",
-        sortOrder: type.sortOrder ?? index,
-      }))
+      const payload = materialTypes.map((type, index) => {
+        const vorteile =
+          typeof type.vorteile === "string"
+            ? String(type.vorteile)
+                .split(/\r?\n/)
+                .map((s) => s.trim())
+                .filter(Boolean)
+            : Array.isArray(type.vorteile)
+              ? type.vorteile.map((s) => String(s).trim()).filter(Boolean)
+              : []
+        const hinweise =
+          typeof type.hinweise === "string"
+            ? String(type.hinweise)
+                .split(/\r?\n/)
+                .map((s) => s.trim())
+                .filter(Boolean)
+            : Array.isArray(type.hinweise)
+              ? type.hinweise.map((s) => String(s).trim()).filter(Boolean)
+              : []
+
+        return {
+          ...type,
+          id: String(type.id ?? "").trim() || createMaterialTypeId(type.name || `type-${index}`),
+          name: String(type.name ?? "").trim() || "Neues Material",
+          // Homepage-Reihenfolge + Verarbeitung als echte Zahlen
+          sortOrder: Number(type.sortOrder) || index,
+          easeOfUse: Number(type.easeOfUse) || 0,
+          // Ratings 1–5
+          strength: Number(type.strength) || 3,
+          flexibility: Number(type.flexibility) || 3,
+          heatResistance: Number(type.heatResistance) || 3,
+          appearance: Number(type.appearance) || 3,
+          isActive: Boolean(type.isActive),
+          vorteile,
+          hinweise,
+          idealFuer: type.idealFuer ? String(type.idealFuer) : undefined,
+          compositionDescription: type.compositionDescription
+            ? String(type.compositionDescription)
+            : undefined,
+        }
+      })
+
+      console.log("Sende Material-Arten an API:", payload)
 
       const res = await fetch("/api/admin/material-stats", {
         method: "PUT",
@@ -156,14 +193,35 @@ export function AdminMaterialStatsSection() {
         credentials: "include",
         body: JSON.stringify({ materialTypes: payload }),
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? "Speichern fehlgeschlagen")
+
+      let data: { error?: string; materialTypes?: MaterialTypeDefinition[] } = {}
+      try {
+        data = (await res.json()) as {
+          error?: string
+          materialTypes?: MaterialTypeDefinition[]
+        }
+      } catch (parseError) {
+        console.error("Speicherfehler Details:", parseError)
+        throw new Error(`Unerwartete Server-Antwort (HTTP ${res.status}).`)
+      }
+
+      if (!res.ok) {
+        const message =
+          data.error ?? `Material-Arten konnten nicht gespeichert werden (HTTP ${res.status}).`
+        console.error("Speicherfehler Details:", { status: res.status, data })
+        throw new Error(message)
+      }
+
       setMaterialTypes(data.materialTypes ?? payload)
       setSuccess("Material-Arten gespeichert.")
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Material-Arten konnten nicht gespeichert werden."
-      )
+    } catch (error) {
+      console.error("Speicherfehler Details:", error)
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Material-Arten konnten nicht gespeichert werden."
+      setError(message)
+      window.alert(`Material-Arten: ${message}`)
     } finally {
       setSaving(false)
     }
@@ -374,7 +432,11 @@ export function AdminMaterialStatsSection() {
                 <Label>Vorteile (eine Zeile pro Punkt)</Label>
                 <Textarea
                   rows={3}
-                  value={type.vorteile.join("\n")}
+                  value={
+                    Array.isArray(type.vorteile)
+                      ? type.vorteile.join("\n")
+                      : String(type.vorteile ?? "")
+                  }
                   onChange={(e) =>
                     updateCategory(type.id, {
                       vorteile: e.target.value
@@ -390,7 +452,11 @@ export function AdminMaterialStatsSection() {
                 <Label>Hinweise (eine Zeile pro Punkt)</Label>
                 <Textarea
                   rows={3}
-                  value={type.hinweise.join("\n")}
+                  value={
+                    Array.isArray(type.hinweise)
+                      ? type.hinweise.join("\n")
+                      : String(type.hinweise ?? "")
+                  }
                   onChange={(e) =>
                     updateCategory(type.id, {
                       hinweise: e.target.value
