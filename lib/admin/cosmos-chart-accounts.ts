@@ -69,6 +69,9 @@ export async function cosmosCreateChartAccount(input: {
   type: Account["type"]
   systemCode?: string
   taxType?: string
+  vatBookable?: boolean
+  defaultVatRate?: number
+  isActive?: boolean
 }): Promise<Account> {
   const number = normalizeAccountNumber(input.number)
   if (!number) {
@@ -92,9 +95,63 @@ export async function cosmosCreateChartAccount(input: {
     systemCode: input.systemCode,
     taxType: input.taxType,
     isEditable: true,
+    isActive: input.isActive ?? true,
+    vatBookable: input.vatBookable ?? false,
+    defaultVatRate: input.defaultVatRate ?? 0.081,
     createdAt: now,
     updatedAt: now,
   })
 
   return cosmosUpsertChartAccount(account)
+}
+
+export async function cosmosUpdateChartAccount(
+  number: string,
+  patch: Partial<
+    Pick<
+      Account,
+      | "name"
+      | "group"
+      | "type"
+      | "systemCode"
+      | "taxType"
+      | "isEditable"
+      | "isActive"
+      | "vatBookable"
+      | "defaultVatRate"
+    >
+  >
+): Promise<Account> {
+  const existing = await cosmosGetChartAccountByNumber(number)
+  if (!existing) {
+    throw new Error(`Konto ${number} wurde nicht gefunden.`)
+  }
+
+  const updated = normalizeAccount({
+    ...existing,
+    ...patch,
+    number: existing.number,
+    updatedAt: new Date().toISOString(),
+  })
+
+  return cosmosUpsertChartAccount(updated)
+}
+
+export async function cosmosDeleteChartAccount(number: string): Promise<void> {
+  const normalized = normalizeAccountNumber(number)
+  if (!normalized) {
+    throw new Error("Kontonummer fehlt.")
+  }
+
+  const container = await getSettingsContainer()
+  const cosmosId = chartAccountCosmosId(normalized)
+  try {
+    await container.item(cosmosId, cosmosId).delete()
+  } catch (error) {
+    if (cosmosErrorCode(error) === 404) {
+      throw new Error(`Konto ${normalized} wurde nicht gefunden.`)
+    }
+    logCosmosError(`cosmosDeleteChartAccount:${normalized}`, error)
+    throw error
+  }
 }

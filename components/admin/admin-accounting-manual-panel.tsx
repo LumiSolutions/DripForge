@@ -1,0 +1,383 @@
+"use client"
+
+import { useCallback, useEffect, useMemo, useState } from "react"
+import { ArrowLeftRight, Loader2, Paperclip, Plus, X } from "lucide-react"
+import { AccountPickerField } from "@/components/admin/account-picker-field"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import type { Account } from "@/lib/accounting/account-types"
+import type { JournalEntry } from "@/lib/accounting/journal-types"
+import {
+  emptyManualBookingRow,
+  normalizeManualBookingRow,
+  validateManualBookingRows,
+  type ManualBookingRow,
+} from "@/lib/accounting/manual-booking"
+import { formatChf } from "@/lib/admin/format-chf"
+import { adminUi } from "@/lib/admin/admin-ui-classes"
+import { cn } from "@/lib/utils"
+
+function formatDate(iso: string): string {
+  return new Intl.DateTimeFormat("de-CH", { dateStyle: "medium" }).format(
+    new Date(iso)
+  )
+}
+
+function accountLabel(number: string, accounts: Account[]): string {
+  const account = accounts.find((item) => item.number === number)
+  return account ? `${account.number}\n${account.name}` : number
+}
+
+type ManualHistoryRow = {
+  entryId: string
+  date: string
+  belegNummer: string
+  row: ManualBookingRow
+}
+
+function flattenManualHistory(entries: JournalEntry[]): ManualHistoryRow[] {
+  const rows: ManualHistoryRow[] = []
+  for (const entry of entries) {
+    if (entry.source !== "manual") continue
+    if (entry.bookingRows?.length) {
+      for (const row of entry.bookingRows) {
+        rows.push({
+          entryId: entry.id,
+          date: entry.date,
+          belegNummer: entry.belegNummer,
+          row,
+        })
+      }
+      continue
+    }
+    const soll = entry.lines.find((line) => line.type === "SOLL")
+    const haben = entry.lines.find((line) => line.type === "HABEN")
+    if (!soll || !haben) continue
+    rows.push({
+      entryId: entry.id,
+      date: entry.date,
+      belegNummer: entry.belegNummer,
+      row: {
+        debitAccountNumber: soll.accountNumber,
+        creditAccountNumber: haben.accountNumber,
+        description: entry.description,
+        taxRate: soll.taxRate,
+        amount: soll.amount,
+        currency: "CHF",
+        exchangeRate: 1,
+        amountChf: soll.amount,
+      },
+    })
+  }
+  return rows.slice(0, 30)
+}
+
+type AdminAccountingManualPanelProps = {
+  accounts: Account[]
+  onBooked: () => void
+}
+
+export function AdminAccountingManualPanel({
+  accounts,
+  onBooked,
+}: AdminAccountingManualPanelProps) {
+  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [belegNummer, setBelegNummer] = useState("")
+  const [rows, setRows] = useState<ManualBookingRow[]>([emptyManualBookingRow()])
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [history, setHistory] = useState<ManualHistoryRow[]>([])
+  const [loadingHistory, setLoadingHistory] = useState(true)
+
+  const normalizedRows = useMemo(() => rows.map(normalizeManualBookingRow), [rows])
+  const validation = useMemo(
+    () => validateManualBookingRows(normalizedRows),
+    [normalizedRows]
+  )
+
+  const loadHistory = useCallback(async () => {
+    setLoadingHistory(true)
+    try {
+      const res = await fetch("/api/admin/accounting/journal?source=manual&limit=80", {
+        cache: "no-store",
+      })
+      const data = (await res.json()) as { entries?: JournalEntry[] }
+      setHistory(flattenManualHistory(data.entries ?? []))
+    } finally {
+      setLoadingHistory(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadHistory()
+  }, [loadHistory])
+
+  const updateRow = (index: number, patch: Partial<ManualBookingRow>) => {
+    setRows((current) =>
+      current.map((row, i) => {
+        if (i !== index) return row
+        const next = { ...row, ...patch }
+        if (patch.amount != null || patch.exchangeRate != null) {
+          const amount = Number(next.amount) || 0
+          const rate = Number(next.exchangeRate) || 1
+          next.amountChf = Math.round(amount * rate * 100) / 100
+        }
+        return next
+      })
+    )
+  }
+
+  const handleBook = async () => {
+    setSaving(true)
+    setError(null)
+    try {
+      if (!validation.valid) throw new Error(validation.error)
+      const res = await fetch("/api/admin/accounting/journal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          date,
+          belegNummer: belegNummer.trim() || undefined,
+          rows: normalizedRows,
+        }),
+      })
+      const data = (await res.json()) as { error?: string }
+      if (!res.ok) throw new Error(data.error ?? "Buchung fehlgeschlagen.")
+      setRows([emptyManualBookingRow()])
+      setBelegNummer("")
+      await loadHistory()
+      onBooked()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Buchung fehlgeschlagen.")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <section className="space-y-6">
+      <div className={cn("space-y-4 rounded-xl border p-4 sm:p-6", adminUi.card)}>
+        <h2 className={cn("text-lg font-semibold", adminUi.heading)}>Manuelle Buchung</h2>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-1">
+            <label className={cn("text-sm font-medium", adminUi.label)}>Datum</label>
+            <Input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className={adminUi.input}
+            />
+          </div>
+          <div className="space-y-1">
+            <label className={cn("text-sm font-medium", adminUi.label)}>Belegnummer</label>
+            <Input
+              value={belegNummer}
+              onChange={(e) => setBelegNummer(e.target.value)}
+              placeholder="z. B. 89"
+              className={adminUi.input}
+            />
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          {rows.map((row, index) => (
+            <div
+              key={`booking-row-${index}`}
+              className={cn(
+                "grid gap-2 rounded-lg border p-3 lg:grid-cols-[minmax(140px,1fr)_auto_minmax(140px,1fr)_minmax(160px,1.2fr)_72px_88px_64px_56px_56px_40px_40px] lg:items-end",
+                adminUi.cardMuted
+              )}
+            >
+              <div className="space-y-1">
+                <label className={cn("text-xs", adminUi.muted)}>Soll-Konto</label>
+                <AccountPickerField
+                  value={row.debitAccountNumber}
+                  accounts={accounts}
+                  bookableOnly
+                  onChange={(value) => updateRow(index, { debitAccountNumber: value })}
+                />
+              </div>
+              <div className="hidden items-center justify-center pb-2 lg:flex">
+                <ArrowLeftRight className="h-4 w-4 text-zinc-400" />
+              </div>
+              <div className="space-y-1">
+                <label className={cn("text-xs", adminUi.muted)}>Haben-Konto</label>
+                <AccountPickerField
+                  value={row.creditAccountNumber}
+                  accounts={accounts}
+                  bookableOnly
+                  onChange={(value) => updateRow(index, { creditAccountNumber: value })}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className={cn("text-xs", adminUi.muted)}>Beschreibung</label>
+                <Input
+                  value={row.description}
+                  onChange={(e) => updateRow(index, { description: e.target.value })}
+                  className={adminUi.input}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className={cn("text-xs", adminUi.muted)}>MWST</label>
+                <Input
+                  type="number"
+                  step="0.001"
+                  value={row.taxRate || ""}
+                  onChange={(e) => updateRow(index, { taxRate: Number(e.target.value) })}
+                  className={adminUi.input}
+                  placeholder="0.081"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className={cn("text-xs", adminUi.muted)}>Betrag</label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={row.amount || ""}
+                  onChange={(e) => updateRow(index, { amount: Number(e.target.value) })}
+                  className={adminUi.input}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className={cn("text-xs", adminUi.muted)}>Währung</label>
+                <Input
+                  value={row.currency}
+                  onChange={(e) => updateRow(index, { currency: e.target.value })}
+                  className={adminUi.input}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className={cn("text-xs", adminUi.muted)}>Kurs</label>
+                <Input
+                  type="number"
+                  step="0.0001"
+                  value={row.exchangeRate || ""}
+                  onChange={(e) => updateRow(index, { exchangeRate: Number(e.target.value) })}
+                  className={adminUi.input}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className={cn("text-xs", adminUi.muted)}>Betrag CHF</label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={row.amountChf || ""}
+                  onChange={(e) => updateRow(index, { amountChf: Number(e.target.value) })}
+                  className={adminUi.input}
+                />
+              </div>
+              <div className="flex items-end justify-center pb-2">
+                <Paperclip className="h-4 w-4 text-zinc-400" aria-hidden />
+              </div>
+              <div className="flex items-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className={adminUi.outlineBtn}
+                  disabled={rows.length <= 1}
+                  onClick={() => setRows((current) => current.filter((_, i) => i !== index))}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {error && <p className={adminUi.error}>{error}</p>}
+        {!validation.valid && (
+          <p className="text-sm text-red-500">{validation.error}</p>
+        )}
+
+        <div className="flex items-center justify-between gap-3">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className={adminUi.footerBtn}
+            onClick={() => setRows((current) => [...current, emptyManualBookingRow()])}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Neue Zeile
+          </Button>
+          <Button
+            type="button"
+            disabled={saving || !validation.valid}
+            className="bg-blue-600 text-white hover:bg-blue-700"
+            onClick={() => void handleBook()}
+          >
+            {saving ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Buchen…
+              </>
+            ) : (
+              "Buchen"
+            )}
+          </Button>
+        </div>
+      </div>
+
+      <div className={cn("rounded-xl border p-4 sm:p-6", adminUi.card)}>
+        <h3 className={cn("mb-4 text-base font-semibold", adminUi.heading)}>
+          Letzte manuelle Buchungen
+        </h3>
+        {loadingHistory ? (
+          <p className={cn("flex items-center text-sm", adminUi.muted)}>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            Buchungen werden geladen…
+          </p>
+        ) : history.length === 0 ? (
+          <p className={cn("text-sm", adminUi.muted)}>Noch keine manuellen Buchungen.</p>
+        ) : (
+          <div className={adminUi.tableWrap}>
+            <Table>
+              <TableHeader>
+                <TableRow className={adminUi.tableHeadRow}>
+                  <TableHead>Datum</TableHead>
+                  <TableHead>Belegnummer</TableHead>
+                  <TableHead>Soll</TableHead>
+                  <TableHead>Haben</TableHead>
+                  <TableHead>Beschreibung</TableHead>
+                  <TableHead>MWST</TableHead>
+                  <TableHead>Kurs</TableHead>
+                  <TableHead className="text-right">Betrag</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {history.map((item, index) => (
+                  <TableRow key={`${item.entryId}-${index}`} className={adminUi.tableRow}>
+                    <TableCell>{formatDate(item.date)}</TableCell>
+                    <TableCell className="font-mono text-xs">{item.belegNummer}</TableCell>
+                    <TableCell className="whitespace-pre-line text-xs">
+                      {accountLabel(item.row.debitAccountNumber, accounts)}
+                    </TableCell>
+                    <TableCell className="whitespace-pre-line text-xs">
+                      {accountLabel(item.row.creditAccountNumber, accounts)}
+                    </TableCell>
+                    <TableCell>{item.row.description}</TableCell>
+                    <TableCell>{item.row.taxRate}</TableCell>
+                    <TableCell>{item.row.exchangeRate.toFixed(2)}</TableCell>
+                    <TableCell className="text-right font-medium">
+                      {formatChf(item.row.amountChf || item.row.amount)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </div>
+    </section>
+  )
+}

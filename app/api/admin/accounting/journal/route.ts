@@ -8,6 +8,12 @@ import {
   requireAdminSession,
 } from "@/lib/admin/require-admin-session"
 import {
+  manualRowsToJournalLines,
+  normalizeManualBookingRow,
+  validateManualBookingRows,
+  type ManualBookingRow,
+} from "@/lib/accounting/manual-booking"
+import {
   normalizeJournalLine,
   validateJournalEntryLines,
   type JournalLine,
@@ -20,10 +26,16 @@ export async function GET(request: Request) {
   try {
     const url = new URL(request.url)
     const limit = Math.min(
-      200,
-      Math.max(1, Number(url.searchParams.get("limit") ?? 50))
+      500,
+      Math.max(1, Number(url.searchParams.get("limit") ?? 100))
     )
-    const entries = await cosmosGetJournalEntries(limit)
+    const from = url.searchParams.get("from")?.trim() || undefined
+    const to = url.searchParams.get("to")?.trim() || undefined
+    const sourceParam = url.searchParams.get("source")
+    const source =
+      sourceParam === "manual" || sourceParam === "order" ? sourceParam : undefined
+
+    const entries = await cosmosGetJournalEntries({ limit, from, to, source })
     return NextResponse.json({ entries })
   } catch (error) {
     console.error("Admin-API: Journal konnte nicht geladen werden.", error)
@@ -44,18 +56,36 @@ export async function POST(request: Request) {
       belegNummer?: string
       description?: string
       lines?: JournalLine[]
+      rows?: ManualBookingRow[]
     }
 
     const date = body.date?.trim()
-    const description = body.description?.trim()
     if (!date) {
       return NextResponse.json({ error: "Buchungsdatum fehlt." }, { status: 400 })
     }
+
+    let lines: JournalLine[] = []
+    let bookingRows: ManualBookingRow[] | undefined
+    let description = body.description?.trim() ?? ""
+
+    if (body.rows?.length) {
+      bookingRows = body.rows.map(normalizeManualBookingRow)
+      const rowValidation = validateManualBookingRows(bookingRows)
+      if (!rowValidation.valid) {
+        return NextResponse.json({ error: rowValidation.error }, { status: 400 })
+      }
+      lines = manualRowsToJournalLines(bookingRows)
+      if (!description) {
+        description = bookingRows.map((row) => row.description).filter(Boolean).join(" · ")
+      }
+    } else {
+      lines = (body.lines ?? []).map(normalizeJournalLine)
+    }
+
     if (!description) {
       return NextResponse.json({ error: "Buchungstext fehlt." }, { status: 400 })
     }
 
-    const lines = (body.lines ?? []).map(normalizeJournalLine)
     const validation = validateJournalEntryLines(lines)
     if (!validation.valid) {
       return NextResponse.json({ error: validation.error }, { status: 400 })
@@ -66,6 +96,7 @@ export async function POST(request: Request) {
       belegNummer: body.belegNummer?.trim(),
       description,
       lines,
+      bookingRows,
       source: "manual",
     })
 

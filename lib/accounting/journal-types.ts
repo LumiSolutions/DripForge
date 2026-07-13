@@ -1,3 +1,5 @@
+import type { ManualBookingRow } from "@/lib/accounting/manual-booking"
+
 export type JournalLineType = "SOLL" | "HABEN"
 
 export type JournalLine = {
@@ -15,6 +17,8 @@ export type JournalEntry = {
   belegNummer: string
   description: string
   lines: JournalLine[]
+  /** Originalzeilen für manuelle Buchungen (Schweizer Buchungsmaske). */
+  bookingRows?: ManualBookingRow[]
   source: JournalEntrySource
   sourceOrderId?: string
   createdAt: string
@@ -140,6 +144,7 @@ export function normalizeJournalEntry(
     belegNummer: String(input.belegNummer ?? "").trim(),
     description: String(input.description ?? "").trim(),
     lines: (input.lines ?? []).map(normalizeJournalLine),
+    bookingRows: input.bookingRows,
     source: input.source === "order" ? "order" : "manual",
     sourceOrderId: input.sourceOrderId?.trim() || undefined,
     createdAt: input.createdAt ?? now,

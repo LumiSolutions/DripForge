@@ -85,7 +85,13 @@ export async function cosmosAllocateJournalBelegNummer(
   throw new Error("Belegnummer konnte nicht vergeben werden.")
 }
 
-export async function cosmosGetJournalEntries(limit = 100): Promise<JournalEntry[]> {
+export async function cosmosGetJournalEntries(options?: {
+  limit?: number
+  from?: string
+  to?: string
+  source?: JournalEntry["source"]
+}): Promise<JournalEntry[]> {
+  const limit = Math.min(500, Math.max(1, options?.limit ?? 200))
   const container = await getSettingsContainer()
   const querySpec: SqlQuerySpec = {
     query:
@@ -99,7 +105,17 @@ export async function cosmosGetJournalEntries(limit = 100): Promise<JournalEntry
     .query<JournalEntryCosmosDoc>(querySpec)
     .fetchAll()
 
-  return resources.map(fromJournalEntryCosmosDoc)
+  let entries = resources.map(fromJournalEntryCosmosDoc)
+  if (options?.from) {
+    entries = entries.filter((entry) => entry.date >= options.from!)
+  }
+  if (options?.to) {
+    entries = entries.filter((entry) => entry.date <= options.to!)
+  }
+  if (options?.source) {
+    entries = entries.filter((entry) => entry.source === options.source)
+  }
+  return entries
 }
 
 export async function cosmosGetJournalEntryById(
@@ -158,6 +174,7 @@ export async function cosmosCreateJournalEntry(
   input: Omit<JournalEntry, "id" | "createdAt" | "updatedAt" | "belegNummer"> & {
     id?: string
     belegNummer?: string
+    bookingRows?: JournalEntry["bookingRows"]
   }
 ): Promise<JournalEntry> {
   const now = new Date().toISOString()
@@ -170,6 +187,7 @@ export async function cosmosCreateJournalEntry(
     ...input,
     id,
     belegNummer,
+    bookingRows: input.bookingRows,
     createdAt: now,
     updatedAt: now,
   })

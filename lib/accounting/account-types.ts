@@ -24,6 +24,12 @@ export type Account = {
   taxType?: string
   /** Manuelle Bearbeitung erlaubt (Standard: true). */
   isEditable: boolean
+  /** Konto im Kontenplan aktiv (false = deaktiviert). */
+  isActive: boolean
+  /** MWST kann auf diesem Konto gebucht werden. */
+  vatBookable: boolean
+  /** Standard-MWST-Satz, z. B. 0.081 */
+  defaultVatRate: number
   createdAt: string
   updatedAt: string
 }
@@ -36,6 +42,9 @@ export type AccountCosmosDoc = Account & {
 export const CHART_ACCOUNT_DOC_TYPE = "chart-account" as const
 
 export const DEFAULT_ACCOUNT_IS_EDITABLE = true
+export const DEFAULT_ACCOUNT_IS_ACTIVE = true
+export const DEFAULT_ACCOUNT_VAT_BOOKABLE = false
+export const DEFAULT_ACCOUNT_VAT_RATE = 0.081
 
 export function chartAccountCosmosId(number: string): string {
   const normalized = normalizeAccountNumber(number)
@@ -68,9 +77,16 @@ export function normalizeAccount(input: Partial<Account> & { number: string }): 
     systemCode: trimOptional(input.systemCode),
     taxType: trimOptional(input.taxType),
     isEditable: input.isEditable ?? DEFAULT_ACCOUNT_IS_EDITABLE,
+    isActive: input.isActive ?? DEFAULT_ACCOUNT_IS_ACTIVE,
+    vatBookable: input.vatBookable ?? DEFAULT_ACCOUNT_VAT_BOOKABLE,
+    defaultVatRate: roundRate(input.defaultVatRate ?? DEFAULT_ACCOUNT_VAT_RATE),
     createdAt: input.createdAt ?? now,
     updatedAt: input.updatedAt ?? now,
   }
+}
+
+function roundRate(value: number): number {
+  return Math.round(value * 1000) / 1000
 }
 
 export function toAccountCosmosDoc(account: Account): AccountCosmosDoc {

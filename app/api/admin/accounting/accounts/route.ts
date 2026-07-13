@@ -48,6 +48,8 @@ export async function POST(request: Request) {
       type?: AccountKind
       systemCode?: string
       taxType?: string
+      vatBookable?: boolean
+      defaultVatRate?: number
     }
 
     const account = await cosmosCreateChartAccount({
@@ -57,6 +59,8 @@ export async function POST(request: Request) {
       type: body.type ?? "Aktiv",
       systemCode: body.systemCode,
       taxType: body.taxType,
+      vatBookable: body.vatBookable,
+      defaultVatRate: body.defaultVatRate,
     })
 
     return NextResponse.json({ account }, { status: 201 })

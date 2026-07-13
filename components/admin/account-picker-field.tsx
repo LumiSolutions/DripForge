@@ -12,6 +12,8 @@ type AccountPickerFieldProps = {
   accounts: Account[]
   placeholder?: string
   disabled?: boolean
+  /** Nur buchbare Konten (keine Gruppen). */
+  bookableOnly?: boolean
 }
 
 export function AccountPickerField({
@@ -20,30 +22,41 @@ export function AccountPickerField({
   accounts,
   placeholder = "Kontonummer oder Name suchen…",
   disabled = false,
+  bookableOnly = false,
 }: AccountPickerFieldProps) {
   const [query, setQuery] = useState(value)
   const [open, setOpen] = useState(false)
+
+  const selectableAccounts = useMemo(
+    () =>
+      bookableOnly
+        ? accounts.filter(
+            (account) => account.type !== "Gruppe" && account.isActive !== false
+          )
+        : accounts.filter((account) => account.isActive !== false),
+    [accounts, bookableOnly]
+  )
 
   useEffect(() => {
     setQuery(value)
   }, [value])
 
   const selected = useMemo(
-    () => accounts.find((account) => account.number === value) ?? null,
-    [accounts, value]
+    () => selectableAccounts.find((account) => account.number === value) ?? null,
+    [selectableAccounts, value]
   )
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    if (!q) return accounts.slice(0, 12)
-    return accounts
+    if (!q) return selectableAccounts.slice(0, 12)
+    return selectableAccounts
       .filter(
         (account) =>
           account.number.toLowerCase().includes(q) ||
           account.name.toLowerCase().includes(q)
       )
       .slice(0, 12)
-  }, [accounts, query])
+  }, [selectableAccounts, query])
 
   return (
     <div className="relative">
@@ -58,7 +71,7 @@ export function AccountPickerField({
         onChange={(event) => {
           const next = event.target.value
           setQuery(next)
-          const exact = accounts.find(
+          const exact = selectableAccounts.find(
             (account) =>
               account.number === next.trim() ||
               `${account.number} ${account.name}`.toLowerCase() ===
