@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState, Fragment } from "react"
-import { ChevronDown, ChevronRight, Download, Loader2 } from "lucide-react"
+import { ChevronDown, ChevronRight, Download, Loader2, Pencil } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -123,7 +123,11 @@ function AccountDetailRows({
   )
 }
 
-export function AdminAccountingReportsPanel() {
+export function AdminAccountingReportsPanel({
+  onEditEntry,
+}: {
+  onEditEntry?: (entryId: string) => void
+}) {
   const year = new Date().getFullYear()
   const [view, setView] = useState<ReportSubview>("kontenblatt")
   const [from, setFrom] = useState(`${year}-01-01`)
@@ -409,12 +413,13 @@ export function AdminAccountingReportsPanel() {
                   <TableHead>Beschreibung</TableHead>
                   <TableHead>MWST-Code</TableHead>
                   <TableHead className="text-right">Betrag</TableHead>
+                  <TableHead className="w-16 text-right">Aktionen</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {journalRows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className={cn("text-sm", adminUi.muted)}>
+                    <TableCell colSpan={8} className={cn("text-sm", adminUi.muted)}>
                       Keine Buchungen gefunden.
                     </TableCell>
                   </TableRow>
@@ -428,6 +433,17 @@ export function AdminAccountingReportsPanel() {
                       <TableCell>{row.description}</TableCell>
                       <TableCell>{row.taxCode}</TableCell>
                       <TableCell className="text-right font-medium">{formatChf(row.amount)}</TableCell>
+                      <TableCell className="text-right">
+                        <button
+                          type="button"
+                          title="Buchung bearbeiten"
+                          aria-label="Buchung bearbeiten"
+                          className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-orange-600 dark:hover:bg-zinc-800"
+                          onClick={() => onEditEntry?.(row.entryId)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                      </TableCell>
                     </TableRow>
                   ))
                 )}

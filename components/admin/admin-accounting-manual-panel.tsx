@@ -1,7 +1,15 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { ArrowLeftRight, Check, Loader2, Paperclip, Plus, X } from "lucide-react"
+import {
+  ArrowLeftRight,
+  Check,
+  Loader2,
+  Paperclip,
+  Pencil,
+  Plus,
+  X,
+} from "lucide-react"
 import {
   AccountPickerField,
   type AccountPickerHandle,
@@ -77,6 +85,53 @@ type ManualHistoryRow = {
   row: ManualBookingRow
 }
 
+function journalEntryToForm(
+  entry: JournalEntry,
+  taxCodes: TaxCode[]
+): { date: string; belegNummer: string; rows: ManualBookingRow[] } {
+  const date = String(entry.date ?? "").slice(0, 10)
+  const belegNummer = String(entry.belegNummer ?? "")
+
+  if (entry.bookingRows?.length) {
+    return {
+      date,
+      belegNummer,
+      rows: entry.bookingRows.map((row) =>
+        normalizeManualBookingRow(row, taxCodes)
+      ),
+    }
+  }
+
+  const sollLines = (entry.lines ?? []).filter((line) => line.type === "SOLL")
+  const habenLines = (entry.lines ?? []).filter((line) => line.type === "HABEN")
+  const pairs = Math.max(sollLines.length, habenLines.length, 1)
+  const rows: ManualBookingRow[] = []
+  for (let i = 0; i < pairs; i++) {
+    const soll = sollLines[i] ?? sollLines[0]
+    const haben = habenLines[i] ?? habenLines[0]
+    if (!soll || !haben) continue
+    rows.push(
+      normalizeManualBookingRow(
+        {
+          debitAccountNumber: soll.accountNumber,
+          creditAccountNumber: haben.accountNumber,
+          description: entry.description,
+          taxCode: soll.taxCode ?? haben.taxCode ?? "",
+          taxRate: soll.taxRate,
+          amount: soll.amount,
+        },
+        taxCodes
+      )
+    )
+  }
+
+  return {
+    date,
+    belegNummer,
+    rows: rows.length ? rows : [emptyManualBookingRow()],
+  }
+}
+
 function flattenManualHistory(
   entries: JournalEntry[],
   taxCodes: TaxCode[]
@@ -130,21 +185,28 @@ type AdminAccountingManualPanelProps = {
   accounts: Account[]
   taxCodes: TaxCode[]
   onBooked: () => void
+  /** Wenn gesetzt, wird diese Buchung in die Maske geladen (z. B. aus Berichten). */
+  editEntryId?: string | null
+  onEditConsumed?: () => void
 }
 
 export function AdminAccountingManualPanel({
   accounts,
   taxCodes,
   onBooked,
+  editEntryId = null,
+  onEditConsumed,
 }: AdminAccountingManualPanelProps) {
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [belegNummer, setBelegNummer] = useState("")
   const [rows, setRows] = useState<ManualBookingRow[]>([emptyManualBookingRow()])
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [history, setHistory] = useState<ManualHistoryRow[]>([])
   const [loadingHistory, setLoadingHistory] = useState(true)
+  const formRef = useRef<HTMLDivElement | null>(null)
   const fileInputRefs = useRef<Record<number, HTMLInputElement | null>>({})
   const debitPickerRefs = useRef<Record<number, AccountPickerHandle | null>>({})
   const creditPickerRefs = useRef<Record<number, AccountPickerHandle | null>>({})
@@ -152,6 +214,11 @@ export function AdminAccountingManualPanel({
   const showSaveError = (message: string) => {
     setError(message)
     window.alert(`Fehler beim Speichern der Buchung: ${message}`)
+  }
+
+  const showLoadError = (message: string) => {
+    setError(message)
+    window.alert(`Buchung konnte nicht geladen werden: ${message}`)
   }
 
   const normalizedRows = useMemo(
@@ -200,6 +267,54 @@ export function AdminAccountingManualPanel({
   useEffect(() => {
     void loadHistory()
   }, [loadHistory])
+
+  const resetForm = useCallback(() => {
+    setEditingId(null)
+    setDate(new Date().toISOString().slice(0, 10))
+    setBelegNummer("")
+    setRows([emptyManualBookingRow()])
+    setFieldErrors({})
+    setError(null)
+  }, [])
+
+  const loadEntryIntoForm = useCallback(
+    async (entryId: string) => {
+      try {
+        setError(null)
+        const res = await fetch(
+          `/api/admin/accounting/journal/${encodeURIComponent(entryId)}`,
+          { cache: "no-store" }
+        )
+        const data = (await res.json()) as {
+          entry?: JournalEntry
+          error?: string
+        }
+        if (!res.ok || !data.entry) {
+          showLoadError(data.error ?? "Buchung konnte nicht geladen werden.")
+          return
+        }
+        const form = journalEntryToForm(data.entry, taxCodes)
+        setEditingId(data.entry.id)
+        setDate(form.date)
+        setBelegNummer(form.belegNummer)
+        setRows(form.rows)
+        setFieldErrors({})
+        formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+      } catch (err) {
+        showLoadError(
+          err instanceof Error ? err.message : "Buchung konnte nicht geladen werden."
+        )
+      }
+    },
+    [taxCodes]
+  )
+
+  useEffect(() => {
+    if (!editEntryId) return
+    void loadEntryIntoForm(editEntryId).finally(() => {
+      onEditConsumed?.()
+    })
+  }, [editEntryId, loadEntryIntoForm, onEditConsumed])
 
   const updateRow = (index: number, patch: Partial<ManualBookingRow>) => {
     setRows((current) =>
@@ -372,11 +487,16 @@ export function AdminAccountingManualPanel({
         })),
       })
 
-      const res = await fetch("/api/admin/accounting/journal", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      })
+      const res = await fetch(
+        editingId
+          ? `/api/admin/accounting/journal/${encodeURIComponent(editingId)}`
+          : "/api/admin/accounting/journal",
+        {
+          method: editingId ? "PUT" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        }
+      )
 
       let data: { error?: string; entry?: JournalEntry } = {}
       try {
@@ -398,11 +518,8 @@ export function AdminAccountingManualPanel({
         return
       }
 
-      console.log("Buchung gespeichert", data.entry)
-      setRows([emptyManualBookingRow()])
-      setBelegNummer("")
-      setError(null)
-      setFieldErrors({})
+      console.log(editingId ? "Buchung aktualisiert" : "Buchung gespeichert", data.entry)
+      resetForm()
       await loadHistory()
       onBooked()
     } catch (error) {
@@ -419,8 +536,19 @@ export function AdminAccountingManualPanel({
 
   return (
     <section className="space-y-6">
-      <div className={cn("space-y-4 rounded-xl border p-4 sm:p-6", adminUi.card)}>
-        <h2 className={cn("text-lg font-semibold", adminUi.heading)}>Manuelle Buchung</h2>
+      <div
+        ref={formRef}
+        id="manual-booking-form"
+        className={cn("space-y-4 rounded-xl border p-4 sm:p-6", adminUi.card)}
+      >
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className={cn("text-lg font-semibold", adminUi.heading)}>
+            {editingId ? "Buchung bearbeiten" : "Manuelle Buchung"}
+          </h2>
+          {editingId && (
+            <p className={cn("text-xs font-mono", adminUi.muted)}>ID: {editingId}</p>
+          )}
+        </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1">
@@ -640,21 +768,36 @@ export function AdminAccountingManualPanel({
             <Plus className="mr-2 h-4 w-4" />
             Neue Zeile
           </Button>
-          <Button
-            type="button"
-            disabled={saving}
-            className="bg-blue-600 text-white hover:bg-blue-700"
-            onClick={() => void handleBook()}
-          >
-            {saving ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Buchen…
-              </>
-            ) : (
-              "Buchen"
+          <div className="flex items-center gap-2">
+            {editingId && (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={saving}
+                className={adminUi.outlineBtn}
+                onClick={resetForm}
+              >
+                Abbrechen
+              </Button>
             )}
-          </Button>
+            <Button
+              type="button"
+              disabled={saving}
+              className="bg-blue-600 text-white hover:bg-blue-700"
+              onClick={() => void handleBook()}
+            >
+              {saving ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  {editingId ? "Aktualisieren…" : "Buchen…"}
+                </>
+              ) : editingId ? (
+                "Buchung aktualisieren"
+              ) : (
+                "Buchen"
+              )}
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -681,6 +824,7 @@ export function AdminAccountingManualPanel({
                   <TableHead>Beschreibung</TableHead>
                   <TableHead>MWST</TableHead>
                   <TableHead className="text-right">Betrag</TableHead>
+                  <TableHead className="w-16 text-right">Aktionen</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -707,6 +851,20 @@ export function AdminAccountingManualPanel({
                     </TableCell>
                     <TableCell className="text-right font-medium">
                       {formatChf(item.row.amount)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <button
+                        type="button"
+                        title="Buchung bearbeiten"
+                        aria-label="Buchung bearbeiten"
+                        className={cn(
+                          "inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-orange-600 dark:hover:bg-zinc-800",
+                          editingId === item.entryId && "text-orange-600"
+                        )}
+                        onClick={() => void loadEntryIntoForm(item.entryId)}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
                     </TableCell>
                   </TableRow>
                 ))}

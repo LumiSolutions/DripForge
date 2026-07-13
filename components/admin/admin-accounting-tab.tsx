@@ -16,6 +16,7 @@ type AccountingSubview = "dashboard" | "manual" | "accounts" | "tax-codes" | "re
 
 export function AdminAccountingTab() {
   const [view, setView] = useState<AccountingSubview>("dashboard")
+  const [editEntryId, setEditEntryId] = useState<string | null>(null)
   const [accounts, setAccounts] = useState<Account[]>([])
   const [taxCodes, setTaxCodes] = useState<TaxCode[]>([])
   const [loadingAccounts, setLoadingAccounts] = useState(true)
@@ -163,6 +164,15 @@ export function AdminAccountingTab() {
     }
   }
 
+  const handleEditConsumed = useCallback(() => {
+    setEditEntryId(null)
+  }, [])
+
+  const handleEditFromReports = useCallback((entryId: string) => {
+    setEditEntryId(entryId)
+    setView("manual")
+  }, [])
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -205,6 +215,8 @@ export function AdminAccountingTab() {
         <AdminAccountingManualPanel
           accounts={accounts}
           taxCodes={taxCodes}
+          editEntryId={editEntryId}
+          onEditConsumed={handleEditConsumed}
           onBooked={() => undefined}
         />
       )}
@@ -228,7 +240,9 @@ export function AdminAccountingTab() {
       {view === "tax-codes" && (
         <AdminAccountingTaxCodesPanel />
       )}
-      {view === "reports" && <AdminAccountingReportsPanel />}
+      {view === "reports" && (
+        <AdminAccountingReportsPanel onEditEntry={handleEditFromReports} />
+      )}
     </div>
   )
 }

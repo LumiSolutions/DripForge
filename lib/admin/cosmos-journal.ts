@@ -211,3 +211,33 @@ export async function cosmosCreateJournalEntry(
     updatedAt: now,
   })
 }
+
+export async function cosmosUpdateJournalEntry(
+  id: string,
+  input: {
+    date: string
+    belegNummer?: string
+    description: string
+    lines: JournalEntry["lines"]
+    bookingRows?: JournalEntry["bookingRows"]
+  }
+): Promise<JournalEntry> {
+  const existing = await cosmosGetJournalEntryById(id)
+  if (!existing) {
+    throw new Error("Buchung nicht gefunden.")
+  }
+
+  const now = new Date().toISOString()
+  return cosmosUpsertJournalEntry({
+    ...existing,
+    date: input.date,
+    belegNummer: input.belegNummer?.trim() || existing.belegNummer || "",
+    description: input.description,
+    lines: input.lines,
+    bookingRows: input.bookingRows,
+    // source / sourceOrderId bleiben erhalten – nur manuelle Felder ändern
+    updatedAt: now,
+    createdAt: existing.createdAt,
+    id: existing.id,
+  })
+}
