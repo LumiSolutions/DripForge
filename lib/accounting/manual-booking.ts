@@ -8,6 +8,14 @@ import {
 import { normalizeAccountNumber } from "@/lib/accounting/account-types"
 import type { TaxCode } from "@/lib/accounting/tax-code-types"
 
+/** Angehängter Beleg (Bild/PDF) als Base64-Data-URL. */
+export type ManualBookingAttachment = {
+  name: string
+  mimeType: string
+  size: number
+  dataUrl: string
+}
+
 export type ManualBookingRow = {
   debitAccountNumber: string
   creditAccountNumber: string
@@ -20,6 +28,8 @@ export type ManualBookingRow = {
   taxAmount: number
   /** Buchungsbetrag in CHF. */
   amount: number
+  /** Optionaler Beleg-Anhang. */
+  attachment?: ManualBookingAttachment | null
 }
 
 function roundChf(value: number): number {
@@ -35,6 +45,7 @@ export function emptyManualBookingRow(): ManualBookingRow {
     taxRate: 0,
     taxAmount: 0,
     amount: 0,
+    attachment: null,
   }
 }
 
@@ -55,6 +66,19 @@ export function applyTaxCodeToRow(
     taxRate: rate,
     taxAmount,
   }
+}
+
+function normalizeAttachment(
+  value: unknown
+): ManualBookingAttachment | null {
+  if (!value || typeof value !== "object") return null
+  const att = value as Partial<ManualBookingAttachment>
+  const name = String(att.name ?? "").trim()
+  const mimeType = String(att.mimeType ?? "").trim()
+  const dataUrl = String(att.dataUrl ?? "").trim()
+  const size = Number(att.size) || 0
+  if (!name || !mimeType || !dataUrl) return null
+  return { name, mimeType, size, dataUrl }
 }
 
 export function normalizeManualBookingRow(
@@ -90,7 +114,28 @@ export function normalizeManualBookingRow(
     taxRate,
     taxAmount,
     amount,
+    attachment: normalizeAttachment(row.attachment),
   }
+}
+
+/** Payload für die Journal-API (Zahlen als number, Datum separat). */
+export function toManualBookingApiRows(
+  rows: ManualBookingRow[],
+  taxCodes: TaxCode[] = []
+): ManualBookingRow[] {
+  return rows.map((row) => {
+    const normalized = normalizeManualBookingRow(row, taxCodes)
+    return {
+      debitAccountNumber: normalized.debitAccountNumber,
+      creditAccountNumber: normalized.creditAccountNumber,
+      description: normalized.description,
+      taxCode: normalized.taxCode,
+      taxRate: Number(normalized.taxRate) || 0,
+      taxAmount: Number(normalized.taxAmount) || 0,
+      amount: Number(normalized.amount) || 0,
+      attachment: normalized.attachment,
+    }
+  })
 }
 
 export function manualRowsToJournalLines(rows: ManualBookingRow[]): JournalLine[] {
@@ -151,4 +196,17 @@ export function validateManualBookingRows(rows: ManualBookingRow[]): {
   }
 
   return { valid: true }
+}
+
+export function defaultBookingDescription(rows: ManualBookingRow[]): string {
+  const texts = rows
+    .map((row) => {
+      if (row.description.trim()) return row.description.trim()
+      if (row.debitAccountNumber && row.creditAccountNumber) {
+        return `${row.debitAccountNumber} an ${row.creditAccountNumber}`
+      }
+      return ""
+    })
+    .filter(Boolean)
+  return texts.join(" · ") || "Manuelle Buchung"
 }

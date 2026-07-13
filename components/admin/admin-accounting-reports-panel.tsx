@@ -1,7 +1,7 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
-import { Download, Loader2 } from "lucide-react"
+import { useCallback, useEffect, useMemo, useState, Fragment } from "react"
+import { ChevronDown, ChevronRight, Download, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -22,6 +22,7 @@ import {
   type IncomeStatementLine,
   type JournalReportRow,
   type LedgerRow,
+  type ReportAccountDetail,
 } from "@/lib/accounting/reports"
 import { formatChf } from "@/lib/admin/format-chf"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
@@ -79,6 +80,49 @@ function ExportButton({
   )
 }
 
+function AccountDetailRows({
+  accounts,
+  indentClass,
+}: {
+  accounts: ReportAccountDetail[]
+  indentClass: string
+}) {
+  if (!accounts.length) {
+    return (
+      <TableRow className={adminUi.tableRow}>
+        <TableCell colSpan={2} className={cn("text-xs", indentClass, adminUi.muted)}>
+          Keine Einzelkonten in dieser Gruppe.
+        </TableCell>
+      </TableRow>
+    )
+  }
+
+  return (
+    <>
+      {accounts.map((account) => (
+        <TableRow key={account.number} className={cn(adminUi.tableRow, "bg-zinc-50/60 dark:bg-zinc-900/40")}>
+          <TableCell className={cn("py-1.5 text-xs", indentClass)}>
+            <span className="font-mono text-zinc-500">{account.number}</span>{" "}
+            {account.name}
+          </TableCell>
+          <TableCell
+            className={cn(
+              "py-1.5 text-right text-xs font-medium",
+              account.amount > 0
+                ? "text-emerald-600"
+                : account.amount < 0
+                  ? "text-red-600"
+                  : undefined
+            )}
+          >
+            {formatChf(account.amount)}
+          </TableCell>
+        </TableRow>
+      ))}
+    </>
+  )
+}
+
 export function AdminAccountingReportsPanel() {
   const year = new Date().getFullYear()
   const [view, setView] = useState<ReportSubview>("kontenblatt")
@@ -90,6 +134,11 @@ export function AdminAccountingReportsPanel() {
   const [data, setData] = useState<ReportsPayload>(() =>
     emptyReportsPayload(`${year}-01-01`, `${year}-12-31`)
   )
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
+
+  const toggleExpanded = (id: string) => {
+    setExpanded((current) => ({ ...current, [id]: !current[id] }))
+  }
 
   const loadReports = useCallback(async () => {
     setLoading(true)
@@ -388,37 +437,65 @@ export function AdminAccountingReportsPanel() {
         ) : view === "erfolgsrechnung" ? (
           <div className="space-y-2">
             <p className={cn("text-sm", adminUi.muted)}>
-              Interne Erfolgsrechnung nach Schweizer KMU-Kontenrahmen ({from} – {to})
+              Interne Erfolgsrechnung nach Schweizer KMU-Kontenrahmen ({from} – {to}).
+              Gruppen mit Pfeil sind aufklappbar.
             </p>
             <div className={adminUi.tableWrap}>
               <Table>
                 <TableBody>
-                  {incomeStatement.map((line) => (
-                    <TableRow key={line.id} className={adminUi.tableRow}>
-                      <TableCell
-                        className={cn(
-                          line.level === 0 && "font-semibold",
-                          line.level === 1 && "pl-6",
-                          line.level === 2 && "pl-10 text-sm"
+                  {incomeStatement.map((line) => {
+                    const canExpand = Boolean(line.expandable)
+                    const isOpen = Boolean(expanded[line.id])
+                    return (
+                      <Fragment key={line.id}>
+                        <TableRow className={adminUi.tableRow}>
+                          <TableCell
+                            className={cn(
+                              line.level === 0 && "font-semibold",
+                              line.level === 1 && "pl-4",
+                              line.level === 2 && "pl-8 text-sm"
+                            )}
+                          >
+                            {canExpand ? (
+                              <button
+                                type="button"
+                                className="inline-flex items-center gap-1 text-left hover:underline"
+                                onClick={() => toggleExpanded(line.id)}
+                              >
+                                {isOpen ? (
+                                  <ChevronDown className="h-4 w-4 shrink-0" />
+                                ) : (
+                                  <ChevronRight className="h-4 w-4 shrink-0" />
+                                )}
+                                {line.label}
+                              </button>
+                            ) : (
+                              line.label
+                            )}
+                          </TableCell>
+                          <TableCell
+                            className={cn(
+                              "text-right font-medium",
+                              line.emphasis && "font-bold",
+                              line.amount > 0
+                                ? "text-emerald-600"
+                                : line.amount < 0
+                                  ? "text-red-600"
+                                  : undefined
+                            )}
+                          >
+                            {formatChf(line.amount)}
+                          </TableCell>
+                        </TableRow>
+                        {canExpand && isOpen && (
+                          <AccountDetailRows
+                            accounts={line.accounts ?? []}
+                            indentClass={line.level === 1 ? "pl-12" : "pl-16"}
+                          />
                         )}
-                      >
-                        {line.label}
-                      </TableCell>
-                      <TableCell
-                        className={cn(
-                          "text-right font-medium",
-                          line.emphasis && "font-bold",
-                          line.amount > 0
-                            ? "text-emerald-600"
-                            : line.amount < 0
-                              ? "text-red-600"
-                              : undefined
-                        )}
-                      >
-                        {formatChf(line.amount)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                      </Fragment>
+                    )
+                  })}
                 </TableBody>
               </Table>
             </div>
@@ -431,27 +508,60 @@ export function AdminAccountingReportsPanel() {
                   <TableBody>
                     {balanceSheet
                       .filter((line) => line.section === section)
-                      .map((line) => (
-                        <TableRow key={line.id} className={adminUi.tableRow}>
-                          <TableCell
-                            className={cn(
-                              line.level === 0 && "font-semibold uppercase",
-                              line.level === 1 && "pl-4",
-                              line.level === 2 && "pl-8 text-sm"
+                      .map((line) => {
+                        const canExpand = Boolean(line.expandable)
+                        const isOpen = Boolean(expanded[line.id])
+                        return (
+                          <Fragment key={line.id}>
+                            <TableRow className={adminUi.tableRow}>
+                              <TableCell
+                                className={cn(
+                                  line.level === 0 && "font-semibold uppercase",
+                                  line.level === 1 && "pl-2",
+                                  line.level === 2 && "pl-6 text-sm"
+                                )}
+                              >
+                                {canExpand ? (
+                                  <button
+                                    type="button"
+                                    className="inline-flex items-center gap-1 text-left hover:underline"
+                                    onClick={() => toggleExpanded(line.id)}
+                                  >
+                                    {isOpen ? (
+                                      <ChevronDown className="h-4 w-4 shrink-0" />
+                                    ) : (
+                                      <ChevronRight className="h-4 w-4 shrink-0" />
+                                    )}
+                                    {line.label}
+                                  </button>
+                                ) : (
+                                  line.label
+                                )}
+                              </TableCell>
+                              <TableCell
+                                className={cn(
+                                  "text-right font-medium",
+                                  line.emphasis && "font-bold"
+                                )}
+                              >
+                                {formatChf(line.amount)}
+                              </TableCell>
+                            </TableRow>
+                            {canExpand && isOpen && (
+                              <AccountDetailRows
+                                accounts={line.accounts ?? []}
+                                indentClass={
+                                  line.level === 1
+                                    ? "pl-8"
+                                    : line.level === 2
+                                      ? "pl-12"
+                                      : "pl-4"
+                                }
+                              />
                             )}
-                          >
-                            {line.label}
-                          </TableCell>
-                          <TableCell
-                            className={cn(
-                              "text-right font-medium",
-                              line.emphasis && "font-bold"
-                            )}
-                          >
-                            {formatChf(line.amount)}
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                          </Fragment>
+                        )
+                      })}
                   </TableBody>
                 </Table>
               </div>

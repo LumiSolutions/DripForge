@@ -9,6 +9,7 @@ import {
   requireAdminSession,
 } from "@/lib/admin/require-admin-session"
 import {
+  defaultBookingDescription,
   manualRowsToJournalLines,
   normalizeManualBookingRow,
   validateManualBookingRows,
@@ -78,7 +79,7 @@ export async function POST(request: Request) {
       }
       lines = manualRowsToJournalLines(bookingRows)
       if (!description) {
-        description = bookingRows.map((row) => row.description).filter(Boolean).join(" · ")
+        description = defaultBookingDescription(bookingRows)
       }
     } else {
       lines = (body.lines ?? []).map(normalizeJournalLine)

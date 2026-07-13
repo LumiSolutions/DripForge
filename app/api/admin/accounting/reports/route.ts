@@ -49,8 +49,8 @@ export async function GET(request: Request) {
       to,
       ledger: buildLedgerRows(safeEntries, safeAccounts, from, to, account),
       journal: buildJournalReportRows(safeEntries, safeAccounts, from, to),
-      incomeStatement: buildIncomeStatement(safeEntries, from, to),
-      balanceSheet: buildBalanceSheet(safeEntries, to),
+      incomeStatement: buildIncomeStatement(safeEntries, from, to, safeAccounts),
+      balanceSheet: buildBalanceSheet(safeEntries, to, safeAccounts),
       accounts: safeAccounts.filter((item) => item.type !== "Gruppe"),
     })
   } catch (error) {

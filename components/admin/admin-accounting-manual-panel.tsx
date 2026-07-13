@@ -1,7 +1,7 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
-import { ArrowLeftRight, Loader2, Paperclip, Plus, X } from "lucide-react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { ArrowLeftRight, Check, Loader2, Paperclip, Plus, X } from "lucide-react"
 import { AccountPickerField } from "@/components/admin/account-picker-field"
 import { TaxCodeSelectField } from "@/components/admin/tax-code-select-field"
 import { Button } from "@/components/ui/button"
@@ -18,9 +18,12 @@ import type { Account } from "@/lib/accounting/account-types"
 import type { JournalEntry } from "@/lib/accounting/journal-types"
 import {
   applyTaxCodeToRow,
+  defaultBookingDescription,
   emptyManualBookingRow,
   normalizeManualBookingRow,
+  toManualBookingApiRows,
   validateManualBookingRows,
+  type ManualBookingAttachment,
   type ManualBookingRow,
 } from "@/lib/accounting/manual-booking"
 import { formatTaxCodePercent } from "@/lib/accounting/tax-code-utils"
@@ -28,6 +31,8 @@ import type { TaxCode } from "@/lib/accounting/tax-code-types"
 import { formatChf } from "@/lib/admin/format-chf"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
 import { cn } from "@/lib/utils"
+
+const MAX_ATTACHMENT_BYTES = 2 * 1024 * 1024
 
 function formatDate(iso: string): string {
   return new Intl.DateTimeFormat("de-CH", { dateStyle: "medium" }).format(
@@ -44,6 +49,15 @@ function taxCodeLabel(code: string, taxCodes: TaxCode[]): string {
   if (!code) return "—"
   const match = taxCodes.find((item) => item.code === code)
   return match ? `${match.code} (${formatTaxCodePercent(match.rate)})` : code
+}
+
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result ?? ""))
+    reader.onerror = () => reject(new Error("Datei konnte nicht gelesen werden."))
+    reader.readAsDataURL(file)
+  })
 }
 
 type ManualHistoryRow = {
@@ -112,6 +126,7 @@ export function AdminAccountingManualPanel({
   const [error, setError] = useState<string | null>(null)
   const [history, setHistory] = useState<ManualHistoryRow[]>([])
   const [loadingHistory, setLoadingHistory] = useState(true)
+  const fileInputRefs = useRef<Record<number, HTMLInputElement | null>>({})
 
   const normalizedRows = useMemo(
     () => rows.map((row) => normalizeManualBookingRow(row, taxCodes)),
@@ -128,8 +143,16 @@ export function AdminAccountingManualPanel({
       const res = await fetch("/api/admin/accounting/journal?source=manual&limit=80", {
         cache: "no-store",
       })
-      const data = (await res.json()) as { entries?: JournalEntry[] }
+      const data = (await res.json()) as { entries?: JournalEntry[]; error?: string }
+      if (!res.ok) {
+        console.error("Historie laden fehlgeschlagen:", data.error)
+        setHistory([])
+        return
+      }
       setHistory(flattenManualHistory(data.entries ?? [], taxCodes))
+    } catch (err) {
+      console.error("Historie laden fehlgeschlagen:", err)
+      setHistory([])
     } finally {
       setLoadingHistory(false)
     }
@@ -156,34 +179,118 @@ export function AdminAccountingManualPanel({
           patch.creditAccountNumber != null
         ) {
           next = normalizeManualBookingRow(next, taxCodes)
+        } else if (patch.attachment !== undefined) {
+          next = normalizeManualBookingRow(next, taxCodes)
         }
         return next
       })
     )
   }
 
+  const handleAttachment = async (index: number, file: File | null) => {
+    if (!file) {
+      updateRow(index, { attachment: null })
+      return
+    }
+    if (file.size > MAX_ATTACHMENT_BYTES) {
+      const message = "Anhang max. 2 MB (Bild oder PDF)."
+      setError(message)
+      window.alert(message)
+      return
+    }
+    try {
+      const dataUrl = await readFileAsDataUrl(file)
+      const attachment: ManualBookingAttachment = {
+        name: file.name,
+        mimeType: file.type || "application/octet-stream",
+        size: file.size,
+        dataUrl,
+      }
+      updateRow(index, { attachment })
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Anhang konnte nicht gelesen werden."
+      setError(message)
+      window.alert(message)
+    }
+  }
+
   const handleBook = async () => {
+    console.log("Speichern gestartet", rows)
     setSaving(true)
     setError(null)
+
     try {
-      if (!validation.valid) throw new Error(validation.error)
+      const apiRows = toManualBookingApiRows(rows, taxCodes)
+      const check = validateManualBookingRows(apiRows)
+      console.log("Validierung", check, apiRows)
+
+      if (!check.valid) {
+        const message = check.error ?? "Buchung ungültig."
+        setError(message)
+        window.alert(message)
+        return
+      }
+
+      const bookingDate = date.slice(0, 10)
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(bookingDate)) {
+        const message = "Ungültiges Datumsformat (erwartet YYYY-MM-DD)."
+        setError(message)
+        window.alert(message)
+        return
+      }
+
+      const payload = {
+        date: bookingDate,
+        belegNummer: belegNummer.trim() || undefined,
+        description: defaultBookingDescription(apiRows),
+        rows: apiRows.map((row) => ({
+          debitAccountNumber: row.debitAccountNumber,
+          creditAccountNumber: row.creditAccountNumber,
+          description: row.description || defaultBookingDescription([row]),
+          taxCode: row.taxCode,
+          taxRate: Number(row.taxRate) || 0,
+          taxAmount: Number(row.taxAmount) || 0,
+          amount: Number(row.amount) || 0,
+          attachment: row.attachment ?? null,
+        })),
+      }
+
+      console.log("API-Payload", payload)
+
       const res = await fetch("/api/admin/accounting/journal", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          date,
-          belegNummer: belegNummer.trim() || undefined,
-          rows: normalizedRows,
-        }),
+        body: JSON.stringify(payload),
       })
-      const data = (await res.json()) as { error?: string }
-      if (!res.ok) throw new Error(data.error ?? "Buchung fehlgeschlagen.")
+
+      let data: { error?: string; entry?: JournalEntry } = {}
+      try {
+        data = (await res.json()) as { error?: string; entry?: JournalEntry }
+      } catch {
+        data = { error: `Unerwartete Server-Antwort (HTTP ${res.status}).` }
+      }
+
+      if (!res.ok) {
+        const message = data.error ?? `Buchung fehlgeschlagen (HTTP ${res.status}).`
+        console.error("Buchung Fehler:", message, data)
+        setError(message)
+        window.alert(message)
+        return
+      }
+
+      console.log("Buchung gespeichert", data.entry)
       setRows([emptyManualBookingRow()])
       setBelegNummer("")
+      setError(null)
       await loadHistory()
       onBooked()
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Buchung fehlgeschlagen.")
+      const message =
+        err instanceof Error ? err.message : "Buchung fehlgeschlagen."
+      console.error("Buchung Exception:", err)
+      setError(message)
+      window.alert(message)
     } finally {
       setSaving(false)
     }
@@ -209,7 +316,7 @@ export function AdminAccountingManualPanel({
             <Input
               value={belegNummer}
               onChange={(e) => setBelegNummer(e.target.value)}
-              placeholder="z. B. 89"
+              placeholder="z. B. 89 (optional)"
               className={adminUi.input}
             />
           </div>
@@ -218,6 +325,7 @@ export function AdminAccountingManualPanel({
         <div className="space-y-3">
           {rows.map((row, index) => {
             const normalized = normalizedRows[index] ?? row
+            const hasAttachment = Boolean(row.attachment?.dataUrl)
             return (
               <div
                 key={`booking-row-${index}`}
@@ -262,6 +370,7 @@ export function AdminAccountingManualPanel({
                     value={row.description}
                     onChange={(e) => updateRow(index, { description: e.target.value })}
                     className={adminUi.input}
+                    placeholder="Buchungstext (optional)"
                   />
                 </div>
                 <div className="min-w-[280px] flex-[1.5] basis-[280px]">
@@ -296,7 +405,39 @@ export function AdminAccountingManualPanel({
                   />
                 </div>
                 <div className="flex shrink-0 items-end self-center pb-2">
-                  <Paperclip className="h-4 w-4 text-zinc-400" aria-hidden />
+                  <input
+                    ref={(el) => {
+                      fileInputRefs.current[index] = el
+                    }}
+                    type="file"
+                    accept="image/*,application/pdf"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] ?? null
+                      void handleAttachment(index, file)
+                      e.target.value = ""
+                    }}
+                  />
+                  <button
+                    type="button"
+                    title={
+                      hasAttachment
+                        ? `Anhang: ${row.attachment?.name}`
+                        : "Beleg anhängen (Bild/PDF)"
+                    }
+                    className={cn(
+                      "relative flex h-10 w-10 cursor-pointer items-center justify-center rounded-md border transition-colors",
+                      hasAttachment
+                        ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-600"
+                        : "border-zinc-200 text-zinc-400 hover:bg-zinc-50 dark:border-zinc-700"
+                    )}
+                    onClick={() => fileInputRefs.current[index]?.click()}
+                  >
+                    <Paperclip className="h-4 w-4" />
+                    {hasAttachment && (
+                      <Check className="absolute -right-1 -top-1 h-3.5 w-3.5 rounded-full bg-emerald-500 p-0.5 text-white" />
+                    )}
+                  </button>
                 </div>
                 <div className="flex shrink-0 items-end">
                   <Button
@@ -317,7 +458,7 @@ export function AdminAccountingManualPanel({
 
         {error && <p className={adminUi.error}>{error}</p>}
         {!validation.valid && (
-          <p className="text-sm text-red-500">{validation.error}</p>
+          <p className="text-sm text-amber-600 dark:text-amber-400">{validation.error}</p>
         )}
 
         <div className="flex items-center justify-between gap-3">
@@ -333,7 +474,7 @@ export function AdminAccountingManualPanel({
           </Button>
           <Button
             type="button"
-            disabled={saving || !validation.valid}
+            disabled={saving}
             className="bg-blue-600 text-white hover:bg-blue-700"
             onClick={() => void handleBook()}
           >
@@ -385,7 +526,14 @@ export function AdminAccountingManualPanel({
                     <TableCell className="whitespace-pre-line text-xs">
                       {accountLabel(item.row.creditAccountNumber, accounts)}
                     </TableCell>
-                    <TableCell>{item.row.description}</TableCell>
+                    <TableCell>
+                      <span className="inline-flex items-center gap-1">
+                        {item.row.description}
+                        {item.row.attachment && (
+                          <Paperclip className="h-3 w-3 text-emerald-600" aria-label="Mit Anhang" />
+                        )}
+                      </span>
+                    </TableCell>
                     <TableCell className="text-xs">
                       {taxCodeLabel(item.row.taxCode, taxCodes)}
                     </TableCell>
