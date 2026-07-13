@@ -17,10 +17,8 @@ export type ManualBookingRow = {
   taxRate: number
   /** Angezeigter MWST-Betrag (0.00 bei U00/V00). */
   taxAmount: number
+  /** Buchungsbetrag in CHF. */
   amount: number
-  currency: string
-  exchangeRate: number
-  amountChf: number
 }
 
 function roundChf(value: number): number {
@@ -36,9 +34,6 @@ export function emptyManualBookingRow(): ManualBookingRow {
     taxRate: 0,
     taxAmount: 0,
     amount: 0,
-    currency: "CHF",
-    exchangeRate: 1,
-    amountChf: 0,
   }
 }
 
@@ -49,10 +44,9 @@ export function applyTaxCodeToRow(
 ): ManualBookingRow {
   const normalized = normalizeManualBookingRow(row, taxCodes)
   const rate = resolveTaxRateFromCode(taxCode, taxCodes)
-  const netAmount = normalized.amountChf > 0 ? normalized.amountChf : normalized.amount
   const taxAmount = isZeroVatAmountTaxCode(taxCode)
     ? 0
-    : computeVatAmount(netAmount, rate, taxCode)
+    : computeVatAmount(normalized.amount, rate, taxCode)
 
   return {
     ...normalized,
@@ -63,27 +57,29 @@ export function applyTaxCodeToRow(
 }
 
 export function normalizeManualBookingRow(
-  row: Partial<ManualBookingRow>,
+  row: Partial<ManualBookingRow> & {
+    /** Legacy-Felder aus älteren Buchungen. */
+    amountChf?: number
+    currency?: string
+    exchangeRate?: number
+  },
   taxCodes: TaxCode[] = []
 ): ManualBookingRow {
-  const amount = roundChf(Number(row.amount) || 0)
-  const exchangeRate = roundChf(Number(row.exchangeRate) || 1) || 1
-  const amountChf = roundChf(
-    row.amountChf != null && row.amountChf > 0
-      ? Number(row.amountChf)
-      : amount * exchangeRate
+  const amount = roundChf(
+    Number(row.amount) ||
+      Number(row.amountChf) ||
+      0
   )
   const taxCode = String(row.taxCode ?? "").trim().toUpperCase()
   const taxRate =
     taxCode && taxCodes.length
       ? resolveTaxRateFromCode(taxCode, taxCodes)
       : roundChf(Number(row.taxRate) || 0)
-  const netAmount = amountChf > 0 ? amountChf : amount
   const taxAmount = isZeroVatAmountTaxCode(taxCode)
     ? 0
     : row.taxAmount != null
       ? roundChf(Number(row.taxAmount))
-      : computeVatAmount(netAmount, taxRate, taxCode)
+      : computeVatAmount(amount, taxRate, taxCode)
 
   return {
     debitAccountNumber: String(row.debitAccountNumber ?? "").trim(),
@@ -93,18 +89,14 @@ export function normalizeManualBookingRow(
     taxRate,
     taxAmount,
     amount,
-    currency: String(row.currency ?? "CHF").trim() || "CHF",
-    exchangeRate,
-    amountChf,
   }
 }
 
 export function manualRowsToJournalLines(rows: ManualBookingRow[]): JournalLine[] {
   const lines: JournalLine[] = []
   for (const row of rows) {
-    const amount = row.amountChf > 0 ? row.amountChf : row.amount
     const lineBase = {
-      amount,
+      amount: row.amount,
       taxRate: row.taxRate,
       taxCode: row.taxCode || undefined,
     }
@@ -143,8 +135,7 @@ export function validateManualBookingRows(rows: ManualBookingRow[]): {
         error: `Zeile ${index + 1}: Soll- und Haben-Konto dürfen nicht identisch sein.`,
       }
     }
-    const amount = row.amountChf > 0 ? row.amountChf : row.amount
-    if (!Number.isFinite(amount) || amount <= 0) {
+    if (!Number.isFinite(row.amount) || row.amount <= 0) {
       return {
         valid: false,
         error: `Zeile ${index + 1}: Betrag muss grösser als 0 sein.`,

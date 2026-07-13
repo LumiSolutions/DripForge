@@ -27,7 +27,11 @@ export function TaxCodeSelectField({
       value={value}
       disabled={disabled}
       onChange={(e) => onChange(e.target.value)}
-      className={cn("h-10 w-full rounded-md border px-2 text-xs sm:text-sm", adminUi.select, className)}
+      className={cn(
+        "h-10 w-full min-w-[260px] rounded-md border px-2 text-xs sm:text-sm",
+        adminUi.select,
+        className
+      )}
     >
       <option value="">{placeholder}</option>
       {taxCodes.map((taxCode) => (

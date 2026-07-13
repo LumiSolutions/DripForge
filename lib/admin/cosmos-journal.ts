@@ -36,16 +36,21 @@ export async function cosmosAllocateJournalBelegNummer(
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
-      const { resource, etag } = await container
-        .item(JOURNAL_COUNTER_DOC_ID, JOURNAL_COUNTER_DOC_ID)
-        .read<JournalCounterDoc>()
-
-      if (!resource || !etag) {
-        throw new Error("Journal-Counter ohne ETag.")
+      let current: JournalCounterDoc | null = null
+      try {
+        const { resource } = await container
+          .item(JOURNAL_COUNTER_DOC_ID, JOURNAL_COUNTER_DOC_ID)
+          .read<JournalCounterDoc>()
+        current = resource ?? null
+      } catch (error) {
+        if (cosmosErrorCode(error) !== 404) {
+          logCosmosError("cosmosAllocateJournalBelegNummer:read", error)
+          throw error
+        }
       }
 
       const nextSequence =
-        resource.year === year ? resource.lastSequence + 1 : 1
+        current?.year === year ? current.lastSequence + 1 : 1
       const nextDoc: JournalCounterDoc = {
         id: JOURNAL_COUNTER_DOC_ID,
         year,
@@ -53,30 +58,11 @@ export async function cosmosAllocateJournalBelegNummer(
         updatedAt: new Date().toISOString(),
       }
 
-      await container.item(JOURNAL_COUNTER_DOC_ID, JOURNAL_COUNTER_DOC_ID).replace(
-        nextDoc,
-        { accessCondition: { type: "IfMatch", condition: etag } }
-      )
-
+      await container.items.upsert(nextDoc)
       return `${year}-${String(nextSequence).padStart(4, "0")}`
     } catch (error) {
       const code = cosmosErrorCode(error)
-      if (code === 404) {
-        const doc: JournalCounterDoc = {
-          id: JOURNAL_COUNTER_DOC_ID,
-          year,
-          lastSequence: 1,
-          updatedAt: new Date().toISOString(),
-        }
-        try {
-          await container.items.create(doc)
-          return `${year}-0001`
-        } catch (createError) {
-          if (cosmosErrorCode(createError) === 409) continue
-          throw createError
-        }
-      }
-      if (code === 412 || code === 449) continue
+      if (code === 409 || code === 412 || code === 449) continue
       logCosmosError("cosmosAllocateJournalBelegNummer", error)
       throw error
     }

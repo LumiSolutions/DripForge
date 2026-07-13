@@ -86,9 +86,6 @@ function flattenManualHistory(
           taxCode: soll.taxCode ?? "",
           taxRate: soll.taxRate,
           amount: soll.amount,
-          currency: "CHF",
-          exchangeRate: 1,
-          amountChf: soll.amount,
         },
         taxCodes
       ),
@@ -149,7 +146,7 @@ export function AdminAccountingManualPanel({
         let next = { ...row, ...patch }
         if (patch.taxCode != null) {
           next = applyTaxCodeToRow(next, patch.taxCode, taxCodes)
-        } else if (patch.amount != null || patch.exchangeRate != null || patch.amountChf != null) {
+        } else if (patch.amount != null) {
           next = normalizeManualBookingRow(next, taxCodes)
           if (next.taxCode) {
             next = applyTaxCodeToRow(next, next.taxCode, taxCodes)
@@ -213,23 +210,24 @@ export function AdminAccountingManualPanel({
           </div>
         </div>
 
-        <div className="space-y-3">
+        <div className="space-y-3 overflow-x-auto">
           {rows.map((row, index) => {
             const normalized = normalizedRows[index] ?? row
             return (
               <div
                 key={`booking-row-${index}`}
                 className={cn(
-                  "grid gap-2 rounded-lg border p-3 lg:grid-cols-[minmax(140px,1fr)_auto_minmax(140px,1fr)_minmax(160px,1.2fr)_minmax(150px,1fr)_72px_88px_64px_56px_56px_40px_40px] lg:items-end",
+                  "flex min-w-[1100px] flex-wrap items-end gap-3 rounded-lg border p-3 lg:flex-nowrap",
                   adminUi.cardMuted
                 )}
               >
-                <div className="space-y-1">
-                  <label className={cn("text-xs", adminUi.muted)}>Soll-Konto</label>
+                <div className="min-w-[190px] flex-[1.2] basis-[190px]">
+                  <label className={cn("mb-1 block text-xs", adminUi.muted)}>Soll-Konto</label>
                   <AccountPickerField
                     value={row.debitAccountNumber}
                     accounts={accounts}
                     bookableOnly
+                    className="w-full"
                     onChange={(value) => {
                       const account = accounts.find((item) => item.number === value)
                       const patch: Partial<ManualBookingRow> = { debitAccountNumber: value }
@@ -240,46 +238,50 @@ export function AdminAccountingManualPanel({
                     }}
                   />
                 </div>
-                <div className="hidden items-center justify-center pb-2 lg:flex">
+                <div className="hidden shrink-0 items-center justify-center self-center pb-6 lg:flex">
                   <ArrowLeftRight className="h-4 w-4 text-zinc-400" />
                 </div>
-                <div className="space-y-1">
-                  <label className={cn("text-xs", adminUi.muted)}>Haben-Konto</label>
+                <div className="min-w-[190px] flex-[1.2] basis-[190px]">
+                  <label className={cn("mb-1 block text-xs", adminUi.muted)}>Haben-Konto</label>
                   <AccountPickerField
                     value={row.creditAccountNumber}
                     accounts={accounts}
                     bookableOnly
+                    className="w-full"
                     onChange={(value) => updateRow(index, { creditAccountNumber: value })}
                   />
                 </div>
-                <div className="space-y-1">
-                  <label className={cn("text-xs", adminUi.muted)}>Beschreibung</label>
+                <div className="min-w-[240px] flex-[2] basis-[240px]">
+                  <label className={cn("mb-1 block text-xs", adminUi.muted)}>Beschreibung</label>
                   <Input
                     value={row.description}
                     onChange={(e) => updateRow(index, { description: e.target.value })}
                     className={adminUi.input}
                   />
                 </div>
-                <div className="space-y-1">
-                  <label className={cn("text-xs", adminUi.muted)}>MWST-Code</label>
+                <div className="min-w-[280px] flex-[1.5] basis-[280px]">
+                  <label className={cn("mb-1 block text-xs", adminUi.muted)}>MWST-Code</label>
                   <TaxCodeSelectField
                     value={row.taxCode}
                     taxCodes={taxCodes}
                     onChange={(code) => updateRow(index, { taxCode: code })}
                   />
                 </div>
-                <div className="space-y-1">
-                  <label className={cn("text-xs", adminUi.muted)}>MWST</label>
+                <div className="w-20 shrink-0">
+                  <label className={cn("mb-1 block text-xs", adminUi.muted)}>MWST</label>
                   <Input
-                    type="number"
-                    step="0.01"
+                    type="text"
                     readOnly
+                    tabIndex={-1}
                     value={normalized.taxAmount.toFixed(2)}
-                    className={cn(adminUi.input, "bg-zinc-50 dark:bg-zinc-900")}
+                    className={cn(
+                      adminUi.input,
+                      "h-10 bg-zinc-50 px-2 text-center text-xs text-zinc-500 dark:bg-zinc-900"
+                    )}
                   />
                 </div>
-                <div className="space-y-1">
-                  <label className={cn("text-xs", adminUi.muted)}>Betrag</label>
+                <div className="w-28 shrink-0">
+                  <label className={cn("mb-1 block text-xs", adminUi.muted)}>Betrag</label>
                   <Input
                     type="number"
                     step="0.01"
@@ -288,38 +290,10 @@ export function AdminAccountingManualPanel({
                     className={adminUi.input}
                   />
                 </div>
-                <div className="space-y-1">
-                  <label className={cn("text-xs", adminUi.muted)}>Währung</label>
-                  <Input
-                    value={row.currency}
-                    onChange={(e) => updateRow(index, { currency: e.target.value })}
-                    className={adminUi.input}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className={cn("text-xs", adminUi.muted)}>Kurs</label>
-                  <Input
-                    type="number"
-                    step="0.0001"
-                    value={row.exchangeRate || ""}
-                    onChange={(e) => updateRow(index, { exchangeRate: Number(e.target.value) })}
-                    className={adminUi.input}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className={cn("text-xs", adminUi.muted)}>Betrag CHF</label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={row.amountChf || ""}
-                    onChange={(e) => updateRow(index, { amountChf: Number(e.target.value) })}
-                    className={adminUi.input}
-                  />
-                </div>
-                <div className="flex items-end justify-center pb-2">
+                <div className="flex shrink-0 items-end self-center pb-2">
                   <Paperclip className="h-4 w-4 text-zinc-400" aria-hidden />
                 </div>
-                <div className="flex items-end">
+                <div className="flex shrink-0 items-end">
                   <Button
                     type="button"
                     variant="outline"
@@ -392,7 +366,6 @@ export function AdminAccountingManualPanel({
                   <TableHead>Haben</TableHead>
                   <TableHead>Beschreibung</TableHead>
                   <TableHead>MWST</TableHead>
-                  <TableHead>Kurs</TableHead>
                   <TableHead className="text-right">Betrag</TableHead>
                 </TableRow>
               </TableHeader>
@@ -411,9 +384,8 @@ export function AdminAccountingManualPanel({
                     <TableCell className="text-xs">
                       {taxCodeLabel(item.row.taxCode, taxCodes)}
                     </TableCell>
-                    <TableCell>{item.row.exchangeRate.toFixed(2)}</TableCell>
                     <TableCell className="text-right font-medium">
-                      {formatChf(item.row.amountChf || item.row.amount)}
+                      {formatChf(item.row.amount)}
                     </TableCell>
                   </TableRow>
                 ))}

@@ -14,6 +14,7 @@ type AccountPickerFieldProps = {
   disabled?: boolean
   /** Nur buchbare Konten (keine Gruppen). */
   bookableOnly?: boolean
+  className?: string
 }
 
 export function AccountPickerField({
@@ -23,6 +24,7 @@ export function AccountPickerField({
   placeholder = "Kontonummer oder Name suchen…",
   disabled = false,
   bookableOnly = false,
+  className,
 }: AccountPickerFieldProps) {
   const [query, setQuery] = useState(value)
   const [open, setOpen] = useState(false)
@@ -59,7 +61,7 @@ export function AccountPickerField({
   }, [selectableAccounts, query])
 
   return (
-    <div className="relative">
+    <div className={cn("relative min-w-0", className)}>
       <Input
         value={query}
         disabled={disabled}
@@ -82,7 +84,9 @@ export function AccountPickerField({
         className={adminUi.input}
       />
       {selected && (
-        <p className={cn("mt-1 text-xs", adminUi.muted)}>{selected.name}</p>
+        <p className={cn("mt-1 line-clamp-2 text-xs leading-snug", adminUi.muted)}>
+          {selected.name}
+        </p>
       )}
       {open && filtered.length > 0 && (
         <ul
