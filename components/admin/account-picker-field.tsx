@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from "react"
 import { createPortal } from "react-dom"
 import type { Account } from "@/lib/accounting/account-types"
 import { normalizeAccountNumber } from "@/lib/accounting/account-types"
@@ -59,6 +59,7 @@ export function AccountPickerField({
 }: AccountPickerFieldProps) {
   const [query, setQuery] = useState(value)
   const [open, setOpen] = useState(false)
+  const [highlightIndex, setHighlightIndex] = useState(0)
   const [dropdownStyle, setDropdownStyle] = useState<{
     top: number
     left: number
@@ -66,6 +67,7 @@ export function AccountPickerField({
   } | null>(null)
   const rootRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const listRef = useRef<HTMLUListElement>(null)
 
   const selectableAccounts = useMemo(
     () =>
@@ -110,11 +112,24 @@ export function AccountPickerField({
       .slice(0, 16)
   }, [selectableAccounts, query])
 
+  useEffect(() => {
+    setHighlightIndex(0)
+  }, [query, filtered.length])
+
+  useEffect(() => {
+    if (!open || !listRef.current) return
+    const item = listRef.current.querySelector<HTMLElement>(
+      `[data-account-index="${highlightIndex}"]`
+    )
+    item?.scrollIntoView({ block: "nearest" })
+  }, [highlightIndex, open])
+
   const commitAccount = (account: Account) => {
     const number = normalizeAccountNumber(account.number)
     onChange(number)
     setQuery(number)
     setOpen(false)
+    setHighlightIndex(0)
   }
 
   const updateDropdownPosition = () => {
@@ -122,8 +137,8 @@ export function AccountPickerField({
     if (!input) return
     const rect = input.getBoundingClientRect()
     setDropdownStyle({
-      top: rect.bottom + window.scrollY + 4,
-      left: rect.left + window.scrollX,
+      top: rect.bottom + 4,
+      left: rect.left,
       width: Math.max(rect.width, 280),
     })
   }
@@ -140,10 +155,54 @@ export function AccountPickerField({
     }
   }, [open, query, filtered.length])
 
+  const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "ArrowDown") {
+      event.preventDefault()
+      if (!open) {
+        setOpen(true)
+        updateDropdownPosition()
+        return
+      }
+      if (filtered.length === 0) return
+      setHighlightIndex((current) =>
+        current < filtered.length - 1 ? current + 1 : 0
+      )
+      return
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault()
+      if (!open) {
+        setOpen(true)
+        updateDropdownPosition()
+        return
+      }
+      if (filtered.length === 0) return
+      setHighlightIndex((current) =>
+        current > 0 ? current - 1 : filtered.length - 1
+      )
+      return
+    }
+
+    if (event.key === "Enter") {
+      if (!open || filtered.length === 0) return
+      event.preventDefault()
+      const account = filtered[highlightIndex] ?? filtered[0]
+      if (account) commitAccount(account)
+      return
+    }
+
+    if (event.key === "Escape") {
+      setOpen(false)
+    }
+  }
+
   const dropdown =
     open && filtered.length > 0 && dropdownStyle
       ? createPortal(
           <ul
+            ref={listRef}
+            role="listbox"
             className={cn(
               "fixed z-[100] max-h-64 overflow-y-auto rounded-lg border shadow-xl",
               adminUi.card
@@ -154,16 +213,22 @@ export function AccountPickerField({
               width: dropdownStyle.width,
             }}
           >
-            {filtered.map((account) => {
+            {filtered.map((account, index) => {
               const number = normalizeAccountNumber(account.number)
+              const isHighlighted = index === highlightIndex
               return (
-                <li key={number}>
+                <li key={number} role="option" aria-selected={isHighlighted}>
                   <button
                     type="button"
+                    data-account-index={index}
                     className={cn(
-                      "flex w-full flex-col px-3 py-2 text-left text-sm transition-colors hover:bg-orange-500/10",
+                      "flex w-full flex-col px-3 py-2 text-left text-sm transition-colors",
+                      isHighlighted
+                        ? "bg-orange-500/15"
+                        : "hover:bg-orange-500/10",
                       normalizedValue === number && adminUi.listItemActive
                     )}
+                    onMouseEnter={() => setHighlightIndex(index)}
                     onMouseDown={(event) => {
                       event.preventDefault()
                       commitAccount(account)
@@ -187,6 +252,9 @@ export function AccountPickerField({
         value={query}
         disabled={disabled}
         placeholder={placeholder}
+        role="combobox"
+        aria-expanded={open}
+        aria-autocomplete="list"
         onFocus={() => {
           setOpen(true)
           updateDropdownPosition()
@@ -202,6 +270,7 @@ export function AccountPickerField({
             setOpen(false)
           }, 120)
         }}
+        onKeyDown={handleKeyDown}
         onChange={(event) => {
           const next = event.target.value
           setQuery(next)

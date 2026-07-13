@@ -180,9 +180,9 @@ export function AdminAccountingTab() {
             [
               ["dashboard", "Dashboard / Übersicht"],
               ["manual", "Manuelle Buchung"],
+              ["reports", "Berichte"],
               ["accounts", "Kontenplan"],
               ["tax-codes", "MWST-Sätze"],
-              ["reports", "Berichte"],
             ] as const
           ).map(([id, label]) => (
             <button

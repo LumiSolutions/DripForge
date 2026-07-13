@@ -105,3 +105,17 @@ export function defaultYearRange(year: number): { from: string; to: string; labe
     label: `01.01.${year} - 31.12.${year}`,
   }
 }
+
+/** Leeres Dashboard bei fehlenden Buchungen oder API-Fehlern. */
+export function emptyCashFlowSummary(year: number): CashFlowSummary {
+  return {
+    months: MONTH_LABELS.map((label, index) => ({
+      month: index + 1,
+      label: `${label} ${year}`,
+      income: 0,
+      expense: 0,
+    })),
+    totalIncome: 0,
+    totalExpense: 0,
+  }
+}

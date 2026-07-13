@@ -13,7 +13,7 @@ import {
   YAxis,
 } from "recharts"
 import type { CashFlowSummary } from "@/lib/accounting/dashboard-stats"
-import { defaultYearRange } from "@/lib/accounting/dashboard-stats"
+import { defaultYearRange, emptyCashFlowSummary } from "@/lib/accounting/dashboard-stats"
 import { formatChf } from "@/lib/admin/format-chf"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
 import { cn } from "@/lib/utils"
@@ -30,21 +30,38 @@ const YEAR_OPTIONS = [2025, 2026, 2027]
 export function AdminAccountingDashboardPanel() {
   const [year, setYear] = useState(2026)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [data, setData] = useState<DashboardPayload | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
-    setError(null)
+    const range = defaultYearRange(year)
+    const fallback: DashboardPayload = {
+      from: range.from,
+      to: range.to,
+      label: range.label,
+      summary: emptyCashFlowSummary(year),
+    }
     try {
       const res = await fetch(`/api/admin/accounting/dashboard?year=${year}`, {
         cache: "no-store",
       })
       const json = (await res.json()) as DashboardPayload & { error?: string }
-      if (!res.ok) throw new Error(json.error ?? "Dashboard konnte nicht geladen werden.")
-      setData(json)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Dashboard konnte nicht geladen werden.")
+      if (!res.ok || !json.summary?.months) {
+        setData(fallback)
+        return
+      }
+      setData({
+        from: json.from ?? range.from,
+        to: json.to ?? range.to,
+        label: json.label ?? range.label,
+        summary: {
+          months: json.summary.months ?? fallback.summary.months,
+          totalIncome: Number(json.summary.totalIncome) || 0,
+          totalExpense: Number(json.summary.totalExpense) || 0,
+        },
+      })
+    } catch {
+      setData(fallback)
     } finally {
       setLoading(false)
     }
@@ -54,14 +71,16 @@ export function AdminAccountingDashboardPanel() {
     void load()
   }, [load])
 
+  const summary = data?.summary ?? emptyCashFlowSummary(year)
+
   const chartData = useMemo(
     () =>
-      data?.summary.months.map((month) => ({
+      summary.months.map((month) => ({
         name: month.label.replace(` ${year}`, ""),
         Einnahmen: month.income,
         Ausgaben: month.expense,
-      })) ?? [],
-    [data, year]
+      })),
+    [summary, year]
   )
 
   const rangeLabel = data?.label ?? defaultYearRange(year).label
@@ -85,8 +104,6 @@ export function AdminAccountingDashboardPanel() {
           ))}
         </select>
       </div>
-
-      {error && <p className={adminUi.error}>{error}</p>}
 
       {loading ? (
         <p className={cn("flex items-center text-sm", adminUi.muted)}>
@@ -118,7 +135,7 @@ export function AdminAccountingDashboardPanel() {
                 Total Einnahmen ({rangeLabel})
               </p>
               <p className="mt-2 text-3xl font-bold text-emerald-600 dark:text-emerald-400">
-                {formatChf(data?.summary.totalIncome ?? 0)}
+                {formatChf(summary.totalIncome)}
               </p>
             </div>
             <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-5">
@@ -126,7 +143,7 @@ export function AdminAccountingDashboardPanel() {
                 Total Ausgaben ({rangeLabel})
               </p>
               <p className="mt-2 text-3xl font-bold text-red-600 dark:text-red-400">
-                {formatChf(data?.summary.totalExpense ?? 0)}
+                {formatChf(summary.totalExpense)}
               </p>
             </div>
           </div>

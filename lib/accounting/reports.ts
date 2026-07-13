@@ -309,3 +309,12 @@ export function matchesSearchQuery(
       .includes(q)
   )
 }
+
+/** ER/Bilanz-Gerüst mit 0.00 CHF – immer sichtbar, auch ohne Buchungen. */
+export function emptyIncomeStatementLayout(): IncomeStatementLine[] {
+  return buildIncomeStatement([], "1900-01-01", "2100-12-31")
+}
+
+export function emptyBalanceSheetLayout(): BalanceSheetLine[] {
+  return buildBalanceSheet([], "2100-12-31")
+}

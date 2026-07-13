@@ -15,6 +15,8 @@ import {
 import type { Account } from "@/lib/accounting/account-types"
 import { downloadCsv } from "@/lib/accounting/export-csv"
 import {
+  emptyBalanceSheetLayout,
+  emptyIncomeStatementLayout,
   matchesSearchQuery,
   type BalanceSheetLine,
   type IncomeStatementLine,
@@ -35,6 +37,18 @@ type ReportsPayload = {
   incomeStatement: IncomeStatementLine[]
   balanceSheet: BalanceSheetLine[]
   accounts: Account[]
+}
+
+function emptyReportsPayload(from: string, to: string): ReportsPayload {
+  return {
+    from,
+    to,
+    ledger: [],
+    journal: [],
+    incomeStatement: emptyIncomeStatementLayout(),
+    balanceSheet: emptyBalanceSheetLayout(),
+    accounts: [],
+  }
 }
 
 function formatDate(iso: string): string {
@@ -73,12 +87,13 @@ export function AdminAccountingReportsPanel() {
   const [account, setAccount] = useState("")
   const [search, setSearch] = useState("")
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [data, setData] = useState<ReportsPayload | null>(null)
+  const [data, setData] = useState<ReportsPayload>(() =>
+    emptyReportsPayload(`${year}-01-01`, `${year}-12-31`)
+  )
 
   const loadReports = useCallback(async () => {
     setLoading(true)
-    setError(null)
+    const fallback = emptyReportsPayload(from, to)
     try {
       const params = new URLSearchParams({ from, to })
       if (account) params.set("account", account)
@@ -86,10 +101,27 @@ export function AdminAccountingReportsPanel() {
         cache: "no-store",
       })
       const payload = (await res.json()) as ReportsPayload & { error?: string }
-      if (!res.ok) throw new Error(payload.error ?? "Berichte konnten nicht geladen werden.")
-      setData(payload)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Berichte konnten nicht geladen werden.")
+      if (!res.ok) {
+        setData(fallback)
+        return
+      }
+      setData({
+        from: payload.from ?? from,
+        to: payload.to ?? to,
+        ledger: Array.isArray(payload.ledger) ? payload.ledger : [],
+        journal: Array.isArray(payload.journal) ? payload.journal : [],
+        incomeStatement:
+          Array.isArray(payload.incomeStatement) && payload.incomeStatement.length > 0
+            ? payload.incomeStatement
+            : emptyIncomeStatementLayout(),
+        balanceSheet:
+          Array.isArray(payload.balanceSheet) && payload.balanceSheet.length > 0
+            ? payload.balanceSheet
+            : emptyBalanceSheetLayout(),
+        accounts: Array.isArray(payload.accounts) ? payload.accounts : [],
+      })
+    } catch {
+      setData(fallback)
     } finally {
       setLoading(false)
     }
@@ -99,34 +131,43 @@ export function AdminAccountingReportsPanel() {
     void loadReports()
   }, [loadReports])
 
-  const ledgerRows = useMemo(() => {
-    if (!data) return []
-    return data.ledger.filter((row) =>
-      matchesSearchQuery(search, [
-        row.description,
-        row.gegenkonto,
-        row.belegNummer,
-        row.soll,
-        row.haben,
-        row.saldo,
-      ])
-    )
-  }, [data, search])
+  const ledgerRows = useMemo(
+    () =>
+      data.ledger.filter((row) =>
+        matchesSearchQuery(search, [
+          row.description,
+          row.gegenkonto,
+          row.belegNummer,
+          row.soll,
+          row.haben,
+          row.saldo,
+        ])
+      ),
+    [data.ledger, search]
+  )
 
-  const journalRows = useMemo(() => {
-    if (!data) return []
-    return data.journal.filter((row) =>
-      matchesSearchQuery(search, [
-        row.belegNummer,
-        row.date,
-        row.sollKonto,
-        row.habenKonto,
-        row.description,
-        row.taxCode,
-        row.amount,
-      ])
-    )
-  }, [data, search])
+  const journalRows = useMemo(
+    () =>
+      data.journal.filter((row) =>
+        matchesSearchQuery(search, [
+          row.belegNummer,
+          row.date,
+          row.sollKonto,
+          row.habenKonto,
+          row.description,
+          row.taxCode,
+          row.amount,
+        ])
+      ),
+    [data.journal, search]
+  )
+
+  const incomeStatement =
+    data.incomeStatement.length > 0
+      ? data.incomeStatement
+      : emptyIncomeStatementLayout()
+  const balanceSheet =
+    data.balanceSheet.length > 0 ? data.balanceSheet : emptyBalanceSheetLayout()
 
   const exportLedger = () => {
     downloadCsv(
@@ -161,20 +202,18 @@ export function AdminAccountingReportsPanel() {
   }
 
   const exportIncome = () => {
-    if (!data) return
     downloadCsv(
       `erfolgsrechnung-${from}-${to}.csv`,
       ["Position", "Betrag CHF"],
-      data.incomeStatement.map((line) => [line.label, line.amount])
+      incomeStatement.map((line) => [line.label, line.amount])
     )
   }
 
   const exportBalance = () => {
-    if (!data) return
     downloadCsv(
       `bilanz-${to}.csv`,
       ["Bereich", "Position", "Betrag CHF"],
-      data.balanceSheet.map((line) => [line.section, line.label, line.amount])
+      balanceSheet.map((line) => [line.section, line.label, line.amount])
     )
   }
 
@@ -226,7 +265,7 @@ export function AdminAccountingReportsPanel() {
                   className={cn("h-10 w-full rounded-md border px-3 text-sm", adminUi.select)}
                 >
                   <option value="">Alle Konten</option>
-                  {(data?.accounts ?? []).map((item) => (
+                  {data.accounts.map((item) => (
                     <option key={item.number} value={item.number}>
                       {item.number} — {item.name}
                     </option>
@@ -262,12 +301,10 @@ export function AdminAccountingReportsPanel() {
             </Button>
             {view === "kontenblatt" && <ExportButton onClick={exportLedger} disabled={!ledgerRows.length} />}
             {view === "journal" && <ExportButton onClick={exportJournal} disabled={!journalRows.length} />}
-            {view === "erfolgsrechnung" && <ExportButton onClick={exportIncome} disabled={!data} />}
-            {view === "bilanz" && <ExportButton onClick={exportBalance} disabled={!data} />}
+            {view === "erfolgsrechnung" && <ExportButton onClick={exportIncome} />}
+            {view === "bilanz" && <ExportButton onClick={exportBalance} />}
           </div>
         </div>
-
-        {error && <p className={adminUi.error}>{error}</p>}
 
         {loading ? (
           <p className={cn("flex items-center text-sm", adminUi.muted)}>
@@ -356,7 +393,7 @@ export function AdminAccountingReportsPanel() {
             <div className={adminUi.tableWrap}>
               <Table>
                 <TableBody>
-                  {(data?.incomeStatement ?? []).map((line) => (
+                  {incomeStatement.map((line) => (
                     <TableRow key={line.id} className={adminUi.tableRow}>
                       <TableCell
                         className={cn(
@@ -371,7 +408,11 @@ export function AdminAccountingReportsPanel() {
                         className={cn(
                           "text-right font-medium",
                           line.emphasis && "font-bold",
-                          line.amount >= 0 ? "text-emerald-600" : "text-red-600"
+                          line.amount > 0
+                            ? "text-emerald-600"
+                            : line.amount < 0
+                              ? "text-red-600"
+                              : undefined
                         )}
                       >
                         {formatChf(line.amount)}
@@ -388,7 +429,7 @@ export function AdminAccountingReportsPanel() {
               <div key={section} className={adminUi.tableWrap}>
                 <Table>
                   <TableBody>
-                    {(data?.balanceSheet ?? [])
+                    {balanceSheet
                       .filter((line) => line.section === section)
                       .map((line) => (
                         <TableRow key={line.id} className={adminUi.tableRow}>
