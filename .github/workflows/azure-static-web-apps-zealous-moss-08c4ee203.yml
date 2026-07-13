@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     name: Build and Deploy Job
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: true
           lfs: false
@@ -34,17 +34,17 @@ jobs:
           ###### Next.js Hybrid + output: standalone (next.config.ts) ######
           # Oryx fuehrt "npm run build" aus (inkl. prepare-standalone.mjs).
           # output_location leer: Azure erkennt das Standalone-Paket unter .next/standalone.
+          # production_branch / skip_api_build: nicht im Action-Schema (Docker-Action);
+          # Produktion = Branch "main" via on.push; kein API-Build bei leerem api_location.
           app_location: "/"
           api_location: ""
           output_location: ""
-          production_branch: "main"
-          skip_api_build: true
           app_build_command: "npm run build"
           ###### Ende Build-Konfiguration ######
         env:
           # Node-Version für Oryx-Build und Azure-Warm-up
-          FORWARD_NODE_VERSION: "20"
-          NODE_VERSION: "20"
+          FORWARD_NODE_VERSION: "22"
+          NODE_VERSION: "22"
           # Schnellerer Next.js-Build (keine Source Maps in CI)
           NEXT_DISABLE_SOURCEMAPS: "1"
           # Platzhalter nur für den CI-Build — Runtime nutzt Portal-Secrets
