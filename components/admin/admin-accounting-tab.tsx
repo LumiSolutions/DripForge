@@ -5,13 +5,14 @@ import { BookOpen } from "lucide-react"
 import { AdminAccountingChartPanel } from "@/components/admin/admin-accounting-chart-panel"
 import { AdminAccountingDashboardPanel } from "@/components/admin/admin-accounting-dashboard-panel"
 import { AdminAccountingManualPanel } from "@/components/admin/admin-accounting-manual-panel"
+import { AdminAccountingReportsPanel } from "@/components/admin/admin-accounting-reports-panel"
 import { AdminAccountingTaxCodesPanel } from "@/components/admin/admin-accounting-tax-codes-panel"
 import type { Account, AccountKind } from "@/lib/accounting/account-types"
 import type { TaxCode } from "@/lib/accounting/tax-code-types"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
 import { cn } from "@/lib/utils"
 
-type AccountingSubview = "dashboard" | "manual" | "accounts" | "tax-codes"
+type AccountingSubview = "dashboard" | "manual" | "accounts" | "tax-codes" | "reports"
 
 export function AdminAccountingTab() {
   const [view, setView] = useState<AccountingSubview>("dashboard")
@@ -181,6 +182,7 @@ export function AdminAccountingTab() {
               ["manual", "Manuelle Buchung"],
               ["accounts", "Kontenplan"],
               ["tax-codes", "MWST-Sätze"],
+              ["reports", "Berichte"],
             ] as const
           ).map(([id, label]) => (
             <button
@@ -226,6 +228,7 @@ export function AdminAccountingTab() {
       {view === "tax-codes" && (
         <AdminAccountingTaxCodesPanel />
       )}
+      {view === "reports" && <AdminAccountingReportsPanel />}
     </div>
   )
 }

@@ -5,6 +5,7 @@ import {
   isZeroVatAmountTaxCode,
   resolveTaxRateFromCode,
 } from "@/lib/accounting/tax-code-utils"
+import { normalizeAccountNumber } from "@/lib/accounting/account-types"
 import type { TaxCode } from "@/lib/accounting/tax-code-types"
 
 export type ManualBookingRow = {
@@ -82,8 +83,8 @@ export function normalizeManualBookingRow(
       : computeVatAmount(amount, taxRate, taxCode)
 
   return {
-    debitAccountNumber: String(row.debitAccountNumber ?? "").trim(),
-    creditAccountNumber: String(row.creditAccountNumber ?? "").trim(),
+    debitAccountNumber: normalizeAccountNumber(row.debitAccountNumber),
+    creditAccountNumber: normalizeAccountNumber(row.creditAccountNumber),
     description: String(row.description ?? "").trim(),
     taxCode,
     taxRate,

@@ -151,6 +151,11 @@ export function AdminAccountingManualPanel({
           if (next.taxCode) {
             next = applyTaxCodeToRow(next, next.taxCode, taxCodes)
           }
+        } else if (
+          patch.debitAccountNumber != null ||
+          patch.creditAccountNumber != null
+        ) {
+          next = normalizeManualBookingRow(next, taxCodes)
         }
         return next
       })
@@ -210,14 +215,14 @@ export function AdminAccountingManualPanel({
           </div>
         </div>
 
-        <div className="space-y-3 overflow-x-auto">
+        <div className="space-y-3">
           {rows.map((row, index) => {
             const normalized = normalizedRows[index] ?? row
             return (
               <div
                 key={`booking-row-${index}`}
                 className={cn(
-                  "flex min-w-[1100px] flex-wrap items-end gap-3 rounded-lg border p-3 lg:flex-nowrap",
+                  "flex min-w-0 flex-wrap items-end gap-3 overflow-visible rounded-lg border p-3 lg:flex-nowrap",
                   adminUi.cardMuted
                 )}
               >
