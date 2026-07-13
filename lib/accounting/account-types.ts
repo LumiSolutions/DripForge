@@ -28,8 +28,10 @@ export type Account = {
   isActive: boolean
   /** MWST kann auf diesem Konto gebucht werden. */
   vatBookable: boolean
-  /** Standard-MWST-Satz, z. B. 0.081 */
+  /** Standard-MWST-Satz, z. B. 0.081 (abgeleitet aus defaultTaxCode). */
   defaultVatRate: number
+  /** Standard-Steuercode-Kürzel, z. B. "UN81". */
+  defaultTaxCode?: string | null
   createdAt: string
   updatedAt: string
 }
@@ -80,6 +82,7 @@ export function normalizeAccount(input: Partial<Account> & { number: string }): 
     isActive: input.isActive ?? DEFAULT_ACCOUNT_IS_ACTIVE,
     vatBookable: input.vatBookable ?? DEFAULT_ACCOUNT_VAT_BOOKABLE,
     defaultVatRate: roundRate(input.defaultVatRate ?? DEFAULT_ACCOUNT_VAT_RATE),
+    defaultTaxCode: normalizeAccountGroup(input.defaultTaxCode),
     createdAt: input.createdAt ?? now,
     updatedAt: input.updatedAt ?? now,
   }

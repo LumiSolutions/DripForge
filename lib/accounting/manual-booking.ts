@@ -1,11 +1,22 @@
 import type { JournalLine } from "@/lib/accounting/journal-types"
 import { validateJournalEntryLines } from "@/lib/accounting/journal-types"
+import {
+  computeVatAmount,
+  isZeroVatAmountTaxCode,
+  resolveTaxRateFromCode,
+} from "@/lib/accounting/tax-code-utils"
+import type { TaxCode } from "@/lib/accounting/tax-code-types"
 
 export type ManualBookingRow = {
   debitAccountNumber: string
   creditAccountNumber: string
   description: string
+  /** Schweizer Steuercode-Kürzel, z. B. UN81, V00. */
+  taxCode: string
+  /** Abgeleiteter MWST-Satz aus dem Steuercode. */
   taxRate: number
+  /** Angezeigter MWST-Betrag (0.00 bei U00/V00). */
+  taxAmount: number
   amount: number
   currency: string
   exchangeRate: number
@@ -21,7 +32,9 @@ export function emptyManualBookingRow(): ManualBookingRow {
     debitAccountNumber: "",
     creditAccountNumber: "",
     description: "",
+    taxCode: "",
     taxRate: 0,
+    taxAmount: 0,
     amount: 0,
     currency: "CHF",
     exchangeRate: 1,
@@ -29,8 +42,29 @@ export function emptyManualBookingRow(): ManualBookingRow {
   }
 }
 
+export function applyTaxCodeToRow(
+  row: Partial<ManualBookingRow>,
+  taxCode: string,
+  taxCodes: TaxCode[]
+): ManualBookingRow {
+  const normalized = normalizeManualBookingRow(row, taxCodes)
+  const rate = resolveTaxRateFromCode(taxCode, taxCodes)
+  const netAmount = normalized.amountChf > 0 ? normalized.amountChf : normalized.amount
+  const taxAmount = isZeroVatAmountTaxCode(taxCode)
+    ? 0
+    : computeVatAmount(netAmount, rate, taxCode)
+
+  return {
+    ...normalized,
+    taxCode: taxCode.trim().toUpperCase(),
+    taxRate: rate,
+    taxAmount,
+  }
+}
+
 export function normalizeManualBookingRow(
-  row: Partial<ManualBookingRow>
+  row: Partial<ManualBookingRow>,
+  taxCodes: TaxCode[] = []
 ): ManualBookingRow {
   const amount = roundChf(Number(row.amount) || 0)
   const exchangeRate = roundChf(Number(row.exchangeRate) || 1) || 1
@@ -39,12 +73,25 @@ export function normalizeManualBookingRow(
       ? Number(row.amountChf)
       : amount * exchangeRate
   )
+  const taxCode = String(row.taxCode ?? "").trim().toUpperCase()
+  const taxRate =
+    taxCode && taxCodes.length
+      ? resolveTaxRateFromCode(taxCode, taxCodes)
+      : roundChf(Number(row.taxRate) || 0)
+  const netAmount = amountChf > 0 ? amountChf : amount
+  const taxAmount = isZeroVatAmountTaxCode(taxCode)
+    ? 0
+    : row.taxAmount != null
+      ? roundChf(Number(row.taxAmount))
+      : computeVatAmount(netAmount, taxRate, taxCode)
 
   return {
     debitAccountNumber: String(row.debitAccountNumber ?? "").trim(),
     creditAccountNumber: String(row.creditAccountNumber ?? "").trim(),
     description: String(row.description ?? "").trim(),
-    taxRate: roundChf(Number(row.taxRate) || 0),
+    taxCode,
+    taxRate,
+    taxAmount,
     amount,
     currency: String(row.currency ?? "CHF").trim() || "CHF",
     exchangeRate,
@@ -56,17 +103,20 @@ export function manualRowsToJournalLines(rows: ManualBookingRow[]): JournalLine[
   const lines: JournalLine[] = []
   for (const row of rows) {
     const amount = row.amountChf > 0 ? row.amountChf : row.amount
+    const lineBase = {
+      amount,
+      taxRate: row.taxRate,
+      taxCode: row.taxCode || undefined,
+    }
     lines.push({
       accountNumber: row.debitAccountNumber,
       type: "SOLL",
-      amount,
-      taxRate: row.taxRate,
+      ...lineBase,
     })
     lines.push({
       accountNumber: row.creditAccountNumber,
       type: "HABEN",
-      amount,
-      taxRate: row.taxRate,
+      ...lineBase,
     })
   }
   return lines

@@ -13,6 +13,9 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import type { Account, AccountKind } from "@/lib/accounting/account-types"
 import { buildChartTreeItems, groupAccountsForSelect } from "@/lib/accounting/chart-tree"
+import { resolveTaxRateFromCode } from "@/lib/accounting/tax-code-utils"
+import type { TaxCode } from "@/lib/accounting/tax-code-types"
+import { TaxCodeSelectField } from "@/components/admin/tax-code-select-field"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
 import { cn } from "@/lib/utils"
 
@@ -25,6 +28,7 @@ type EditorState =
 
 type AdminAccountingChartPanelProps = {
   accounts: Account[]
+  taxCodes: TaxCode[]
   loading: boolean
   saving: boolean
   error: string | null
@@ -36,6 +40,7 @@ type AdminAccountingChartPanelProps = {
     type: AccountKind
     vatBookable: boolean
     defaultVatRate: number
+    defaultTaxCode: string | null
     originalNumber?: string
   }) => Promise<void>
   onDelete: (number: string) => Promise<void>
@@ -59,6 +64,7 @@ const LEVEL_WEIGHT: Record<1 | 2 | 3 | 4, string> = {
 
 export function AdminAccountingChartPanel({
   accounts,
+  taxCodes,
   loading,
   saving,
   error,
@@ -74,7 +80,7 @@ export function AdminAccountingChartPanel({
   const [group, setGroup] = useState("")
   const [type, setType] = useState<AccountKind>("Aktiv")
   const [vatBookable, setVatBookable] = useState(false)
-  const [defaultVatRate, setDefaultVatRate] = useState(0.081)
+  const [defaultTaxCode, setDefaultTaxCode] = useState("")
 
   const treeItems = useMemo(() => buildChartTreeItems(accounts), [accounts])
   const groupOptions = useMemo(() => groupAccountsForSelect(accounts), [accounts])
@@ -86,7 +92,7 @@ export function AdminAccountingChartPanel({
     setGroup("")
     setType("Aktiv")
     setVatBookable(false)
-    setDefaultVatRate(0.081)
+    setDefaultTaxCode("UN81")
   }
 
   const openEdit = (account: Account) => {
@@ -96,7 +102,7 @@ export function AdminAccountingChartPanel({
     setGroup(account.group ?? "")
     setType(account.type === "Gruppe" ? "Gruppe" : account.type)
     setVatBookable(account.vatBookable ?? false)
-    setDefaultVatRate(account.defaultVatRate ?? 0.081)
+    setDefaultTaxCode(account.defaultTaxCode ?? "UN81")
   }
 
   const closeEditor = () => setEditor(null)
@@ -108,7 +114,8 @@ export function AdminAccountingChartPanel({
       group: group.trim() || null,
       type,
       vatBookable,
-      defaultVatRate,
+      defaultVatRate: resolveTaxRateFromCode(defaultTaxCode, taxCodes),
+      defaultTaxCode: defaultTaxCode.trim() || null,
       originalNumber: editor?.mode === "edit" ? editor.account.number : undefined,
     })
     closeEditor()
@@ -188,16 +195,13 @@ export function AdminAccountingChartPanel({
               MWST kann gebucht werden
             </label>
             <div className="space-y-2">
-              <Label>Standard MWST-Satz</Label>
-              <select
-                value={String(defaultVatRate)}
-                onChange={(e) => setDefaultVatRate(Number(e.target.value))}
-                className={cn("h-10 w-full rounded-md border px-3 text-sm", adminUi.select)}
-              >
-                <option value="0">0% (befreit)</option>
-                <option value="0.026">2.6%</option>
-                <option value="0.081">8.1%</option>
-              </select>
+              <Label>Standard MWST-Code</Label>
+              <TaxCodeSelectField
+                value={defaultTaxCode}
+                taxCodes={taxCodes}
+                onChange={setDefaultTaxCode}
+                placeholder="— Kein Standardcode —"
+              />
             </div>
           </div>
           <div className="flex gap-2">

@@ -88,6 +88,15 @@ function defaultVatRate(order: StoredOrder): number {
   return roundChf((order.totals.vat ?? 0) / net)
 }
 
+function defaultRevenueTaxCode(order: StoredOrder): string | undefined {
+  if (!order.totals.mwstAktiv) return "U00"
+  const rate = defaultVatRate(order)
+  if (rate <= 0) return "U00"
+  if (Math.abs(rate - 0.026) < 0.002) return "UR26"
+  if (Math.abs(rate - 0.038) < 0.002) return "US21"
+  return "UN81"
+}
+
 export function buildOrderPaymentJournalLines(order: StoredOrder): JournalLine[] {
   const config = getAccountingAccountConfig()
   const total = roundChf(order.totals.total ?? 0)
@@ -96,6 +105,7 @@ export function buildOrderPaymentJournalLines(order: StoredOrder): JournalLine[]
   const vat = roundChf(order.totals.vat ?? 0)
   const { revenue3d, revenueLaser } = allocateDiscountedRevenue(order)
   const vatRate = defaultVatRate(order)
+  const revenueTaxCode = defaultRevenueTaxCode(order)
   const counterAccount = resolveCounterAccount(order.paymentMethod, config)
 
   const lines: JournalLine[] = [
@@ -113,6 +123,7 @@ export function buildOrderPaymentJournalLines(order: StoredOrder): JournalLine[]
       type: "HABEN",
       amount: revenue3d,
       taxRate: vatRate,
+      taxCode: revenueTaxCode,
     })
   }
 
@@ -122,6 +133,7 @@ export function buildOrderPaymentJournalLines(order: StoredOrder): JournalLine[]
       type: "HABEN",
       amount: revenueLaser,
       taxRate: vatRate,
+      taxCode: revenueTaxCode,
     })
   }
 

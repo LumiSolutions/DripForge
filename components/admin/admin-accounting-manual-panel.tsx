@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { ArrowLeftRight, Loader2, Paperclip, Plus, X } from "lucide-react"
 import { AccountPickerField } from "@/components/admin/account-picker-field"
+import { TaxCodeSelectField } from "@/components/admin/tax-code-select-field"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -16,11 +17,14 @@ import {
 import type { Account } from "@/lib/accounting/account-types"
 import type { JournalEntry } from "@/lib/accounting/journal-types"
 import {
+  applyTaxCodeToRow,
   emptyManualBookingRow,
   normalizeManualBookingRow,
   validateManualBookingRows,
   type ManualBookingRow,
 } from "@/lib/accounting/manual-booking"
+import { formatTaxCodePercent } from "@/lib/accounting/tax-code-utils"
+import type { TaxCode } from "@/lib/accounting/tax-code-types"
 import { formatChf } from "@/lib/admin/format-chf"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
 import { cn } from "@/lib/utils"
@@ -36,6 +40,12 @@ function accountLabel(number: string, accounts: Account[]): string {
   return account ? `${account.number}\n${account.name}` : number
 }
 
+function taxCodeLabel(code: string, taxCodes: TaxCode[]): string {
+  if (!code) return "—"
+  const match = taxCodes.find((item) => item.code === code)
+  return match ? `${match.code} (${formatTaxCodePercent(match.rate)})` : code
+}
+
 type ManualHistoryRow = {
   entryId: string
   date: string
@@ -43,7 +53,10 @@ type ManualHistoryRow = {
   row: ManualBookingRow
 }
 
-function flattenManualHistory(entries: JournalEntry[]): ManualHistoryRow[] {
+function flattenManualHistory(
+  entries: JournalEntry[],
+  taxCodes: TaxCode[]
+): ManualHistoryRow[] {
   const rows: ManualHistoryRow[] = []
   for (const entry of entries) {
     if (entry.source !== "manual") continue
@@ -53,7 +66,7 @@ function flattenManualHistory(entries: JournalEntry[]): ManualHistoryRow[] {
           entryId: entry.id,
           date: entry.date,
           belegNummer: entry.belegNummer,
-          row,
+          row: normalizeManualBookingRow(row, taxCodes),
         })
       }
       continue
@@ -65,16 +78,20 @@ function flattenManualHistory(entries: JournalEntry[]): ManualHistoryRow[] {
       entryId: entry.id,
       date: entry.date,
       belegNummer: entry.belegNummer,
-      row: {
-        debitAccountNumber: soll.accountNumber,
-        creditAccountNumber: haben.accountNumber,
-        description: entry.description,
-        taxRate: soll.taxRate,
-        amount: soll.amount,
-        currency: "CHF",
-        exchangeRate: 1,
-        amountChf: soll.amount,
-      },
+      row: normalizeManualBookingRow(
+        {
+          debitAccountNumber: soll.accountNumber,
+          creditAccountNumber: haben.accountNumber,
+          description: entry.description,
+          taxCode: soll.taxCode ?? "",
+          taxRate: soll.taxRate,
+          amount: soll.amount,
+          currency: "CHF",
+          exchangeRate: 1,
+          amountChf: soll.amount,
+        },
+        taxCodes
+      ),
     })
   }
   return rows.slice(0, 30)
@@ -82,11 +99,13 @@ function flattenManualHistory(entries: JournalEntry[]): ManualHistoryRow[] {
 
 type AdminAccountingManualPanelProps = {
   accounts: Account[]
+  taxCodes: TaxCode[]
   onBooked: () => void
 }
 
 export function AdminAccountingManualPanel({
   accounts,
+  taxCodes,
   onBooked,
 }: AdminAccountingManualPanelProps) {
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
@@ -97,7 +116,10 @@ export function AdminAccountingManualPanel({
   const [history, setHistory] = useState<ManualHistoryRow[]>([])
   const [loadingHistory, setLoadingHistory] = useState(true)
 
-  const normalizedRows = useMemo(() => rows.map(normalizeManualBookingRow), [rows])
+  const normalizedRows = useMemo(
+    () => rows.map((row) => normalizeManualBookingRow(row, taxCodes)),
+    [rows, taxCodes]
+  )
   const validation = useMemo(
     () => validateManualBookingRows(normalizedRows),
     [normalizedRows]
@@ -110,11 +132,11 @@ export function AdminAccountingManualPanel({
         cache: "no-store",
       })
       const data = (await res.json()) as { entries?: JournalEntry[] }
-      setHistory(flattenManualHistory(data.entries ?? []))
+      setHistory(flattenManualHistory(data.entries ?? [], taxCodes))
     } finally {
       setLoadingHistory(false)
     }
-  }, [])
+  }, [taxCodes])
 
   useEffect(() => {
     void loadHistory()
@@ -124,11 +146,14 @@ export function AdminAccountingManualPanel({
     setRows((current) =>
       current.map((row, i) => {
         if (i !== index) return row
-        const next = { ...row, ...patch }
-        if (patch.amount != null || patch.exchangeRate != null) {
-          const amount = Number(next.amount) || 0
-          const rate = Number(next.exchangeRate) || 1
-          next.amountChf = Math.round(amount * rate * 100) / 100
+        let next = { ...row, ...patch }
+        if (patch.taxCode != null) {
+          next = applyTaxCodeToRow(next, patch.taxCode, taxCodes)
+        } else if (patch.amount != null || patch.exchangeRate != null || patch.amountChf != null) {
+          next = normalizeManualBookingRow(next, taxCodes)
+          if (next.taxCode) {
+            next = applyTaxCodeToRow(next, next.taxCode, taxCodes)
+          }
         }
         return next
       })
@@ -189,109 +214,126 @@ export function AdminAccountingManualPanel({
         </div>
 
         <div className="space-y-3">
-          {rows.map((row, index) => (
-            <div
-              key={`booking-row-${index}`}
-              className={cn(
-                "grid gap-2 rounded-lg border p-3 lg:grid-cols-[minmax(140px,1fr)_auto_minmax(140px,1fr)_minmax(160px,1.2fr)_72px_88px_64px_56px_56px_40px_40px] lg:items-end",
-                adminUi.cardMuted
-              )}
-            >
-              <div className="space-y-1">
-                <label className={cn("text-xs", adminUi.muted)}>Soll-Konto</label>
-                <AccountPickerField
-                  value={row.debitAccountNumber}
-                  accounts={accounts}
-                  bookableOnly
-                  onChange={(value) => updateRow(index, { debitAccountNumber: value })}
-                />
+          {rows.map((row, index) => {
+            const normalized = normalizedRows[index] ?? row
+            return (
+              <div
+                key={`booking-row-${index}`}
+                className={cn(
+                  "grid gap-2 rounded-lg border p-3 lg:grid-cols-[minmax(140px,1fr)_auto_minmax(140px,1fr)_minmax(160px,1.2fr)_minmax(150px,1fr)_72px_88px_64px_56px_56px_40px_40px] lg:items-end",
+                  adminUi.cardMuted
+                )}
+              >
+                <div className="space-y-1">
+                  <label className={cn("text-xs", adminUi.muted)}>Soll-Konto</label>
+                  <AccountPickerField
+                    value={row.debitAccountNumber}
+                    accounts={accounts}
+                    bookableOnly
+                    onChange={(value) => {
+                      const account = accounts.find((item) => item.number === value)
+                      const patch: Partial<ManualBookingRow> = { debitAccountNumber: value }
+                      if (account?.defaultTaxCode && !row.taxCode) {
+                        patch.taxCode = account.defaultTaxCode
+                      }
+                      updateRow(index, patch)
+                    }}
+                  />
+                </div>
+                <div className="hidden items-center justify-center pb-2 lg:flex">
+                  <ArrowLeftRight className="h-4 w-4 text-zinc-400" />
+                </div>
+                <div className="space-y-1">
+                  <label className={cn("text-xs", adminUi.muted)}>Haben-Konto</label>
+                  <AccountPickerField
+                    value={row.creditAccountNumber}
+                    accounts={accounts}
+                    bookableOnly
+                    onChange={(value) => updateRow(index, { creditAccountNumber: value })}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className={cn("text-xs", adminUi.muted)}>Beschreibung</label>
+                  <Input
+                    value={row.description}
+                    onChange={(e) => updateRow(index, { description: e.target.value })}
+                    className={adminUi.input}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className={cn("text-xs", adminUi.muted)}>MWST-Code</label>
+                  <TaxCodeSelectField
+                    value={row.taxCode}
+                    taxCodes={taxCodes}
+                    onChange={(code) => updateRow(index, { taxCode: code })}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className={cn("text-xs", adminUi.muted)}>MWST</label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    readOnly
+                    value={normalized.taxAmount.toFixed(2)}
+                    className={cn(adminUi.input, "bg-zinc-50 dark:bg-zinc-900")}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className={cn("text-xs", adminUi.muted)}>Betrag</label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={row.amount || ""}
+                    onChange={(e) => updateRow(index, { amount: Number(e.target.value) })}
+                    className={adminUi.input}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className={cn("text-xs", adminUi.muted)}>Währung</label>
+                  <Input
+                    value={row.currency}
+                    onChange={(e) => updateRow(index, { currency: e.target.value })}
+                    className={adminUi.input}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className={cn("text-xs", adminUi.muted)}>Kurs</label>
+                  <Input
+                    type="number"
+                    step="0.0001"
+                    value={row.exchangeRate || ""}
+                    onChange={(e) => updateRow(index, { exchangeRate: Number(e.target.value) })}
+                    className={adminUi.input}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className={cn("text-xs", adminUi.muted)}>Betrag CHF</label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={row.amountChf || ""}
+                    onChange={(e) => updateRow(index, { amountChf: Number(e.target.value) })}
+                    className={adminUi.input}
+                  />
+                </div>
+                <div className="flex items-end justify-center pb-2">
+                  <Paperclip className="h-4 w-4 text-zinc-400" aria-hidden />
+                </div>
+                <div className="flex items-end">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className={adminUi.outlineBtn}
+                    disabled={rows.length <= 1}
+                    onClick={() => setRows((current) => current.filter((_, i) => i !== index))}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
-              <div className="hidden items-center justify-center pb-2 lg:flex">
-                <ArrowLeftRight className="h-4 w-4 text-zinc-400" />
-              </div>
-              <div className="space-y-1">
-                <label className={cn("text-xs", adminUi.muted)}>Haben-Konto</label>
-                <AccountPickerField
-                  value={row.creditAccountNumber}
-                  accounts={accounts}
-                  bookableOnly
-                  onChange={(value) => updateRow(index, { creditAccountNumber: value })}
-                />
-              </div>
-              <div className="space-y-1">
-                <label className={cn("text-xs", adminUi.muted)}>Beschreibung</label>
-                <Input
-                  value={row.description}
-                  onChange={(e) => updateRow(index, { description: e.target.value })}
-                  className={adminUi.input}
-                />
-              </div>
-              <div className="space-y-1">
-                <label className={cn("text-xs", adminUi.muted)}>MWST</label>
-                <Input
-                  type="number"
-                  step="0.001"
-                  value={row.taxRate || ""}
-                  onChange={(e) => updateRow(index, { taxRate: Number(e.target.value) })}
-                  className={adminUi.input}
-                  placeholder="0.081"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className={cn("text-xs", adminUi.muted)}>Betrag</label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  value={row.amount || ""}
-                  onChange={(e) => updateRow(index, { amount: Number(e.target.value) })}
-                  className={adminUi.input}
-                />
-              </div>
-              <div className="space-y-1">
-                <label className={cn("text-xs", adminUi.muted)}>Währung</label>
-                <Input
-                  value={row.currency}
-                  onChange={(e) => updateRow(index, { currency: e.target.value })}
-                  className={adminUi.input}
-                />
-              </div>
-              <div className="space-y-1">
-                <label className={cn("text-xs", adminUi.muted)}>Kurs</label>
-                <Input
-                  type="number"
-                  step="0.0001"
-                  value={row.exchangeRate || ""}
-                  onChange={(e) => updateRow(index, { exchangeRate: Number(e.target.value) })}
-                  className={adminUi.input}
-                />
-              </div>
-              <div className="space-y-1">
-                <label className={cn("text-xs", adminUi.muted)}>Betrag CHF</label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  value={row.amountChf || ""}
-                  onChange={(e) => updateRow(index, { amountChf: Number(e.target.value) })}
-                  className={adminUi.input}
-                />
-              </div>
-              <div className="flex items-end justify-center pb-2">
-                <Paperclip className="h-4 w-4 text-zinc-400" aria-hidden />
-              </div>
-              <div className="flex items-end">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  className={adminUi.outlineBtn}
-                  disabled={rows.length <= 1}
-                  onClick={() => setRows((current) => current.filter((_, i) => i !== index))}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
 
         {error && <p className={adminUi.error}>{error}</p>}
@@ -366,7 +408,9 @@ export function AdminAccountingManualPanel({
                       {accountLabel(item.row.creditAccountNumber, accounts)}
                     </TableCell>
                     <TableCell>{item.row.description}</TableCell>
-                    <TableCell>{item.row.taxRate}</TableCell>
+                    <TableCell className="text-xs">
+                      {taxCodeLabel(item.row.taxCode, taxCodes)}
+                    </TableCell>
                     <TableCell>{item.row.exchangeRate.toFixed(2)}</TableCell>
                     <TableCell className="text-right font-medium">
                       {formatChf(item.row.amountChf || item.row.amount)}

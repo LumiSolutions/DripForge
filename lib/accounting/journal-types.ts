@@ -6,7 +6,10 @@ export type JournalLine = {
   accountNumber: string
   type: JournalLineType
   amount: number
+  /** MWST-Satz als Dezimalzahl (z. B. 0.081). */
   taxRate: number
+  /** Schweizer Steuercode-Kürzel (z. B. UN81, VM81). */
+  taxCode?: string
 }
 
 export type JournalEntrySource = "manual" | "order"
@@ -131,6 +134,7 @@ export function normalizeJournalLine(line: Partial<JournalLine>): JournalLine {
     type: line.type === "HABEN" ? "HABEN" : "SOLL",
     amount: roundChf(Number(line.amount) || 0),
     taxRate: roundChf(Number(line.taxRate) || 0),
+    taxCode: line.taxCode?.trim() || undefined,
   }
 }
 

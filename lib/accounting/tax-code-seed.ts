@@ -1,0 +1,128 @@
+import type { TaxCode } from "@/lib/accounting/tax-code-types"
+
+/** Standard-Schweizer MWST-Steuercodes beim ersten Systemstart. */
+export const DEFAULT_TAX_CODES: Omit<TaxCode, "createdAt" | "updatedAt">[] = [
+  // A) Umsatzsteuer
+  {
+    code: "UN81",
+    systemCode: "USt81",
+    name: "Umsatzsteuer Normalsatz",
+    rate: 0.081,
+    category: "Umsatzsteuer",
+    isActive: true,
+    sortOrder: 10,
+  },
+  {
+    code: "UR26",
+    systemCode: "USt26",
+    name: "Umsatzsteuer reduzierter Satz",
+    rate: 0.026,
+    category: "Umsatzsteuer",
+    isActive: true,
+    sortOrder: 20,
+  },
+  {
+    code: "US21",
+    systemCode: "USt21",
+    name: "Umsatzsteuer Sondersatz Hotellerie",
+    rate: 0.038,
+    category: "Umsatzsteuer",
+    isActive: true,
+    sortOrder: 30,
+  },
+  // B) Vorsteuer
+  {
+    code: "VM81",
+    systemCode: "VStM81",
+    name: "Vorsteuer Materialaufwand und Dienstleistungen",
+    rate: 0.081,
+    category: "Vorsteuer",
+    isActive: true,
+    sortOrder: 40,
+  },
+  {
+    code: "VB81",
+    systemCode: "VStB81",
+    name: "Vorsteuer Investitionen und Betriebsaufwand",
+    rate: 0.081,
+    category: "Vorsteuer",
+    isActive: true,
+    sortOrder: 50,
+  },
+  {
+    code: "VM26",
+    systemCode: "VStM26",
+    name: "Vorsteuer Materialaufwand reduzierter Satz",
+    rate: 0.026,
+    category: "Vorsteuer",
+    isActive: true,
+    sortOrder: 60,
+  },
+  {
+    code: "VB26",
+    systemCode: "VStB26",
+    name: "Vorsteuer Investitionen reduzierter Satz",
+    rate: 0.026,
+    category: "Vorsteuer",
+    isActive: true,
+    sortOrder: 70,
+  },
+  // C) Sonderfälle, Importe & Exporte
+  {
+    code: "UEX",
+    systemCode: "UStEx",
+    name: "Steuerbefreite Exporte / Leistungen im Ausland",
+    rate: 0,
+    category: "Befreit",
+    isActive: true,
+    sortOrder: 80,
+  },
+  {
+    code: "MEL",
+    systemCode: "Meldewesen",
+    name: "Steuerbefreit nach Meldeverfahren (Art. 38 MWSTG)",
+    rate: 0,
+    category: "Befreit",
+    isActive: true,
+    sortOrder: 90,
+  },
+  {
+    code: "VIM",
+    systemCode: "VStImp",
+    name: "Vorsteuer auf Importen von Gegenständen",
+    rate: 0.081,
+    category: "Vorsteuer",
+    isActive: true,
+    sortOrder: 100,
+  },
+  {
+    code: "BZS",
+    systemCode: "BezSt",
+    name: "Bezugssteuer Dienstleistungen Ausland",
+    rate: 0.081,
+    category: "Umsatzsteuer",
+    isActive: true,
+    sortOrder: 110,
+  },
+  // D) Ohne MWST
+  {
+    code: "U00",
+    systemCode: "USt00",
+    name: "Umsatzsteuerfrei / Ausgenommen",
+    rate: 0,
+    category: "Befreit",
+    isActive: true,
+    sortOrder: 120,
+  },
+  {
+    code: "V00",
+    systemCode: "VSt00",
+    name: "Vorsteuerfreie Aufwände / Ohne MWST",
+    rate: 0,
+    category: "Befreit",
+    isActive: true,
+    sortOrder: 130,
+  },
+]
+
+export const ZERO_VAT_AMOUNT_TAX_CODES = new Set(["U00", "V00"])

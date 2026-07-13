@@ -28,6 +28,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       isActive?: boolean
       vatBookable?: boolean
       defaultVatRate?: number
+      defaultTaxCode?: string | null
     }
 
     const account = await cosmosUpdateChartAccount(decoded, body)

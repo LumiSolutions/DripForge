@@ -71,6 +71,7 @@ export async function cosmosCreateChartAccount(input: {
   taxType?: string
   vatBookable?: boolean
   defaultVatRate?: number
+  defaultTaxCode?: string | null
   isActive?: boolean
 }): Promise<Account> {
   const number = normalizeAccountNumber(input.number)
@@ -98,6 +99,7 @@ export async function cosmosCreateChartAccount(input: {
     isActive: input.isActive ?? true,
     vatBookable: input.vatBookable ?? false,
     defaultVatRate: input.defaultVatRate ?? 0.081,
+    defaultTaxCode: input.defaultTaxCode ?? null,
     createdAt: now,
     updatedAt: now,
   })
@@ -119,6 +121,7 @@ export async function cosmosUpdateChartAccount(
       | "isActive"
       | "vatBookable"
       | "defaultVatRate"
+      | "defaultTaxCode"
     >
   >
 ): Promise<Account> {

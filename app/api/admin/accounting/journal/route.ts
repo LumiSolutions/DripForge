@@ -3,6 +3,7 @@ import {
   cosmosCreateJournalEntry,
   cosmosGetJournalEntries,
 } from "@/lib/admin/cosmos-journal"
+import { cosmosGetTaxCodes } from "@/lib/admin/cosmos-tax-codes"
 import {
   isAuthError,
   requireAdminSession,
@@ -69,7 +70,8 @@ export async function POST(request: Request) {
     let description = body.description?.trim() ?? ""
 
     if (body.rows?.length) {
-      bookingRows = body.rows.map(normalizeManualBookingRow)
+      const taxCodes = await cosmosGetTaxCodes()
+      bookingRows = body.rows.map((row) => normalizeManualBookingRow(row, taxCodes))
       const rowValidation = validateManualBookingRows(bookingRows)
       if (!rowValidation.valid) {
         return NextResponse.json({ error: rowValidation.error }, { status: 400 })

@@ -5,16 +5,20 @@ import { BookOpen } from "lucide-react"
 import { AdminAccountingChartPanel } from "@/components/admin/admin-accounting-chart-panel"
 import { AdminAccountingDashboardPanel } from "@/components/admin/admin-accounting-dashboard-panel"
 import { AdminAccountingManualPanel } from "@/components/admin/admin-accounting-manual-panel"
+import { AdminAccountingTaxCodesPanel } from "@/components/admin/admin-accounting-tax-codes-panel"
 import type { Account, AccountKind } from "@/lib/accounting/account-types"
+import type { TaxCode } from "@/lib/accounting/tax-code-types"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
 import { cn } from "@/lib/utils"
 
-type AccountingSubview = "dashboard" | "manual" | "accounts"
+type AccountingSubview = "dashboard" | "manual" | "accounts" | "tax-codes"
 
 export function AdminAccountingTab() {
   const [view, setView] = useState<AccountingSubview>("dashboard")
   const [accounts, setAccounts] = useState<Account[]>([])
+  const [taxCodes, setTaxCodes] = useState<TaxCode[]>([])
   const [loadingAccounts, setLoadingAccounts] = useState(true)
+  const [loadingTaxCodes, setLoadingTaxCodes] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -33,9 +37,26 @@ export function AdminAccountingTab() {
     }
   }, [])
 
+  const loadTaxCodes = useCallback(async () => {
+    setLoadingTaxCodes(true)
+    try {
+      const res = await fetch("/api/admin/accounting/tax-codes?ensure=1", {
+        cache: "no-store",
+      })
+      const data = (await res.json()) as { taxCodes?: TaxCode[]; error?: string }
+      if (!res.ok) throw new Error(data.error ?? "Steuercodes konnten nicht geladen werden.")
+      setTaxCodes(data.taxCodes ?? [])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Steuercodes konnten nicht geladen werden.")
+    } finally {
+      setLoadingTaxCodes(false)
+    }
+  }, [])
+
   useEffect(() => {
     void loadAccounts()
-  }, [loadAccounts])
+    void loadTaxCodes()
+  }, [loadAccounts, loadTaxCodes])
 
   const handleSaveAccount = async (payload: {
     number: string
@@ -44,6 +65,7 @@ export function AdminAccountingTab() {
     type: AccountKind
     vatBookable: boolean
     defaultVatRate: number
+    defaultTaxCode: string | null
     originalNumber?: string
   }) => {
     setSaving(true)
@@ -61,6 +83,7 @@ export function AdminAccountingTab() {
               type: payload.type,
               vatBookable: payload.vatBookable,
               defaultVatRate: payload.defaultVatRate,
+              defaultTaxCode: payload.defaultTaxCode,
             }),
           }
         )
@@ -113,6 +136,7 @@ export function AdminAccountingTab() {
       type: account.type === "Gruppe" ? "Aktiv" : account.type,
       vatBookable: account.vatBookable ?? false,
       defaultVatRate: account.defaultVatRate ?? 0.081,
+      defaultTaxCode: account.defaultTaxCode ?? null,
     }).catch(() => undefined)
   }
 
@@ -156,6 +180,7 @@ export function AdminAccountingTab() {
               ["dashboard", "Dashboard / Übersicht"],
               ["manual", "Manuelle Buchung"],
               ["accounts", "Kontenplan"],
+              ["tax-codes", "MWST-Sätze"],
             ] as const
           ).map(([id, label]) => (
             <button
@@ -175,20 +200,31 @@ export function AdminAccountingTab() {
 
       {view === "dashboard" && <AdminAccountingDashboardPanel />}
       {view === "manual" && (
-        <AdminAccountingManualPanel accounts={accounts} onBooked={() => undefined} />
+        <AdminAccountingManualPanel
+          accounts={accounts}
+          taxCodes={taxCodes}
+          onBooked={() => undefined}
+        />
       )}
       {view === "accounts" && (
         <AdminAccountingChartPanel
           accounts={accounts}
-          loading={loadingAccounts}
+          taxCodes={taxCodes}
+          loading={loadingAccounts || loadingTaxCodes}
           saving={saving}
           error={error}
-          onRefresh={() => void loadAccounts()}
+          onRefresh={() => {
+            void loadAccounts()
+            void loadTaxCodes()
+          }}
           onSave={handleSaveAccount}
           onDelete={handleDeleteAccount}
           onCopy={handleCopyAccount}
           onDeactivate={handleDeactivateAccount}
         />
+      )}
+      {view === "tax-codes" && (
+        <AdminAccountingTaxCodesPanel />
       )}
     </div>
   )
