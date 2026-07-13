@@ -9,10 +9,9 @@ import {
 import { countStockForMaterialType } from "@/lib/admin/list-sort-utils"
 import {
   sanitizeMaterialTypesInput,
-  toStringList,
   type MaterialTypeDefinition,
 } from "@/lib/admin/material-stats-types"
-import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
+import { ensureSettingsReady } from "@/lib/cosmos/client"
 
 export const dynamic = "force-dynamic"
 
@@ -59,7 +58,7 @@ export async function GET(request: Request) {
   if (isAuthError(auth)) return auth
 
   try {
-    await warmCosmosInfrastructure()
+    await ensureSettingsReady()
     const materialTypes = await getMaterialTypes()
     return NextResponse.json({ materialTypes })
   } catch (error) {
@@ -83,7 +82,7 @@ export async function PUT(request: Request) {
   if (isAuthError(auth)) return auth
 
   try {
-    await warmCosmosInfrastructure()
+    await ensureSettingsReady()
     const body = (await request.json()) as {
       materialTypes?: MaterialTypeDefinition[]
       materialStats?: unknown

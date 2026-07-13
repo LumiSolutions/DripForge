@@ -2,6 +2,9 @@ import { CosmosClient, type Container, type Database } from "@azure/cosmos"
 import { logCosmosError, maskCosmosEndpoint } from "@/lib/cosmos/log-error"
 
 const DATABASE_ID = process.env.COSMOSDB_DATABASE?.trim() || "dripforge"
+const SETTINGS_CONTAINER_ID =
+  process.env.COSMOSDB_SETTINGS_CONTAINER?.trim() || "settings"
+const SETTINGS_PARTITION_KEY = "/id"
 
 /** Request-Timeout in ms (Azure SWA: etwas grosszuegiger). */
 const REQUEST_TIMEOUT_MS = Number(process.env.COSMOSDB_REQUEST_TIMEOUT_MS ?? 60_000)
@@ -20,9 +23,17 @@ export function isCosmosConfigured(): boolean {
   return true
 }
 
-function resetCosmosCaches(): void {
+export function resetCosmosCaches(): void {
   databaseReady = null
   containerReady.clear()
+}
+
+export function getCosmosDatabaseId(): string {
+  return DATABASE_ID
+}
+
+export function getSettingsContainerId(): string {
+  return SETTINGS_CONTAINER_ID
 }
 
 export function getCosmosClient(): CosmosClient {
@@ -47,6 +58,7 @@ export function getCosmosClient(): CosmosClient {
       console.info("Cosmos DB: Client initialisiert.", {
         endpoint: process.env.COSMOSDB_ENDPOINT?.replace(/\/\/[^/]+/, "//***"),
         database: DATABASE_ID,
+        settingsContainer: SETTINGS_CONTAINER_ID,
         requestTimeoutMs: REQUEST_TIMEOUT_MS,
         maxRetries: MAX_RETRY_ATTEMPTS,
       })
@@ -80,7 +92,10 @@ export async function ensureDatabase(): Promise<Database> {
         } catch (readError) {
           resetCosmosCaches()
           logCosmosError("database.read", readError)
-          throw readError
+          throw new Error(
+            `Cosmos-Datenbank "${DATABASE_ID}" nicht gefunden. Prüfe COSMOSDB_DATABASE / Azure Portal.`,
+            { cause: readError }
+          )
         }
       }
     })()
@@ -92,6 +107,13 @@ export async function ensureDatabase(): Promise<Database> {
     resetCosmosCaches()
     throw error
   }
+}
+
+function cosmosStatusCode(error: unknown): number | undefined {
+  if (!error || typeof error !== "object") return undefined
+  const err = error as { code?: number | string; statusCode?: number }
+  const code = err.statusCode ?? err.code
+  return typeof code === "number" ? code : Number(code) || undefined
 }
 
 async function ensureContainer(
@@ -109,7 +131,9 @@ async function ensureContainer(
           id: containerId,
           partitionKey: { paths: [partitionKey] },
         })
-        console.info(`Cosmos DB: Container "${containerId}" bereit.`)
+        console.info(
+          `Cosmos DB: Container "${containerId}" bereit (PK ${partitionKey}).`
+        )
         return container
       } catch (createError) {
         logCosmosError(`containers.createIfNotExists(${containerId})`, createError)
@@ -123,7 +147,12 @@ async function ensureContainer(
         } catch (readError) {
           containerReady.delete(cacheKey)
           logCosmosError(`container.read(${containerId})`, readError)
-          throw readError
+          throw new Error(
+            `Cosmos-Container "${containerId}" in Datenbank "${DATABASE_ID}" nicht gefunden ` +
+              `(Partition Key erwartet: ${partitionKey}). ` +
+              `Unter shared/1000 RU muss der Container im Azure Portal existieren.`,
+            { cause: readError }
+          )
         }
       }
     })()
@@ -138,12 +167,28 @@ async function ensureContainer(
   }
 }
 
+/** Optionalen Container warm machen — Fehler blockieren den Request nicht. */
+async function softWarm(
+  label: string,
+  fn: () => Promise<unknown>
+): Promise<void> {
+  try {
+    await fn()
+  } catch (error) {
+    console.warn(`Cosmos DB: Optionales Warm-up «${label}» übersprungen.`, {
+      message: error instanceof Error ? error.message : String(error),
+      code: cosmosStatusCode(error),
+    })
+  }
+}
+
 export function logCosmosConfigStatus(): void {
   const configured = isCosmosConfigured()
   console.info("Cosmos DB: Konfigurationsstatus.", {
     configured,
     endpoint: maskCosmosEndpoint(process.env.COSMOSDB_ENDPOINT),
     database: DATABASE_ID,
+    settingsContainer: SETTINGS_CONTAINER_ID,
     hasKey: Boolean(process.env.COSMOSDB_KEY?.trim()),
     nodeEnv: process.env.NODE_ENV,
   })
@@ -154,7 +199,11 @@ export function logCosmosConfigStatus(): void {
   }
 }
 
-/** Kern-Container beim Start vorbereiten (ohne optionale dedizierte Container). */
+/**
+ * Kern-Container beim Start vorbereiten.
+ * settings ist Pflicht; customers/products dürfen nicht den ganzen Request killen
+ * (oft fehlt customers bei festen RU-Limits → "Resource Not Found").
+ */
 export async function warmCosmosCore(): Promise<void> {
   if (!isCosmosConfigured()) {
     logCosmosConfigStatus()
@@ -163,14 +212,22 @@ export async function warmCosmosCore(): Promise<void> {
   logCosmosConfigStatus()
   await ensureDatabase()
   await getSettingsContainer()
-  await getCustomersContainer()
-  const { resolveProductsContainer } = await import("@/lib/cosmos/products-container")
-  await resolveProductsContainer()
+  await softWarm("customers", () => getCustomersContainer())
+  await softWarm("products", async () => {
+    const { resolveProductsContainer } = await import("@/lib/cosmos/products-container")
+    await resolveProductsContainer()
+  })
 }
 
-/** @deprecated Alias — nutzt warmCosmosCore (kein project-supporters createIfNotExists mehr). */
+/** @deprecated Alias — nutzt warmCosmosCore. */
 export async function warmCosmosInfrastructure(): Promise<void> {
   await warmCosmosCore()
+}
+
+/** Nur settings-Container — für Material-Arten / Settings-Dokumente. */
+export async function ensureSettingsReady(): Promise<Container> {
+  await ensureDatabase()
+  return getSettingsContainer()
 }
 
 export async function getProjectSupportersContainer(): Promise<Container> {
@@ -188,7 +245,7 @@ export async function getCustomersContainer(): Promise<Container> {
 }
 
 export async function getSettingsContainer(): Promise<Container> {
-  return ensureContainer("settings", "/id")
+  return ensureContainer(SETTINGS_CONTAINER_ID, SETTINGS_PARTITION_KEY)
 }
 
 export async function getProductsContainer(): Promise<Container> {
