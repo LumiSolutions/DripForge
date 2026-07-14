@@ -27,6 +27,30 @@ export function getInvoicePaymentTermsLabel(
   return "Bei Bestellung"
 }
 
+/** Bestellung bereits online (Karte/TWINT) bezahlt — Quittung statt Zahlungsaufruf. */
+export function isOrderAlreadyPaid(order: StoredOrder): boolean {
+  if (order.paymentMethod === "invoice") return false
+  if (order.paymentMethod !== "card" && order.paymentMethod !== "twint") {
+    return false
+  }
+  if (order.paymentConfirmed === true) return true
+  if (order.paymentConfirmed === false) return false
+  // Legacy-/Fallback: Gateway-Spuren ohne explizites Flag
+  return Boolean(order.stripeSessionId || order.payrexxTransactionUuid)
+}
+
+export function getOrderPaymentMethodDisplayLabel(order: StoredOrder): string {
+  const label = order.paymentMethodLabel?.trim()
+  if (label) {
+    if (/kreditkarte|card|stripe/i.test(label)) return "Kreditkarte"
+    if (/twint/i.test(label)) return "TWINT"
+    return label
+  }
+  if (order.paymentMethod === "card") return "Kreditkarte"
+  if (order.paymentMethod === "twint") return "TWINT"
+  return "Online-Zahlung"
+}
+
 export function getInvoiceDueDateLabel(
   createdAt: string,
   paymentMethod: StoredOrder["paymentMethod"],

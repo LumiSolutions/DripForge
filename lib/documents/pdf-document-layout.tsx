@@ -30,6 +30,7 @@ export const pdfDocumentColors = {
   bgMuted: "#f8fafc",
   infoPanel: "#f3f4f6",
   tableHeader: "#1e293b",
+  paidGreen: "#15803d",
 }
 
 function scaledSize(baseFontSize: number, sizeAtBase9: number): number {
@@ -129,11 +130,44 @@ export function createPdfDocumentLayoutStyles(template: DocumentTemplateSettings
       marginTop: 8,
       maxWidth: "90%",
     },
-    paymentSection: {
-      marginTop: 16,
+    receiptNotice: {
+      marginTop: 14,
+      paddingVertical: 10,
+      paddingHorizontal: 12,
+      borderWidth: 1.5,
+      borderColor: pdfDocumentColors.paidGreen,
+      borderRadius: 4,
+      backgroundColor: "#f0fdf4",
+    },
+    receiptNoticeText: {
+      fontSize: scaledSize(base, 9.5),
+      color: pdfDocumentColors.paidGreen,
+      lineHeight: 1.45,
+      ...bold,
+    },
+    paymentPageCompany: {
+      marginTop: 8,
+      marginBottom: 12,
+    },
+    paymentPageCompanyLine: {
+      fontSize: scaledSize(base, 10),
+      color: pdfDocumentColors.anthracite,
+      marginBottom: 2,
+    },
+    paymentPageCompanyBold: {
+      ...bold,
+      fontSize: scaledSize(base, 11),
+      color: pdfDocumentColors.anthracite,
+      marginBottom: 3,
+    },
+    paymentDashLine: {
       borderTopWidth: 1,
-      borderTopColor: pdfDocumentColors.border,
-      paddingTop: 12,
+      borderTopColor: pdfDocumentColors.anthraciteMid,
+      borderStyle: "dashed",
+      marginVertical: 14,
+    },
+    paymentSection: {
+      marginTop: 4,
       flexDirection: "row",
     },
     paymentLeft: {
@@ -180,6 +214,30 @@ export function createPdfDocumentLayoutStyles(template: DocumentTemplateSettings
       width: 46 * MM,
       height: 46 * MM,
       objectFit: "contain",
+    },
+    paidStampWrap: {
+      marginTop: 20,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingVertical: 24,
+    },
+    paidStamp: {
+      ...bold,
+      fontSize: scaledSize(base, 28),
+      color: pdfDocumentColors.paidGreen,
+      letterSpacing: 2,
+      textAlign: "center",
+      borderWidth: 3,
+      borderColor: pdfDocumentColors.paidGreen,
+      paddingVertical: 10,
+      paddingHorizontal: 18,
+    },
+    paidStampSub: {
+      marginTop: 16,
+      fontSize: scaledSize(base, 9),
+      color: pdfDocumentColors.anthraciteMid,
+      textAlign: "center",
+      maxWidth: "85%",
     },
     centerFooter: {
       position: "absolute",
@@ -228,6 +286,9 @@ export type PdfDocumentPayment = {
   amount: number
   reference: string
   qrImageUrl?: string | null
+  /** Bereits online bezahlt (Karte / TWINT) */
+  alreadyPaid?: boolean
+  paymentMethodLabel?: string
 }
 
 export type PdfDocumentLayoutProps = {
@@ -245,6 +306,56 @@ function logoJustifyContent(alignment: DocumentLogoAlignment) {
   if (alignment === "left") return "flex-start"
   if (alignment === "center") return "center"
   return "flex-end"
+}
+
+type LayoutStyles = ReturnType<typeof createPdfDocumentLayoutStyles>
+
+function PdfLogoHeader({
+  styles,
+  logoUrl,
+  alignment,
+}: {
+  styles: LayoutStyles
+  logoUrl?: string
+  alignment: DocumentLogoAlignment
+}) {
+  return (
+    <View
+      style={[
+        styles.logoHeader,
+        { flexDirection: "row", justifyContent: logoJustifyContent(alignment) },
+      ]}
+    >
+      {logoUrl ? (
+        // eslint-disable-next-line jsx-a11y/alt-text -- @react-pdf Image
+        <Image style={styles.logo} src={logoUrl} />
+      ) : null}
+    </View>
+  )
+}
+
+function PdfCenterFooter({
+  styles,
+  footerLines,
+}: {
+  styles: LayoutStyles
+  footerLines: { line1: string; line2: string; line3: string }
+}) {
+  const hasFooter = footerLines.line1 || footerLines.line2 || footerLines.line3
+  if (!hasFooter) return null
+  return (
+    <View style={styles.centerFooter} fixed>
+      {footerLines.line1 ? (
+        <Text style={styles.footerLine1}>{footerLines.line1}</Text>
+      ) : null}
+      {footerLines.line2 ? (
+        <Text style={styles.footerLine2}>{footerLines.line2}</Text>
+      ) : null}
+      {footerLines.line3 ? (
+        <Text style={styles.footerLine3}>{footerLines.line3}</Text>
+      ) : null}
+    </View>
+  )
 }
 
 export function PdfDocumentLayout({
@@ -287,24 +398,26 @@ export function PdfDocumentLayout({
   const accountHolder = template.inhaber
     ? `${template.firmenname}\n${template.inhaber}`
     : template.firmenname
-  const showPaymentBlock = documentText.showPaymentBlock && Boolean(payment)
+  const alreadyPaid = Boolean(payment?.alreadyPaid)
+  const showPaymentPage = documentText.showPaymentBlock && Boolean(payment)
   const qrImageUrl = payment?.qrImageUrl ?? template.qrPaymentImageUrl
-  const hasFooter = footerLines.line1 || footerLines.line2 || footerLines.line3
+  const paymentMethodLabel =
+    payment?.paymentMethodLabel?.trim() || "Online-Zahlung"
+  const receiptMessage = `Dieser Beleg dient als Quittung. Der Betrag wurde bereits erfolgreich via ${paymentMethodLabel} beglichen. Vielen Dank!`
+
+  const companyAddressLines = String(template.firmenAdresse ?? "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
 
   return (
     <Document title={title} author={template.firmenname}>
       <Page size="A4" style={styles.page}>
-        <View
-          style={[
-            styles.logoHeader,
-            { flexDirection: "row", justifyContent: logoJustifyContent(template.logoAlignment) },
-          ]}
-        >
-          {logoUrl ? (
-            // eslint-disable-next-line jsx-a11y/alt-text -- @react-pdf Image
-            <Image style={styles.logo} src={logoUrl} />
-          ) : null}
-        </View>
+        <PdfLogoHeader
+          styles={styles}
+          logoUrl={logoUrl}
+          alignment={template.logoAlignment}
+        />
 
         <View style={styles.recipientBlock}>
           <Text style={styles.recipientLine}>
@@ -350,53 +463,78 @@ export function PdfDocumentLayout({
 
         {footerNote ? <Text style={styles.footerNote}>{footerNote}</Text> : null}
 
-        {showPaymentBlock && payment ? (
-          <View style={styles.paymentSection}>
-            <View style={styles.paymentLeft}>
-              <Text style={styles.paymentSectionTitle}>Zahlungsverbindung</Text>
-              <Text style={styles.paymentLineBold}>Kontoinhaber</Text>
-              <Text style={styles.paymentLine}>{accountHolder}</Text>
-              {template.iban ? (
-                <>
-                  <Text style={[styles.paymentLineBold, { marginTop: 6 }]}>IBAN</Text>
-                  <Text style={styles.paymentLine}>{template.iban}</Text>
-                </>
-              ) : null}
-              {template.bankname ? (
-                <Text style={styles.paymentLine}>{template.bankname}</Text>
-              ) : null}
-              <Text style={[styles.paymentLineBold, { marginTop: 6 }]}>
-                Referenz / Zahlungszweck
-              </Text>
-              <Text style={styles.paymentLine}>{payment.reference}</Text>
-              <Text style={styles.paymentAmount}>{formatChf(payment.amount)}</Text>
-              {paymentBlockText ? (
-                <Text style={styles.paymentNote}>{paymentBlockText}</Text>
-              ) : null}
-            </View>
-            {qrImageUrl ? (
-              <View style={styles.paymentRight}>
-                {/* eslint-disable-next-line jsx-a11y/alt-text -- @react-pdf Image */}
-                <Image style={styles.qrImage} src={qrImageUrl} />
-              </View>
-            ) : null}
+        {alreadyPaid ? (
+          <View style={styles.receiptNotice}>
+            <Text style={styles.receiptNoticeText}>{receiptMessage}</Text>
           </View>
         ) : null}
 
-        {hasFooter ? (
-          <View style={styles.centerFooter} fixed>
-            {footerLines.line1 ? (
-              <Text style={styles.footerLine1}>{footerLines.line1}</Text>
-            ) : null}
-            {footerLines.line2 ? (
-              <Text style={styles.footerLine2}>{footerLines.line2}</Text>
-            ) : null}
-            {footerLines.line3 ? (
-              <Text style={styles.footerLine3}>{footerLines.line3}</Text>
-            ) : null}
-          </View>
-        ) : null}
+        <PdfCenterFooter styles={styles} footerLines={footerLines} />
       </Page>
+
+      {showPaymentPage && payment ? (
+        <Page size="A4" style={styles.page}>
+          <PdfLogoHeader
+            styles={styles}
+            logoUrl={logoUrl}
+            alignment={template.logoAlignment}
+          />
+
+          <View style={styles.paymentPageCompany}>
+            <Text style={styles.paymentPageCompanyBold}>{template.firmenname}</Text>
+            {template.inhaber ? (
+              <Text style={styles.paymentPageCompanyLine}>{template.inhaber}</Text>
+            ) : null}
+            {companyAddressLines.map((line) => (
+              <Text key={line} style={styles.paymentPageCompanyLine}>
+                {line}
+              </Text>
+            ))}
+          </View>
+
+          <View style={styles.paymentDashLine} />
+
+          {alreadyPaid ? (
+            <View style={styles.paidStampWrap}>
+              <Text style={styles.paidStamp}>BEZAHLT / PAID</Text>
+              <Text style={styles.paidStampSub}>{receiptMessage}</Text>
+            </View>
+          ) : (
+            <View style={styles.paymentSection}>
+              <View style={styles.paymentLeft}>
+                <Text style={styles.paymentSectionTitle}>Zahlungsverbindung</Text>
+                <Text style={styles.paymentLineBold}>Kontoinhaber</Text>
+                <Text style={styles.paymentLine}>{accountHolder}</Text>
+                {template.iban ? (
+                  <>
+                    <Text style={[styles.paymentLineBold, { marginTop: 6 }]}>IBAN</Text>
+                    <Text style={styles.paymentLine}>{template.iban}</Text>
+                  </>
+                ) : null}
+                {template.bankname ? (
+                  <Text style={styles.paymentLine}>{template.bankname}</Text>
+                ) : null}
+                <Text style={[styles.paymentLineBold, { marginTop: 6 }]}>
+                  Referenz / Zahlungszweck
+                </Text>
+                <Text style={styles.paymentLine}>{payment.reference}</Text>
+                <Text style={styles.paymentAmount}>{formatChf(payment.amount)}</Text>
+                {paymentBlockText ? (
+                  <Text style={styles.paymentNote}>{paymentBlockText}</Text>
+                ) : null}
+              </View>
+              {qrImageUrl ? (
+                <View style={styles.paymentRight}>
+                  {/* eslint-disable-next-line jsx-a11y/alt-text -- @react-pdf Image */}
+                  <Image style={styles.qrImage} src={qrImageUrl} />
+                </View>
+              ) : null}
+            </View>
+          )}
+
+          <PdfCenterFooter styles={styles} footerLines={footerLines} />
+        </Page>
+      ) : null}
     </Document>
   )
 }

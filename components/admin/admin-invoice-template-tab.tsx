@@ -305,39 +305,56 @@ function DocumentLivePreview({
           ) : null}
 
           {documentText.showPaymentBlock ? (
-            <div className="mt-4 grid grid-cols-[1fr_auto] gap-4 border-t border-slate-200 pt-4">
-              <div>
-                <p className="mb-2 text-[0.72em] font-bold uppercase tracking-widest text-orange-500">
-                  Zahlungsverbindung
-                </p>
-                <p className="font-bold">Kontoinhaber</p>
-                <p className="whitespace-pre-line text-slate-600">
-                  {template.firmenname}
-                  {template.inhaber ? `\n${template.inhaber}` : ""}
-                </p>
-                {template.iban ? (
-                  <>
-                    <p className="mt-2 font-bold">IBAN</p>
-                    <p className="text-slate-600">{template.iban}</p>
-                  </>
+            <div className="mt-6 break-before-page border-t border-dashed border-slate-400 pt-6">
+              <div className="mb-3 space-y-0.5 text-[0.95em]">
+                <p className="font-bold">{template.firmenname}</p>
+                {template.inhaber ? (
+                  <p className="text-slate-600">{template.inhaber}</p>
                 ) : null}
-                {template.bankname ? (
-                  <p className="text-slate-600">{template.bankname}</p>
-                ) : null}
-                <p className="mt-2 font-bold">Referenz / Zahlungszweck</p>
-                <p className="text-slate-600">{documentNumber}</p>
-                {paymentBlockText ? (
-                  <p className="mt-2 text-[0.8em] text-slate-500">{paymentBlockText}</p>
+                {template.firmenAdresse
+                  .split(/\r?\n/)
+                  .filter(Boolean)
+                  .map((line) => (
+                    <p key={line} className="text-slate-600">
+                      {line}
+                    </p>
+                  ))}
+              </div>
+              <div className="mb-4 border-t border-dashed border-slate-400" />
+              <div className="grid grid-cols-[1fr_auto] gap-4">
+                <div>
+                  <p className="mb-2 text-[0.72em] font-bold uppercase tracking-widest text-orange-500">
+                    Zahlungsverbindung
+                  </p>
+                  <p className="font-bold">Kontoinhaber</p>
+                  <p className="whitespace-pre-line text-slate-600">
+                    {template.firmenname}
+                    {template.inhaber ? `\n${template.inhaber}` : ""}
+                  </p>
+                  {template.iban ? (
+                    <>
+                      <p className="mt-2 font-bold">IBAN</p>
+                      <p className="text-slate-600">{template.iban}</p>
+                    </>
+                  ) : null}
+                  {template.bankname ? (
+                    <p className="text-slate-600">{template.bankname}</p>
+                  ) : null}
+                  <p className="mt-2 font-bold">Referenz / Zahlungszweck</p>
+                  <p className="text-slate-600">{documentNumber}</p>
+                  {paymentBlockText ? (
+                    <p className="mt-2 text-[0.8em] text-slate-500">{paymentBlockText}</p>
+                  ) : null}
+                </div>
+                {template.qrPaymentImageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={template.qrPaymentImageUrl}
+                    alt="QR-Zahlteil"
+                    className="h-28 w-28 object-contain"
+                  />
                 ) : null}
               </div>
-              {template.qrPaymentImageUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={template.qrPaymentImageUrl}
-                  alt="QR-Zahlteil"
-                  className="h-28 w-28 object-contain"
-                />
-              ) : null}
             </div>
           ) : null}
 
@@ -456,10 +473,19 @@ export function AdminInvoiceTemplateTab() {
     }
   }
 
+const MAX_LOGO_BYTES = 5 * 1024 * 1024
+
   const handleLogoUpload = async (file: File) => {
     setUploadingLogo(true)
     setError(null)
+    setSuccess(null)
     try {
+      if (file.size > MAX_LOGO_BYTES) {
+        const message = "Das Logo darf maximal 5 MB gross sein."
+        setError(message)
+        window.alert(message)
+        return
+      }
       const formData = new FormData()
       formData.append("file", file)
       const res = await fetch("/api/admin/document-template/logo", {
@@ -625,6 +651,9 @@ export function AdminInvoiceTemplateTab() {
           <Card className={adminUi.section}>
             <CardContent className="space-y-4 p-6">
               <h2 className="font-semibold">Dokumentenlogo</h2>
+              <p className="text-xs text-muted-foreground">
+                PNG, JPEG, WebP oder SVG — das Logo darf maximal 5 MB gross sein.
+              </p>
               <div className="flex flex-wrap items-center gap-4">
                 {template.logoUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element

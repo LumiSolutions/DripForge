@@ -14,6 +14,8 @@ import {
   formatChf,
   formatInvoiceDate,
   getInvoicePaymentTermsLabel,
+  getOrderPaymentMethodDisplayLabel,
+  isOrderAlreadyPaid,
 } from "@/lib/invoices/invoice-format"
 import {
   formatInvoiceItemDetails,
@@ -186,12 +188,16 @@ export function InvoiceDocument({
 
   const recipient = order.delivery ?? order.billing
 
+  const alreadyPaid = isOrderAlreadyPaid(order)
   const payment =
-    documentText.showPaymentBlock && (order.paymentMethod === "invoice" || Boolean(template.iban))
+    documentText.showPaymentBlock &&
+    (alreadyPaid || order.paymentMethod === "invoice" || Boolean(template.iban))
       ? {
           amount: order.totals.total,
           reference: order.orderId,
-          qrImageUrl: template.qrPaymentImageUrl,
+          qrImageUrl: alreadyPaid ? null : template.qrPaymentImageUrl,
+          alreadyPaid,
+          paymentMethodLabel: getOrderPaymentMethodDisplayLabel(order),
         }
       : null
 
