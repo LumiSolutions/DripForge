@@ -9,6 +9,7 @@ import {
   ClipboardList,
   Factory,
   FileText,
+  Files,
   Landmark,
   LayoutDashboard,
   Warehouse,
@@ -37,6 +38,7 @@ import { AdminMaterialStatsSection } from "@/components/admin/admin-material-sta
 import { AdminProductionTab } from "@/components/admin/admin-production-tab"
 import { AdminPrintCalculatorTab } from "@/components/admin/admin-print-calculator-tab"
 import { AdminAccountingTab } from "@/components/admin/admin-accounting-tab"
+import { AdminBelegeTab } from "@/components/admin/admin-belege-tab"
 import { AdminStatsTab } from "@/components/admin/admin-stats-tab"
 import { StaffAuthFlow } from "@/components/admin/staff-auth-flow"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
@@ -58,6 +60,7 @@ type AdminTab =
   | "print-calculator"
   | "ai-settings"
   | "accounting"
+  | "belege"
 
 type InventorySubTab = MaterialCategory | "material-types"
 
@@ -81,6 +84,7 @@ const NAV_SECTIONS: { title: string; items: NavItem[] }[] = [
       { id: "production", label: "Produktions-Cockpit", icon: Factory },
       { id: "inventory", label: "Lagerverwaltung", icon: Warehouse },
       { id: "customers", label: "Kundenverwaltung", icon: Users },
+      { id: "belege", label: "Belegverwaltung", icon: Files },
       { id: "accounting", label: "Buchhaltung", icon: Landmark },
     ],
   },
@@ -413,6 +417,7 @@ function AdminDashboardContent() {
         {tab === "ai-settings" && <AdminAiSettingsTab />}
         {tab === "print-calculator" && <AdminPrintCalculatorTab />}
         {tab === "accounting" && <AdminAccountingTab />}
+        {tab === "belege" && <AdminBelegeTab />}
       </main>
     </div>
   )

@@ -202,6 +202,7 @@ export function InvoiceDocument({
       : null
 
   const styles = createInvoiceDocumentStyles(template)
+  const isDeliveryNote = documentType === "deliveryNote"
 
   return (
     <PdfDocumentLayout
@@ -212,24 +213,32 @@ export function InvoiceDocument({
       documentMeta={{
         documentNumber: order.orderId,
         documentDate: formattedDate,
-        paymentTermsLabel: getInvoicePaymentTermsLabel(
-          order.paymentMethod,
-          template.paymentTermsDays
-        ),
-        dueDate: formatDocumentDueDate(order.createdAt, template.paymentTermsDays),
+        paymentTermsLabel: isDeliveryNote
+          ? "—"
+          : getInvoicePaymentTermsLabel(
+              order.paymentMethod,
+              template.paymentTermsDays
+            ),
+        dueDate: isDeliveryNote
+          ? "—"
+          : formatDocumentDueDate(order.createdAt, template.paymentTermsDays),
         shippingLabel: shippingLabel(order.shippingMethod),
       }}
       placeholderValues={placeholderValues}
-      payment={payment}
+      payment={isDeliveryNote ? null : payment}
     >
       <View style={styles.table}>
         <View style={styles.tableHeader}>
           <Text style={[styles.colProduct, styles.th]}>Produkt</Text>
           <Text style={[styles.colDetails, styles.th]}>Details</Text>
           <Text style={[styles.colQty, styles.th]}>Menge</Text>
-          <Text style={[styles.colUnit, styles.th]}>Einzelpreis</Text>
-          <Text style={[styles.colTotal, styles.th]}>Total</Text>
-          <Text style={[styles.colVat, styles.th]}>MWST</Text>
+          {!isDeliveryNote ? (
+            <>
+              <Text style={[styles.colUnit, styles.th]}>Einzelpreis</Text>
+              <Text style={[styles.colTotal, styles.th]}>Total</Text>
+              <Text style={[styles.colVat, styles.th]}>MWST</Text>
+            </>
+          ) : null}
         </View>
         {order.items.map((item, index) => (
           <View
@@ -243,51 +252,59 @@ export function InvoiceDocument({
               <Text style={styles.cellDetails}>{formatInvoiceItemDetails(item)}</Text>
             </View>
             <Text style={[styles.colQty, styles.cellQty]}>{item.quantity}</Text>
-            <Text style={[styles.colUnit, styles.cellMoney]}>{formatChf(item.price)}</Text>
-            <Text style={[styles.colTotal, styles.cellMoneyBold]}>
-              {formatChf(getInvoiceLineTotal(item))}
-            </Text>
-            <Text style={[styles.colVat, styles.cellVat]}>{vatLabel}</Text>
+            {!isDeliveryNote ? (
+              <>
+                <Text style={[styles.colUnit, styles.cellMoney]}>
+                  {formatChf(item.price)}
+                </Text>
+                <Text style={[styles.colTotal, styles.cellMoneyBold]}>
+                  {formatChf(getInvoiceLineTotal(item))}
+                </Text>
+                <Text style={[styles.colVat, styles.cellVat]}>{vatLabel}</Text>
+              </>
+            ) : null}
           </View>
         ))}
       </View>
 
-      {!order.totals.mwstAktiv ? (
+      {!isDeliveryNote && !order.totals.mwstAktiv ? (
         <Text style={styles.legalNote}>{MWST_EXEMPT_LEGAL_NOTE}</Text>
       ) : null}
 
-      <View style={styles.totalsWrap}>
-        <View style={styles.totalsBox}>
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Zwischensumme</Text>
-            <Text>{formatChf(order.totals.subtotal)}</Text>
-          </View>
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>
-              Versand ({shippingLabel(order.shippingMethod)})
-            </Text>
-            <Text>{formatChf(order.totals.shippingCost)}</Text>
-          </View>
-          {(order.totals.discountAmount ?? 0) > 0 ? (
+      {!isDeliveryNote ? (
+        <View style={styles.totalsWrap}>
+          <View style={styles.totalsBox}>
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>Zwischensumme</Text>
+              <Text>{formatChf(order.totals.subtotal)}</Text>
+            </View>
             <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>
-                Rabatt{order.totals.couponCode ? ` (${order.totals.couponCode})` : ""}
+                Versand ({shippingLabel(order.shippingMethod)})
               </Text>
-              <Text>- {formatChf(order.totals.discountAmount ?? 0)}</Text>
+              <Text>{formatChf(order.totals.shippingCost)}</Text>
             </View>
-          ) : null}
-          {order.totals.mwstAktiv ? (
-            <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>MwSt. ({mwstSatz.toFixed(1)}%)</Text>
-              <Text>{formatChf(order.totals.vat)}</Text>
+            {(order.totals.discountAmount ?? 0) > 0 ? (
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>
+                  Rabatt{order.totals.couponCode ? ` (${order.totals.couponCode})` : ""}
+                </Text>
+                <Text>- {formatChf(order.totals.discountAmount ?? 0)}</Text>
+              </View>
+            ) : null}
+            {order.totals.mwstAktiv ? (
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>MwSt. ({mwstSatz.toFixed(1)}%)</Text>
+                <Text>{formatChf(order.totals.vat)}</Text>
+              </View>
+            ) : null}
+            <View style={styles.totalGrand}>
+              <Text style={styles.totalGrandLabel}>Gesamtbetrag</Text>
+              <Text style={styles.totalGrandValue}>{formatChf(order.totals.total)}</Text>
             </View>
-          ) : null}
-          <View style={styles.totalGrand}>
-            <Text style={styles.totalGrandLabel}>Gesamtbetrag</Text>
-            <Text style={styles.totalGrandValue}>{formatChf(order.totals.total)}</Text>
           </View>
         </View>
-      </View>
+      ) : null}
     </PdfDocumentLayout>
   )
 }

@@ -1,5 +1,6 @@
 import type { AdminSettings, StoredOrder } from "@/lib/admin/types"
 import { getInvoiceTemplateSettings, getSettings, updateOrderInvoice } from "@/lib/admin/db"
+import { upsertRechnungFromOrder } from "@/lib/documents/beleg-service"
 import { generateInvoicePdfBuffer } from "@/lib/invoices/generate-invoice-pdf"
 import { readStoredInvoicePdf, storeOrderInvoicePdf } from "@/lib/invoices/store-order-invoice"
 
@@ -28,6 +29,19 @@ export async function generateAndStoreOrderInvoice(
     rechnungPdfUrl: stored.rechnungPdfUrl,
     rechnungPdfPath: stored.rechnungPdfPath,
   })
+
+  try {
+    await upsertRechnungFromOrder({
+      ...order,
+      rechnungPdfUrl: stored.rechnungPdfUrl ?? order.rechnungPdfUrl,
+      rechnungPdfPath: stored.rechnungPdfPath ?? order.rechnungPdfPath,
+    })
+  } catch (belegError) {
+    console.warn(
+      `Belegverwaltung: Rechnung für Order ${order.orderId} konnte nicht synchronisiert werden.`,
+      belegError
+    )
+  }
 
   return pdfBuffer
 }
