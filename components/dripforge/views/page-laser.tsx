@@ -34,8 +34,8 @@ export function PageLaser({
   const configuratorHref = SHOP_ROUTES.konfiguratorLaser
 
   return (
-    <div className="space-y-24 pb-24">
-      <section className="py-20">
+    <div className="space-y-12 pb-12 md:space-y-24 md:pb-24">
+      <section className="py-12 md:py-20">
         <div className="mx-auto max-w-7xl px-4">
           <Badge variant="outline" className="mb-6 border-cyan-500/30 bg-cyan-500/10 text-cyan-400">
             <Zap className="mr-1 h-3 w-3" />
@@ -68,9 +68,9 @@ export function PageLaser({
       </section>
 
       {/* Capabilities */}
-      <section className="py-16">
+      <section className="py-10 md:py-16">
         <div className="mx-auto max-w-7xl px-4">
-          <div className="mb-12 text-center">
+          <div className="mb-8 text-center md:mb-12">
             <h2 className="text-3xl font-bold md:text-4xl">
               <span className="text-foreground">Unsere </span>
               <span className="bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent">Möglichkeiten</span>
@@ -146,9 +146,9 @@ export function PageLaser({
       </section>
 
       {/* Supported Materials */}
-      <section className="py-16">
+      <section className="py-10 md:py-16">
         <div className="mx-auto max-w-7xl px-4">
-          <div className="mb-12 text-center">
+          <div className="mb-8 text-center md:mb-12">
             <h2 className="text-3xl font-bold md:text-4xl">
               <span className="text-foreground">Unterstützte </span>
               <span className="bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent">Materialien</span>
@@ -209,9 +209,9 @@ export function PageLaser({
       </section>
 
       {/* Laser Process */}
-      <section className="py-16">
+      <section className="py-10 md:py-16">
         <div className="mx-auto max-w-7xl px-4">
-          <div className="mb-12 text-center">
+          <div className="mb-8 text-center md:mb-12">
             <h2 className="text-3xl font-bold md:text-4xl">
               <span className="text-foreground">Wie die </span>
               <span className="bg-gradient-to-r from-cyan-400 to-primary bg-clip-text text-transparent">Lasergravur</span>
@@ -273,9 +273,9 @@ export function PageLaser({
       </section>
 
       {/* What to Expect */}
-      <section className="py-16">
+      <section className="py-10 md:py-16">
         <div className="mx-auto max-w-7xl px-4">
-          <div className="mb-12 text-center">
+          <div className="mb-8 text-center md:mb-12">
             <h2 className="text-3xl font-bold md:text-4xl">
               <span className="text-foreground">Was Sie </span>
               <span className="bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent">erwartet</span>
@@ -309,7 +309,7 @@ export function PageLaser({
       </section>
 
       {/* CTA */}
-      <section className="py-16">
+      <section className="py-10 md:py-16">
         <div className="mx-auto max-w-3xl px-4">
           <Card className="relative overflow-hidden border-cyan-500/30 bg-gradient-to-b from-card to-cyan-950/20">
             <CardContent className="p-12 text-center">

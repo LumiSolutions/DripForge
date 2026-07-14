@@ -90,9 +90,9 @@ export function PageKontakt({ setCurrentView }: { setCurrentView: (view: string)
   }
 
   return (
-    <div className="py-16">
+    <div className="py-10 md:py-16">
       <div className="mx-auto max-w-7xl px-4">
-        <div className="mb-12 text-center">
+        <div className="mb-8 text-center md:mb-12">
           <Badge variant="outline" className="mb-6 border-primary/30 bg-primary/10 text-primary">
             <MessageSquare className="mr-1 h-3 w-3" />
             Kontakt aufnehmen

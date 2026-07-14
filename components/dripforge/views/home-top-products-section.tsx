@@ -59,9 +59,9 @@ export function HomeTopProductsSection() {
     products.length >= 4 ? "md:grid-cols-4" : products.length === 3 ? "md:grid-cols-3" : "md:grid-cols-2"
 
   return (
-    <section className="py-16">
+    <section className="py-10 md:py-16">
       <div className="mx-auto max-w-7xl px-4">
-        <div className="mb-12 text-center">
+        <div className="mb-8 text-center md:mb-12">
           <h2 className="text-3xl font-bold md:text-4xl">
             <SiteTextPhrase
               parts={[

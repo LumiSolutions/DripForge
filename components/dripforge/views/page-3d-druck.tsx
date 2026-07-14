@@ -59,8 +59,8 @@ export function Page3DDruck({
   const configuratorHref = SHOP_ROUTES.konfigurator3d
 
   return (
-    <div className="space-y-24 pb-24">
-      <section className="relative overflow-hidden py-20">
+    <div className="space-y-12 pb-12 md:space-y-24 md:pb-24">
+      <section className="relative overflow-hidden py-12 md:py-20">
           <div className="absolute inset-0">
             <Image
               src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/pc3-BE2inKSo4vqNzyJPw5eT2lZzb9cXDP.jpg"
@@ -102,9 +102,9 @@ export function Page3DDruck({
         </section>
 
       {/* Premium Materials */}
-      <section className="py-16">
+      <section className="py-10 md:py-16">
         <div className="mx-auto max-w-7xl px-4">
-          <div className="mb-12 text-center">
+          <div className="mb-8 text-center md:mb-12">
             <h2 className="text-3xl font-bold md:text-4xl">
               <span className="text-foreground">Premium </span>
               <span className="bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent">Materialien</span>
@@ -219,9 +219,9 @@ export function Page3DDruck({
       </section>
 
       {/* Our Process */}
-      <section className="py-16">
+      <section className="py-10 md:py-16">
         <div className="mx-auto max-w-7xl px-4">
-          <div className="mb-16 text-center">
+          <div className="mb-8 text-center md:mb-16">
             <h2 className="text-3xl font-bold md:text-4xl">
               <span className="text-foreground">Unser </span>
               <span className="bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent">Prozess</span>
@@ -244,7 +244,7 @@ export function Page3DDruck({
       </section>
 
       {/* CTA */}
-      <section className="py-16">
+      <section className="py-10 md:py-16">
         <div className="mx-auto max-w-3xl px-4">
           <Card className="relative overflow-hidden border-cyan-500/30 bg-gradient-to-b from-card to-cyan-950/20">
             <CardContent className="p-12 text-center">

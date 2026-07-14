@@ -46,7 +46,7 @@ export function ShopFooter() {
   }, [])
 
   return (
-    <footer className="border-t border-border bg-card/50 py-12">
+    <footer className="border-t border-border bg-card/50 py-8 md:py-12">
       <div className="mx-auto max-w-7xl px-4">
         <div className="grid gap-8 md:grid-cols-4">
           <div>

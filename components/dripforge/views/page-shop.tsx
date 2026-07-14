@@ -406,7 +406,7 @@ export function PageShop({
 
     return (
       <ProductDetailErrorBoundary onReset={() => setSelectedProduct(null)}>
-      <div className="space-y-10 pb-24">
+      <div className="space-y-10 pb-12 md:pb-24">
         <div className="mx-auto max-w-7xl px-4 pt-8">
           <Button
             variant="outline"
@@ -777,8 +777,8 @@ export function PageShop({
   }
 
   return (
-    <div className="space-y-16 pb-24">
-      <section className="py-16 text-center">
+    <div className="space-y-10 pb-12 md:space-y-16 md:pb-24">
+      <section className="py-10 text-center md:py-16">
         <Badge variant="outline" className="mb-6 border-primary/30 bg-primary/10 text-primary">
           <ShoppingBag className="mr-1 h-3 w-3" />
           <SiteText k="shop_hero_badge" />
@@ -803,7 +803,7 @@ export function PageShop({
 
       {(showCustom3d || showCustomLaser || showAiKonfigurator) && (
         <section className="relative z-10 mx-auto max-w-7xl px-4">
-          <div className="mb-10 text-center">
+          <div className="mb-6 text-center md:mb-10">
             <h2 className="text-2xl font-bold md:text-3xl">
               <span className="text-foreground">Erschaffen Sie etwas </span>
               <span className="bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent">

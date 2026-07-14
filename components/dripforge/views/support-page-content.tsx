@@ -147,7 +147,7 @@ export function SupportPageContent({
   }
 
   return (
-    <div className="space-y-20 pb-24 pt-12">
+    <div className="space-y-12 pb-12 pt-8 md:space-y-20 md:pb-24 md:pt-12">
       <section className="relative overflow-hidden">
         <div className="pointer-events-none absolute -left-24 top-0 h-72 w-72 rounded-full bg-primary/20 blur-3xl cs-glow-orange" />
         <div className="pointer-events-none absolute -right-16 top-24 h-64 w-64 rounded-full bg-cyan-500/15 blur-3xl cs-glow-blue" />
@@ -202,7 +202,7 @@ export function SupportPageContent({
       )}
 
       <section className="mx-auto max-w-5xl px-4">
-        <div className="mb-10 text-center">
+        <div className="mb-6 text-center md:mb-10">
           <h2 className="text-3xl font-bold">Unsere nächsten Meilensteine</h2>
           <p className="mt-3 text-muted-foreground">
             {loadingMilestones

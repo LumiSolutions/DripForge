@@ -124,7 +124,7 @@ export function PageAiConfigurator({
   }
 
   return (
-    <div className="space-y-10 pb-16 pt-10">
+    <div className="space-y-8 pb-12 pt-8 md:space-y-10 md:pb-16 md:pt-10">
       <section className="mx-auto max-w-4xl px-4 text-center">
         <Badge variant="outline" className="mb-4 border-primary/30 bg-primary/10 text-primary">
           <Sparkles className="mr-1 h-3 w-3" />

@@ -76,11 +76,11 @@ export function HomePage({
   const showExpertise = services.druck3d || services.lasergravur
   const showAiKonfigurator = services.druck3d && aiPublic.enabled
   return (
-    <div className="space-y-24 pb-24">
+    <div className="space-y-12 pb-12 md:space-y-24 md:pb-24">
       {/* Hero */}
-      <section className="relative overflow-hidden py-24">
+      <section className="relative overflow-hidden py-12 md:py-24">
         <div className="mx-auto max-w-7xl px-4">
-          <div className="flex flex-col-reverse items-center gap-12 lg:flex-row lg:items-center">
+          <div className="flex flex-col-reverse items-center gap-8 lg:flex-row lg:items-center lg:gap-12">
             <div className="w-full lg:w-1/2">
               <Badge variant="outline" className="mb-6 border-primary/30 bg-primary/10 text-primary">
                 <Sparkles className="mr-1 h-3 w-3" />
@@ -136,9 +136,9 @@ export function HomePage({
 
       {/* Our Expertise */}
       {showExpertise && (
-      <section className="py-16">
+      <section className="py-10 md:py-16">
         <div className="mx-auto max-w-7xl px-4">
-          <div className="mb-12 text-center">
+          <div className="mb-8 text-center md:mb-12">
             <h2 className="text-3xl font-bold md:text-4xl">
               <SiteTextPhrase
                 parts={[
@@ -269,9 +269,9 @@ export function HomePage({
       )}
 
       {/* Why Choose DripForge */}
-      <section className="py-16">
+      <section className="py-10 md:py-16">
         <div className="mx-auto max-w-7xl px-4">
-          <div className="mb-12 text-center">
+          <div className="mb-8 text-center md:mb-12">
             <h2 className="text-3xl font-bold md:text-4xl">
               <SiteTextPhrase
                 parts={[
@@ -317,10 +317,10 @@ export function HomePage({
       </section>
 
       {/* CTA */}
-      <section className="py-16">
+      <section className="py-10 md:py-16">
         <div className="mx-auto max-w-3xl px-4">
           <Card className="relative overflow-hidden border-cyan-500/30 bg-gradient-to-b from-card to-cyan-950/20">
-            <CardContent className="p-12 text-center">
+            <CardContent className="p-8 text-center md:p-12">
               <Package className="mx-auto mb-4 h-10 w-10 text-cyan-400" />
               <h2 className="mb-4 text-3xl font-bold">
                 <SiteTextPhrase
