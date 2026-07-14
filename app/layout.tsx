@@ -1,4 +1,4 @@
-import type { Metadata } from "next"
+import type { Metadata, Viewport } from "next"
 import {
   Caveat,
   Geist,
@@ -66,6 +66,13 @@ export const metadata: Metadata = {
   title: "DripForge | 3D-Druck & Lasergravur",
   description:
     "Schweizer Präzision für 3D-Druck und Lasergravur – von der Idee bis zum fertigen Produkt.",
+}
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 }
 
 export default function RootLayout({
