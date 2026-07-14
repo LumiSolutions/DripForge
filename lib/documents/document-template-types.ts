@@ -66,6 +66,8 @@ export type DocumentTypeTextSettings = {
 export type DocumentTemplateSettings = {
   firmenname: string
   inhaber: string
+  /** Kontoinhaber für Zahlungsverbindung / QR (unabhängig vom Firmen-Inhaber). */
+  kontoinhaber: string
   firmenAdresse: string
   kontaktEmail: string
   website: string
@@ -85,6 +87,7 @@ export type DocumentTemplateSettings = {
 type LegacyInvoiceTemplateSettings = Partial<{
   firmenname: string
   inhaber: string
+  kontoinhaber: string
   firmenAdresse: string
   kontaktEmail: string
   website: string
@@ -154,6 +157,7 @@ export const DEFAULT_DOCUMENT_TYPE_TEXTS: Record<
 export const DEFAULT_DOCUMENT_TEMPLATE: DocumentTemplateSettings = {
   firmenname: DEFAULT_COMPANY_SETTINGS.firmenname,
   inhaber: "Robin Schulz",
+  kontoinhaber: DEFAULT_COMPANY_SETTINGS.firmenname,
   firmenAdresse: "Mattenstrasse 7\n8330 Pfäffikon ZH",
   kontaktEmail: DEFAULT_COMPANY_SETTINGS.kontaktEmail,
   website: "www.dripforge.ch",
@@ -281,6 +285,14 @@ export function getPaymentPageCompanyLines(
   return lines
 }
 
+/** Anzeigename des Kontoinhabers in der Zahlungsverbindung. */
+export function resolveKontoinhaber(
+  template: Pick<DocumentTemplateSettings, "kontoinhaber" | "firmenname">
+): string {
+  const value = String(template.kontoinhaber ?? "").trim()
+  return value || String(template.firmenname ?? "").trim()
+}
+
 export function resolveDocumentFooterLines(
   template: DocumentTemplateSettings,
   customFooterText?: string
@@ -388,6 +400,10 @@ export function mergeDocumentTemplateSettings(
   return {
     firmenname: trimString(stored.firmenname, base.firmenname),
     inhaber: trimString(stored.inhaber, base.inhaber),
+    kontoinhaber: trimString(
+      (stored as Partial<DocumentTemplateSettings>).kontoinhaber,
+      base.kontoinhaber || base.firmenname
+    ),
     firmenAdresse: trimString(stored.firmenAdresse, base.firmenAdresse),
     kontaktEmail: trimString(stored.kontaktEmail, base.kontaktEmail),
     website: trimString(stored.website, base.website),
@@ -433,6 +449,7 @@ export function sanitizeDocumentTemplateInput(
   return {
     firmenname: trimString(b.firmenname, existing.firmenname),
     inhaber: trimString(b.inhaber, existing.inhaber),
+    kontoinhaber: trimString(b.kontoinhaber, existing.kontoinhaber || existing.firmenname),
     firmenAdresse: trimString(b.firmenAdresse, existing.firmenAdresse),
     kontaktEmail: trimString(b.kontaktEmail, existing.kontaktEmail),
     website: trimString(b.website, existing.website),
@@ -458,6 +475,7 @@ export function buildDocumentPlaceholderValues(
   return {
     firmenname: template.firmenname,
     inhaber: template.inhaber,
+    kontoinhaber: resolveKontoinhaber(template),
     iban: template.iban,
     bank,
     zahlungsfrist: String(template.paymentTermsDays),

@@ -24,6 +24,7 @@ import {
   formatDocumentDueDate,
   getPaymentPageCompanyLines,
   resolveDocumentFooterLines,
+  resolveKontoinhaber,
   type DocumentFontFamily,
   type DocumentLogoAlignment,
   type DocumentTemplateSettings,
@@ -310,14 +311,10 @@ function DocumentLivePreview({
 
           <div className="invoice-footer">
             {footerLines.line1 ? (
-              <p className="text-[0.78em] font-bold text-slate-500">{footerLines.line1}</p>
+              <p className="font-bold text-slate-500">{footerLines.line1}</p>
             ) : null}
-            {footerLines.line2 ? (
-              <p className="text-[0.72em]">{footerLines.line2}</p>
-            ) : null}
-            {footerLines.line3 ? (
-              <p className="text-[0.72em]">{footerLines.line3}</p>
-            ) : null}
+            {footerLines.line2 ? <p>{footerLines.line2}</p> : null}
+            {footerLines.line3 ? <p>{footerLines.line3}</p> : null}
           </div>
           </div>
         </div>
@@ -378,8 +375,7 @@ function DocumentLivePreview({
                   </p>
                   <p className="font-bold">Kontoinhaber</p>
                   <p className="whitespace-pre-line text-slate-600">
-                    {template.firmenname}
-                    {template.inhaber ? `\n${template.inhaber}` : ""}
+                    {resolveKontoinhaber(template)}
                   </p>
                   {template.iban ? (
                     <>
@@ -710,6 +706,20 @@ const MAX_LOGO_BYTES = 5 * 1024 * 1024
                       updateField("paymentTermsDays", Number(e.target.value) || 30)
                     }
                   />
+                </div>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="kontoinhaber">Kontoinhaber (Zahlungsverbindung)</Label>
+                  <Textarea
+                    id="kontoinhaber"
+                    rows={2}
+                    value={template.kontoinhaber}
+                    onChange={(e) => updateField("kontoinhaber", e.target.value)}
+                    placeholder="Name wie auf dem Bankkonto"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Erscheint nur bei IBAN/QR auf der Zahlungsseite — getrennt von Inhaber /
+                    Geschaeftsfuehrung.
+                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="iban">IBAN</Label>

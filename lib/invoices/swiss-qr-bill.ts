@@ -1,6 +1,9 @@
 import QRCode from "qrcode"
 import type { StoredOrder } from "@/lib/admin/types"
-import type { DocumentTemplateSettings } from "@/lib/documents/document-template-types"
+import {
+  resolveKontoinhaber,
+  type DocumentTemplateSettings,
+} from "@/lib/documents/document-template-types"
 
 export type SwissQrBillInput = {
   order: StoredOrder
@@ -35,9 +38,7 @@ export function buildSwissQrBillPayload({
   if (!iban.startsWith("CH") || iban.length < 15) return null
 
   const { street, zip, city } = parseCompanyAddress(template.firmenAdresse)
-  const creditorName = template.inhaber
-    ? `${template.firmenname} (${template.inhaber})`
-    : template.firmenname
+  const creditorName = resolveKontoinhaber(template)
 
   const billing = order.billing
   const debtorName = `${billing.firstName} ${billing.lastName}`.trim()

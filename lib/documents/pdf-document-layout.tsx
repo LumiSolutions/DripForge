@@ -12,6 +12,7 @@ import {
   DOCUMENT_HEADER_HEIGHT_MM,
   getPaymentPageCompanyLines,
   resolveDocumentFooterLines,
+  resolveKontoinhaber,
   type DocumentLogoAlignment,
   type DocumentTemplateSettings,
   type DocumentTypeTextSettings,
@@ -267,26 +268,29 @@ export function createPdfDocumentLayoutStyles(template: DocumentTemplateSettings
     },
     centerFooter: {
       position: "absolute",
-      bottom: 20 * MM,
-      left: 20 * MM,
-      right: 20 * MM,
+      bottom: 15 * MM,
+      left: 0,
+      right: 0,
       textAlign: "center",
-      lineHeight: 1.4,
+      lineHeight: 1.2,
     },
     footerLine1: {
       ...bold,
       fontSize: scaledSize(base, 7.5),
       color: pdfDocumentColors.anthraciteMid,
       marginBottom: 2,
+      lineHeight: 1.2,
     },
     footerLine2: {
       fontSize: scaledSize(base, 7),
       color: pdfDocumentColors.anthraciteLight,
       marginBottom: 2,
+      lineHeight: 1.2,
     },
     footerLine3: {
       fontSize: scaledSize(base, 7),
       color: pdfDocumentColors.anthraciteLight,
+      lineHeight: 1.2,
     },
   })
 }
@@ -422,9 +426,7 @@ export function PdfDocumentLayout({
     placeholderValues
   )
   const footerLines = resolveDocumentFooterLines(template, customFooter)
-  const accountHolder = template.inhaber
-    ? `${template.firmenname}\n${template.inhaber}`
-    : template.firmenname
+  const accountHolder = resolveKontoinhaber(template)
   const alreadyPaid = Boolean(payment?.alreadyPaid)
   const showPaymentPage = documentText.showPaymentBlock && Boolean(payment)
   const qrImageUrl = payment?.qrImageUrl ?? template.qrPaymentImageUrl
