@@ -8,6 +8,7 @@ import {
   Paperclip,
   Pencil,
   Plus,
+  Trash2,
   X,
 } from "lucide-react"
 import {
@@ -27,6 +28,7 @@ import {
 } from "@/components/ui/table"
 import type { Account } from "@/lib/accounting/account-types"
 import type { JournalEntry } from "@/lib/accounting/journal-types"
+import { confirmJournalEntryDeletion } from "@/lib/accounting/confirm-journal-delete"
 import {
   applyTaxCodeToRow,
   defaultBookingDescription,
@@ -202,7 +204,9 @@ export function AdminAccountingManualPanel({
   const [rows, setRows] = useState<ManualBookingRow[]>([emptyManualBookingRow()])
   const [editingId, setEditingId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [history, setHistory] = useState<ManualHistoryRow[]>([])
   const [loadingHistory, setLoadingHistory] = useState(true)
@@ -315,6 +319,37 @@ export function AdminAccountingManualPanel({
       onEditConsumed?.()
     })
   }, [editEntryId, loadEntryIntoForm, onEditConsumed])
+
+  const handleDeleteEntry = async (entryId: string, belegNummer: string) => {
+    if (!confirmJournalEntryDeletion(belegNummer)) return
+
+    setDeletingId(entryId)
+    setError(null)
+    setSuccess(null)
+    try {
+      const res = await fetch(
+        `/api/admin/accounting/journal/${encodeURIComponent(entryId)}`,
+        { method: "DELETE" }
+      )
+      const data = (await res.json()) as { error?: string }
+      if (!res.ok) {
+        throw new Error(data.error ?? "Buchung konnte nicht gelöscht werden.")
+      }
+      if (editingId === entryId) {
+        resetForm()
+      }
+      setSuccess("Buchung erfolgreich gelöscht")
+      await loadHistory()
+      onBooked()
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Buchung konnte nicht gelöscht werden."
+      setError(message)
+      window.alert(message)
+    } finally {
+      setDeletingId(null)
+    }
+  }
 
   const updateRow = (index: number, patch: Partial<ManualBookingRow>) => {
     setRows((current) =>
@@ -805,6 +840,11 @@ export function AdminAccountingManualPanel({
         <h3 className={cn("mb-4 text-base font-semibold", adminUi.heading)}>
           Letzte manuelle Buchungen
         </h3>
+        {success && (
+          <div className="mb-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-300">
+            {success}
+          </div>
+        )}
         {loadingHistory ? (
           <p className={cn("flex items-center text-sm", adminUi.muted)}>
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -824,7 +864,7 @@ export function AdminAccountingManualPanel({
                   <TableHead>Beschreibung</TableHead>
                   <TableHead>MWST</TableHead>
                   <TableHead className="text-right">Betrag</TableHead>
-                  <TableHead className="w-16 text-right">Aktionen</TableHead>
+                  <TableHead className="w-24 text-right">Aktionen</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -853,18 +893,36 @@ export function AdminAccountingManualPanel({
                       {formatChf(item.row.amount)}
                     </TableCell>
                     <TableCell className="text-right">
-                      <button
-                        type="button"
-                        title="Buchung bearbeiten"
-                        aria-label="Buchung bearbeiten"
-                        className={cn(
-                          "inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-orange-600 dark:hover:bg-zinc-800",
-                          editingId === item.entryId && "text-orange-600"
-                        )}
-                        onClick={() => void loadEntryIntoForm(item.entryId)}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </button>
+                      <div className="inline-flex items-center justify-end gap-1">
+                        <button
+                          type="button"
+                          title="Buchung bearbeiten"
+                          aria-label="Buchung bearbeiten"
+                          className={cn(
+                            "inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-orange-600 dark:hover:bg-zinc-800",
+                            editingId === item.entryId && "text-orange-600"
+                          )}
+                          onClick={() => void loadEntryIntoForm(item.entryId)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          title="Buchung löschen"
+                          aria-label="Buchung löschen"
+                          disabled={deletingId === item.entryId}
+                          className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-red-600 transition-colors hover:bg-red-50 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-red-950/40"
+                          onClick={() =>
+                            void handleDeleteEntry(item.entryId, item.belegNummer)
+                          }
+                        >
+                          {deletingId === item.entryId ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-4 w-4" />
+                          )}
+                        </button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

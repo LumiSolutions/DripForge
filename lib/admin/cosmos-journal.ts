@@ -241,3 +241,31 @@ export async function cosmosUpdateJournalEntry(
     id: existing.id,
   })
 }
+
+/**
+ * Löscht eine Journalbuchung. Kontosalden in Berichten werden aus dem Journal
+ * berechnet — nach dem Löschen stimmen Bilanz/ER/Kontenblatt automatisch wieder.
+ */
+export async function cosmosDeleteJournalEntry(id: string): Promise<void> {
+  const trimmed = id.trim()
+  if (!trimmed) {
+    throw new Error("Buchungs-ID fehlt.")
+  }
+
+  const existing = await cosmosGetJournalEntryById(trimmed)
+  if (!existing) {
+    throw new Error("Buchung nicht gefunden.")
+  }
+
+  const cosmosId = journalEntryCosmosId(trimmed)
+  const container = await getSettingsContainer()
+  try {
+    await container.item(cosmosId, cosmosId).delete()
+  } catch (error) {
+    if (cosmosErrorCode(error) === 404) {
+      throw new Error("Buchung nicht gefunden.")
+    }
+    logCosmosError(`cosmosDeleteJournalEntry:${trimmed}`, error)
+    throw error
+  }
+}

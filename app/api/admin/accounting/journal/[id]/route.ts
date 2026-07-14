@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import {
+  cosmosDeleteJournalEntry,
   cosmosGetJournalEntryById,
   cosmosUpdateJournalEntry,
 } from "@/lib/admin/cosmos-journal"
@@ -138,6 +139,30 @@ export async function PUT(request: Request, context: RouteContext) {
       error instanceof Error
         ? error.message
         : "Buchung konnte nicht aktualisiert werden."
+    const status = message === "Buchung nicht gefunden." ? 404 : 500
+    return NextResponse.json({ error: message }, { status })
+  }
+}
+
+export async function DELETE(request: Request, context: RouteContext) {
+  const auth = requireAdminSession(request)
+  if (isAuthError(auth)) return auth
+
+  try {
+    const { id } = await context.params
+    const decoded = decodeURIComponent(id).trim()
+    if (!decoded) {
+      return NextResponse.json({ error: "Buchungs-ID fehlt." }, { status: 400 })
+    }
+
+    await cosmosDeleteJournalEntry(decoded)
+    // Salden in Berichten werden live aus dem Journal berechnet —
+    // gelöschte Buchung fällt automatisch aus Bilanz/ER/Kontenblatt raus.
+    return NextResponse.json({ ok: true, deletedId: decoded })
+  } catch (error) {
+    console.error("Admin-API: Buchung konnte nicht gelöscht werden.", error)
+    const message =
+      error instanceof Error ? error.message : "Buchung konnte nicht gelöscht werden."
     const status = message === "Buchung nicht gefunden." ? 404 : 500
     return NextResponse.json({ error: message }, { status })
   }

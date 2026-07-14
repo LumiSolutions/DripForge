@@ -1,7 +1,14 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState, Fragment } from "react"
-import { ChevronDown, ChevronRight, Download, Loader2, Pencil } from "lucide-react"
+import {
+  ChevronDown,
+  ChevronRight,
+  Download,
+  Loader2,
+  Pencil,
+  Trash2,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -13,6 +20,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import type { Account } from "@/lib/accounting/account-types"
+import { confirmJournalEntryDeletion } from "@/lib/accounting/confirm-journal-delete"
 import { downloadCsv } from "@/lib/accounting/export-csv"
 import {
   emptyBalanceSheetLayout,
@@ -135,6 +143,9 @@ export function AdminAccountingReportsPanel({
   const [account, setAccount] = useState("")
   const [search, setSearch] = useState("")
   const [loading, setLoading] = useState(true)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
   const [data, setData] = useState<ReportsPayload>(() =>
     emptyReportsPayload(`${year}-01-01`, `${year}-12-31`)
   )
@@ -179,6 +190,33 @@ export function AdminAccountingReportsPanel({
       setLoading(false)
     }
   }, [from, to, account])
+
+  const handleDeleteEntry = async (entryId: string, belegNummer: string) => {
+    if (!confirmJournalEntryDeletion(belegNummer)) return
+
+    setDeletingId(entryId)
+    setSuccess(null)
+    setActionError(null)
+    try {
+      const res = await fetch(
+        `/api/admin/accounting/journal/${encodeURIComponent(entryId)}`,
+        { method: "DELETE" }
+      )
+      const payload = (await res.json()) as { error?: string }
+      if (!res.ok) {
+        throw new Error(payload.error ?? "Buchung konnte nicht gelöscht werden.")
+      }
+      setSuccess("Buchung erfolgreich gelöscht")
+      await loadReports()
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Buchung konnte nicht gelöscht werden."
+      setActionError(message)
+      window.alert(message)
+    } finally {
+      setDeletingId(null)
+    }
+  }
 
   useEffect(() => {
     void loadReports()
@@ -306,6 +344,17 @@ export function AdminAccountingReportsPanel({
         </div>
       </div>
 
+      {success && (
+        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-300">
+          {success}
+        </div>
+      )}
+      {actionError && (
+        <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-700 dark:text-red-300">
+          {actionError}
+        </div>
+      )}
+
       <div className={cn("space-y-4 rounded-xl border p-4 sm:p-6", adminUi.card)}>
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div className="grid flex-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -413,7 +462,7 @@ export function AdminAccountingReportsPanel({
                   <TableHead>Beschreibung</TableHead>
                   <TableHead>MWST-Code</TableHead>
                   <TableHead className="text-right">Betrag</TableHead>
-                  <TableHead className="w-16 text-right">Aktionen</TableHead>
+                  <TableHead className="w-24 text-right">Aktionen</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -434,15 +483,33 @@ export function AdminAccountingReportsPanel({
                       <TableCell>{row.taxCode}</TableCell>
                       <TableCell className="text-right font-medium">{formatChf(row.amount)}</TableCell>
                       <TableCell className="text-right">
-                        <button
-                          type="button"
-                          title="Buchung bearbeiten"
-                          aria-label="Buchung bearbeiten"
-                          className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-orange-600 dark:hover:bg-zinc-800"
-                          onClick={() => onEditEntry?.(row.entryId)}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </button>
+                        <div className="inline-flex items-center justify-end gap-1">
+                          <button
+                            type="button"
+                            title="Buchung bearbeiten"
+                            aria-label="Buchung bearbeiten"
+                            className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-orange-600 dark:hover:bg-zinc-800"
+                            onClick={() => onEditEntry?.(row.entryId)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            title="Buchung löschen"
+                            aria-label="Buchung löschen"
+                            disabled={deletingId === row.entryId}
+                            className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-red-600 transition-colors hover:bg-red-50 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-red-950/40"
+                            onClick={() =>
+                              void handleDeleteEntry(row.entryId, row.belegNummer)
+                            }
+                          >
+                            {deletingId === row.entryId ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-4 w-4" />
+                            )}
+                          </button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
