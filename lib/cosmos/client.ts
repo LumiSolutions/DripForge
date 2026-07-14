@@ -212,7 +212,20 @@ export async function warmCosmosCore(): Promise<void> {
   logCosmosConfigStatus()
   await ensureDatabase()
   await getSettingsContainer()
-  await softWarm("customers", () => getCustomersContainer())
+  await softWarm("customers", async () => {
+    const { resolveCustomersContainer } = await import("@/lib/cosmos/customers-container")
+    await resolveCustomersContainer()
+  })
+  await softWarm("customer-accounts", async () => {
+    const { resolveCustomerAccountsContainer } = await import(
+      "@/lib/cosmos/customer-accounts-container"
+    )
+    await resolveCustomerAccountsContainer()
+  })
+  await softWarm("orders", async () => {
+    const { resolveOrdersContainer } = await import("@/lib/cosmos/orders-container")
+    await resolveOrdersContainer()
+  })
   await softWarm("products", async () => {
     const { resolveProductsContainer } = await import("@/lib/cosmos/products-container")
     await resolveProductsContainer()
@@ -237,11 +250,15 @@ export async function getProjectSupportersContainer(): Promise<Container> {
 }
 
 export async function getOrdersContainer(): Promise<Container> {
-  return ensureContainer("orders", "/orderId")
+  const { resolveOrdersContainer } = await import("@/lib/cosmos/orders-container")
+  const { container } = await resolveOrdersContainer()
+  return container
 }
 
 export async function getCustomersContainer(): Promise<Container> {
-  return ensureContainer("customers", "/kundennummer")
+  const { resolveCustomersContainer } = await import("@/lib/cosmos/customers-container")
+  const { container } = await resolveCustomersContainer()
+  return container
 }
 
 export async function getSettingsContainer(): Promise<Container> {
@@ -263,7 +280,11 @@ export async function getCouponsContainer(): Promise<Container> {
 }
 
 export async function getCustomerAccountsContainer(): Promise<Container> {
-  return ensureContainer("customer-accounts", "/id")
+  const { resolveCustomerAccountsContainer } = await import(
+    "@/lib/cosmos/customer-accounts-container"
+  )
+  const { container } = await resolveCustomerAccountsContainer()
+  return container
 }
 
 export async function getCustomerDesignsContainer(): Promise<Container> {

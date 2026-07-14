@@ -1,9 +1,19 @@
 import {
-  getCustomersContainer,
-  getOrdersContainer,
   getSettingsContainer,
   isCosmosConfigured,
 } from "@/lib/cosmos/client"
+import {
+  CUSTOMER_DOC_TYPE,
+  customersQuerySql,
+  resolveCustomersContainer,
+  toCustomerCosmosDoc,
+} from "@/lib/cosmos/customers-container"
+import {
+  ORDER_DOC_TYPE,
+  ordersQuerySql,
+  resolveOrdersContainer,
+  toOrderCosmosDoc,
+} from "@/lib/cosmos/orders-container"
 import {
   PRODUCT_DOC_TYPE,
   productsQuerySql,
@@ -43,35 +53,55 @@ export { isCosmosConfigured }
 
 const SETTINGS_DOC_ID = "global"
 
-type CosmosDoc<T> = T & { id: string }
+type CosmosDoc<T> = T & { id: string; docType?: string }
 
-function stripCosmosId<T extends { id?: string }>(doc: T): Omit<T, "id"> {
-  const { id: _id, ...rest } = doc
+function stripCosmosId<T extends { id?: string; docType?: string }>(
+  doc: T
+): Omit<T, "id" | "docType"> {
+  const { id: _id, docType: _docType, ...rest } = doc
   return rest
 }
 
+function isOrderDoc(doc: CosmosDoc<StoredOrder> | null | undefined): boolean {
+  if (!doc?.id && !doc?.orderId) return false
+  if (doc.docType != null && doc.docType !== ORDER_DOC_TYPE) return false
+  return Boolean(doc.orderId || doc.items)
+}
+
+function isCustomerDoc(doc: CosmosDoc<StoredCustomer> | null | undefined): boolean {
+  if (!doc) return false
+  if (doc.docType != null && doc.docType !== CUSTOMER_DOC_TYPE) return false
+  return Boolean(doc.kundennummer || doc.email)
+}
+
 export async function cosmosSaveOrder(order: StoredOrder): Promise<void> {
-  const container = await getOrdersContainer()
-  await container.items.upsert({ ...order, id: order.orderId })
+  const { container, mode } = await resolveOrdersContainer()
+  await container.items.upsert(
+    toOrderCosmosDoc({ ...order, id: order.orderId }, mode)
+  )
 }
 
 export async function cosmosGetOrders(): Promise<StoredOrder[]> {
-  const container = await getOrdersContainer()
+  const { container, mode } = await resolveOrdersContainer()
   const { resources } = await container.items
-    .query<CosmosDoc<StoredOrder>>("SELECT * FROM c ORDER BY c.createdAt DESC")
+    .query<CosmosDoc<StoredOrder>>(ordersQuerySql(mode))
     .fetchAll()
-  return resources.map((doc) => stripCosmosId(doc) as StoredOrder)
+  return resources
+    .filter(isOrderDoc)
+    .map((doc) => stripCosmosId(doc) as StoredOrder)
+    .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
 }
 
 export async function cosmosGetOrderById(
   orderId: string
 ): Promise<StoredOrder | null> {
-  const container = await getOrdersContainer()
+  const { container, mode } = await resolveOrdersContainer()
   try {
     const { resource } = await container
       .item(orderId, orderId)
       .read<CosmosDoc<StoredOrder>>()
-    if (!resource) return null
+    if (!resource || !isOrderDoc(resource)) return null
+    if (mode === "shared" && resource.docType !== ORDER_DOC_TYPE) return null
     return stripCosmosId(resource) as StoredOrder
   } catch (error) {
     const code = (error as { code?: number }).code
@@ -143,22 +173,26 @@ export async function cosmosUpdateOrderEmailNotifications(
 }
 
 export async function cosmosGetCustomers(): Promise<StoredCustomer[]> {
-  const container = await getCustomersContainer()
-    const { resources } = await container.items
-    .query<CosmosDoc<StoredCustomer>>("SELECT * FROM c ORDER BY c.updatedAt DESC")
+  const { container, mode } = await resolveCustomersContainer()
+  const { resources } = await container.items
+    .query<CosmosDoc<StoredCustomer>>(customersQuerySql(mode))
     .fetchAll()
-  return resources.map((doc) => stripCosmosId(doc) as StoredCustomer)
+  return resources
+    .filter(isCustomerDoc)
+    .map((doc) => stripCosmosId(doc) as StoredCustomer)
+    .sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)))
 }
 
 export async function cosmosGetCustomerByNumber(
   kundennummer: string
 ): Promise<StoredCustomer | null> {
-  const container = await getCustomersContainer()
+  const { container, mode } = await resolveCustomersContainer()
   try {
     const { resource } = await container
       .item(kundennummer, kundennummer)
       .read<CosmosDoc<StoredCustomer>>()
-    if (!resource) return null
+    if (!resource || !isCustomerDoc(resource)) return null
+    if (mode === "shared" && resource.docType !== CUSTOMER_DOC_TYPE) return null
     return stripCosmosId(resource) as StoredCustomer
   } catch (error) {
     const code = (error as { code?: number }).code
@@ -174,24 +208,33 @@ export async function cosmosGetCustomerByEmail(
   const normalized = normalizeCustomerEmail(email)
   if (!normalized) return null
 
-  const container = await getCustomersContainer()
+  const { container, mode } = await resolveCustomersContainer()
   const { resources } = await container.items
     .query<CosmosDoc<StoredCustomer>>({
-      query: "SELECT * FROM c WHERE LOWER(c.email) = @email",
-      parameters: [{ name: "@email", value: normalized }],
+      query:
+        mode === "shared"
+          ? "SELECT * FROM c WHERE c.docType = @docType AND LOWER(c.email) = @email"
+          : "SELECT * FROM c WHERE LOWER(c.email) = @email",
+      parameters:
+        mode === "shared"
+          ? [
+              { name: "@docType", value: CUSTOMER_DOC_TYPE },
+              { name: "@email", value: normalized },
+            ]
+          : [{ name: "@email", value: normalized }],
     })
     .fetchAll()
 
-  const match = resources.find(
-    (doc) => normalizeCustomerEmail(doc.email) === normalized
-  )
+  const match = resources
+    .filter(isCustomerDoc)
+    .find((doc) => normalizeCustomerEmail(doc.email) === normalized)
   return match ? (stripCosmosId(match) as StoredCustomer) : null
 }
 
 export async function cosmosUpsertCustomerFromOrder(
   order: StoredOrder
 ): Promise<StoredCustomer> {
-  const container = await getCustomersContainer()
+  const { container, mode } = await resolveCustomersContainer()
   const existing = await cosmosGetCustomerByEmail(order.billing.email)
 
   let customer: StoredCustomer
@@ -205,7 +248,9 @@ export async function cosmosUpsertCustomerFromOrder(
     )
   }
 
-  await container.items.upsert({ ...customer, id: customer.kundennummer })
+  await container.items.upsert(
+    toCustomerCosmosDoc({ ...customer, id: customer.kundennummer }, mode)
+  )
 
   const orderWithCustomer = await cosmosGetOrderById(order.orderId)
   if (orderWithCustomer && orderWithCustomer.kundennummer !== customer.kundennummer) {
@@ -218,7 +263,7 @@ export async function cosmosUpsertCustomerFromOrder(
 export async function cosmosSaveCustomer(
   customer: StoredCustomer
 ): Promise<StoredCustomer> {
-  const container = await getCustomersContainer()
+  const { container, mode } = await resolveCustomersContainer()
   const existing = await cosmosGetCustomerByNumber(customer.kundennummer)
   if (
     existing &&
@@ -226,7 +271,9 @@ export async function cosmosSaveCustomer(
   ) {
     throw new Error(`Kundennummer ${customer.kundennummer} ist bereits vergeben.`)
   }
-  await container.items.upsert({ ...customer, id: customer.kundennummer })
+  await container.items.upsert(
+    toCustomerCosmosDoc({ ...customer, id: customer.kundennummer }, mode)
+  )
   return customer
 }
 
@@ -235,7 +282,7 @@ export async function cosmosReplaceCustomerRecord(
   customer: StoredCustomer,
   previousKundennummer?: string
 ): Promise<StoredCustomer> {
-  const container = await getCustomersContainer()
+  const { container } = await resolveCustomersContainer()
   const previous = previousKundennummer?.trim()
 
   if (previous && previous !== customer.kundennummer) {
@@ -257,7 +304,7 @@ export async function cosmosDeleteCustomer(kundennummer: string): Promise<boolea
   const trimmed = kundennummer.trim()
   if (!trimmed) return false
 
-  const container = await getCustomersContainer()
+  const { container } = await resolveCustomersContainer()
   try {
     await container.item(trimmed, trimmed).delete()
     return true
