@@ -38,6 +38,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
+import "@/components/admin/document-preview-print.css"
 
 const DOCUMENT_TYPE_LABELS: Record<DocumentTemplateType, string> = {
   invoice: "Rechnung",
@@ -155,7 +156,7 @@ function DocumentLivePreview({
 
   return (
     <div className="rounded-2xl border border-border bg-slate-100 p-4 shadow-inner dark:bg-slate-950/60">
-      <div className="mb-3 flex items-center justify-between gap-3">
+      <div className="document-preview-chrome mb-3 flex items-center justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-orange-500">
             Live-Vorschau
@@ -169,10 +170,10 @@ function DocumentLivePreview({
         </span>
       </div>
 
-      <div className="mx-auto flex w-full max-w-[620px] flex-col gap-6">
-        <div className="aspect-[210/297] overflow-y-auto rounded-sm bg-white text-slate-900 shadow-2xl">
+      <div className="document-preview-pages mx-auto flex w-full max-w-[620px] flex-col gap-6">
+        <div className="document-preview-page aspect-[210/297] overflow-hidden rounded-sm text-slate-900 shadow-2xl">
           <div
-            className="flex min-h-full flex-col px-[20mm] pb-[12mm] pt-0"
+            className="document-preview-page-inner"
             style={{
               fontFamily: DOCUMENT_FONT_CSS[template.fontFamily],
               fontSize: `${template.baseFontSize}px`,
@@ -307,7 +308,7 @@ function DocumentLivePreview({
             <p className="mt-3 max-w-[90%] text-[0.85em] text-slate-500">{footerNote}</p>
           ) : null}
 
-          <div className="mt-auto pt-6 text-center leading-relaxed text-slate-400">
+          <div className="invoice-footer">
             {footerLines.line1 ? (
               <p className="text-[0.78em] font-bold text-slate-500">{footerLines.line1}</p>
             ) : null}
@@ -323,16 +324,14 @@ function DocumentLivePreview({
 
         {documentText.showPaymentBlock ? (
           <div
-            className="payment-page relative box-border min-h-[297mm] w-full overflow-hidden rounded-sm bg-white px-[20mm] pt-0 text-slate-900 shadow-2xl"
+            className="document-preview-page payment-page overflow-hidden rounded-sm text-slate-900 shadow-2xl"
             style={{
               fontFamily: DOCUMENT_FONT_CSS[template.fontFamily],
               fontSize: `${template.baseFontSize}px`,
-              pageBreakBefore: "always",
-              breakBefore: "page",
             }}
           >
             <div
-              className={cn("flex shrink-0 items-center", logoAlignClass)}
+              className={cn("flex shrink-0 items-center px-[20mm]", logoAlignClass)}
               style={{ height: `${DOCUMENT_HEADER_HEIGHT_MM}mm` }}
             >
               {template.logoUrl ? (
@@ -360,10 +359,7 @@ function DocumentLivePreview({
               )}
             </div>
 
-            <div
-              className="payment-bottom-container absolute right-0 left-0 w-full bg-transparent"
-              style={{ bottom: 40 }}
-            >
+            <div className="payment-bottom-container">
               <div className="mb-3 space-y-0.5 text-center text-[0.95em]">
                 {paymentCompanyLines.map((line, index) => (
                   <p
@@ -375,7 +371,7 @@ function DocumentLivePreview({
                 ))}
               </div>
               <div className="mb-4 border-t border-dashed border-slate-400" />
-              <div className="grid grid-cols-[1fr_auto] gap-4">
+              <div className="payment-section">
                 <div>
                   <p className="mb-2 text-[0.72em] font-bold uppercase tracking-widest text-orange-500">
                     Zahlungsverbindung
@@ -396,18 +392,21 @@ function DocumentLivePreview({
                   ) : null}
                   <p className="mt-2 font-bold">Referenz / Zahlungszweck</p>
                   <p className="text-slate-600">{documentNumber}</p>
+                </div>
+                <div className="payment-right-column">
+                  {template.qrPaymentImageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={template.qrPaymentImageUrl}
+                      alt="QR-Zahlteil"
+                      className="payment-qr"
+                    />
+                  ) : null}
+                  <p className="payment-amount">CHF 128.00</p>
                   {paymentBlockText ? (
-                    <p className="mt-2 text-[0.8em] text-slate-500">{paymentBlockText}</p>
+                    <p className="payment-note">{paymentBlockText}</p>
                   ) : null}
                 </div>
-                {template.qrPaymentImageUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={template.qrPaymentImageUrl}
-                    alt="QR-Zahlteil"
-                    className="h-28 w-28 object-contain"
-                  />
-                ) : null}
               </div>
             </div>
           </div>

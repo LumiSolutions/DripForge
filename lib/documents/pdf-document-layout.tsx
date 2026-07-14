@@ -192,6 +192,7 @@ export function createPdfDocumentLayoutStyles(template: DocumentTemplateSettings
     paymentSection: {
       marginTop: 0,
       flexDirection: "row",
+      alignItems: "flex-start",
     },
     paymentLeft: {
       flex: 1,
@@ -216,27 +217,29 @@ export function createPdfDocumentLayoutStyles(template: DocumentTemplateSettings
       color: pdfDocumentColors.anthracite,
       marginBottom: 4,
     },
-    paymentAmount: {
-      ...bold,
-      fontSize: scaledSize(base, 12),
-      color: pdfDocumentColors.anthracite,
-      marginTop: 6,
-    },
-    paymentNote: {
-      fontSize: scaledSize(base, 7.5),
-      color: pdfDocumentColors.anthraciteLight,
-      lineHeight: 1.35,
-      marginTop: 4,
-    },
-    paymentRight: {
+    paymentRightColumn: {
       width: 52 * MM,
       alignItems: "center",
-      justifyContent: "flex-start",
     },
     qrImage: {
       width: 46 * MM,
       height: 46 * MM,
       objectFit: "contain",
+    },
+    paymentAmount: {
+      ...bold,
+      fontSize: scaledSize(base, 12),
+      color: pdfDocumentColors.anthracite,
+      marginTop: 15,
+      textAlign: "center",
+    },
+    paymentNote: {
+      fontSize: scaledSize(base, 7.5),
+      color: pdfDocumentColors.anthraciteLight,
+      lineHeight: 1.35,
+      marginTop: 5,
+      textAlign: "center",
+      maxWidth: 52 * MM,
     },
     paidStampWrap: {
       marginTop: 8,
@@ -264,7 +267,7 @@ export function createPdfDocumentLayoutStyles(template: DocumentTemplateSettings
     },
     centerFooter: {
       position: "absolute",
-      bottom: 10,
+      bottom: 20 * MM,
       left: 20 * MM,
       right: 20 * MM,
       textAlign: "center",
@@ -544,17 +547,17 @@ export function PdfDocumentLayout({
                     Referenz / Zahlungszweck
                   </Text>
                   <Text style={styles.paymentLine}>{payment.reference}</Text>
+                </View>
+                <View style={styles.paymentRightColumn}>
+                  {qrImageUrl ? (
+                    // eslint-disable-next-line jsx-a11y/alt-text -- @react-pdf Image
+                    <Image style={styles.qrImage} src={qrImageUrl} />
+                  ) : null}
                   <Text style={styles.paymentAmount}>{formatChf(payment.amount)}</Text>
                   {paymentBlockText ? (
                     <Text style={styles.paymentNote}>{paymentBlockText}</Text>
                   ) : null}
                 </View>
-                {qrImageUrl ? (
-                  <View style={styles.paymentRight}>
-                    {/* eslint-disable-next-line jsx-a11y/alt-text -- @react-pdf Image */}
-                    <Image style={styles.qrImage} src={qrImageUrl} />
-                  </View>
-                ) : null}
               </View>
             )}
           </View>
