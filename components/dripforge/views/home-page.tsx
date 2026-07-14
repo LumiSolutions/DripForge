@@ -80,8 +80,8 @@ export function HomePage({
       {/* Hero */}
       <section className="relative overflow-hidden py-24">
         <div className="mx-auto max-w-7xl px-4">
-          <div className="grid items-center gap-12 lg:grid-cols-2">
-            <div>
+          <div className="flex flex-col-reverse items-center gap-12 lg:flex-row lg:items-center">
+            <div className="w-full lg:w-1/2">
               <Badge variant="outline" className="mb-6 border-primary/30 bg-primary/10 text-primary">
                 <Sparkles className="mr-1 h-3 w-3" />
                 <SiteText k="landingpage_hero_badge" />
@@ -117,7 +117,7 @@ export function HomePage({
                 </Button>
               </div>
             </div>
-            <div className="relative">
+            <div className="relative w-full lg:w-1/2">
               <div className="relative aspect-square">
                 <Image
                   src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/ChatGPT%20Image%2017.%20Mai%202026%2C%2022_30_40-QRFbP2eouxkeDTfBuUpwhiWA8fn1Ng.png"
