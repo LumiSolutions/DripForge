@@ -8,7 +8,7 @@ export const SUPPORT_ROUTE = "/support"
 
 /** Gleiche Touch-Fläche wie Sonne/Lupe im Shop-Header */
 export const HEADER_ICON_BTN_CLASS =
-  "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground active:text-foreground touch-manipulation"
+  "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground active:text-foreground touch-manipulation sm:h-10 sm:w-10"
 
 type SupportMissionLinkProps = {
   active?: boolean

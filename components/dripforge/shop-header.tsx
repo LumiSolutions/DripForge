@@ -171,12 +171,12 @@ export function ShopHeader(props: ShopHeaderProps) {
 
   return (
     <header className="sticky top-0 z-50 border-b border-border/50 bg-background/80 backdrop-blur-xl">
-      <div className="mx-auto flex h-16 max-w-7xl items-center gap-3 px-4 sm:gap-4">
+      <div className="mx-auto flex h-16 max-w-7xl flex-nowrap items-center gap-2 px-3 sm:gap-4 sm:px-4">
         {props.mode === "spa" ? (
           <button
             type="button"
             onClick={() => handleSpaNav("home")}
-            className="relative z-20 flex shrink-0 items-center gap-2 pr-2 sm:pr-4"
+            className="relative z-20 flex min-w-0 shrink items-center gap-2 pr-1 sm:shrink-0 sm:pr-4"
           >
             {logo}
           </button>
@@ -184,7 +184,7 @@ export function ShopHeader(props: ShopHeaderProps) {
           <Link
             href="/"
             prefetch
-            className="relative z-20 flex shrink-0 items-center gap-2 pr-2 sm:pr-4"
+            className="relative z-20 flex min-w-0 shrink items-center gap-2 pr-1 sm:shrink-0 sm:pr-4"
           >
             {logo}
           </Link>
@@ -216,7 +216,7 @@ export function ShopHeader(props: ShopHeaderProps) {
           )}
         </nav>
 
-        <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
+        <div className="ml-auto flex shrink-0 flex-nowrap items-center gap-1.5 sm:gap-3 md:gap-5">
           <button
             ref={themeButtonRef}
             type="button"
@@ -343,7 +343,7 @@ export function ShopHeader(props: ShopHeaderProps) {
             href={kontoHref}
             prefetch
             className={cn(
-              "flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm font-medium transition-colors",
+              "flex shrink-0 items-center gap-1.5 rounded-lg px-1 py-1.5 text-sm font-medium transition-colors sm:gap-2 sm:px-2",
               kontoActive || (props.mode === "spa" && kontoLoggedIn)
                 ? "text-primary hover:bg-primary/10"
                 : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
@@ -352,7 +352,7 @@ export function ShopHeader(props: ShopHeaderProps) {
           >
             <span
               className={cn(
-                "flex h-8 w-8 items-center justify-center rounded-full border transition-colors",
+                "flex h-8 w-8 shrink-0 items-center justify-center rounded-full border transition-colors",
                 kontoActive || kontoLoggedIn
                   ? "border-primary/40 bg-primary/15"
                   : "border-border/80 bg-secondary/50"
