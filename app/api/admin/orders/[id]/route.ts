@@ -3,12 +3,17 @@ import {
   getOrderById,
   updateOrderProductionStatus,
 } from "@/lib/admin/db"
+import {
+  HardDeleteOrderError,
+  hardDeleteOrder,
+} from "@/lib/admin/hard-delete-order"
 import { updateOrderStatusWithInventory } from "@/lib/admin/order-inventory-hook"
 import { isProductionStatus } from "@/lib/admin/production-status"
 import {
   isAuthError,
   requireAdminSession,
 } from "@/lib/admin/require-admin-session"
+import { CosmosDatabaseError } from "@/lib/admin/storage-bridge"
 import { maybeNotifyOrderConfirmed } from "@/lib/email/order-notifications"
 import type { OrderStatus } from "@/lib/admin/types"
 
@@ -93,6 +98,32 @@ export async function PATCH(request: Request, context: RouteContext) {
     console.warn("Admin-API: Status konnte nicht aktualisiert werden.", error)
     return NextResponse.json(
       { error: "Status konnte nicht aktualisiert werden." },
+      { status: 500 }
+    )
+  }
+}
+
+export async function DELETE(request: Request, context: RouteContext) {
+  const auth = requireAdminSession(request)
+  if (isAuthError(auth)) return auth
+
+  try {
+    const { id } = await context.params
+    await hardDeleteOrder(id)
+    return NextResponse.json({ success: true, orderId: id })
+  } catch (error) {
+    if (error instanceof HardDeleteOrderError) {
+      return NextResponse.json({ error: error.message }, { status: error.status })
+    }
+    if (error instanceof CosmosDatabaseError) {
+      return NextResponse.json(
+        { error: "Bestelldatenbank nicht erreichbar." },
+        { status: 503 }
+      )
+    }
+    console.warn("Admin-API: Bestellung konnte nicht gelöscht werden.", error)
+    return NextResponse.json(
+      { error: "Bestellung konnte nicht gelöscht werden." },
       { status: 500 }
     )
   }

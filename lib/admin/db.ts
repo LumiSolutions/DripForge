@@ -42,6 +42,7 @@ import {
   cosmosGetCustomerByNumber,
   cosmosGetOrderById,
   cosmosGetOrders,
+  cosmosDeleteOrder,
   cosmosDeleteProduct,
   cosmosGetProductById,
   cosmosGetProducts,
@@ -202,6 +203,24 @@ export async function saveOrder(order: StoredOrder): Promise<void> {
       await cosmosSaveOrder(order)
     },
     () => saveOrderToFile(order)
+  )
+}
+
+async function deleteOrderFromFile(orderId: string): Promise<boolean> {
+  const orders = await readJsonFile<StoredOrder[]>(ORDERS_FILE, [])
+  const next = orders.filter((o) => o.orderId !== orderId)
+  if (next.length === orders.length) return false
+  await writeJsonFile(ORDERS_FILE, next)
+  return true
+}
+
+export async function deleteOrder(orderId: string): Promise<boolean> {
+  const trimmed = orderId.trim()
+  if (!trimmed) return false
+  return withCosmosFallback(
+    "deleteOrder",
+    () => cosmosDeleteOrder(trimmed),
+    () => deleteOrderFromFile(trimmed)
   )
 }
 

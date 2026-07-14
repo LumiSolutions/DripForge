@@ -111,6 +111,25 @@ export async function cosmosGetOrderById(
   }
 }
 
+export async function cosmosDeleteOrder(orderId: string): Promise<boolean> {
+  const trimmed = orderId.trim()
+  if (!trimmed) return false
+
+  const existing = await cosmosGetOrderById(trimmed)
+  if (!existing) return false
+
+  const { container } = await resolveOrdersContainer()
+  try {
+    await container.item(trimmed, trimmed).delete()
+    return true
+  } catch (error) {
+    const code = (error as { code?: number }).code
+    if (code === 404) return false
+    logCosmosError(`cosmosDeleteOrder:${trimmed}`, error)
+    throw error
+  }
+}
+
 export async function cosmosUpdateOrderStatus(
   orderId: string,
   status: StoredOrder["status"]

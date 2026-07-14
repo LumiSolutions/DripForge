@@ -9,7 +9,17 @@ import {
   ImageIcon,
   Loader2,
   RefreshCw,
+  Trash2,
 } from "lucide-react"
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -356,6 +366,9 @@ export function AdminOrdersTab({
   const [error, setError] = useState<string | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const loadOrders = useCallback(async () => {
     setLoading(true)
@@ -413,6 +426,36 @@ export function AdminOrdersTab({
     }
   }
 
+  const deleteOrder = async (orderId: string) => {
+    setDeleting(true)
+    setDeleteError(null)
+    try {
+      const res = await fetch(`/api/admin/orders/${encodeURIComponent(orderId)}`, {
+        method: "DELETE",
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(
+          typeof data.error === "string"
+            ? data.error
+            : "Bestellung konnte nicht gelöscht werden."
+        )
+      }
+      setOrders((prev) => prev.filter((o) => o.orderId !== orderId))
+      setExpandedId((current) => (current === orderId ? null : current))
+      setDeleteTargetId(null)
+    } catch (err) {
+      console.warn("Admin: Bestellung löschen fehlgeschlagen.", err)
+      setDeleteError(
+        err instanceof Error
+          ? err.message
+          : "Bestellung konnte nicht gelöscht werden."
+      )
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className={cn("flex items-center justify-center py-24", adminUi.loader)}>
@@ -461,6 +504,9 @@ export function AdminOrdersTab({
                 <TableHead className={adminUi.tableHead}>Kunde</TableHead>
                 <TableHead className={adminUi.tableHead}>Betrag</TableHead>
                 <TableHead className={adminUi.tableHead}>Status</TableHead>
+                <TableHead className={cn("w-12 text-right", adminUi.tableHead)}>
+                  <span className="sr-only">Löschen</span>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -520,10 +566,29 @@ export function AdminOrdersTab({
                           </SelectContent>
                         </Select>
                       </TableCell>
+                      <TableCell
+                        className="text-right"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-9 w-9 text-red-500 hover:bg-red-500/10 hover:text-red-400"
+                          aria-label={`Bestellung ${order.orderId} löschen`}
+                          disabled={deleting && deleteTargetId === order.orderId}
+                          onClick={() => {
+                            setDeleteError(null)
+                            setDeleteTargetId(order.orderId)
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
                     </TableRow>
                     {expanded && (
                       <TableRow className="hover:bg-transparent">
-                        <TableCell colSpan={6} className="p-0">
+                        <TableCell colSpan={7} className="p-0">
                           <OrderDetailPanel order={order} />
                         </TableCell>
                       </TableRow>
@@ -535,6 +600,56 @@ export function AdminOrdersTab({
           </Table>
         </div>
       )}
+
+      <AlertDialog
+        open={Boolean(deleteTargetId)}
+        onOpenChange={(open) => {
+          if (deleting) return
+          if (!open) {
+            setDeleteTargetId(null)
+            setDeleteError(null)
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Bestellung unwiderruflich löschen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Möchtest du die Bestellung{" "}
+              <span className="font-mono font-medium text-foreground">
+                {deleteTargetId}
+              </span>{" "}
+              wirklich unwiderruflich löschen? Diese Aktion kann nicht rückgängig gemacht
+              werden und entfernt die Bestellung auch aus allen Umsatzstatistiken.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {deleteError && (
+            <p className="text-sm text-red-500" role="alert">
+              {deleteError}
+            </p>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Abbrechen</AlertDialogCancel>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={deleting || !deleteTargetId}
+              onClick={() => {
+                if (deleteTargetId) void deleteOrder(deleteTargetId)
+              }}
+            >
+              {deleting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Wird gelöscht…
+                </>
+              ) : (
+                "Ja, unwiderruflich löschen"
+              )}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

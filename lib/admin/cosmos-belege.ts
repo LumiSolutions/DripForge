@@ -142,9 +142,18 @@ export async function cosmosDeleteBeleg(id: string): Promise<boolean> {
   }
 }
 
+export async function cosmosFindBelegeBySourceOrderId(
+  orderId: string
+): Promise<Beleg[]> {
+  const trimmed = orderId.trim()
+  if (!trimmed) return []
+  const list = await cosmosListBelege({ limit: 500 })
+  return list.filter((b) => b.sourceOrderId === trimmed)
+}
+
 export async function cosmosFindBelegBySourceOrderId(
   orderId: string
 ): Promise<Beleg | null> {
-  const list = await cosmosListBelege({ type: "rechnung", limit: 500 })
-  return list.find((b) => b.sourceOrderId === orderId) ?? null
+  const list = await cosmosFindBelegeBySourceOrderId(orderId)
+  return list.find((b) => b.type === "rechnung") ?? list[0] ?? null
 }
