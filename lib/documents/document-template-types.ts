@@ -272,19 +272,6 @@ export function getDeduplicatedAddressLines(
     .filter((line) => !skip.has(normalizeIdentityLine(line)))
 }
 
-/** Firma + Inhaber + Adresse für den Zahlungsseiten-Kopfblock. */
-export function getPaymentPageCompanyLines(
-  template: Pick<DocumentTemplateSettings, "firmenname" | "inhaber" | "firmenAdresse">
-): string[] {
-  const lines: string[] = []
-  const firmenname = String(template.firmenname ?? "").trim()
-  const inhaber = String(template.inhaber ?? "").trim()
-  if (firmenname) lines.push(firmenname)
-  if (inhaber) lines.push(inhaber)
-  lines.push(...getDeduplicatedAddressLines(template))
-  return lines
-}
-
 /** Anzeigename des Kontoinhabers in der Zahlungsverbindung. */
 export function resolveKontoinhaber(
   template: Pick<DocumentTemplateSettings, "kontoinhaber" | "firmenname">

@@ -22,7 +22,6 @@ import {
   applyDocumentTemplatePlaceholders,
   buildDocumentPlaceholderValues,
   formatDocumentDueDate,
-  getPaymentPageCompanyLines,
   resolveDocumentFooterLines,
   resolveKontoinhaber,
   type DocumentFontFamily,
@@ -147,7 +146,6 @@ function DocumentLivePreview({
   )
   const customFooter = renderTemplateText(documentText.centerFooterText, placeholderValues)
   const footerLines = resolveDocumentFooterLines(template, customFooter)
-  const paymentCompanyLines = getPaymentPageCompanyLines(template)
   const logoAlignClass =
     template.logoAlignment === "left"
       ? "justify-start"
@@ -357,16 +355,9 @@ function DocumentLivePreview({
             </div>
 
             <div className="payment-bottom-container">
-              <div className="mb-3 space-y-0.5 text-center text-[0.95em]">
-                {paymentCompanyLines.map((line, index) => (
-                  <p
-                    key={`${line}-${index}`}
-                    className={index === 0 ? "font-bold" : "text-slate-600"}
-                  >
-                    {line}
-                  </p>
-                ))}
-              </div>
+              {paymentBlockText ? (
+                <p className="payment-instruction-top">{paymentBlockText}</p>
+              ) : null}
               <div className="mb-4 border-t border-dashed border-slate-400" />
               <div className="payment-section">
                 <div>
@@ -399,9 +390,6 @@ function DocumentLivePreview({
                     />
                   ) : null}
                   <p className="payment-amount">CHF 128.00</p>
-                  {paymentBlockText ? (
-                    <p className="payment-note">{paymentBlockText}</p>
-                  ) : null}
                 </div>
               </div>
             </div>

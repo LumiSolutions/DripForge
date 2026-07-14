@@ -10,7 +10,6 @@ import type { ReactNode } from "react"
 import {
   applyDocumentTemplatePlaceholders,
   DOCUMENT_HEADER_HEIGHT_MM,
-  getPaymentPageCompanyLines,
   resolveDocumentFooterLines,
   resolveKontoinhaber,
   type DocumentLogoAlignment,
@@ -165,29 +164,18 @@ export function createPdfDocumentLayoutStyles(template: DocumentTemplateSettings
       lineHeight: 1.45,
       ...bold,
     },
-    paymentPageCompany: {
-      marginTop: 0,
+    paymentInstructionTop: {
+      fontSize: scaledSize(base, 8.5),
+      color: "#4a5568",
+      textAlign: "center",
       marginBottom: 10,
-      alignItems: "center",
-    },
-    paymentPageCompanyLine: {
-      fontSize: scaledSize(base, 10),
-      color: pdfDocumentColors.anthracite,
-      marginBottom: 2,
-      textAlign: "center",
-    },
-    paymentPageCompanyBold: {
-      ...bold,
-      fontSize: scaledSize(base, 11),
-      color: pdfDocumentColors.anthracite,
-      marginBottom: 3,
-      textAlign: "center",
+      lineHeight: 1.35,
     },
     paymentDashLine: {
       borderTopWidth: 1,
       borderTopColor: pdfDocumentColors.anthraciteMid,
       borderStyle: "dashed",
-      marginTop: 4,
+      marginTop: 0,
       marginBottom: 14,
     },
     paymentSection: {
@@ -233,14 +221,6 @@ export function createPdfDocumentLayoutStyles(template: DocumentTemplateSettings
       color: pdfDocumentColors.anthracite,
       marginTop: 15,
       textAlign: "center",
-    },
-    paymentNote: {
-      fontSize: scaledSize(base, 7.5),
-      color: pdfDocumentColors.anthraciteLight,
-      lineHeight: 1.35,
-      marginTop: 5,
-      textAlign: "center",
-      maxWidth: 52 * MM,
     },
     paidStampWrap: {
       marginTop: 8,
@@ -434,8 +414,6 @@ export function PdfDocumentLayout({
     payment?.paymentMethodLabel?.trim() || "Online-Zahlung"
   const receiptMessage = `Dieser Beleg dient als Quittung. Der Betrag wurde bereits erfolgreich via ${paymentMethodLabel} beglichen. Vielen Dank!`
 
-  const companyLines = getPaymentPageCompanyLines(template)
-
   return (
     <Document title={title} author={template.firmenname}>
       <Page size="A4" style={styles.page}>
@@ -508,20 +486,9 @@ export function PdfDocumentLayout({
           />
 
           <View style={styles.paymentBottomContainer}>
-            <View style={styles.paymentPageCompany}>
-              {companyLines.map((line, index) => (
-                <Text
-                  key={`${line}-${index}`}
-                  style={
-                    index === 0
-                      ? styles.paymentPageCompanyBold
-                      : styles.paymentPageCompanyLine
-                  }
-                >
-                  {line}
-                </Text>
-              ))}
-            </View>
+            {!alreadyPaid && paymentBlockText ? (
+              <Text style={styles.paymentInstructionTop}>{paymentBlockText}</Text>
+            ) : null}
 
             <View style={styles.paymentDashLine} />
 
@@ -556,9 +523,6 @@ export function PdfDocumentLayout({
                     <Image style={styles.qrImage} src={qrImageUrl} />
                   ) : null}
                   <Text style={styles.paymentAmount}>{formatChf(payment.amount)}</Text>
-                  {paymentBlockText ? (
-                    <Text style={styles.paymentNote}>{paymentBlockText}</Text>
-                  ) : null}
                 </View>
               </View>
             )}
