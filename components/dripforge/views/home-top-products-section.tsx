@@ -13,7 +13,7 @@ import { resolveProductImages } from "@/lib/dripforge/product-images-defaults"
 import type { Product } from "@/lib/dripforge/types"
 import { cn } from "@/lib/utils"
 
-const SLIDER_GAP_PX = 16
+const SLIDER_PAGE_INSET_PX = 16
 
 export function HomeTopProductsSection() {
   const [products, setProducts] = useState<Product[] | null>(null)
@@ -42,11 +42,11 @@ export function HomeTopProductsSection() {
   const getScrollAmount = () => {
     const slider = sliderRef.current
     if (!slider) return 200
-    const firstCard = slider.querySelector<HTMLElement>("[data-top-product-card]")
-    return firstCard ? firstCard.clientWidth + SLIDER_GAP_PX : 200
+    // Eine Seite = genau 2 sichtbare Karten (Viewport abzüglich Gap)
+    return Math.max(slider.clientWidth - SLIDER_PAGE_INSET_PX, 200)
   }
 
-  const scrollByCard = (direction: -1 | 1) => {
+  const scrollByPage = (direction: -1 | 1) => {
     sliderRef.current?.scrollBy({
       left: direction * getScrollAmount(),
       behavior: "smooth",
@@ -84,7 +84,7 @@ export function HomeTopProductsSection() {
             type="button"
             aria-label="Vorheriges Produkt"
             className="absolute left-1 top-1/2 z-10 -translate-y-1/2 rounded-full border border-border/60 bg-background/90 p-2 shadow-md backdrop-blur-sm transition-colors hover:bg-background md:hidden"
-            onClick={() => scrollByCard(-1)}
+            onClick={() => scrollByPage(-1)}
           >
             <ChevronLeft className="h-5 w-5 text-foreground" />
           </button>
@@ -111,8 +111,8 @@ export function HomeTopProductsSection() {
                   key={product.id}
                   data-top-product-card
                   className={cn(
-                    "min-w-[45%] shrink-0 snap-start overflow-hidden border-border/50 bg-card/50 transition-colors hover:border-primary/50 hover:shadow-md sm:min-w-[30%]",
-                    "md:min-w-0 md:shrink",
+                    "w-[calc(50%-8px)] min-w-[calc(50%-8px)] shrink-0 snap-start overflow-hidden border-border/50 bg-card/50 transition-colors hover:border-primary/50 hover:shadow-md",
+                    "md:w-full md:min-w-0 md:shrink",
                     product.sale && "border-red-500/30 hover:border-red-500/60"
                   )}
                 >
@@ -127,7 +127,7 @@ export function HomeTopProductsSection() {
                         src={imageSrc}
                         alt={product.name}
                         fill
-                        sizes="(max-width: 768px) 45vw, 25vw"
+                        sizes="(max-width: 768px) 50vw, 25vw"
                         className="object-contain p-4"
                       />
                     </div>
@@ -167,7 +167,7 @@ export function HomeTopProductsSection() {
             type="button"
             aria-label="Nächstes Produkt"
             className="absolute right-1 top-1/2 z-10 -translate-y-1/2 rounded-full border border-border/60 bg-background/90 p-2 shadow-md backdrop-blur-sm transition-colors hover:bg-background md:hidden"
-            onClick={() => scrollByCard(1)}
+            onClick={() => scrollByPage(1)}
           >
             <ChevronRight className="h-5 w-5 text-foreground" />
           </button>
