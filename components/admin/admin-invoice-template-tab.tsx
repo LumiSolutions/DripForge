@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { Loader2, Save, Upload } from "lucide-react"
+import { Download, Loader2, Save, Upload } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -22,6 +22,7 @@ import {
   applyDocumentTemplatePlaceholders,
   buildDocumentPlaceholderValues,
   formatDocumentDueDate,
+  getPaymentPageCompanyLines,
   resolveDocumentFooterLines,
   type DocumentFontFamily,
   type DocumentLogoAlignment,
@@ -144,6 +145,7 @@ function DocumentLivePreview({
   )
   const customFooter = renderTemplateText(documentText.centerFooterText, placeholderValues)
   const footerLines = resolveDocumentFooterLines(template, customFooter)
+  const paymentCompanyLines = getPaymentPageCompanyLines(template)
   const logoAlignClass =
     template.logoAlignment === "left"
       ? "justify-start"
@@ -304,21 +306,29 @@ function DocumentLivePreview({
             <p className="mt-3 max-w-[90%] text-[0.85em] text-slate-500">{footerNote}</p>
           ) : null}
 
+          <div className="mt-auto pt-6 text-center leading-relaxed text-slate-400">
+            {footerLines.line1 ? (
+              <p className="text-[0.78em] font-bold text-slate-500">{footerLines.line1}</p>
+            ) : null}
+            {footerLines.line2 ? (
+              <p className="text-[0.72em]">{footerLines.line2}</p>
+            ) : null}
+            {footerLines.line3 ? (
+              <p className="text-[0.72em]">{footerLines.line3}</p>
+            ) : null}
+          </div>
+
           {documentText.showPaymentBlock ? (
             <div className="mt-6 break-before-page border-t border-dashed border-slate-400 pt-6">
-              <div className="mb-3 space-y-0.5 text-[0.95em]">
-                <p className="font-bold">{template.firmenname}</p>
-                {template.inhaber ? (
-                  <p className="text-slate-600">{template.inhaber}</p>
-                ) : null}
-                {template.firmenAdresse
-                  .split(/\r?\n/)
-                  .filter(Boolean)
-                  .map((line) => (
-                    <p key={line} className="text-slate-600">
-                      {line}
-                    </p>
-                  ))}
+              <div className="mb-3 space-y-0.5 text-center text-[0.95em]">
+                {paymentCompanyLines.map((line, index) => (
+                  <p
+                    key={`${line}-${index}`}
+                    className={index === 0 ? "font-bold" : "text-slate-600"}
+                  >
+                    {line}
+                  </p>
+                ))}
               </div>
               <div className="mb-4 border-t border-dashed border-slate-400" />
               <div className="grid grid-cols-[1fr_auto] gap-4">
@@ -357,18 +367,6 @@ function DocumentLivePreview({
               </div>
             </div>
           ) : null}
-
-          <div className="mt-auto pt-6 text-center leading-relaxed text-slate-400">
-            {footerLines.line1 ? (
-              <p className="text-[0.78em] font-bold text-slate-500">{footerLines.line1}</p>
-            ) : null}
-            {footerLines.line2 ? (
-              <p className="text-[0.72em]">{footerLines.line2}</p>
-            ) : null}
-            {footerLines.line3 ? (
-              <p className="text-[0.72em]">{footerLines.line3}</p>
-            ) : null}
-          </div>
         </div>
       </div>
     </div>
@@ -382,6 +380,7 @@ export function AdminInvoiceTemplateTab() {
   const [saving, setSaving] = useState(false)
   const [uploadingLogo, setUploadingLogo] = useState(false)
   const [uploadingQrPayment, setUploadingQrPayment] = useState(false)
+  const [downloadingPreview, setDownloadingPreview] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -523,6 +522,47 @@ const MAX_LOGO_BYTES = 5 * 1024 * 1024
       setError(err instanceof Error ? err.message : "QR-Zahlteil-Upload fehlgeschlagen")
     } finally {
       setUploadingQrPayment(false)
+    }
+  }
+
+  const downloadPreviewPdf = async () => {
+    if (!template) return
+    setDownloadingPreview(true)
+    setError(null)
+    try {
+      const res = await fetch("/api/admin/document-template/preview", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          documentType: selectedType,
+          download: true,
+          template,
+          orderId: "preview",
+        }),
+      })
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string }
+        throw new Error(data.error ?? "PDF-Vorschau konnte nicht erstellt werden.")
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement("a")
+      const label = template.documentTypes[selectedType].label
+      const number = PREVIEW_NUMBERS[selectedType]
+      anchor.href = url
+      anchor.download = `${label}-Vorschau-${number}.pdf`
+      document.body.appendChild(anchor)
+      anchor.click()
+      anchor.remove()
+      URL.revokeObjectURL(url)
+      setSuccess("Vorschau-PDF heruntergeladen.")
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "PDF-Vorschau konnte nicht erstellt werden."
+      )
+    } finally {
+      setDownloadingPreview(false)
     }
   }
 
@@ -965,13 +1005,32 @@ const MAX_LOGO_BYTES = 5 * 1024 * 1024
                 QR-Zahlteil fuer diesen Dokumenttyp anzeigen
               </label>
               <p className="text-xs text-muted-foreground">
-                Footer-Kontaktdaten werden automatisch als dreizeiliger Block erzeugt (Firma/Inhaber,
-                Adresse, E-Mail/Website), sofern kein eigener zentrierter Footer gesetzt ist.
+                Footer-Kontaktdaten erscheinen nur auf der ersten Seite (Rechnung) als
+                dezenter Block ganz unten — nicht auf der Zahlungsverbindungs-Seite.
               </p>
             </CardContent>
           </Card>
 
-          <div className={cn("sticky bottom-0 rounded-xl border p-4 shadow-lg backdrop-blur", adminUi.section)}>
+          <div
+            className={cn(
+              "sticky bottom-0 space-y-2 rounded-xl border p-4 shadow-lg backdrop-blur",
+              adminUi.section
+            )}
+          >
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              disabled={downloadingPreview || !template}
+              onClick={() => void downloadPreviewPdf()}
+            >
+              {downloadingPreview ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Download className="mr-2 h-4 w-4" />
+              )}
+              Vorschau-PDF herunterladen
+            </Button>
             <Button type="button" onClick={() => void saveTemplate()} disabled={saving} className="w-full">
               {saving ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -984,6 +1043,22 @@ const MAX_LOGO_BYTES = 5 * 1024 * 1024
         </div>
 
         <div className="lg:sticky lg:top-6">
+          <div className="mb-3 flex justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={downloadingPreview || !template}
+              onClick={() => void downloadPreviewPdf()}
+            >
+              {downloadingPreview ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Download className="mr-2 h-4 w-4" />
+              )}
+              Vorschau-PDF herunterladen
+            </Button>
+          </div>
           <DocumentLivePreview template={template} documentType={selectedType} />
         </div>
       </div>

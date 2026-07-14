@@ -234,10 +234,7 @@ export function buildDocumentFooterLines(
     ? `${template.firmenname} - ${template.inhaber}`
     : template.firmenname
 
-  const addressParts = template.firmenAdresse
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean)
+  const addressParts = getDeduplicatedAddressLines(template)
   const line2 =
     addressParts.length >= 2
       ? `${addressParts[0]} | ${addressParts.slice(1).join(" ")}`
@@ -246,6 +243,42 @@ export function buildDocumentFooterLines(
   const line3 = [template.kontaktEmail, template.website].filter(Boolean).join(" | ")
 
   return { line1, line2, line3 }
+}
+
+function normalizeIdentityLine(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, " ")
+}
+
+/**
+ * Adresszeilen ohne doppelten Firmen-/Inhabernamen
+ * (falls der Name fälschlich in firmenAdresse steckt).
+ */
+export function getDeduplicatedAddressLines(
+  template: Pick<DocumentTemplateSettings, "firmenname" | "inhaber" | "firmenAdresse">
+): string[] {
+  const skip = new Set(
+    [template.firmenname, template.inhaber]
+      .map((value) => normalizeIdentityLine(String(value ?? "")))
+      .filter(Boolean)
+  )
+  return String(template.firmenAdresse ?? "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .filter((line) => !skip.has(normalizeIdentityLine(line)))
+}
+
+/** Firma + Inhaber + Adresse für den Zahlungsseiten-Kopfblock. */
+export function getPaymentPageCompanyLines(
+  template: Pick<DocumentTemplateSettings, "firmenname" | "inhaber" | "firmenAdresse">
+): string[] {
+  const lines: string[] = []
+  const firmenname = String(template.firmenname ?? "").trim()
+  const inhaber = String(template.inhaber ?? "").trim()
+  if (firmenname) lines.push(firmenname)
+  if (inhaber) lines.push(inhaber)
+  lines.push(...getDeduplicatedAddressLines(template))
+  return lines
 }
 
 export function resolveDocumentFooterLines(

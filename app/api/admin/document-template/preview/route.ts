@@ -11,14 +11,23 @@ import {
 import { generateInvoicePdfBuffer } from "@/lib/invoices/generate-invoice-pdf"
 import {
   DOCUMENT_TEMPLATE_TYPES,
+  sanitizeDocumentTemplateInput,
+  type DocumentTemplateSettings,
   type DocumentTemplateType,
 } from "@/lib/documents/document-template-types"
 import type { StoredOrder } from "@/lib/admin/types"
 
-function buildPreviewOrder(): StoredOrder {
+function buildPreviewOrder(documentType: DocumentTemplateType): StoredOrder {
   const now = new Date().toISOString()
+  const orderId =
+    documentType === "quote"
+      ? "AN-00001"
+      : documentType === "deliveryNote"
+        ? "LI-00001"
+        : "RE-00001"
+
   return {
-    orderId: "df-preview-0001",
+    orderId,
     createdAt: now,
     status: "ausstehend",
     productionStatus: "bereit_fuer_produktion",
@@ -46,7 +55,7 @@ function buildPreviewOrder(): StoredOrder {
     shippingMethod: "apost",
     paymentMethod: "invoice",
     paymentMethodLabel: "Kauf auf Rechnung",
-    paymentConfirmed: true,
+    paymentConfirmed: false,
     items: [
       {
         id: "preview-3d",
@@ -98,14 +107,19 @@ export async function POST(request: Request) {
     const body = (await request.json().catch(() => ({}))) as {
       orderId?: string
       documentType?: string
+      download?: boolean
+      template?: Partial<DocumentTemplateSettings>
     }
     const settings = await getSettings()
-    const template = await getDocumentTemplateSettings()
+    const storedTemplate = await getDocumentTemplateSettings()
+    const template = body.template
+      ? sanitizeDocumentTemplateInput(body.template, storedTemplate)
+      : storedTemplate
     const documentType = normalizeDocumentType(body.documentType)
     const order =
       body.orderId && body.orderId !== "preview"
         ? await getOrderById(body.orderId)
-        : buildPreviewOrder()
+        : buildPreviewOrder(documentType)
 
     if (!order) {
       return NextResponse.json({ error: "Bestellung nicht gefunden." }, { status: 404 })
@@ -117,13 +131,15 @@ export async function POST(request: Request) {
       template,
       documentType
     )
-    const filename = `${template.documentTypes[documentType].label}-Vorschau.pdf`
+    const label = template.documentTypes[documentType].label
+    const filename = `${label}-Vorschau-${order.orderId}.pdf`
+    const disposition = body.download === false ? "inline" : "attachment"
 
     return new NextResponse(new Uint8Array(pdfBuffer), {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `inline; filename="${filename}"`,
+        "Content-Disposition": `${disposition}; filename="${filename}"`,
         "Cache-Control": "no-store",
       },
     })

@@ -10,6 +10,7 @@ import type { ReactNode } from "react"
 import {
   applyDocumentTemplatePlaceholders,
   DOCUMENT_HEADER_HEIGHT_MM,
+  getPaymentPageCompanyLines,
   resolveDocumentFooterLines,
   type DocumentLogoAlignment,
   type DocumentTemplateSettings,
@@ -148,17 +149,20 @@ export function createPdfDocumentLayoutStyles(template: DocumentTemplateSettings
     paymentPageCompany: {
       marginTop: 8,
       marginBottom: 12,
+      alignItems: "center",
     },
     paymentPageCompanyLine: {
       fontSize: scaledSize(base, 10),
       color: pdfDocumentColors.anthracite,
       marginBottom: 2,
+      textAlign: "center",
     },
     paymentPageCompanyBold: {
       ...bold,
       fontSize: scaledSize(base, 11),
       color: pdfDocumentColors.anthracite,
       marginBottom: 3,
+      textAlign: "center",
     },
     paymentDashLine: {
       borderTopWidth: 1,
@@ -343,8 +347,9 @@ function PdfCenterFooter({
 }) {
   const hasFooter = footerLines.line1 || footerLines.line2 || footerLines.line3
   if (!hasFooter) return null
+  // Ohne `fixed`: nur auf dieser Seite (nicht auf Folgeseiten wiederholen)
   return (
-    <View style={styles.centerFooter} fixed>
+    <View style={styles.centerFooter}>
       {footerLines.line1 ? (
         <Text style={styles.footerLine1}>{footerLines.line1}</Text>
       ) : null}
@@ -405,10 +410,7 @@ export function PdfDocumentLayout({
     payment?.paymentMethodLabel?.trim() || "Online-Zahlung"
   const receiptMessage = `Dieser Beleg dient als Quittung. Der Betrag wurde bereits erfolgreich via ${paymentMethodLabel} beglichen. Vielen Dank!`
 
-  const companyAddressLines = String(template.firmenAdresse ?? "")
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
+  const companyLines = getPaymentPageCompanyLines(template)
 
   return (
     <Document title={title} author={template.firmenname}>
@@ -469,6 +471,7 @@ export function PdfDocumentLayout({
           </View>
         ) : null}
 
+        {/* Footer nur auf Seite 1 */}
         <PdfCenterFooter styles={styles} footerLines={footerLines} />
       </Page>
 
@@ -481,12 +484,15 @@ export function PdfDocumentLayout({
           />
 
           <View style={styles.paymentPageCompany}>
-            <Text style={styles.paymentPageCompanyBold}>{template.firmenname}</Text>
-            {template.inhaber ? (
-              <Text style={styles.paymentPageCompanyLine}>{template.inhaber}</Text>
-            ) : null}
-            {companyAddressLines.map((line) => (
-              <Text key={line} style={styles.paymentPageCompanyLine}>
+            {companyLines.map((line, index) => (
+              <Text
+                key={`${line}-${index}`}
+                style={
+                  index === 0
+                    ? styles.paymentPageCompanyBold
+                    : styles.paymentPageCompanyLine
+                }
+              >
                 {line}
               </Text>
             ))}
@@ -531,8 +537,6 @@ export function PdfDocumentLayout({
               ) : null}
             </View>
           )}
-
-          <PdfCenterFooter styles={styles} footerLines={footerLines} />
         </Page>
       ) : null}
     </Document>
