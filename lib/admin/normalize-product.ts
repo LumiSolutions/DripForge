@@ -38,6 +38,11 @@ export function normalizeAdminProductInput(
       ? Boolean(input.istAktiv)
       : existing?.istAktiv !== false
 
+  const isTopProduct =
+    input.isTopProduct !== undefined
+      ? Boolean(input.isTopProduct)
+      : Boolean(existing?.isTopProduct)
+
   const sale = input.sale !== undefined ? Boolean(input.sale) : Boolean(existing?.sale)
 
   const basisPreis = roundChf(
@@ -94,6 +99,7 @@ export function normalizeAdminProductInput(
     additionalBaseCostChf,
     type: (input.type ?? existing?.type) === "laser" ? "laser" : "3d",
     istAktiv,
+    isTopProduct,
     laserMaterialId: input.laserMaterialId ?? existing?.laserMaterialId,
     galerieBilder,
     individualisierungsBild,

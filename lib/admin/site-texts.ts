@@ -26,6 +26,11 @@ export const DEFAULT_SITE_TEXTS = {
     "Von der Idee zur Realität - wir bringen Ihre Visionen mit industriellem 3D-Druck und Lasergravur zum Leben. Schweizer Qualität für Ihre individuellen Projekte.",
   landingpage_hero_cta_primary: "Jetzt Erstellen",
   landingpage_hero_cta_secondary: "Produkte Entdecken",
+  landingpage_top_products_prefix: "Unsere ",
+  landingpage_top_products_heading: "Top Produkte",
+  landingpage_top_products_subtitle:
+    "Die beliebtesten Highlights und Kundenfavoriten aus unserer Manufaktur.",
+  landingpage_top_products_cta: "Details ansehen",
   landingpage_expertise_heading: "Expertise",
   landingpage_expertise_subtitle_both:
     "Zwei leistungsstarke Fertigungstechnologien, ein Premium-Erlebnis.",
@@ -141,6 +146,14 @@ export const SITE_TEXT_SECTIONS: SiteTextSection[] = [
       { key: "landingpage_hero_subtitle", label: "Hero-Untertitel", multiline: true },
       { key: "landingpage_hero_cta_primary", label: "Primaerer Button" },
       { key: "landingpage_hero_cta_secondary", label: "Sekundaerer Button" },
+      { key: "landingpage_top_products_prefix", label: "Top-Produkte Prefix (z.B. Unsere)" },
+      { key: "landingpage_top_products_heading", label: "Top-Produkte Ueberschrift" },
+      {
+        key: "landingpage_top_products_subtitle",
+        label: "Top-Produkte Untertitel",
+        multiline: true,
+      },
+      { key: "landingpage_top_products_cta", label: "Top-Produkte Karten-Link" },
       { key: "landingpage_expertise_heading", label: "Expertise-Ueberschrift" },
       { key: "landingpage_expertise_prefix", label: "Expertise-Prefix (z.B. Unsere)" },
       {

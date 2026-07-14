@@ -63,6 +63,7 @@ import { SiteText } from "@/components/dripforge/editable-site-text"
 import { SiteTextPhrase } from "@/components/dripforge/site-text-phrase"
 import { useAiPublicSettings } from "@/hooks/use-ai-public-settings"
 import { SHOP_ROUTES } from "@/lib/dripforge/shop-routes"
+import { HomeTopProductsSection } from "@/components/dripforge/views/home-top-products-section"
 
 export function HomePage({
   setCurrentView,
@@ -130,6 +131,8 @@ export function HomePage({
           </div>
         </div>
       </section>
+
+      <HomeTopProductsSection />
 
       {/* Our Expertise */}
       {showExpertise && (

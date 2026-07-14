@@ -71,6 +71,7 @@ const EMPTY_FORM: ProductFormState = {
   saleRabattTyp: "percent",
   saleRabattWert: 10,
   istAktiv: true,
+  isTopProduct: false,
   laserMaterialId: "wood",
   dimensionsMm: { length: 100, width: 100, height: 100 },
   volumen: 0,
@@ -225,6 +226,7 @@ export function AdminProductsTab() {
       saleRabattTyp: inferred.typ,
       saleRabattWert: inferred.wert,
       istAktiv: product.istAktiv !== false,
+      isTopProduct: Boolean(product.isTopProduct),
       galerieBilder: product.galerieBilder ?? product.images ?? [],
       individualisierungsBild: product.individualisierungsBild ?? "",
       modellDateiUrl: product.modellDateiUrl ?? product.modelUrl ?? "",
@@ -579,20 +581,39 @@ export function AdminProductsTab() {
                     <option value="laser">Lasergravur</option>
                   </select>
                 </div>
-                <div className="flex flex-wrap items-center gap-6 sm:col-span-2">
-                  <div className="flex items-center gap-3">
-                    <Switch
-                      checked={Boolean(form.sale)}
-                      onCheckedChange={(checked) => updateField("sale", checked)}
-                    />
-                    <Label className={adminUi.label}>Im Sale</Label>
+                <div className="flex flex-col gap-4 sm:col-span-2">
+                  <div className="flex flex-wrap items-center gap-6">
+                    <div className="flex items-center gap-3">
+                      <Switch
+                        checked={Boolean(form.sale)}
+                        onCheckedChange={(checked) => updateField("sale", checked)}
+                      />
+                      <Label className={adminUi.label}>Im Sale</Label>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Switch
+                        checked={form.istAktiv !== false}
+                        onCheckedChange={(checked) => updateField("istAktiv", checked)}
+                      />
+                      <Label className={adminUi.label}>Produkt aktiv</Label>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-start gap-3 rounded-xl border border-border/60 px-4 py-3">
                     <Switch
-                      checked={form.istAktiv !== false}
-                      onCheckedChange={(checked) => updateField("istAktiv", checked)}
+                      id="isTopProduct"
+                      checked={Boolean(form.isTopProduct)}
+                      onCheckedChange={(checked) => updateField("isTopProduct", checked)}
+                      className="mt-0.5"
                     />
-                    <Label className={adminUi.label}>Produkt aktiv</Label>
+                    <div className="space-y-1">
+                      <Label htmlFor="isTopProduct" className={adminUi.label}>
+                        Als Top-Produkt auf Startseite anzeigen
+                      </Label>
+                      <p className={cn("text-xs", adminUi.muted)}>
+                        Zeigt dieses Produkt auf der Homepage im Abschnitt &apos;Unsere Top
+                        Produkte&apos; an.
+                      </p>
+                    </div>
                   </div>
                 </div>
 

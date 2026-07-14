@@ -187,6 +187,7 @@ export function normalizeShopProduct(
           : undefined,
       varianten: safeVariantenArray(source.varianten),
       istAktiv: source.istAktiv !== false,
+      isTopProduct: Boolean(source.isTopProduct),
       individualisierungsBild:
         typeof source.individualisierungsBild === "string"
           ? source.individualisierungsBild.trim() || undefined
@@ -211,6 +212,7 @@ export function normalizeShopProduct(
       galerieBilder: [PLACEHOLDER_IMAGE],
       tags: [],
       istAktiv: true,
+      isTopProduct: false,
     }
   }
 }
