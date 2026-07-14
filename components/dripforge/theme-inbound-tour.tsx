@@ -217,7 +217,7 @@ export function ThemeInboundTour({
             <Button
               type="button"
               variant="secondary"
-              className="h-auto min-h-10 w-full touch-manipulation border border-slate-300/80 bg-white/95 px-3 py-3 text-sm font-medium text-foreground shadow-md hover:bg-white sm:min-h-12 sm:px-4 sm:py-4 sm:text-base md:h-9 md:min-h-0 md:min-w-[7.25rem] md:flex-none md:py-2 md:text-sm"
+              className="h-auto min-h-10 w-full touch-manipulation border border-slate-300/80 bg-white/95 px-3 py-3 text-sm font-medium !text-gray-900 shadow-md hover:bg-white hover:!text-gray-900 sm:min-h-12 sm:px-4 sm:py-4 sm:text-base md:h-9 md:min-h-0 md:min-w-[7.25rem] md:flex-none md:py-2 md:text-sm"
               onClick={() => closeWithTheme("light")}
             >
               <Sun className="mr-2 h-4 w-4 shrink-0 text-amber-500" />
@@ -225,7 +225,7 @@ export function ThemeInboundTour({
             </Button>
             <Button
               type="button"
-              className="h-auto min-h-10 w-full touch-manipulation border border-slate-700/40 bg-zinc-900/95 px-3 py-3 text-sm font-medium text-white shadow-md hover:bg-zinc-900 sm:min-h-12 sm:px-4 sm:py-4 sm:text-base md:h-9 md:min-h-0 md:min-w-[7.25rem] md:flex-none md:py-2 md:text-sm"
+              className="h-auto min-h-10 w-full touch-manipulation border border-slate-700/40 bg-zinc-900/95 px-3 py-3 text-sm font-medium text-white shadow-md hover:bg-zinc-900 hover:text-white sm:min-h-12 sm:px-4 sm:py-4 sm:text-base md:h-9 md:min-h-0 md:min-w-[7.25rem] md:flex-none md:py-2 md:text-sm"
               onClick={() => closeWithTheme("dark")}
             >
               <Moon className="mr-2 h-4 w-4 shrink-0 text-sky-300" />
