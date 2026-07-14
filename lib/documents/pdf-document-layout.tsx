@@ -54,6 +54,24 @@ export function createPdfDocumentLayoutStyles(template: DocumentTemplateSettings
       paddingHorizontal: 20 * MM,
       paddingBottom: 32,
     },
+    paymentPage: {
+      fontFamily: font,
+      fontSize: base,
+      color: pdfDocumentColors.anthracite,
+      lineHeight: 1.4,
+      paddingTop: 0,
+      paddingHorizontal: 20 * MM,
+      paddingBottom: 40,
+      position: "relative",
+    },
+    /** Zahlungsblock am unteren Blattrand (Abstand ~40pt zum Rand) */
+    paymentBottomContainer: {
+      position: "absolute",
+      bottom: 40,
+      left: 20 * MM,
+      right: 20 * MM,
+      backgroundColor: "transparent",
+    },
     logoHeader: {
       height: DOCUMENT_HEADER_HEIGHT_MM * MM,
       marginBottom: 0,
@@ -147,8 +165,8 @@ export function createPdfDocumentLayoutStyles(template: DocumentTemplateSettings
       ...bold,
     },
     paymentPageCompany: {
-      marginTop: 8,
-      marginBottom: 12,
+      marginTop: 0,
+      marginBottom: 10,
       alignItems: "center",
     },
     paymentPageCompanyLine: {
@@ -168,10 +186,11 @@ export function createPdfDocumentLayoutStyles(template: DocumentTemplateSettings
       borderTopWidth: 1,
       borderTopColor: pdfDocumentColors.anthraciteMid,
       borderStyle: "dashed",
-      marginVertical: 14,
+      marginTop: 4,
+      marginBottom: 14,
     },
     paymentSection: {
-      marginTop: 4,
+      marginTop: 0,
       flexDirection: "row",
     },
     paymentLeft: {
@@ -220,10 +239,10 @@ export function createPdfDocumentLayoutStyles(template: DocumentTemplateSettings
       objectFit: "contain",
     },
     paidStampWrap: {
-      marginTop: 20,
+      marginTop: 8,
       alignItems: "center",
       justifyContent: "center",
-      paddingVertical: 24,
+      paddingVertical: 12,
     },
     paidStamp: {
       ...bold,
@@ -476,67 +495,69 @@ export function PdfDocumentLayout({
       </Page>
 
       {showPaymentPage && payment ? (
-        <Page size="A4" style={styles.page}>
+        <Page size="A4" style={styles.paymentPage}>
           <PdfLogoHeader
             styles={styles}
             logoUrl={logoUrl}
             alignment={template.logoAlignment}
           />
 
-          <View style={styles.paymentPageCompany}>
-            {companyLines.map((line, index) => (
-              <Text
-                key={`${line}-${index}`}
-                style={
-                  index === 0
-                    ? styles.paymentPageCompanyBold
-                    : styles.paymentPageCompanyLine
-                }
-              >
-                {line}
-              </Text>
-            ))}
-          </View>
-
-          <View style={styles.paymentDashLine} />
-
-          {alreadyPaid ? (
-            <View style={styles.paidStampWrap}>
-              <Text style={styles.paidStamp}>BEZAHLT / PAID</Text>
-              <Text style={styles.paidStampSub}>{receiptMessage}</Text>
-            </View>
-          ) : (
-            <View style={styles.paymentSection}>
-              <View style={styles.paymentLeft}>
-                <Text style={styles.paymentSectionTitle}>Zahlungsverbindung</Text>
-                <Text style={styles.paymentLineBold}>Kontoinhaber</Text>
-                <Text style={styles.paymentLine}>{accountHolder}</Text>
-                {template.iban ? (
-                  <>
-                    <Text style={[styles.paymentLineBold, { marginTop: 6 }]}>IBAN</Text>
-                    <Text style={styles.paymentLine}>{template.iban}</Text>
-                  </>
-                ) : null}
-                {template.bankname ? (
-                  <Text style={styles.paymentLine}>{template.bankname}</Text>
-                ) : null}
-                <Text style={[styles.paymentLineBold, { marginTop: 6 }]}>
-                  Referenz / Zahlungszweck
+          <View style={styles.paymentBottomContainer}>
+            <View style={styles.paymentPageCompany}>
+              {companyLines.map((line, index) => (
+                <Text
+                  key={`${line}-${index}`}
+                  style={
+                    index === 0
+                      ? styles.paymentPageCompanyBold
+                      : styles.paymentPageCompanyLine
+                  }
+                >
+                  {line}
                 </Text>
-                <Text style={styles.paymentLine}>{payment.reference}</Text>
-                <Text style={styles.paymentAmount}>{formatChf(payment.amount)}</Text>
-                {paymentBlockText ? (
-                  <Text style={styles.paymentNote}>{paymentBlockText}</Text>
+              ))}
+            </View>
+
+            <View style={styles.paymentDashLine} />
+
+            {alreadyPaid ? (
+              <View style={styles.paidStampWrap}>
+                <Text style={styles.paidStamp}>BEZAHLT / PAID</Text>
+                <Text style={styles.paidStampSub}>{receiptMessage}</Text>
+              </View>
+            ) : (
+              <View style={styles.paymentSection}>
+                <View style={styles.paymentLeft}>
+                  <Text style={styles.paymentSectionTitle}>Zahlungsverbindung</Text>
+                  <Text style={styles.paymentLineBold}>Kontoinhaber</Text>
+                  <Text style={styles.paymentLine}>{accountHolder}</Text>
+                  {template.iban ? (
+                    <>
+                      <Text style={[styles.paymentLineBold, { marginTop: 6 }]}>IBAN</Text>
+                      <Text style={styles.paymentLine}>{template.iban}</Text>
+                    </>
+                  ) : null}
+                  {template.bankname ? (
+                    <Text style={styles.paymentLine}>{template.bankname}</Text>
+                  ) : null}
+                  <Text style={[styles.paymentLineBold, { marginTop: 6 }]}>
+                    Referenz / Zahlungszweck
+                  </Text>
+                  <Text style={styles.paymentLine}>{payment.reference}</Text>
+                  <Text style={styles.paymentAmount}>{formatChf(payment.amount)}</Text>
+                  {paymentBlockText ? (
+                    <Text style={styles.paymentNote}>{paymentBlockText}</Text>
+                  ) : null}
+                </View>
+                {qrImageUrl ? (
+                  <View style={styles.paymentRight}>
+                    {/* eslint-disable-next-line jsx-a11y/alt-text -- @react-pdf Image */}
+                    <Image style={styles.qrImage} src={qrImageUrl} />
+                  </View>
                 ) : null}
               </View>
-              {qrImageUrl ? (
-                <View style={styles.paymentRight}>
-                  {/* eslint-disable-next-line jsx-a11y/alt-text -- @react-pdf Image */}
-                  <Image style={styles.qrImage} src={qrImageUrl} />
-                </View>
-              ) : null}
-            </View>
-          )}
+            )}
+          </View>
         </Page>
       ) : null}
     </Document>

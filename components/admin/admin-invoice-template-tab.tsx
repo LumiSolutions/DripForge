@@ -169,14 +169,15 @@ function DocumentLivePreview({
         </span>
       </div>
 
-      <div className="mx-auto aspect-[210/297] w-full max-w-[620px] overflow-y-auto rounded-sm bg-white text-slate-900 shadow-2xl">
-        <div
-          className="flex min-h-full flex-col px-[20mm] pb-[12mm] pt-0"
-          style={{
-            fontFamily: DOCUMENT_FONT_CSS[template.fontFamily],
-            fontSize: `${template.baseFontSize}px`,
-          }}
-        >
+      <div className="mx-auto flex w-full max-w-[620px] flex-col gap-6">
+        <div className="aspect-[210/297] overflow-y-auto rounded-sm bg-white text-slate-900 shadow-2xl">
+          <div
+            className="flex min-h-full flex-col px-[20mm] pb-[12mm] pt-0"
+            style={{
+              fontFamily: DOCUMENT_FONT_CSS[template.fontFamily],
+              fontSize: `${template.baseFontSize}px`,
+            }}
+          >
           <div
             className={cn("flex shrink-0 items-center", logoAlignClass)}
             style={{ height: `${DOCUMENT_HEADER_HEIGHT_MM}mm` }}
@@ -317,9 +318,52 @@ function DocumentLivePreview({
               <p className="text-[0.72em]">{footerLines.line3}</p>
             ) : null}
           </div>
+          </div>
+        </div>
 
-          {documentText.showPaymentBlock ? (
-            <div className="mt-6 break-before-page border-t border-dashed border-slate-400 pt-6">
+        {documentText.showPaymentBlock ? (
+          <div
+            className="payment-page relative box-border min-h-[297mm] w-full overflow-hidden rounded-sm bg-white px-[20mm] pt-0 text-slate-900 shadow-2xl"
+            style={{
+              fontFamily: DOCUMENT_FONT_CSS[template.fontFamily],
+              fontSize: `${template.baseFontSize}px`,
+              pageBreakBefore: "always",
+              breakBefore: "page",
+            }}
+          >
+            <div
+              className={cn("flex shrink-0 items-center", logoAlignClass)}
+              style={{ height: `${DOCUMENT_HEADER_HEIGHT_MM}mm` }}
+            >
+              {template.logoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={template.logoUrl}
+                  alt="Dokumentenlogo Seite 2"
+                  className="h-auto object-contain"
+                  style={{
+                    width: `${template.logoWidthPercent}%`,
+                    maxHeight: `${DOCUMENT_HEADER_HEIGHT_MM - 4}mm`,
+                  }}
+                />
+              ) : (
+                <div
+                  className="flex items-center justify-center rounded border border-dashed border-slate-300 text-[0.7em] text-slate-400"
+                  style={{
+                    width: `${template.logoWidthPercent}%`,
+                    maxHeight: `${DOCUMENT_HEADER_HEIGHT_MM - 4}mm`,
+                    minHeight: "24mm",
+                  }}
+                >
+                  Logo
+                </div>
+              )}
+            </div>
+
+            <div
+              className="payment-bottom-container absolute right-0 left-0 w-full bg-transparent"
+              style={{ bottom: 40 }}
+            >
               <div className="mb-3 space-y-0.5 text-center text-[0.95em]">
                 {paymentCompanyLines.map((line, index) => (
                   <p
@@ -366,8 +410,8 @@ function DocumentLivePreview({
                 ) : null}
               </div>
             </div>
-          ) : null}
-        </div>
+          </div>
+        ) : null}
       </div>
     </div>
   )
