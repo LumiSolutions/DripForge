@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useLayoutEffect, useEffect, useRef, useState } from "react"
-import type { RefObject } from "react"
+import type { CSSProperties, RefObject } from "react"
 import {
   CheckCircle2,
   ChevronDown,
@@ -135,6 +135,18 @@ type DragSession = {
   centerClientY: number
 }
 
+/** Sperrt Browser-Scroll/-Select/-Drag waehrend Canvas-Gesten (Mobil + Desktop). */
+const CANVAS_TOUCH_LOCK_CLASS =
+  "touch-none select-none [-webkit-user-drag:none] [-webkit-touch-callout:none]"
+
+const CANVAS_TOUCH_LOCK_STYLE: CSSProperties = {
+  touchAction: "none",
+  userSelect: "none",
+  WebkitUserSelect: "none",
+  // Safari / Chromium: verhindert natives Bild-Ziehen (nicht in CSSProperties typisiert)
+  ...({ WebkitUserDrag: "none" } as CSSProperties),
+}
+
 function getCanvasPoint(
   canvas: HTMLDivElement,
   clientX: number,
@@ -207,9 +219,12 @@ function InteractiveCanvasElement({
   style?: React.CSSProperties
   children: React.ReactNode
 }) {
-  const beginDrag = (e: React.PointerEvent, mode: DragMode) => {
-    e.preventDefault()
-    e.stopPropagation()
+  const beginDragAt = (
+    mode: DragMode,
+    pointerId: number,
+    clientX: number,
+    clientY: number
+  ) => {
     onSelect()
     const canvas = canvasRef.current
     if (!canvas) return
@@ -218,32 +233,57 @@ function InteractiveCanvasElement({
       layout,
       target,
       mode,
-      e.pointerId,
-      e.clientX,
-      e.clientY
+      pointerId,
+      clientX,
+      clientY
     )
-    canvas.setPointerCapture(e.pointerId)
+    try {
+      canvas.setPointerCapture(pointerId)
+    } catch {
+      // Touch-Fallback ohne Pointer-Capture
+    }
     onDragStart(session)
+  }
+
+  const beginPointerDrag = (e: React.PointerEvent, mode: DragMode) => {
+    e.preventDefault()
+    e.stopPropagation()
+    beginDragAt(mode, e.pointerId, e.clientX, e.clientY)
+  }
+
+  const beginTouchDrag = (e: React.TouchEvent, mode: DragMode) => {
+    // Moderne Browser: PointerEvents uebernehmen Start; CSS touch-action sperrt Scroll.
+    if (typeof window !== "undefined" && "PointerEvent" in window) return
+    const touch = e.touches[0]
+    if (!touch) return
+    e.preventDefault()
+    e.stopPropagation()
+    beginDragAt(mode, touch.identifier, touch.clientX, touch.clientY)
   }
 
   return (
     <div
-      className="absolute touch-none z-10"
-      style={elementTransformStyle(layout)}
+      className={cn("absolute z-10", CANVAS_TOUCH_LOCK_CLASS)}
+      style={{ ...elementTransformStyle(layout), ...CANVAS_TOUCH_LOCK_STYLE }}
       data-canvas-element={target}
     >
       <div
         ref={onInnerRef}
         className={cn(
           "relative inline-block",
+          CANVAS_TOUCH_LOCK_CLASS,
           target === "text" ? "w-max max-w-none" : "max-w-full",
           isMoving ? "cursor-grabbing" : "cursor-grab",
           className
         )}
-        style={style}
+        style={{ ...CANVAS_TOUCH_LOCK_STYLE, ...style }}
         onPointerDown={(e) => {
           if ((e.target as HTMLElement).closest("[data-handle]")) return
-          beginDrag(e, "move")
+          beginPointerDrag(e, "move")
+        }}
+        onTouchStart={(e) => {
+          if ((e.target as HTMLElement).closest("[data-handle]")) return
+          beginTouchDrag(e, "move")
         }}
       >
         {children}
@@ -262,10 +302,12 @@ function InteractiveCanvasElement({
               className={cn(
                 "absolute left-1/2 z-30 flex h-6 w-6 -translate-x-1/2 items-center justify-center rounded-full",
                 "border-2 border-cyan-400 bg-background shadow-md",
-                "cursor-grab active:cursor-grabbing hover:bg-cyan-500/20"
+                "cursor-grab active:cursor-grabbing hover:bg-cyan-500/20",
+                CANVAS_TOUCH_LOCK_CLASS
               )}
-              style={{ top: "-2rem" }}
-              onPointerDown={(e) => beginDrag(e, "rotate")}
+              style={{ top: "-2rem", ...CANVAS_TOUCH_LOCK_STYLE }}
+              onPointerDown={(e) => beginPointerDrag(e, "rotate")}
+              onTouchStart={(e) => beginTouchDrag(e, "rotate")}
             >
               <span className="block h-2 w-2 rounded-full bg-cyan-400" />
             </button>
@@ -276,10 +318,16 @@ function InteractiveCanvasElement({
               aria-label="Groesse aendern"
               className={cn(
                 "absolute z-30 h-4 w-4 rounded-sm border-2 border-cyan-400 bg-cyan-400 shadow-md",
-                "cursor-se-resize hover:scale-110"
+                "cursor-se-resize hover:scale-110",
+                CANVAS_TOUCH_LOCK_CLASS
               )}
-              style={{ right: "-0.5rem", bottom: "-0.5rem" }}
-              onPointerDown={(e) => beginDrag(e, "resize")}
+              style={{
+                right: "-0.5rem",
+                bottom: "-0.5rem",
+                ...CANVAS_TOUCH_LOCK_STYLE,
+              }}
+              onPointerDown={(e) => beginPointerDrag(e, "resize")}
+              onTouchStart={(e) => beginTouchDrag(e, "resize")}
             />
           </>
         )}
@@ -751,10 +799,11 @@ function LaserDesignerPreview({
     workAreaMm,
   ])
 
-  const handlePointerMove = useCallback(
-    (e: React.PointerEvent) => {
+  const processDragMove = useCallback(
+    (clientX: number, clientY: number, pointerId?: number) => {
       const session = dragSessionRef.current
-      if (!session || session.pointerId !== e.pointerId) return
+      if (!session) return
+      if (pointerId !== undefined && session.pointerId !== pointerId) return
 
       const canvas = canvasRef.current
       if (!canvas) return
@@ -762,8 +811,12 @@ function LaserDesignerPreview({
       const { startLayout, mode, target } = session
 
       if (mode === "move") {
-        const start = getCanvasPoint(canvas, session.startClientX, session.startClientY)
-        const now = getCanvasPoint(canvas, e.clientX, e.clientY)
+        const start = getCanvasPoint(
+          canvas,
+          session.startClientX,
+          session.startClientY
+        )
+        const now = getCanvasPoint(canvas, clientX, clientY)
         const rawX = startLayout.x + (now.percentX - start.percentX)
         const rawY = startLayout.y + (now.percentY - start.percentY)
         const innerEl =
@@ -775,8 +828,7 @@ function LaserDesignerPreview({
 
       if (mode === "resize") {
         const center = getElementCenterPx(canvas, startLayout)
-        const dist =
-          Math.hypot(e.clientX - center.x, e.clientY - center.y) || 1
+        const dist = Math.hypot(clientX - center.x, clientY - center.y) || 1
         const rawScale = (dist / session.startDistance) * startLayout.scale
         const innerEl =
           target === "text" ? textInnerRef.current : imageInnerRef.current
@@ -794,8 +846,8 @@ function LaserDesignerPreview({
         const angle = pointerAngleDegrees(
           session.centerClientX,
           session.centerClientY,
-          e.clientX,
-          e.clientY
+          clientX,
+          clientY
         )
         const delta = angle - session.startPointerAngle
         const rotation = normalizeRotation(startLayout.rotation + delta)
@@ -805,13 +857,72 @@ function LaserDesignerPreview({
     [applyLayout]
   )
 
-  const endDrag = useCallback((e: React.PointerEvent) => {
+  const endDragSession = useCallback((pointerId?: number) => {
     const session = dragSessionRef.current
-    if (session && session.pointerId === e.pointerId) {
-      dragSessionRef.current = null
-      setDragMode(null)
+    if (!session) return
+    if (pointerId !== undefined && session.pointerId !== pointerId) return
+    dragSessionRef.current = null
+    setDragMode(null)
+    try {
+      if (pointerId !== undefined) {
+        canvasRef.current?.releasePointerCapture(pointerId)
+      }
+    } catch {
+      // Capture kann bereits geloest sein
     }
   }, [])
+
+  // Window-Listener: Drag bleibt aktiv auch ausserhalb des Canvas.
+  // touchmove (passive: false) + preventDefault stoppt Mobile-Seiten-Scroll.
+  useEffect(() => {
+    const onPointerMove = (e: PointerEvent) => {
+      const session = dragSessionRef.current
+      if (!session || session.pointerId !== e.pointerId) return
+      e.preventDefault()
+      processDragMove(e.clientX, e.clientY, e.pointerId)
+    }
+
+    const onPointerUp = (e: PointerEvent) => {
+      endDragSession(e.pointerId)
+    }
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (!dragSessionRef.current) return
+      e.preventDefault()
+      const touch = e.touches[0]
+      if (!touch) return
+      // Mit PointerEvents liefert pointermove die Logik; Touch blockiert nur Scroll.
+      if (typeof window !== "undefined" && "PointerEvent" in window) return
+      processDragMove(touch.clientX, touch.clientY, touch.identifier)
+    }
+
+    const onTouchEnd = (e: TouchEvent) => {
+      const session = dragSessionRef.current
+      if (!session) return
+      const ended = Array.from(e.changedTouches).some(
+        (t) => t.identifier === session.pointerId
+      )
+      if (ended || e.touches.length === 0) {
+        endDragSession(session.pointerId)
+      }
+    }
+
+    window.addEventListener("pointermove", onPointerMove, { passive: false })
+    window.addEventListener("pointerup", onPointerUp)
+    window.addEventListener("pointercancel", onPointerUp)
+    window.addEventListener("touchmove", onTouchMove, { passive: false })
+    window.addEventListener("touchend", onTouchEnd)
+    window.addEventListener("touchcancel", onTouchEnd)
+
+    return () => {
+      window.removeEventListener("pointermove", onPointerMove)
+      window.removeEventListener("pointerup", onPointerUp)
+      window.removeEventListener("pointercancel", onPointerUp)
+      window.removeEventListener("touchmove", onTouchMove)
+      window.removeEventListener("touchend", onTouchEnd)
+      window.removeEventListener("touchcancel", onTouchEnd)
+    }
+  }, [endDragSession, processDragMove])
 
   const startDragSession = useCallback((session: DragSession) => {
     dragSessionRef.current = session
@@ -872,16 +983,14 @@ function LaserDesignerPreview({
           ref={assignPreviewSurfaceRef}
           {...{ [LEITBILD_LASER_PREVIEW_ATTR]: "true" }}
           className={cn(
-            "relative z-0 aspect-square w-full touch-none overflow-hidden rounded-xl border-2 border-cyan-500/25 shadow-inner",
+            "relative z-0 aspect-square w-full overflow-hidden rounded-xl border-2 border-cyan-500/25 shadow-inner",
+            CANVAS_TOUCH_LOCK_CLASS,
             canvasStyle.surface
           )}
+          style={CANVAS_TOUCH_LOCK_STYLE}
           onPointerDown={(e) => {
             if (e.target === e.currentTarget) setActiveElement(null)
           }}
-          onPointerMove={handlePointerMove}
-          onPointerUp={endDrag}
-          onPointerCancel={endDrag}
-          onPointerLeave={endDrag}
         >
           {customizationBackgroundUrl && (
             <div
@@ -924,7 +1033,11 @@ function LaserDesignerPreview({
               <img
                 src={imageLayout.src}
                 alt="Logo-Vorschau"
-                className="max-h-32 w-auto rounded opacity-90 drop-shadow-lg grayscale"
+                className={cn(
+                  "max-h-32 w-auto rounded opacity-90 drop-shadow-lg grayscale",
+                  CANVAS_TOUCH_LOCK_CLASS
+                )}
+                style={CANVAS_TOUCH_LOCK_STYLE}
                 draggable={false}
               />
             </InteractiveCanvasElement>
