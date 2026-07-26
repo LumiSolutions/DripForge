@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState, useEffect } from "react"
+import { useMemo, useState, useEffect, useRef } from "react"
 import {
   ArrowLeft,
   CreditCard,
@@ -182,48 +182,46 @@ export function PageCheckout({
     DEFAULT_CHECKOUT_RUNTIME_CONFIG
   )
   const [company, setCompany] = useState<CompanySettings>(DEFAULT_COMPANY_SETTINGS)
+  const [form, setForm] = useState<CheckoutForm>(EMPTY_FORM)
+  const [sameAsBilling, setSameAsBilling] = useState(true)
+  const [saveAddressToAccount, setSaveAddressToAccount] = useState(true)
+  const profilePrefillDone = useRef(false)
+
+  const [shippingMethod, setShippingMethod] =
+    useState<ShippingMethodId>("bpost")
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethodId>("card")
+  const [errors, setErrors] = useState<Partial<Record<FieldKey, string>>>({})
+  const [submitted, setSubmitted] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [couponInput, setCouponInput] = useState("")
+  const [appliedCouponCode, setAppliedCouponCode] = useState<string | null>(null)
+  const [couponError, setCouponError] = useState<string | null>(null)
+  const [couponLoading, setCouponLoading] = useState(false)
+  const [couponTotals, setCouponTotals] = useState<CheckoutTotalsWithCoupon | null>(
+    null
+  )
+  const [appliedCouponMeta, setAppliedCouponMeta] = useState<{
+    code: string
+    discountType: "percent" | "fixed"
+    discountValue: number
+  } | null>(null)
+  const [stripeConfigured, setStripeConfigured] = useState(false)
+  const [payrexxConfigured, setPayrexxConfigured] = useState(false)
+  const [pointsToRedeem, setPointsToRedeem] = useState(0)
+  const [pointsPurchasePackage, setPointsPurchasePackage] = useState<string | null>(
+    null
+  )
+  const [pointsPurchaseCustom, setPointsPurchaseCustom] = useState("10")
+  const [authDialogOpen, setAuthDialogOpen] = useState(false)
+  const [authSuccessMessage, setAuthSuccessMessage] = useState<string | null>(
+    null
+  )
+  const { loggedIn, loyaltyPoints, loading: loyaltyLoading, refresh: refreshLoyalty } =
+    useCustomerLoyaltyPoints()
+  const rewardPointsEnabled = useRewardPointsEnabled()
 
   useEffect(() => {
-    void fetch("/api/konto/me", { cache: "no-store" })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data: { account?: Partial<CheckoutForm> & {
-        deliveryStreet?: string
-        deliveryZip?: string
-        deliveryCity?: string
-        deliverySameAsBilling?: boolean
-      } } | null) => {
-        if (!data?.account) return
-        const a = data.account
-        setForm((prev) => ({
-          ...prev,
-          firstName: prev.firstName || a.firstName || "",
-          lastName: prev.lastName || a.lastName || "",
-          email: prev.email || a.email || "",
-          street: prev.street || a.street || "",
-          zip: prev.zip || a.zip || "",
-          city: prev.city || a.city || "",
-          phone: prev.phone || a.phone || "",
-          deliveryFirstName:
-            prev.deliveryFirstName || a.firstName || "",
-          deliveryLastName: prev.deliveryLastName || a.lastName || "",
-          deliveryStreet:
-            prev.deliveryStreet ||
-            (a.deliverySameAsBilling === false ? a.deliveryStreet : a.street) ||
-            "",
-          deliveryZip:
-            prev.deliveryZip ||
-            (a.deliverySameAsBilling === false ? a.deliveryZip : a.zip) ||
-            "",
-          deliveryCity:
-            prev.deliveryCity ||
-            (a.deliverySameAsBilling === false ? a.deliveryCity : a.city) ||
-            "",
-        }))
-      })
-      .catch(() => {
-        /* Gast-Checkout ohne Konto */
-      })
-
     void fetch("/api/settings/checkout")
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
@@ -261,41 +259,56 @@ export function PageCheckout({
       .catch(() => setPayrexxConfigured(false))
   }, [])
 
-  const [form, setForm] = useState<CheckoutForm>(EMPTY_FORM)
-  const [sameAsBilling, setSameAsBilling] = useState(true)
-  const [shippingMethod, setShippingMethod] =
-    useState<ShippingMethodId>("bpost")
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethodId>("card")
-  const [errors, setErrors] = useState<Partial<Record<FieldKey, string>>>({})
-  const [submitted, setSubmitted] = useState(false)
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [submitError, setSubmitError] = useState<string | null>(null)
-  const [couponInput, setCouponInput] = useState("")
-  const [appliedCouponCode, setAppliedCouponCode] = useState<string | null>(null)
-  const [couponError, setCouponError] = useState<string | null>(null)
-  const [couponLoading, setCouponLoading] = useState(false)
-  const [couponTotals, setCouponTotals] = useState<CheckoutTotalsWithCoupon | null>(
-    null
-  )
-  const [appliedCouponMeta, setAppliedCouponMeta] = useState<{
-    code: string
-    discountType: "percent" | "fixed"
-    discountValue: number
-  } | null>(null)
-  const [stripeConfigured, setStripeConfigured] = useState(false)
-  const [payrexxConfigured, setPayrexxConfigured] = useState(false)
-  const [pointsToRedeem, setPointsToRedeem] = useState(0)
-  const [pointsPurchasePackage, setPointsPurchasePackage] = useState<string | null>(
-    null
-  )
-  const [pointsPurchaseCustom, setPointsPurchaseCustom] = useState("10")
-  const [authDialogOpen, setAuthDialogOpen] = useState(false)
-  const [authSuccessMessage, setAuthSuccessMessage] = useState<string | null>(
-    null
-  )
-  const { loggedIn, loyaltyPoints, loading: loyaltyLoading, refresh: refreshLoyalty } =
-    useCustomerLoyaltyPoints()
-  const rewardPointsEnabled = useRewardPointsEnabled()
+  useEffect(() => {
+    if (!loggedIn || loyaltyLoading || profilePrefillDone.current) return
+
+    void fetch("/api/customer/profile", {
+      cache: "no-store",
+      credentials: "include",
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then(
+        (data: {
+          profile?: Partial<CheckoutForm> & {
+            deliveryStreet?: string
+            deliveryZip?: string
+            deliveryCity?: string
+            deliverySameAsBilling?: boolean
+          }
+        } | null) => {
+          if (!data?.profile) return
+          profilePrefillDone.current = true
+          const a = data.profile
+          const deliverySame = a.deliverySameAsBilling !== false
+          setSameAsBilling(deliverySame)
+          setForm((prev) => ({
+            ...prev,
+            firstName: a.firstName || prev.firstName || "",
+            lastName: a.lastName || prev.lastName || "",
+            email: a.email || prev.email || "",
+            street: a.street || prev.street || "",
+            zip: a.zip || prev.zip || "",
+            city: a.city || prev.city || "",
+            phone: a.phone || prev.phone || "",
+            deliveryFirstName: a.firstName || prev.deliveryFirstName || "",
+            deliveryLastName: a.lastName || prev.deliveryLastName || "",
+            deliveryStreet:
+              (deliverySame ? a.street : a.deliveryStreet) ||
+              prev.deliveryStreet ||
+              "",
+            deliveryZip:
+              (deliverySame ? a.zip : a.deliveryZip) || prev.deliveryZip || "",
+            deliveryCity:
+              (deliverySame ? a.city : a.deliveryCity) ||
+              prev.deliveryCity ||
+              "",
+          }))
+        }
+      )
+      .catch(() => {
+        /* Gast-Checkout ohne Konto */
+      })
+  }, [loggedIn, loyaltyLoading])
 
   const subtotal = useMemo(
     () => cart.reduce((sum, item) => sum + item.price * item.quantity, 0),
@@ -414,21 +427,37 @@ export function PageCheckout({
     zip?: string
     city?: string
     phone?: string
+    deliveryStreet?: string
+    deliveryZip?: string
+    deliveryCity?: string
+    deliverySameAsBilling?: boolean
   }) => {
+    profilePrefillDone.current = true
+    const deliverySame = account.deliverySameAsBilling !== false
+    setSameAsBilling(deliverySame)
     setForm((prev) => ({
       ...prev,
-      firstName: prev.firstName || account.firstName || "",
-      lastName: prev.lastName || account.lastName || "",
-      email: prev.email || account.email || "",
-      street: prev.street || account.street || "",
-      zip: prev.zip || account.zip || "",
-      city: prev.city || account.city || "",
-      phone: prev.phone || account.phone || "",
-      deliveryFirstName: prev.deliveryFirstName || account.firstName || "",
-      deliveryLastName: prev.deliveryLastName || account.lastName || "",
-      deliveryStreet: prev.deliveryStreet || account.street || "",
-      deliveryZip: prev.deliveryZip || account.zip || "",
-      deliveryCity: prev.deliveryCity || account.city || "",
+      firstName: account.firstName || prev.firstName || "",
+      lastName: account.lastName || prev.lastName || "",
+      email: account.email || prev.email || "",
+      street: account.street || prev.street || "",
+      zip: account.zip || prev.zip || "",
+      city: account.city || prev.city || "",
+      phone: account.phone || prev.phone || "",
+      deliveryFirstName: account.firstName || prev.deliveryFirstName || "",
+      deliveryLastName: account.lastName || prev.deliveryLastName || "",
+      deliveryStreet:
+        (deliverySame ? account.street : account.deliveryStreet) ||
+        prev.deliveryStreet ||
+        "",
+      deliveryZip:
+        (deliverySame ? account.zip : account.deliveryZip) ||
+        prev.deliveryZip ||
+        "",
+      deliveryCity:
+        (deliverySame ? account.city : account.deliveryCity) ||
+        prev.deliveryCity ||
+        "",
     }))
   }
 
@@ -444,6 +473,10 @@ export function PageCheckout({
       zip?: string
       city?: string
       phone?: string
+      deliveryStreet?: string
+      deliveryZip?: string
+      deliveryCity?: string
+      deliverySameAsBilling?: boolean
     }
     cart: CartItem[]
   }) => {
@@ -552,6 +585,7 @@ export function PageCheckout({
             customAmountChf: pointsPurchaseSelection.customAmountChf,
           }
         : undefined,
+      saveAddressToAccount: loggedIn ? saveAddressToAccount : undefined,
       totals: {
         subtotal: totals.subtotal,
         shippingCost: totals.shippingCost,
@@ -868,6 +902,24 @@ export function PageCheckout({
                     Lieferadresse entspricht der Rechnungsadresse
                   </Label>
                 </div>
+
+                {loggedIn && (
+                  <div className="flex items-start gap-3 rounded-xl border border-border/50 bg-muted/20 p-4">
+                    <Checkbox
+                      id="save-address"
+                      checked={saveAddressToAccount}
+                      onCheckedChange={(checked) =>
+                        setSaveAddressToAccount(checked === true)
+                      }
+                    />
+                    <Label
+                      htmlFor="save-address"
+                      className="cursor-pointer text-sm leading-snug"
+                    >
+                      Adresse im Konto speichern für zukünftige Bestellungen
+                    </Label>
+                  </div>
+                )}
 
                 {!sameAsBilling && (
                   <div className="space-y-4 border-t border-border/50 pt-4">

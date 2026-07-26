@@ -11,15 +11,17 @@ import {
 } from "@/lib/konto/loyalty-points"
 import type { OrderPayload } from "@/lib/dripforge/submit-order"
 import { processOrderPayload } from "@/lib/shop/order-processing"
-import { upsertCustomerFromOrder } from "@/lib/admin/db"
+import { bindOrderToCustomer } from "@/lib/shop/bind-order-to-account"
 import { applyInventoryReservationForOrder } from "@/lib/admin/order-inventory-hook"
 import { buildRewardPointsPublicSettings } from "@/lib/dripforge/reward-points-settings"
+import { getSessionEmailFromRequest } from "@/lib/konto/api-auth"
 
 export async function POST(request: Request) {
   let orderId = ""
 
   try {
     const payload = (await request.json()) as OrderPayload
+    const sessionEmail = await getSessionEmailFromRequest()
 
     orderId = `pending`
     console.info(
@@ -31,17 +33,22 @@ export async function POST(request: Request) {
     const { order, itemResults, settings } = await processOrderPayload(payload, {
       paymentConfirmed: true,
       enforceGatewayMinForPoints: false,
+      sessionEmail,
     })
     orderId = order.orderId
 
     console.info(`Bestell-API: Bestellung gespeichert (${orderId}).`)
 
-    const customer = await upsertCustomerFromOrder(order)
+    const { customer, accountEmail, order: orderWithCustomer } =
+      await bindOrderToCustomer(order, {
+        sessionEmail,
+        saveAddressToAccount: payload.saveAddressToAccount !== false,
+      })
     console.info(
-      `Bestell-API: Kunde verknüpft (${customer.kundennummer}, ${orderId}).`
+      `Bestell-API: Kunde verknüpft (${customer.kundennummer}, ${orderId}, Konto: ${accountEmail}).`
     )
 
-    const portalAccount = await getAccountByEmail(order.billing.email)
+    const portalAccount = await getAccountByEmail(accountEmail)
     let aiCreditsGranted = 0
     let loyaltyPointsGranted = 0
     const rewardCfg = buildRewardPointsPublicSettings(settings)
@@ -50,7 +57,7 @@ export async function POST(request: Request) {
     const pointsRedeemed = normalizeLoyaltyPoints(order.totals.pointsRedeemed ?? 0)
     if (rewardPointsEnabled && pointsRedeemed > 0 && portalAccount) {
       await redeemLoyaltyPointsForOrder(
-        order.billing.email,
+        accountEmail,
         pointsRedeemed,
         order.orderId,
         { expiryMonths: rewardCfg.loyaltyPointsExpiryMonths }
@@ -60,7 +67,7 @@ export async function POST(request: Request) {
     const pointsPurchased = normalizeLoyaltyPoints(order.totals.pointsPurchased ?? 0)
     if (rewardPointsEnabled && pointsPurchased > 0 && portalAccount) {
       await grantLoyaltyPoints(
-        order.billing.email,
+        accountEmail,
         pointsPurchased,
         `purchase:${order.orderId}`,
         "purchase",
@@ -71,21 +78,21 @@ export async function POST(request: Request) {
 
     if (portalAccount) {
       const grant = await grantAiCreditsForPaidOrder(
-        order.billing.email,
+        accountEmail,
         order.totals.total,
         orderId
       )
       if (grant.granted) {
         aiCreditsGranted = grant.credits
         console.info(
-          `Bestell-API: +${grant.credits} KI-Credits für ${order.billing.email} (${orderId}).`
+          `Bestell-API: +${grant.credits} KI-Credits für ${accountEmail} (${orderId}).`
         )
       }
 
       if (rewardPointsEnabled) {
         const earnBase = calculateLoyaltyEarnBaseChf(order.totals)
         const loyaltyGrant = await grantLoyaltyPointsForPaidOrder(
-          order.billing.email,
+          accountEmail,
           earnBase,
           orderId,
           {
@@ -97,11 +104,6 @@ export async function POST(request: Request) {
           loyaltyPointsGranted = loyaltyGrant.points
         }
       }
-    }
-
-    const orderWithCustomer = {
-      ...order,
-      kundennummer: customer.kundennummer,
     }
 
     await applyInventoryReservationForOrder(orderWithCustomer)

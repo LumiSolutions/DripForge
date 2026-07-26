@@ -54,23 +54,31 @@ export async function POST(request: Request) {
 
     const sessionEmail = await getSessionEmailFromRequest()
     const billingEmail = normalizeCustomerEmail(payload.billing.email)
-    const userId =
-      sessionEmail && sessionEmail === billingEmail ? sessionEmail : billingEmail
+    // Eingeloggtes Konto hat Vorrang — unabhängig von der Formular-E-Mail
+    const userId = sessionEmail || billingEmail
 
     const orderId = createOrderId()
     const { order } = await processOrderPayload(payload, {
       orderId,
       paymentConfirmed: false,
       enforceGatewayMinForPoints: true,
+      sessionEmail,
     })
 
-    const totalCents = Math.round(order.totals.total * 100)
+    const { bindOrderToCustomer } = await import("@/lib/shop/bind-order-to-account")
+    const { order: boundOrder } = await bindOrderToCustomer(order, {
+      sessionEmail,
+      saveAddressToAccount: payload.saveAddressToAccount !== false,
+    })
+
+    const totalCents = Math.round(boundOrder.totals.total * 100)
     const { successUrl, cancelUrl } = getStripeCheckoutUrls()
 
     if (totalCents < 50) {
       await fulfillPaidShopOrder(orderId, {
         userId,
-        totalChf: order.totals.total,
+        totalChf: boundOrder.totals.total,
+        saveAddressToAccount: false,
       })
       return NextResponse.json({
         configured: true,
@@ -81,7 +89,7 @@ export async function POST(request: Request) {
     }
 
     const stripe = getStripe()
-    const lineItems = buildCheckoutLineItems(order)
+    const lineItems = buildCheckoutLineItems(boundOrder)
     const lineTotalCents = sumLineItemsCents(lineItems)
     const discounts = await buildCheckoutDiscounts(stripe, lineTotalCents, totalCents)
 
@@ -96,8 +104,9 @@ export async function POST(request: Request) {
         orderId,
         userId,
         customerEmail: billingEmail,
-        totalChf: order.totals.total.toFixed(2),
-        pointsRedeemed: String(order.totals.pointsRedeemed ?? 0),
+        accountEmail: userId,
+        totalChf: boundOrder.totals.total.toFixed(2),
+        pointsRedeemed: String(boundOrder.totals.pointsRedeemed ?? 0),
         paymentMethod: payload.paymentMethod,
       },
       success_url: successUrl,
@@ -113,7 +122,7 @@ export async function POST(request: Request) {
 
     const { saveOrder } = await import("@/lib/admin/db")
     await saveOrder({
-      ...order,
+      ...boundOrder,
       stripeSessionId: session.id,
     })
 

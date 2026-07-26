@@ -25,6 +25,8 @@ export type OrderPayload = {
     packageId?: string
     customAmountChf?: number
   }
+  /** Eingeloggter Kunde: Checkout-Adresse im Konto speichern (Default: true) */
+  saveAddressToAccount?: boolean
   totals: {
     subtotal: number
     shippingCost: number

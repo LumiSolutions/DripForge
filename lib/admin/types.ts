@@ -43,6 +43,8 @@ export type StoredOrder = {
   /** Kanban-Spalte im Produktions-Cockpit */
   productionStatus?: ProductionStatus
   kundennummer?: string
+  /** Eingeloggtes Konto (Session-E-Mail) — unabhängig von billing.email */
+  accountEmail?: string
   billing: OrderAddress
   delivery?: OrderAddress
   shippingMethod: ShippingMethodId

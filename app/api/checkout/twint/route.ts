@@ -51,18 +51,28 @@ export async function POST(request: Request) {
 
     const sessionEmail = await getSessionEmailFromRequest()
     const billingEmail = normalizeCustomerEmail(payload.billing.email)
+    const userId = sessionEmail || billingEmail
 
     const orderId = createOrderId()
     const { order } = await processOrderPayload(payload, {
       orderId,
       paymentConfirmed: false,
       enforceGatewayMinForPoints: true,
+      sessionEmail,
     })
 
-    const totalCents = Math.round(order.totals.total * 100)
+    const { bindOrderToCustomer } = await import("@/lib/shop/bind-order-to-account")
+    const { order: boundOrder } = await bindOrderToCustomer(order, {
+      sessionEmail,
+      saveAddressToAccount: payload.saveAddressToAccount !== false,
+    })
+
+    const totalCents = Math.round(boundOrder.totals.total * 100)
     if (totalCents < 50) {
       await fulfillPaidShopOrder(orderId, {
-        totalChf: order.totals.total,
+        userId,
+        totalChf: boundOrder.totals.total,
+        saveAddressToAccount: false,
       })
       return NextResponse.json({
         configured: true,
@@ -73,7 +83,7 @@ export async function POST(request: Request) {
     }
 
     const origin = getSiteOrigin(request)
-    const itemSummary = `${order.items.length} Artikel — TWINT`
+    const itemSummary = `${boundOrder.items.length} Artikel — TWINT`
 
     const gateway = await createTwintGateway({
       amountCents: totalCents,
@@ -92,12 +102,13 @@ export async function POST(request: Request) {
         city: payload.billing.city,
         country: payload.billing.country,
       },
-      vatRate: order.totals.mwstAktiv ? undefined : 0,
+      vatRate: boundOrder.totals.mwstAktiv ? undefined : 0,
     })
 
     const { saveOrder } = await import("@/lib/admin/db")
     await saveOrder({
-      ...order,
+      ...boundOrder,
+      accountEmail: userId,
       payrexxGatewayHash: gateway.hash,
     })
 

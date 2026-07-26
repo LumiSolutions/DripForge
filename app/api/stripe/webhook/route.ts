@@ -115,7 +115,10 @@ export async function POST(request: Request) {
               : Number(session.metadata?.totalChf ?? 0)
           await fulfillPaidShopOrder(orderId, {
             stripeSessionId: session.id,
-            userId: session.metadata?.userId?.trim() || null,
+            userId:
+              session.metadata?.accountEmail?.trim() ||
+              session.metadata?.userId?.trim() ||
+              null,
             totalChf,
           })
         }

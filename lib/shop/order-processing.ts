@@ -3,7 +3,6 @@ import {
   getOrderById,
   getSettings,
   saveOrder,
-  upsertCustomerFromOrder,
 } from "@/lib/admin/db"
 import { getCouponByCode, incrementCouponRedemption } from "@/lib/admin/coupon-db"
 import { validateCouponForCheckout } from "@/lib/admin/coupon-validation"
@@ -40,6 +39,10 @@ import {
 } from "@/lib/dripforge/reward-points-settings"
 import { resolveCheckoutPointsPurchase } from "@/lib/shop/points-purchase"
 import { recordOrderPaymentJournalEntry } from "@/lib/accounting/order-journal"
+import {
+  bindOrderToCustomer,
+  resolveLoyaltyAccountEmail,
+} from "@/lib/shop/bind-order-to-account"
 
 function stripLeitbildPayload(item: StoredOrderItem): StoredOrderItem {
   const { leitbild: _removed, ...rest } = item
@@ -66,11 +69,18 @@ export async function processOrderPayload(
     stripeSessionId?: string | null
     /** false = volle Punkteeinlösung ohne Gateway-Mindestbetrag (Rechnung) */
     enforceGatewayMinForPoints?: boolean
+    /** Session-E-Mail des eingeloggten Kunden (bindet Punkte/Konto) */
+    sessionEmail?: string | null
   }
 ): Promise<ProcessOrderResult> {
   if (!payload.items?.length || !payload.billing?.email) {
     throw new Error("Unvollständige Bestelldaten.")
   }
+
+  const accountEmail = resolveLoyaltyAccountEmail(
+    options?.sessionEmail,
+    payload.billing.email
+  )
 
   const orderId = options?.orderId ?? createOrderId()
   const settings = await getSettings()
@@ -118,7 +128,7 @@ export async function processOrderPayload(
     const hasPackage = Boolean(payload.pointsPurchase.packageId?.trim())
     const hasCustom = payload.pointsPurchase.customAmountChf != null
     if (hasPackage || hasCustom) {
-      const account = await getAccountByEmail(payload.billing.email)
+      const account = await getAccountByEmail(accountEmail)
       if (!account) {
         throw new Error("Punkte können nur mit einem Kundenkonto gekauft werden.")
       }
@@ -143,7 +153,8 @@ export async function processOrderPayload(
             subtotal,
             shippingCost,
             settings.checkout,
-            options
+            options,
+            accountEmail
           )
         : 0,
       pointsPurchase,
@@ -193,6 +204,9 @@ export async function processOrderPayload(
     totals: serverTotals,
     paymentConfirmed: options?.paymentConfirmed ?? true,
     stripeSessionId: options?.stripeSessionId ?? null,
+    ...(options?.sessionEmail?.trim()
+      ? { accountEmail: resolveLoyaltyAccountEmail(options.sessionEmail, payload.billing.email) }
+      : {}),
   }
 
   await saveOrder(order)
@@ -252,12 +266,15 @@ async function resolvePointsToRedeem(
   subtotal: number,
   shippingCost: number,
   checkoutConfig: AdminSettings["checkout"],
-  options?: { enforceGatewayMinForPoints?: boolean }
+  options?: { enforceGatewayMinForPoints?: boolean },
+  accountEmail?: string
 ): Promise<number> {
   const requested = normalizeLoyaltyPoints(payload.pointsToRedeem ?? 0)
   if (requested <= 0) return 0
 
-  const account = await getAccountByEmail(payload.billing.email)
+  const loyaltyEmail =
+    accountEmail?.trim() || normalizeCustomerEmailFallback(payload.billing.email)
+  const account = await getAccountByEmail(loyaltyEmail)
   if (!account) {
     throw new Error("Treuepunkte können nur mit einem Kundenkonto eingelöst werden.")
   }
@@ -287,6 +304,10 @@ async function resolvePointsToRedeem(
   return requested
 }
 
+function normalizeCustomerEmailFallback(email: string): string {
+  return email.trim().toLowerCase()
+}
+
 /** Nach Stripe- oder TWINT-Zahlung: Bestellung abschliessen, Rechnung & KI-Credits. */
 export async function fulfillPaidShopOrder(
   orderId: string,
@@ -295,6 +316,7 @@ export async function fulfillPaidShopOrder(
     payrexxTransactionUuid?: string | null
     userId?: string | null
     totalChf?: number
+    saveAddressToAccount?: boolean
   }
 ): Promise<{ fulfilled: boolean; aiCreditsGranted: number; loyaltyPointsGranted: number }> {
   const order = await getOrderById(orderId)
@@ -330,15 +352,19 @@ export async function fulfillPaidShopOrder(
     await incrementCouponRedemption(rawCoupon)
   }
 
-  const customer = await upsertCustomerFromOrder(updated)
-  const orderWithCustomer: StoredOrder = {
-    ...updated,
-    kundennummer: customer.kundennummer,
-  }
+  const sessionEmail =
+    options.userId?.trim() || order.accountEmail?.trim() || null
+
+  const { accountEmail, order: orderWithCustomer } =
+    await bindOrderToCustomer(updated, {
+      sessionEmail,
+      // Adresse wurde beim Checkout-Anlegen bereits gespeichert (falls gewünscht)
+      saveAddressToAccount: options.saveAddressToAccount === true,
+    })
 
   await applyInventoryReservationForOrder(orderWithCustomer)
 
-  const creditEmail = options.userId?.trim() || order.billing.email
+  const creditEmail = accountEmail
   const rewardCfg = buildRewardPointsPublicSettings(settings)
   const rewardPointsEnabled = rewardCfg.enableRewardPointsSystem
 
