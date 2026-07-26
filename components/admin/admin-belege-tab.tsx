@@ -36,6 +36,7 @@ import { cn } from "@/lib/utils"
 import {
   BELEG_TYPE_LABELS,
   computeBelegTotals,
+  computePositionLineTotal,
   emptyBelegAddress,
   normalizeBelegPosition,
   statusesForType,
@@ -169,11 +170,21 @@ export function AdminBelegeTab() {
 
   const updatePosition = (index: number, patch: Partial<BelegPosition>) => {
     setEditor((prev) => {
-      const positionen = prev.positionen.map((pos, i) =>
-        i === index
-          ? normalizeBelegPosition({ ...pos, ...patch, id: pos.id }, i)
-          : pos
-      )
+      const positionen = prev.positionen.map((pos, i) => {
+        if (i !== index) return pos
+        const next: BelegPosition = { ...pos, ...patch }
+        // Zahlen normalisieren / Zeilensumme neu berechnen — Textfelder nicht trimmen
+        // (sonst verschluckt .trim() Leerzeichen am Ende beim Tippen).
+        if (patch.quantity !== undefined || patch.unitPrice !== undefined) {
+          next.quantity = Math.max(0, Number(next.quantity) || 0)
+          next.unitPrice = Math.max(0, Number(next.unitPrice) || 0)
+          next.lineTotal = computePositionLineTotal(next.quantity, next.unitPrice)
+        }
+        if (patch.taxRatePercent !== undefined) {
+          next.taxRatePercent = Math.max(0, Number(next.taxRatePercent) || 0)
+        }
+        return next
+      })
       return { ...prev, positionen }
     })
   }
@@ -184,6 +195,9 @@ export function AdminBelegeTab() {
     setSaving(true)
     setError(null)
     try {
+      const positionen = editor.positionen.map((pos, i) =>
+        normalizeBelegPosition(pos, i)
+      )
       if (editor.mode === "create") {
         const res = await fetch("/api/admin/belege", {
           method: "POST",
@@ -193,7 +207,7 @@ export function AdminBelegeTab() {
             type: editor.type,
             status: editor.status,
             kunde: editor.kunde,
-            positionen: editor.positionen,
+            positionen,
             notes: editor.notes,
           }),
         })
@@ -207,7 +221,7 @@ export function AdminBelegeTab() {
           body: JSON.stringify({
             status: editor.status,
             kunde: editor.kunde,
-            positionen: editor.positionen,
+            positionen,
             notes: editor.notes,
           }),
         })
