@@ -1,6 +1,15 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type TextareaHTMLAttributes,
+} from "react"
 import {
   Download,
   FilePlus2,
@@ -59,6 +68,51 @@ import {
   findBelegVatOptionByCode,
   resolveBelegVatFields,
 } from "@/lib/documents/beleg-vat"
+
+/** Einzeilig startend, wächst mit dem Inhalt (kein seitliches Scrollen). */
+function AutoResizeTextarea({
+  value,
+  onChange,
+  className,
+  ...props
+}: Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, "rows">) {
+  const ref = useRef<HTMLTextAreaElement>(null)
+
+  const resize = useCallback(() => {
+    const el = ref.current
+    if (!el) return
+    el.style.height = "auto"
+    el.style.height = `${el.scrollHeight}px`
+  }, [])
+
+  useLayoutEffect(() => {
+    resize()
+  }, [value, resize])
+
+  const handleChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
+    onChange?.(e)
+    // Sofort nach Tasteneingabe nachziehen (vor dem nächsten Paint)
+    requestAnimationFrame(resize)
+  }
+
+  return (
+    <textarea
+      {...props}
+      ref={ref}
+      rows={1}
+      value={value}
+      onChange={handleChange}
+      className={cn(
+        "border-input placeholder:text-muted-foreground dark:bg-input/30",
+        "focus-visible:border-ring focus-visible:ring-ring/50",
+        "flex min-h-9 w-full resize-none overflow-hidden rounded-md border bg-transparent",
+        "px-3 py-2 text-base shadow-xs outline-none transition-[color,box-shadow]",
+        "focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
+        className
+      )}
+    />
+  )
+}
 
 type EditorState = {
   mode: "create" | "edit"
@@ -660,11 +714,11 @@ export function AdminBelegeTab() {
               return (
                 <div
                   key={pos.id}
-                  className="grid gap-2 rounded-xl border border-border/60 p-3 lg:grid-cols-12"
+                  className="grid items-start gap-2 rounded-xl border border-border/60 p-3 lg:grid-cols-12"
                 >
                   <div className="space-y-1 lg:col-span-3">
                     <Label className="text-xs">Name / Freitext</Label>
-                    <Input
+                    <AutoResizeTextarea
                       value={pos.name}
                       onChange={(e) =>
                         updatePosition(index, { name: e.target.value })
@@ -673,7 +727,7 @@ export function AdminBelegeTab() {
                   </div>
                   <div className="space-y-1 lg:col-span-3">
                     <Label className="text-xs">Details</Label>
-                    <Input
+                    <AutoResizeTextarea
                       value={pos.details ?? ""}
                       onChange={(e) =>
                         updatePosition(index, { details: e.target.value })
@@ -714,7 +768,7 @@ export function AdminBelegeTab() {
                       value={vatCode}
                       onValueChange={(value) => setPositionVat(index, value)}
                     >
-                      <SelectTrigger className="h-10 w-full">
+                      <SelectTrigger className="h-9 w-full">
                         <SelectValue placeholder="MwSt wählen" />
                       </SelectTrigger>
                       <SelectContent>
@@ -726,15 +780,12 @@ export function AdminBelegeTab() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="flex items-end justify-between gap-2 lg:col-span-1">
-                    <p className="text-xs text-muted-foreground lg:sr-only">
-                      Zeile: {formatChf(pos.lineTotal)}
-                    </p>
+                  <div className="flex items-start justify-end pt-6 lg:col-span-1">
                     <Button
                       type="button"
                       size="sm"
                       variant="ghost"
-                      className="ml-auto"
+                      className="h-9 w-9 p-0"
                       disabled={editor.positionen.length <= 1}
                       onClick={() =>
                         setEditor((prev) => ({
