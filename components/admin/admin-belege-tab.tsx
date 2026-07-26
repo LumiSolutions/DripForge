@@ -23,6 +23,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
   Table,
   TableBody,
   TableCell,
@@ -46,6 +53,12 @@ import {
   type BelegStatus,
   type BelegType,
 } from "@/lib/documents/beleg-types"
+import {
+  BELEG_VAT_OPTIONS,
+  DEFAULT_BELEG_VAT,
+  findBelegVatOptionByCode,
+  resolveBelegVatFields,
+} from "@/lib/documents/beleg-vat"
 
 type EditorState = {
   mode: "create" | "edit"
@@ -81,7 +94,14 @@ function emptyEditor(type: BelegType = "offerte"): EditorState {
     kunde: emptyBelegAddress(),
     positionen: [
       normalizeBelegPosition(
-        { name: "", quantity: 1, unitPrice: 0, taxRatePercent: 8.1 },
+        {
+          name: "",
+          quantity: 1,
+          unitPrice: 0,
+          taxCode: DEFAULT_BELEG_VAT.taxCode,
+          taxRate: DEFAULT_BELEG_VAT.taxRate,
+          taxRatePercent: DEFAULT_BELEG_VAT.taxRatePercent,
+        },
         0
       ),
     ],
@@ -157,7 +177,7 @@ export function AdminBelegeTab() {
       status: beleg.status,
       kunde: beleg.kunde,
       positionen: beleg.positionen.length
-        ? beleg.positionen
+        ? beleg.positionen.map((pos, i) => normalizeBelegPosition(pos, i))
         : emptyEditor().positionen,
       notes: beleg.notes ?? "",
     })
@@ -180,12 +200,32 @@ export function AdminBelegeTab() {
           next.unitPrice = Math.max(0, Number(next.unitPrice) || 0)
           next.lineTotal = computePositionLineTotal(next.quantity, next.unitPrice)
         }
-        if (patch.taxRatePercent !== undefined) {
-          next.taxRatePercent = Math.max(0, Number(next.taxRatePercent) || 0)
+        if (
+          patch.taxCode !== undefined ||
+          patch.taxRate !== undefined ||
+          patch.taxRatePercent !== undefined
+        ) {
+          const vat = resolveBelegVatFields({
+            taxCode: next.taxCode,
+            taxRate: next.taxRate,
+            taxRatePercent: next.taxRatePercent,
+          })
+          next.taxCode = vat.taxCode
+          next.taxRate = vat.taxRate
+          next.taxRatePercent = vat.taxRatePercent
         }
         return next
       })
       return { ...prev, positionen }
+    })
+  }
+
+  const setPositionVat = (index: number, taxCode: string) => {
+    const vat = resolveBelegVatFields({ taxCode })
+    updatePosition(index, {
+      taxCode: vat.taxCode,
+      taxRate: vat.taxRate,
+      taxRatePercent: vat.taxRatePercent,
     })
   }
 
@@ -485,7 +525,7 @@ export function AdminBelegeTab() {
       </Tabs>
 
       <Dialog open={editorOpen} onOpenChange={setEditorOpen}>
-        <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
+        <DialogContent className="max-h-[90vh] w-[min(100vw-1.5rem,68rem)] max-w-5xl overflow-y-auto sm:max-w-5xl">
           <DialogHeader>
             <DialogTitle>
               {editor.mode === "create"
@@ -599,7 +639,9 @@ export function AdminBelegeTab() {
                           name: "",
                           quantity: 1,
                           unitPrice: 0,
-                          taxRatePercent: 8.1,
+                          taxCode: DEFAULT_BELEG_VAT.taxCode,
+                          taxRate: DEFAULT_BELEG_VAT.taxRate,
+                          taxRatePercent: DEFAULT_BELEG_VAT.taxRatePercent,
                         },
                         prev.positionen.length
                       ),
@@ -611,84 +653,109 @@ export function AdminBelegeTab() {
                 Position
               </Button>
             </div>
-            {editor.positionen.map((pos, index) => (
-              <div
-                key={pos.id}
-                className="grid gap-2 rounded-xl border border-border/60 p-3 sm:grid-cols-6"
-              >
-                <div className="space-y-1 sm:col-span-2">
-                  <Label className="text-xs">Name / Freitext</Label>
-                  <Input
-                    value={pos.name}
-                    onChange={(e) => updatePosition(index, { name: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-1 sm:col-span-2">
-                  <Label className="text-xs">Details</Label>
-                  <Input
-                    value={pos.details ?? ""}
-                    onChange={(e) => updatePosition(index, { details: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Menge</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    step={1}
-                    value={pos.quantity}
-                    onChange={(e) =>
-                      updatePosition(index, { quantity: Number(e.target.value) })
-                    }
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Preis</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    step={0.05}
-                    value={pos.unitPrice}
-                    onChange={(e) =>
-                      updatePosition(index, { unitPrice: Number(e.target.value) })
-                    }
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">MwSt %</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    step={0.1}
-                    value={pos.taxRatePercent}
-                    onChange={(e) =>
-                      updatePosition(index, {
-                        taxRatePercent: Number(e.target.value),
-                      })
-                    }
-                  />
-                </div>
-                <div className="flex items-end justify-between gap-2 sm:col-span-5">
-                  <p className="text-sm text-muted-foreground">
-                    Zeile: {formatChf(pos.lineTotal)}
+            {editor.positionen.map((pos, index) => {
+              const vatCode =
+                findBelegVatOptionByCode(pos.taxCode)?.taxCode ??
+                resolveBelegVatFields(pos).taxCode
+              return (
+                <div
+                  key={pos.id}
+                  className="grid gap-2 rounded-xl border border-border/60 p-3 lg:grid-cols-12"
+                >
+                  <div className="space-y-1 lg:col-span-3">
+                    <Label className="text-xs">Name / Freitext</Label>
+                    <Input
+                      value={pos.name}
+                      onChange={(e) =>
+                        updatePosition(index, { name: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1 lg:col-span-3">
+                    <Label className="text-xs">Details</Label>
+                    <Input
+                      value={pos.details ?? ""}
+                      onChange={(e) =>
+                        updatePosition(index, { details: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1 lg:col-span-1">
+                    <Label className="text-xs">Menge</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      step={1}
+                      value={pos.quantity}
+                      onChange={(e) =>
+                        updatePosition(index, {
+                          quantity: Number(e.target.value),
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1 lg:col-span-2">
+                    <Label className="text-xs">Preis</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      step={0.05}
+                      value={pos.unitPrice}
+                      onChange={(e) =>
+                        updatePosition(index, {
+                          unitPrice: Number(e.target.value),
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1 lg:col-span-2">
+                    <Label className="text-xs">MwSt</Label>
+                    <Select
+                      value={vatCode}
+                      onValueChange={(value) => setPositionVat(index, value)}
+                    >
+                      <SelectTrigger className="h-10 w-full">
+                        <SelectValue placeholder="MwSt wählen" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {BELEG_VAT_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.taxCode} value={opt.taxCode}>
+                            {opt.label} · {opt.taxCode}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-end justify-between gap-2 lg:col-span-1">
+                    <p className="text-xs text-muted-foreground lg:sr-only">
+                      Zeile: {formatChf(pos.lineTotal)}
+                    </p>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="ml-auto"
+                      disabled={editor.positionen.length <= 1}
+                      onClick={() =>
+                        setEditor((prev) => ({
+                          ...prev,
+                          positionen: prev.positionen.filter((_, i) => i !== index),
+                        }))
+                      }
+                    >
+                      <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                      <span className="sr-only">Entfernen</span>
+                    </Button>
+                  </div>
+                  <p className="text-sm text-muted-foreground lg:col-span-12">
+                    Zeile netto: {formatChf(pos.lineTotal)}
+                    {pos.taxRatePercent > 0
+                      ? ` · MwSt ${pos.taxRatePercent}% (${pos.taxCode}): ${formatChf(pos.lineTotal * pos.taxRate)}`
+                      : ` · ${pos.taxCode}`}
                   </p>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    disabled={editor.positionen.length <= 1}
-                    onClick={() =>
-                      setEditor((prev) => ({
-                        ...prev,
-                        positionen: prev.positionen.filter((_, i) => i !== index),
-                      }))
-                    }
-                  >
-                    Entfernen
-                  </Button>
                 </div>
-              </div>
-            ))}
+              )
+            })}
             <p className="text-sm font-medium">
               Total inkl. MwSt.: {formatChf(editorTotals.total)}{" "}
               <span className="font-normal text-muted-foreground">

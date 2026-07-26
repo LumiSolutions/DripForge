@@ -1,4 +1,5 @@
 import type { DocumentTemplateType } from "@/lib/documents/document-template-types"
+import { resolveBelegVatFields, DEFAULT_BELEG_VAT } from "@/lib/documents/beleg-vat"
 
 export const BELEG_DOC_TYPE = "business-beleg" as const
 
@@ -26,7 +27,14 @@ export type BelegPosition = {
   details?: string
   quantity: number
   unitPrice: number
-  /** MwSt.-Satz als Prozent (z. B. 8.1). */
+  /**
+   * Buchhaltungs-Steuercode (z. B. U00, UN81, UR26).
+   * Muss mit den Umsatzsteuer-Codes der Buchhaltung übereinstimmen.
+   */
+  taxCode: string
+  /** MwSt.-Satz als Dezimalzahl (z. B. 0.081) — für Journal/Buchhaltung. */
+  taxRate: number
+  /** MwSt.-Satz als Prozent (z. B. 8.1) — Anzeige / Legacy. */
   taxRatePercent: number
   lineTotal: number
 }
@@ -131,7 +139,10 @@ export function computeBelegTotals(positionen: BelegPosition[]): {
   for (const pos of positionen) {
     const line = roundChf(pos.lineTotal || computePositionLineTotal(pos.quantity, pos.unitPrice))
     subtotal = roundChf(subtotal + line)
-    const rate = Math.max(0, Number(pos.taxRatePercent) || 0) / 100
+    const rate =
+      Number.isFinite(pos.taxRate) && pos.taxRate >= 0
+        ? pos.taxRate
+        : Math.max(0, Number(pos.taxRatePercent) || 0) / 100
     vatTotal = roundChf(vatTotal + line * rate)
   }
   return {
@@ -175,7 +186,11 @@ export function normalizeBelegPosition(
 ): BelegPosition {
   const quantity = Math.max(0, Number(raw.quantity) || 0)
   const unitPrice = Math.max(0, Number(raw.unitPrice) || 0)
-  const taxRatePercent = Math.max(0, Number(raw.taxRatePercent) || 0)
+  const vat = resolveBelegVatFields({
+    taxCode: raw.taxCode,
+    taxRate: raw.taxRate,
+    taxRatePercent: raw.taxRatePercent,
+  })
   const lineTotal =
     raw.lineTotal != null
       ? roundChf(Number(raw.lineTotal) || 0)
@@ -187,7 +202,9 @@ export function normalizeBelegPosition(
     details: String(raw.details ?? "").trim() || undefined,
     quantity,
     unitPrice,
-    taxRatePercent,
+    taxCode: vat.taxCode,
+    taxRate: vat.taxRate,
+    taxRatePercent: vat.taxRatePercent,
     lineTotal,
   }
 }
@@ -265,7 +282,9 @@ export function stripPricesForDeliveryNote(positionen: BelegPosition[]): BelegPo
   return positionen.map((pos) => ({
     ...pos,
     unitPrice: 0,
-    taxRatePercent: 0,
+    taxCode: DEFAULT_BELEG_VAT.taxCode,
+    taxRate: DEFAULT_BELEG_VAT.taxRate,
+    taxRatePercent: DEFAULT_BELEG_VAT.taxRatePercent,
     lineTotal: 0,
   }))
 }

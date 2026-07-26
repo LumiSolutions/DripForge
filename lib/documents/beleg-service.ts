@@ -16,6 +16,7 @@ import {
   type BelegStatus,
   type BelegType,
 } from "@/lib/documents/beleg-types"
+import { resolveBelegVatFields } from "@/lib/documents/beleg-vat"
 
 export async function createBelegDraft(input: {
   type: BelegType
@@ -92,11 +93,19 @@ export async function convertBeleg(
   )
 }
 
-function orderItemsToPositions(order: StoredOrder): BelegPosition[] {
-  const inferredRate =
-    order.totals.mwstAktiv && order.totals.subtotal > 0
+function orderVatFields(order: StoredOrder) {
+  if (!order.totals.mwstAktiv) {
+    return resolveBelegVatFields({ taxCode: "U00", taxRate: 0, taxRatePercent: 0 })
+  }
+  const inferredPercent =
+    order.totals.subtotal > 0
       ? Math.round((order.totals.vat / order.totals.subtotal) * 1000) / 10
-      : 0
+      : 8.1
+  return resolveBelegVatFields({ taxRatePercent: inferredPercent })
+}
+
+function orderItemsToPositions(order: StoredOrder): BelegPosition[] {
+  const vat = orderVatFields(order)
 
   const positions = order.items.map((item, index) =>
     normalizeBelegPosition(
@@ -107,7 +116,9 @@ function orderItemsToPositions(order: StoredOrder): BelegPosition[] {
           item.type === "3d" ? "3D-Druck" : item.type === "laser" ? "Laser" : undefined,
         quantity: item.quantity,
         unitPrice: item.price,
-        taxRatePercent: inferredRate,
+        taxCode: vat.taxCode,
+        taxRate: vat.taxRate,
+        taxRatePercent: vat.taxRatePercent,
         lineTotal: item.price * item.quantity,
       },
       index
@@ -122,7 +133,9 @@ function orderItemsToPositions(order: StoredOrder): BelegPosition[] {
           name: "Versand",
           quantity: 1,
           unitPrice: order.totals.shippingCost,
-          taxRatePercent: inferredRate,
+          taxCode: vat.taxCode,
+          taxRate: vat.taxRate,
+          taxRatePercent: vat.taxRatePercent,
           lineTotal: order.totals.shippingCost,
         },
         positions.length
