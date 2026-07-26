@@ -177,6 +177,29 @@ export async function cosmosGetJournalEntryBySourceOrderId(
   return doc ? fromJournalEntryCosmosDoc(doc) : null
 }
 
+export async function cosmosGetJournalEntryBySourceBelegId(
+  belegId: string
+): Promise<JournalEntry | null> {
+  const trimmed = belegId.trim()
+  if (!trimmed) return null
+
+  const container = await getSettingsContainer()
+  const querySpec: SqlQuerySpec = {
+    query:
+      "SELECT * FROM c WHERE c.docType = @docType AND c.sourceBelegId = @belegId",
+    parameters: [
+      { name: "@docType", value: JOURNAL_ENTRY_DOC_TYPE },
+      { name: "@belegId", value: trimmed },
+    ],
+  }
+  const { resources } = await container.items
+    .query<JournalEntryCosmosDoc>(querySpec)
+    .fetchAll()
+
+  const doc = resources[0]
+  return doc ? fromJournalEntryCosmosDoc(doc) : null
+}
+
 export async function cosmosUpsertJournalEntry(entry: JournalEntry): Promise<JournalEntry> {
   const validation = validateJournalEntryLines(entry.lines)
   if (!validation.valid) {

@@ -7,6 +7,7 @@ import {
   cosmosGetBelegById,
   cosmosUpsertBeleg,
 } from "@/lib/admin/cosmos-belege"
+import { recordBelegPaymentJournalEntry } from "@/lib/accounting/beleg-journal"
 import { normalizeBeleg } from "@/lib/documents/beleg-types"
 
 function isAuthError(value: unknown): value is NextResponse {
@@ -58,6 +59,14 @@ export async function PUT(request: Request, context: Ctx) {
       existing
     )
     const saved = await cosmosUpsertBeleg(beleg)
+    try {
+      await recordBelegPaymentJournalEntry(saved)
+    } catch (journalError) {
+      console.warn(
+        "Beleg gespeichert, aber Buchhaltungseintrag fehlgeschlagen.",
+        formatCosmosError(journalError)
+      )
+    }
     return NextResponse.json({ beleg: saved })
   } catch (error) {
     console.error("Beleg PUT fehlgeschlagen.", formatCosmosError(error))

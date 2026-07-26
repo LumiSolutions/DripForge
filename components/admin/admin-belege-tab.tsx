@@ -51,7 +51,10 @@ import { adminUi } from "@/lib/admin/admin-ui-classes"
 import { cn } from "@/lib/utils"
 import {
   BELEG_TYPE_LABELS,
+  clampDiscountPercent,
   computeBelegTotals,
+  computePositionDiscountAmount,
+  computePositionGross,
   computePositionLineTotal,
   emptyBelegAddress,
   normalizeBelegPosition,
@@ -63,11 +66,18 @@ import {
   type BelegType,
 } from "@/lib/documents/beleg-types"
 import {
+  defaultBelegRevenueAccountCode,
+  filterRevenueAccounts,
+  formatRevenueAccountLabel,
+  resolveBelegAccountCode,
+} from "@/lib/documents/beleg-accounts"
+import {
   BELEG_VAT_OPTIONS,
   DEFAULT_BELEG_VAT,
   findBelegVatOptionByCode,
   resolveBelegVatFields,
 } from "@/lib/documents/beleg-vat"
+import type { Account } from "@/lib/accounting/account-types"
 
 /** Einzeilig startend, wächst mit dem Inhalt (kein seitliches Scrollen). */
 function AutoResizeTextarea({
@@ -152,6 +162,8 @@ function emptyEditor(type: BelegType = "offerte"): EditorState {
           name: "",
           quantity: 1,
           unitPrice: 0,
+          accountCode: defaultBelegRevenueAccountCode(),
+          discountPercent: 0,
           taxCode: DEFAULT_BELEG_VAT.taxCode,
           taxRate: DEFAULT_BELEG_VAT.taxRate,
           taxRatePercent: DEFAULT_BELEG_VAT.taxRatePercent,
@@ -173,6 +185,7 @@ export function AdminBelegeTab() {
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [editorOpen, setEditorOpen] = useState(false)
   const [editor, setEditor] = useState<EditorState>(emptyEditor("offerte"))
+  const [revenueAccounts, setRevenueAccounts] = useState<Account[]>([])
 
   const loadBelege = useCallback(async () => {
     setLoading(true)
@@ -195,6 +208,30 @@ export function AdminBelegeTab() {
   useEffect(() => {
     void loadBelege()
   }, [loadBelege])
+
+  useEffect(() => {
+    if (!editorOpen) return
+    let cancelled = false
+    void (async () => {
+      try {
+        const res = await fetch("/api/admin/accounting/accounts", {
+          credentials: "include",
+          cache: "no-store",
+        })
+        const data = await res.json()
+        if (!res.ok || cancelled) return
+        const accounts = filterRevenueAccounts(
+          Array.isArray(data.accounts) ? data.accounts : []
+        )
+        setRevenueAccounts(accounts)
+      } catch {
+        if (!cancelled) setRevenueAccounts([])
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [editorOpen])
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -249,10 +286,25 @@ export function AdminBelegeTab() {
         const next: BelegPosition = { ...pos, ...patch }
         // Zahlen normalisieren / Zeilensumme neu berechnen — Textfelder nicht trimmen
         // (sonst verschluckt .trim() Leerzeichen am Ende beim Tippen).
-        if (patch.quantity !== undefined || patch.unitPrice !== undefined) {
+        if (
+          patch.quantity !== undefined ||
+          patch.unitPrice !== undefined ||
+          patch.discountPercent !== undefined
+        ) {
           next.quantity = Math.max(0, Number(next.quantity) || 0)
           next.unitPrice = Math.max(0, Number(next.unitPrice) || 0)
-          next.lineTotal = computePositionLineTotal(next.quantity, next.unitPrice)
+          next.discountPercent = clampDiscountPercent(next.discountPercent)
+          next.lineTotal = computePositionLineTotal(
+            next.quantity,
+            next.unitPrice,
+            next.discountPercent
+          )
+        }
+        if (patch.accountCode !== undefined) {
+          next.accountCode = resolveBelegAccountCode(
+            next.accountCode,
+            revenueAccounts
+          )
         }
         if (
           patch.taxCode !== undefined ||
@@ -693,6 +745,11 @@ export function AdminBelegeTab() {
                           name: "",
                           quantity: 1,
                           unitPrice: 0,
+                          accountCode: resolveBelegAccountCode(
+                            defaultBelegRevenueAccountCode(),
+                            revenueAccounts
+                          ),
+                          discountPercent: 0,
                           taxCode: DEFAULT_BELEG_VAT.taxCode,
                           taxRate: DEFAULT_BELEG_VAT.taxRate,
                           taxRatePercent: DEFAULT_BELEG_VAT.taxRatePercent,
@@ -711,98 +768,189 @@ export function AdminBelegeTab() {
               const vatCode =
                 findBelegVatOptionByCode(pos.taxCode)?.taxCode ??
                 resolveBelegVatFields(pos).taxCode
+              const accountCode = resolveBelegAccountCode(
+                pos.accountCode,
+                revenueAccounts
+              )
+              const gross = computePositionGross(pos.quantity, pos.unitPrice)
+              const discountAmount = computePositionDiscountAmount(
+                pos.quantity,
+                pos.unitPrice,
+                pos.discountPercent
+              )
+              const accountOptions = (() => {
+                const list = [...revenueAccounts]
+                if (accountCode && !list.some((a) => a.number === accountCode)) {
+                  list.unshift({
+                    number: accountCode,
+                    name: "Gespeichertes Ertragskonto",
+                    group: null,
+                    type: "Ertrag",
+                    isEditable: true,
+                    isActive: true,
+                    vatBookable: true,
+                    defaultVatRate: 0,
+                    createdAt: "",
+                    updatedAt: "",
+                  })
+                }
+                if (list.length === 0) {
+                  list.push({
+                    number: defaultBelegRevenueAccountCode(),
+                    name: "Standard-Ertragskonto",
+                    group: null,
+                    type: "Ertrag",
+                    isEditable: true,
+                    isActive: true,
+                    vatBookable: true,
+                    defaultVatRate: 0,
+                    createdAt: "",
+                    updatedAt: "",
+                  })
+                }
+                return list
+              })()
               return (
                 <div
                   key={pos.id}
-                  className="grid items-start gap-2 rounded-xl border border-border/60 p-3 lg:grid-cols-12"
+                  className="space-y-2 rounded-xl border border-border/60 p-3"
                 >
-                  <div className="space-y-1 lg:col-span-3">
-                    <Label className="text-xs">Name / Freitext</Label>
-                    <AutoResizeTextarea
-                      value={pos.name}
-                      onChange={(e) =>
-                        updatePosition(index, { name: e.target.value })
-                      }
-                    />
+                  <div className="grid items-start gap-2 lg:grid-cols-2">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Name / Freitext</Label>
+                      <AutoResizeTextarea
+                        value={pos.name}
+                        onChange={(e) =>
+                          updatePosition(index, { name: e.target.value })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Details</Label>
+                      <AutoResizeTextarea
+                        value={pos.details ?? ""}
+                        onChange={(e) =>
+                          updatePosition(index, { details: e.target.value })
+                        }
+                      />
+                    </div>
                   </div>
-                  <div className="space-y-1 lg:col-span-3">
-                    <Label className="text-xs">Details</Label>
-                    <AutoResizeTextarea
-                      value={pos.details ?? ""}
-                      onChange={(e) =>
-                        updatePosition(index, { details: e.target.value })
-                      }
-                    />
+
+                  <div className="grid items-start gap-2 sm:grid-cols-2 lg:grid-cols-12">
+                    <div className="space-y-1 lg:col-span-1">
+                      <Label className="text-xs">Menge</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        step={1}
+                        value={pos.quantity}
+                        onChange={(e) =>
+                          updatePosition(index, {
+                            quantity: Number(e.target.value),
+                          })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-1 lg:col-span-2">
+                      <Label className="text-xs">Preis</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        step={0.05}
+                        value={pos.unitPrice}
+                        onChange={(e) =>
+                          updatePosition(index, {
+                            unitPrice: Number(e.target.value),
+                          })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-1 lg:col-span-1">
+                      <Label className="text-xs">Rabatt %</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        max={100}
+                        step={0.1}
+                        value={pos.discountPercent}
+                        onChange={(e) =>
+                          updatePosition(index, {
+                            discountPercent: Number(e.target.value),
+                          })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-1 lg:col-span-2">
+                      <Label className="text-xs">MwSt</Label>
+                      <Select
+                        value={vatCode}
+                        onValueChange={(value) => setPositionVat(index, value)}
+                      >
+                        <SelectTrigger className="h-9 w-full">
+                          <SelectValue placeholder="MwSt wählen" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {BELEG_VAT_OPTIONS.map((opt) => (
+                            <SelectItem key={opt.taxCode} value={opt.taxCode}>
+                              {opt.label} · {opt.taxCode}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1 sm:col-span-2 lg:col-span-5">
+                      <Label className="text-xs">Konto</Label>
+                      <Select
+                        value={accountCode}
+                        onValueChange={(value) =>
+                          updatePosition(index, { accountCode: value })
+                        }
+                      >
+                        <SelectTrigger className="h-9 w-full">
+                          <SelectValue placeholder="Ertragskonto wählen" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {accountOptions.map((account) => (
+                            <SelectItem key={account.number} value={account.number}>
+                              {formatRevenueAccountLabel(account)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex items-start justify-end pt-6 lg:col-span-1">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="h-9 w-9 p-0"
+                        disabled={editor.positionen.length <= 1}
+                        onClick={() =>
+                          setEditor((prev) => ({
+                            ...prev,
+                            positionen: prev.positionen.filter(
+                              (_, i) => i !== index
+                            ),
+                          }))
+                        }
+                      >
+                        <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                        <span className="sr-only">Entfernen</span>
+                      </Button>
+                    </div>
                   </div>
-                  <div className="space-y-1 lg:col-span-1">
-                    <Label className="text-xs">Menge</Label>
-                    <Input
-                      type="number"
-                      min={0}
-                      step={1}
-                      value={pos.quantity}
-                      onChange={(e) =>
-                        updatePosition(index, {
-                          quantity: Number(e.target.value),
-                        })
-                      }
-                    />
-                  </div>
-                  <div className="space-y-1 lg:col-span-2">
-                    <Label className="text-xs">Preis</Label>
-                    <Input
-                      type="number"
-                      min={0}
-                      step={0.05}
-                      value={pos.unitPrice}
-                      onChange={(e) =>
-                        updatePosition(index, {
-                          unitPrice: Number(e.target.value),
-                        })
-                      }
-                    />
-                  </div>
-                  <div className="space-y-1 lg:col-span-2">
-                    <Label className="text-xs">MwSt</Label>
-                    <Select
-                      value={vatCode}
-                      onValueChange={(value) => setPositionVat(index, value)}
-                    >
-                      <SelectTrigger className="h-9 w-full">
-                        <SelectValue placeholder="MwSt wählen" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {BELEG_VAT_OPTIONS.map((opt) => (
-                          <SelectItem key={opt.taxCode} value={opt.taxCode}>
-                            {opt.label} · {opt.taxCode}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="flex items-start justify-end pt-6 lg:col-span-1">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      className="h-9 w-9 p-0"
-                      disabled={editor.positionen.length <= 1}
-                      onClick={() =>
-                        setEditor((prev) => ({
-                          ...prev,
-                          positionen: prev.positionen.filter((_, i) => i !== index),
-                        }))
-                      }
-                    >
-                      <Trash2 className="h-3.5 w-3.5 text-red-500" />
-                      <span className="sr-only">Entfernen</span>
-                    </Button>
-                  </div>
-                  <p className="text-sm text-muted-foreground lg:col-span-12">
-                    Zeile netto: {formatChf(pos.lineTotal)}
+
+                  <p className="text-sm text-muted-foreground">
+                    Brutto {formatChf(gross)}
+                    {discountAmount > 0
+                      ? ` · Rabatt −${formatChf(discountAmount)} (${pos.discountPercent}%)`
+                      : ""}
+                    {" · "}
+                    Netto {formatChf(pos.lineTotal)}
                     {pos.taxRatePercent > 0
                       ? ` · MwSt ${pos.taxRatePercent}% (${pos.taxCode}): ${formatChf(pos.lineTotal * pos.taxRate)}`
                       : ` · ${pos.taxCode}`}
+                    {` · Konto ${accountCode}`}
                   </p>
                 </div>
               )

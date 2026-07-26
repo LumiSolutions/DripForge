@@ -1,5 +1,6 @@
 import type { DocumentTemplateType } from "@/lib/documents/document-template-types"
 import { resolveBelegVatFields, DEFAULT_BELEG_VAT } from "@/lib/documents/beleg-vat"
+import { defaultBelegRevenueAccountCode } from "@/lib/documents/beleg-accounts"
 
 export const BELEG_DOC_TYPE = "business-beleg" as const
 
@@ -28,6 +29,13 @@ export type BelegPosition = {
   quantity: number
   unitPrice: number
   /**
+   * Ertragskonto (Kontonummer aus dem Buchhaltungs-Kontenplan),
+   * z. B. "320001" für spätere automatische Verbuchung.
+   */
+  accountCode: string
+  /** Positionsrabatt in Prozent (0–100). */
+  discountPercent: number
+  /**
    * Buchhaltungs-Steuercode (z. B. U00, UN81, UR26).
    * Muss mit den Umsatzsteuer-Codes der Buchhaltung übereinstimmen.
    */
@@ -36,6 +44,7 @@ export type BelegPosition = {
   taxRate: number
   /** MwSt.-Satz als Prozent (z. B. 8.1) — Anzeige / Legacy. */
   taxRatePercent: number
+  /** Zeilen-Netto nach Rabatt, ohne MwSt. */
   lineTotal: number
 }
 
@@ -122,11 +131,44 @@ export function roundChf(value: number): number {
   return Math.round((Number(value) || 0) * 100) / 100
 }
 
-export function computePositionLineTotal(
+export function computePositionGross(
   quantity: number,
   unitPrice: number
 ): number {
   return roundChf(Math.max(0, quantity) * Math.max(0, unitPrice))
+}
+
+export function clampDiscountPercent(value: unknown): number {
+  const n = Number(value)
+  if (!Number.isFinite(n) || n <= 0) return 0
+  return Math.min(100, Math.max(0, n))
+}
+
+export function computePositionDiscountAmount(
+  quantity: number,
+  unitPrice: number,
+  discountPercent: number
+): number {
+  const gross = computePositionGross(quantity, unitPrice)
+  const pct = clampDiscountPercent(discountPercent)
+  return roundChf(gross * (pct / 100))
+}
+
+/**
+ * Zeilen-Netto = (Menge * Einzelpreis) * (1 - Rabatt/100)
+ */
+export function computePositionLineTotal(
+  quantity: number,
+  unitPrice: number,
+  discountPercent = 0
+): number {
+  const gross = computePositionGross(quantity, unitPrice)
+  const discount = computePositionDiscountAmount(
+    quantity,
+    unitPrice,
+    discountPercent
+  )
+  return roundChf(Math.max(0, gross - discount))
 }
 
 export function computeBelegTotals(positionen: BelegPosition[]): {
@@ -137,7 +179,10 @@ export function computeBelegTotals(positionen: BelegPosition[]): {
   let subtotal = 0
   let vatTotal = 0
   for (const pos of positionen) {
-    const line = roundChf(pos.lineTotal || computePositionLineTotal(pos.quantity, pos.unitPrice))
+    const line = roundChf(
+      pos.lineTotal ||
+        computePositionLineTotal(pos.quantity, pos.unitPrice, pos.discountPercent)
+    )
     subtotal = roundChf(subtotal + line)
     const rate =
       Number.isFinite(pos.taxRate) && pos.taxRate >= 0
@@ -186,15 +231,19 @@ export function normalizeBelegPosition(
 ): BelegPosition {
   const quantity = Math.max(0, Number(raw.quantity) || 0)
   const unitPrice = Math.max(0, Number(raw.unitPrice) || 0)
+  const discountPercent = clampDiscountPercent(raw.discountPercent)
+  const accountCode =
+    String(raw.accountCode ?? "").trim() || defaultBelegRevenueAccountCode()
   const vat = resolveBelegVatFields({
     taxCode: raw.taxCode,
     taxRate: raw.taxRate,
     taxRatePercent: raw.taxRatePercent,
   })
-  const lineTotal =
-    raw.lineTotal != null
-      ? roundChf(Number(raw.lineTotal) || 0)
-      : computePositionLineTotal(quantity, unitPrice)
+  const lineTotal = computePositionLineTotal(
+    quantity,
+    unitPrice,
+    discountPercent
+  )
 
   return {
     id: String(raw.id ?? `pos-${index + 1}`).trim() || `pos-${index + 1}`,
@@ -202,6 +251,8 @@ export function normalizeBelegPosition(
     details: String(raw.details ?? "").trim() || undefined,
     quantity,
     unitPrice,
+    accountCode,
+    discountPercent,
     taxCode: vat.taxCode,
     taxRate: vat.taxRate,
     taxRatePercent: vat.taxRatePercent,
@@ -279,12 +330,18 @@ export function fromBelegCosmosDoc(doc: BelegCosmosDoc | Beleg): Beleg {
 }
 
 export function stripPricesForDeliveryNote(positionen: BelegPosition[]): BelegPosition[] {
-  return positionen.map((pos) => ({
-    ...pos,
-    unitPrice: 0,
-    taxCode: DEFAULT_BELEG_VAT.taxCode,
-    taxRate: DEFAULT_BELEG_VAT.taxRate,
-    taxRatePercent: DEFAULT_BELEG_VAT.taxRatePercent,
-    lineTotal: 0,
-  }))
+  return positionen.map((pos) =>
+    normalizeBelegPosition(
+      {
+        ...pos,
+        unitPrice: 0,
+        discountPercent: 0,
+        taxCode: DEFAULT_BELEG_VAT.taxCode,
+        taxRate: DEFAULT_BELEG_VAT.taxRate,
+        taxRatePercent: DEFAULT_BELEG_VAT.taxRatePercent,
+        lineTotal: 0,
+      },
+      0
+    )
+  )
 }

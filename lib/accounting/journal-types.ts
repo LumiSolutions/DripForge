@@ -12,7 +12,7 @@ export type JournalLine = {
   taxCode?: string
 }
 
-export type JournalEntrySource = "manual" | "order"
+export type JournalEntrySource = "manual" | "order" | "beleg"
 
 export type JournalEntry = {
   id: string
@@ -24,6 +24,7 @@ export type JournalEntry = {
   bookingRows?: ManualBookingRow[]
   source: JournalEntrySource
   sourceOrderId?: string
+  sourceBelegId?: string
   createdAt: string
   updatedAt: string
 }
@@ -203,8 +204,14 @@ export function normalizeJournalEntry(
     description: String(input.description ?? "").trim(),
     lines,
     bookingRows,
-    source: input.source === "order" ? "order" : "manual",
+    source:
+      input.source === "order"
+        ? "order"
+        : input.source === "beleg"
+          ? "beleg"
+          : "manual",
     sourceOrderId: input.sourceOrderId?.trim() || undefined,
+    sourceBelegId: input.sourceBelegId?.trim() || undefined,
     createdAt: String(input.createdAt ?? now),
     updatedAt: String(input.updatedAt ?? now),
   }

@@ -5,6 +5,7 @@ import {
   cosmosGetBelegById,
   cosmosUpsertBeleg,
 } from "@/lib/admin/cosmos-belege"
+import { getAccountingAccountConfig } from "@/lib/accounting/account-config"
 import {
   computeBelegTotals,
   defaultStatusForType,
@@ -106,6 +107,7 @@ function orderVatFields(order: StoredOrder) {
 
 function orderItemsToPositions(order: StoredOrder): BelegPosition[] {
   const vat = orderVatFields(order)
+  const accounts = getAccountingAccountConfig()
 
   const positions = order.items.map((item, index) =>
     normalizeBelegPosition(
@@ -116,10 +118,12 @@ function orderItemsToPositions(order: StoredOrder): BelegPosition[] {
           item.type === "3d" ? "3D-Druck" : item.type === "laser" ? "Laser" : undefined,
         quantity: item.quantity,
         unitPrice: item.price,
+        accountCode:
+          item.type === "laser" ? accounts.revenueLaser : accounts.revenue3d,
+        discountPercent: 0,
         taxCode: vat.taxCode,
         taxRate: vat.taxRate,
         taxRatePercent: vat.taxRatePercent,
-        lineTotal: item.price * item.quantity,
       },
       index
     )
@@ -133,10 +137,11 @@ function orderItemsToPositions(order: StoredOrder): BelegPosition[] {
           name: "Versand",
           quantity: 1,
           unitPrice: order.totals.shippingCost,
+          accountCode: accounts.revenue3d,
+          discountPercent: 0,
           taxCode: vat.taxCode,
           taxRate: vat.taxRate,
           taxRatePercent: vat.taxRatePercent,
-          lineTotal: order.totals.shippingCost,
         },
         positions.length
       )

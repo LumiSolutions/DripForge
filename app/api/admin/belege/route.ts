@@ -3,6 +3,7 @@ import { requireAdminSession } from "@/lib/admin/require-admin-session"
 import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
 import { formatCosmosError } from "@/lib/cosmos/log-error"
 import { cosmosListBelege } from "@/lib/admin/cosmos-belege"
+import { recordBelegPaymentJournalEntry } from "@/lib/accounting/beleg-journal"
 import { createBelegDraft } from "@/lib/documents/beleg-service"
 import {
   emptyBelegAddress,
@@ -63,6 +64,15 @@ export async function POST(request: Request) {
       positionen: Array.isArray(body.positionen) ? body.positionen : [],
       notes: body.notes,
     })
+
+    try {
+      await recordBelegPaymentJournalEntry(beleg)
+    } catch (journalError) {
+      console.warn(
+        "Beleg erstellt, aber Buchhaltungseintrag fehlgeschlagen.",
+        formatCosmosError(journalError)
+      )
+    }
 
     return NextResponse.json({ beleg }, { status: 201 })
   } catch (error) {
