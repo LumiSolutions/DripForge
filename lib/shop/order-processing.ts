@@ -27,13 +27,17 @@ import {
   redeemLoyaltyPointsForOrder,
   grantLoyaltyPoints,
   calculateLoyaltyEarnBaseChf,
+  getEffectiveLoyaltyPoints,
   LOYALTY_MIN_GATEWAY_PAYMENT_CHF,
 } from "@/lib/konto/loyalty-points"
 import { orderHasCustomerInbound } from "@/lib/admin/customer-inbound-order"
 import { applyInventoryReservationForOrder } from "@/lib/admin/order-inventory-hook"
 import { notifyOrderReceived } from "@/lib/email/order-notifications"
 import { notifyAdminNewOrder } from "@/lib/email/admin-inbound-notifications"
-import { normalizeEnableRewardPointsSystem } from "@/lib/dripforge/reward-points-settings"
+import {
+  buildRewardPointsPublicSettings,
+  normalizeEnableRewardPointsSystem,
+} from "@/lib/dripforge/reward-points-settings"
 import { resolveCheckoutPointsPurchase } from "@/lib/shop/points-purchase"
 import { recordOrderPaymentJournalEntry } from "@/lib/accounting/order-journal"
 
@@ -265,8 +269,9 @@ async function resolvePointsToRedeem(
     appliedCoupon
   )
   const enforceMin = options?.enforceGatewayMinForPoints !== false
+  const rewardCfg = buildRewardPointsPublicSettings(await getSettings())
   const maxPoints = maxRedeemablePoints(
-    normalizeLoyaltyPoints(account.loyaltyPoints),
+    getEffectiveLoyaltyPoints(account, rewardCfg.loyaltyPointsExpiryMonths),
     beforePoints.total,
     enforceMin ? LOYALTY_MIN_GATEWAY_PAYMENT_CHF : 0
   )
@@ -334,16 +339,16 @@ export async function fulfillPaidShopOrder(
   await applyInventoryReservationForOrder(orderWithCustomer)
 
   const creditEmail = options.userId?.trim() || order.billing.email
-  const rewardPointsEnabled = normalizeEnableRewardPointsSystem(
-    settings.enableRewardPointsSystem
-  )
+  const rewardCfg = buildRewardPointsPublicSettings(settings)
+  const rewardPointsEnabled = rewardCfg.enableRewardPointsSystem
 
   const pointsRedeemed = normalizeLoyaltyPoints(order.totals.pointsRedeemed ?? 0)
   if (rewardPointsEnabled && pointsRedeemed > 0) {
     const redeem = await redeemLoyaltyPointsForOrder(
       creditEmail,
       pointsRedeemed,
-      orderId
+      orderId,
+      { expiryMonths: rewardCfg.loyaltyPointsExpiryMonths }
     )
     if (!redeem.success && redeem.reason !== "already_redeemed") {
       console.error(
@@ -359,7 +364,8 @@ export async function fulfillPaidShopOrder(
       pointsPurchased,
       `purchase:${orderId}`,
       "purchase",
-      `Punktekauf mit Bestellung ${orderId}`
+      `Punktekauf mit Bestellung ${orderId}`,
+      { expiryMonths: rewardCfg.loyaltyPointsExpiryMonths }
     )
     if (!purchaseGrant.success && purchaseGrant.reason !== "already_granted") {
       console.error(
@@ -380,7 +386,11 @@ export async function fulfillPaidShopOrder(
     const loyaltyGrant = await grantLoyaltyPointsForPaidOrder(
       creditEmail,
       earnBase,
-      orderId
+      orderId,
+      {
+        earnPercent: rewardCfg.loyaltyEarnPercent,
+        expiryMonths: rewardCfg.loyaltyPointsExpiryMonths,
+      }
     )
     loyaltyPointsGranted = loyaltyGrant.success ? loyaltyGrant.points : 0
   }

@@ -56,7 +56,18 @@ export async function getCustomerProfile(
 ): Promise<CustomerProfileResponse | null> {
   const account = await ensureAccountHasCustomerNumber(email)
   if (!account || !isActiveCustomerAccount(account)) return null
-  return toCustomerProfileResponse(account)
+  const { getSettings } = await import("@/lib/admin/db")
+  const { buildRewardPointsPublicSettings } = await import(
+    "@/lib/dripforge/reward-points-settings"
+  )
+  const { syncLoyaltyAccountBalance } = await import("@/lib/konto/loyalty-points")
+  const rewardCfg = buildRewardPointsPublicSettings(await getSettings())
+  const synced =
+    (await syncLoyaltyAccountBalance(
+      email,
+      rewardCfg.loyaltyPointsExpiryMonths
+    )) ?? account
+  return toCustomerProfileResponse(synced)
 }
 
 export async function updateCustomerAddress(

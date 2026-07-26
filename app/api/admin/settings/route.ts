@@ -47,6 +47,8 @@ export async function PUT(request: Request) {
       onboardingTourText?: string | null
       themeInboundTourImageUrl?: string | null
       enableRewardPointsSystem?: boolean
+      loyaltyEarnPercent?: number
+      loyaltyPointsExpiryMonths?: number
       launch?: Partial<LaunchSettings>
     }
 
@@ -90,6 +92,8 @@ export async function PUT(request: Request) {
       onboardingTourText: body.onboardingTourText,
       themeInboundTourImageUrl: body.themeInboundTourImageUrl,
       enableRewardPointsSystem: body.enableRewardPointsSystem,
+      loyaltyEarnPercent: body.loyaltyEarnPercent,
+      loyaltyPointsExpiryMonths: body.loyaltyPointsExpiryMonths,
       launch: body.launch,
     })
     return NextResponse.json(settings)

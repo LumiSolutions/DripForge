@@ -88,6 +88,8 @@ export function AdminSettingsTab() {
   const [enableOnboardingTour, setEnableOnboardingTour] = useState(true)
   const [onboardingTourText, setOnboardingTourText] = useState("")
   const [enableRewardPointsSystem, setEnableRewardPointsSystem] = useState(true)
+  const [loyaltyEarnPercent, setLoyaltyEarnPercent] = useState("10")
+  const [loyaltyPointsExpiryMonths, setLoyaltyPointsExpiryMonths] = useState("6")
   const [themeInboundTourImageUrl, setThemeInboundTourImageUrl] = useState<string | null>(
     null
   )
@@ -128,6 +130,20 @@ export function AdminSettingsTab() {
       setOnboardingTourText(normalizeOnboardingTourText(data.onboardingTourText))
       setEnableRewardPointsSystem(
         normalizeEnableRewardPointsSystem(data.enableRewardPointsSystem)
+      )
+      setLoyaltyEarnPercent(
+        String(
+          Number.isFinite(Number(data.loyaltyEarnPercent))
+            ? data.loyaltyEarnPercent
+            : 10
+        )
+      )
+      setLoyaltyPointsExpiryMonths(
+        String(
+          Number.isFinite(Number(data.loyaltyPointsExpiryMonths))
+            ? data.loyaltyPointsExpiryMonths
+            : 6
+        )
       )
       setThemeInboundTourImageUrl(
         normalizeThemeInboundTourImageUrl(data.themeInboundTourImageUrl)
@@ -178,6 +194,8 @@ export function AdminSettingsTab() {
           onboardingTourText,
           themeInboundTourImageUrl,
           enableRewardPointsSystem,
+          loyaltyEarnPercent: Number(loyaltyEarnPercent),
+          loyaltyPointsExpiryMonths: Number(loyaltyPointsExpiryMonths),
           launch,
         }),
       })
@@ -212,6 +230,20 @@ export function AdminSettingsTab() {
       setOnboardingTourText(normalizeOnboardingTourText(data.onboardingTourText))
       setEnableRewardPointsSystem(
         normalizeEnableRewardPointsSystem(data.enableRewardPointsSystem)
+      )
+      setLoyaltyEarnPercent(
+        String(
+          Number.isFinite(Number(data.loyaltyEarnPercent))
+            ? data.loyaltyEarnPercent
+            : 10
+        )
+      )
+      setLoyaltyPointsExpiryMonths(
+        String(
+          Number.isFinite(Number(data.loyaltyPointsExpiryMonths))
+            ? data.loyaltyPointsExpiryMonths
+            : 6
+        )
       )
       setThemeInboundTourImageUrl(
         normalizeThemeInboundTourImageUrl(data.themeInboundTourImageUrl)
@@ -950,6 +982,46 @@ export function AdminSettingsTab() {
                   checked={enableRewardPointsSystem}
                   onCheckedChange={setEnableRewardPointsSystem}
                 />
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label className={adminUi.label}>
+                    Punkte-Gutschrift in % vom Einkaufswert
+                  </Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step={0.5}
+                    value={loyaltyEarnPercent}
+                    onChange={(e) => setLoyaltyEarnPercent(e.target.value)}
+                    className={adminUi.input}
+                    disabled={!enableRewardPointsSystem}
+                  />
+                  <p className={cn("text-xs", adminUi.muted)}>
+                    Beispiel bei 10&nbsp;%: Einkauf CHF 100 → 10 Punkte (= CHF 10.00).
+                    1 Punkt = immer CHF 1.00.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label className={adminUi.label}>
+                    Ablaufdauer der Punkte (Monate)
+                  </Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={120}
+                    step={1}
+                    value={loyaltyPointsExpiryMonths}
+                    onChange={(e) => setLoyaltyPointsExpiryMonths(e.target.value)}
+                    className={adminUi.input}
+                    disabled={!enableRewardPointsSystem}
+                  />
+                  <p className={cn("text-xs", adminUi.muted)}>
+                    Jede Gutschrift verfällt nach dieser Dauer. Einlösung erfolgt
+                    FIFO (älteste Punkte zuerst).
+                  </p>
+                </div>
               </div>
             </CardContent>
           </Card>

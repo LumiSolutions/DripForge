@@ -33,6 +33,12 @@ import {
 import { normalizeLaunchSettings } from "@/lib/dripforge/countdown-settings"
 import { normalizeEnableRewardPointsSystem } from "@/lib/dripforge/reward-points-settings"
 import {
+  DEFAULT_LOYALTY_EARN_PERCENT,
+  DEFAULT_LOYALTY_EXPIRY_MONTHS,
+  normalizeLoyaltyEarnPercent,
+  normalizeLoyaltyExpiryMonths,
+} from "@/lib/konto/loyalty-points-config"
+import {
   buildCustomerFromOrder,
   mergeOrderIntoCustomer,
   normalizeCustomerEmail,
@@ -364,6 +370,12 @@ export async function cosmosGetSettings(): Promise<AdminSettings> {
         enableRewardPointsSystem: normalizeEnableRewardPointsSystem(
           resource.enableRewardPointsSystem
         ),
+        loyaltyEarnPercent: normalizeLoyaltyEarnPercent(
+          resource.loyaltyEarnPercent ?? DEFAULT_LOYALTY_EARN_PERCENT
+        ),
+        loyaltyPointsExpiryMonths: normalizeLoyaltyExpiryMonths(
+          resource.loyaltyPointsExpiryMonths ?? DEFAULT_LOYALTY_EXPIRY_MONTHS
+        ),
         updatedAt: resource.updatedAt,
       }
     }
@@ -387,6 +399,8 @@ export async function cosmosGetSettings(): Promise<AdminSettings> {
     onboardingTourText: DEFAULT_ONBOARDING_TOUR_TEXT,
     themeInboundTourImageUrl: null,
     enableRewardPointsSystem: true,
+    loyaltyEarnPercent: DEFAULT_LOYALTY_EARN_PERCENT,
+    loyaltyPointsExpiryMonths: DEFAULT_LOYALTY_EXPIRY_MONTHS,
     updatedAt: new Date().toISOString(),
   }
   try {

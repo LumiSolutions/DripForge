@@ -33,6 +33,12 @@ import {
 import { normalizeLaunchSettings } from "@/lib/dripforge/countdown-settings"
 import { normalizeEnableRewardPointsSystem } from "@/lib/dripforge/reward-points-settings"
 import {
+  DEFAULT_LOYALTY_EARN_PERCENT,
+  DEFAULT_LOYALTY_EXPIRY_MONTHS,
+  normalizeLoyaltyEarnPercent,
+  normalizeLoyaltyExpiryMonths,
+} from "@/lib/konto/loyalty-points-config"
+import {
   withCosmosFallback,
   withCosmosRequired,
 } from "@/lib/admin/storage-bridge"
@@ -460,6 +466,12 @@ async function getSettingsFromFile(): Promise<AdminSettings> {
       enableRewardPointsSystem: normalizeEnableRewardPointsSystem(
         stored.enableRewardPointsSystem
       ),
+      loyaltyEarnPercent: normalizeLoyaltyEarnPercent(
+        stored.loyaltyEarnPercent ?? DEFAULT_LOYALTY_EARN_PERCENT
+      ),
+      loyaltyPointsExpiryMonths: normalizeLoyaltyExpiryMonths(
+        stored.loyaltyPointsExpiryMonths ?? DEFAULT_LOYALTY_EXPIRY_MONTHS
+      ),
       updatedAt: stored.updatedAt,
     }
   }
@@ -475,6 +487,8 @@ async function getSettingsFromFile(): Promise<AdminSettings> {
     onboardingTourText: DEFAULT_ONBOARDING_TOUR_TEXT,
     themeInboundTourImageUrl: null,
     enableRewardPointsSystem: true,
+    loyaltyEarnPercent: DEFAULT_LOYALTY_EARN_PERCENT,
+    loyaltyPointsExpiryMonths: DEFAULT_LOYALTY_EXPIRY_MONTHS,
     updatedAt: new Date().toISOString(),
   }
   try {
@@ -509,6 +523,8 @@ export async function saveSettings(input: {
   onboardingTourText?: string | null
   themeInboundTourImageUrl?: string | null
   enableRewardPointsSystem?: boolean
+  loyaltyEarnPercent?: number
+  loyaltyPointsExpiryMonths?: number
 }): Promise<AdminSettings> {
   const current = await getSettings()
   const services = normalizeServiceVisibility({
@@ -554,6 +570,18 @@ export async function saveSettings(input: {
       input.enableRewardPointsSystem !== undefined
         ? normalizeEnableRewardPointsSystem(input.enableRewardPointsSystem)
         : normalizeEnableRewardPointsSystem(current.enableRewardPointsSystem),
+    loyaltyEarnPercent:
+      input.loyaltyEarnPercent !== undefined
+        ? normalizeLoyaltyEarnPercent(input.loyaltyEarnPercent)
+        : normalizeLoyaltyEarnPercent(
+            current.loyaltyEarnPercent ?? DEFAULT_LOYALTY_EARN_PERCENT
+          ),
+    loyaltyPointsExpiryMonths:
+      input.loyaltyPointsExpiryMonths !== undefined
+        ? normalizeLoyaltyExpiryMonths(input.loyaltyPointsExpiryMonths)
+        : normalizeLoyaltyExpiryMonths(
+            current.loyaltyPointsExpiryMonths ?? DEFAULT_LOYALTY_EXPIRY_MONTHS
+          ),
     updatedAt: new Date().toISOString(),
   }
   await withCosmosFallback(

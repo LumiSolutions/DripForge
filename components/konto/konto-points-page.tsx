@@ -10,10 +10,15 @@ import { Label } from "@/components/ui/label"
 import { KontoShell } from "@/components/konto/konto-shell"
 import {
   LOYALTY_POINT_PACKAGES,
+  LOYALTY_POINT_VALUE_CHF,
+  chfToLoyaltyPoints,
   loyaltyPointsToChf,
   type LoyaltyPointTransaction,
 } from "@/lib/konto/loyalty-points-config"
-import { useRewardPointsEnabled } from "@/hooks/use-reward-points-enabled"
+import {
+  useRewardPointsEnabled,
+  useRewardPointsSettings,
+} from "@/hooks/use-reward-points-enabled"
 import type { CustomerProfileResponse } from "@/lib/konto/customer-profile-service"
 
 function formatHistoryEntry(tx: LoyaltyPointTransaction): string {
@@ -25,9 +30,12 @@ function formatHistoryEntry(tx: LoyaltyPointTransaction): string {
 export function KontoPointsPage() {
   const searchParams = useSearchParams()
   const rewardPointsEnabled = useRewardPointsEnabled()
+  const rewardSettings = useRewardPointsSettings()
+  const earnPercent = rewardSettings?.loyaltyEarnPercent ?? 10
+  const expiryMonths = rewardSettings?.loyaltyPointsExpiryMonths ?? 6
   const [profile, setProfile] = useState<CustomerProfileResponse | null>(null)
   const [loading, setLoading] = useState(true)
-  const [customAmount, setCustomAmount] = useState("10")
+  const [customAmount, setCustomAmount] = useState("100")
   const [selectedPackage, setSelectedPackage] = useState<string | null>("100")
   const [paymentMethod, setPaymentMethod] = useState<"card" | "twint">("card")
   const [busy, setBusy] = useState(false)
@@ -142,7 +150,11 @@ export function KontoPointsPage() {
         <div>
           <h1 className="text-2xl font-bold">Treuepunkte</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            1 Punkt = 0.10 CHF Guthaben. Sammle 10 % deines Einkaufs als Punkte.
+            1 Punkt = CHF {LOYALTY_POINT_VALUE_CHF.toFixed(2)} Guthaben. Sammle{" "}
+            {earnPercent}&nbsp;% deines Einkaufs als Punkte.
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Punkte sind ab Gutschrift {expiryMonths} Monate gültig.
           </p>
         </div>
 
@@ -248,8 +260,12 @@ export function KontoPointsPage() {
                 onChange={(e) => setCustomAmount(e.target.value)}
               />
               <p className="text-xs text-muted-foreground">
-                Ergibt ca. {Math.floor(Number(customAmount || 0) / 0.1)} Punkte
-                (CHF {loyaltyPointsToChf(Math.floor(Number(customAmount || 0) / 0.1)).toFixed(2)})
+                Ergibt {chfToLoyaltyPoints(Number(customAmount || 0))} Punkte
+                (CHF{" "}
+                {loyaltyPointsToChf(
+                  chfToLoyaltyPoints(Number(customAmount || 0))
+                ).toFixed(2)}
+                )
               </p>
             </div>
           )}

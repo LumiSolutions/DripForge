@@ -8,6 +8,10 @@ import {
 } from "@/lib/admin/types"
 import { normalizeServiceVisibility } from "@/lib/dripforge/service-visibility"
 import { normalizeShopConfigurators } from "@/lib/dripforge/shop-configurators"
+import {
+  DEFAULT_LOYALTY_EARN_PERCENT,
+  DEFAULT_LOYALTY_EXPIRY_MONTHS,
+} from "@/lib/konto/loyalty-points-config"
 
 /** Sichere Standard-Einstellungen wenn Cosmos/Datei nicht erreichbar sind. */
 export function buildDefaultAdminSettings(): AdminSettings {
@@ -23,6 +27,8 @@ export function buildDefaultAdminSettings(): AdminSettings {
     onboardingTourText: "Tag-\noder\nNachtmodus?",
     themeInboundTourImageUrl: null,
     enableRewardPointsSystem: true,
+    loyaltyEarnPercent: DEFAULT_LOYALTY_EARN_PERCENT,
+    loyaltyPointsExpiryMonths: DEFAULT_LOYALTY_EXPIRY_MONTHS,
     updatedAt: new Date().toISOString(),
   }
 }

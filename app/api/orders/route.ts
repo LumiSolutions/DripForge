@@ -6,16 +6,14 @@ import {
   grantLoyaltyPointsForPaidOrder,
   redeemLoyaltyPointsForOrder,
   normalizeLoyaltyPoints,
-} from "@/lib/konto/loyalty-points"
-import type { OrderPayload } from "@/lib/dripforge/submit-order"
-import { processOrderPayload } from "@/lib/shop/order-processing"
-import { upsertCustomerFromOrder, getSettings } from "@/lib/admin/db"
-import { applyInventoryReservationForOrder } from "@/lib/admin/order-inventory-hook"
-import { normalizeEnableRewardPointsSystem } from "@/lib/dripforge/reward-points-settings"
-import {
   grantLoyaltyPoints,
   calculateLoyaltyEarnBaseChf,
 } from "@/lib/konto/loyalty-points"
+import type { OrderPayload } from "@/lib/dripforge/submit-order"
+import { processOrderPayload } from "@/lib/shop/order-processing"
+import { upsertCustomerFromOrder } from "@/lib/admin/db"
+import { applyInventoryReservationForOrder } from "@/lib/admin/order-inventory-hook"
+import { buildRewardPointsPublicSettings } from "@/lib/dripforge/reward-points-settings"
 
 export async function POST(request: Request) {
   let orderId = ""
@@ -46,16 +44,16 @@ export async function POST(request: Request) {
     const portalAccount = await getAccountByEmail(order.billing.email)
     let aiCreditsGranted = 0
     let loyaltyPointsGranted = 0
-    const rewardPointsEnabled = normalizeEnableRewardPointsSystem(
-      settings.enableRewardPointsSystem
-    )
+    const rewardCfg = buildRewardPointsPublicSettings(settings)
+    const rewardPointsEnabled = rewardCfg.enableRewardPointsSystem
 
     const pointsRedeemed = normalizeLoyaltyPoints(order.totals.pointsRedeemed ?? 0)
     if (rewardPointsEnabled && pointsRedeemed > 0 && portalAccount) {
       await redeemLoyaltyPointsForOrder(
         order.billing.email,
         pointsRedeemed,
-        order.orderId
+        order.orderId,
+        { expiryMonths: rewardCfg.loyaltyPointsExpiryMonths }
       )
     }
 
@@ -66,7 +64,8 @@ export async function POST(request: Request) {
         pointsPurchased,
         `purchase:${order.orderId}`,
         "purchase",
-        `Punktekauf mit Bestellung ${order.orderId}`
+        `Punktekauf mit Bestellung ${order.orderId}`,
+        { expiryMonths: rewardCfg.loyaltyPointsExpiryMonths }
       )
     }
 
@@ -88,7 +87,11 @@ export async function POST(request: Request) {
         const loyaltyGrant = await grantLoyaltyPointsForPaidOrder(
           order.billing.email,
           earnBase,
-          orderId
+          orderId,
+          {
+            earnPercent: rewardCfg.loyaltyEarnPercent,
+            expiryMonths: rewardCfg.loyaltyPointsExpiryMonths,
+          }
         )
         if (loyaltyGrant.success) {
           loyaltyPointsGranted = loyaltyGrant.points

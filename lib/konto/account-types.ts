@@ -22,10 +22,12 @@ export type CustomerAccount = {
   /** KI-Generierungs-Credits (Loyalty / KI) */
   aiCredits?: number
   aiCreditGrants?: Record<string, number>
-  /** Treuepunkte (1 Punkt = 0.10 CHF) */
+  /** Treuepunkte (1 Punkt = CHF 1.00) */
   loyaltyPoints?: number
   /** Idempotente Gutschriften/Abbuchungen (Ref → Punkte) */
   loyaltyPointGrants?: Record<string, number>
+  /** Gutschrift-Chargen mit Ablauf (FIFO-Einlösung) */
+  loyaltyPointLots?: import("@/lib/konto/loyalty-points-config").LoyaltyPointLot[]
   /** Letzte Punkt-Transaktionen (Audit) */
   loyaltyPointTransactions?: import("@/lib/konto/loyalty-points-config").LoyaltyPointTransaction[]
   passwordResetTokenHash?: string | null

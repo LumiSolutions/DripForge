@@ -178,6 +178,10 @@ export type AdminSettings = {
   themeInboundTourImageUrl?: string | null
   /** Treuepunkte-System (Kaufen, Einlösen, Konto-Anzeige) */
   enableRewardPointsSystem: boolean
+  /** Punkte-Gutschrift in % vom Einkaufswert (z. B. 5 oder 10). */
+  loyaltyEarnPercent: number
+  /** Ablaufdauer der Punkte ab Gutschrift (Monate). */
+  loyaltyPointsExpiryMonths: number
   updatedAt: string
 }
 

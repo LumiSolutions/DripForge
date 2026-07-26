@@ -29,6 +29,7 @@ function mapCosmosAccount(doc: CosmosDoc<CustomerAccount>): CustomerAccount {
     aiCreditGrants: doc.aiCreditGrants ?? {},
     loyaltyPoints: normalizeLoyaltyPoints(doc.loyaltyPoints),
     loyaltyPointGrants: doc.loyaltyPointGrants ?? {},
+    loyaltyPointLots: doc.loyaltyPointLots ?? [],
     loyaltyPointTransactions: doc.loyaltyPointTransactions ?? [],
     passwordResetTokenHash: doc.passwordResetTokenHash ?? null,
     passwordResetExpiresAt: doc.passwordResetExpiresAt ?? null,

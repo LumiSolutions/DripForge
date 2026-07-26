@@ -10,6 +10,7 @@ import {
 import type { CustomerAccount } from "@/lib/konto/account-types"
 import { withCosmosFallback } from "@/lib/admin/storage-bridge"
 import { normalizeLoyaltyPoints, loyaltyPointsToChf } from "@/lib/konto/loyalty-points-config"
+import { getEffectiveLoyaltyPoints } from "@/lib/konto/loyalty-points"
 import {
   DEFAULT_CUSTOMER_ACCOUNT_STATUS,
   isAccountDeleted,
@@ -122,7 +123,7 @@ export async function deleteAccountById(accountId: string): Promise<boolean> {
 }
 
 export function toPublicAccount(account: CustomerAccount) {
-  const loyaltyPoints = normalizeLoyaltyPoints(account.loyaltyPoints)
+  const loyaltyPoints = getEffectiveLoyaltyPoints(account)
   return {
     email: account.email,
     firstName: account.firstName,

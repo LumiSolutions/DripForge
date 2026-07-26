@@ -125,12 +125,18 @@ export async function fulfillPointsPurchase(
   points: number,
   paymentRef: string
 ): Promise<{ granted: boolean; newBalance: number }> {
+  const { getSettings } = await import("@/lib/admin/db")
+  const { buildRewardPointsPublicSettings } = await import(
+    "@/lib/dripforge/reward-points-settings"
+  )
+  const rewardCfg = buildRewardPointsPublicSettings(await getSettings())
   const result = await grantLoyaltyPoints(
     email,
     points,
     `purchase:${paymentRef}`,
     "purchase",
-    `Punktekauf ${purchaseId}`
+    `Punktekauf ${purchaseId}`,
+    { expiryMonths: rewardCfg.loyaltyPointsExpiryMonths }
   )
   return { granted: result.success, newBalance: result.newBalance }
 }
