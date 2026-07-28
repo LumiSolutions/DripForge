@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import Image from "next/image"
 import Link from "next/link"
 import {
   Home,
@@ -60,6 +59,7 @@ import { materials3D, laserMaterials, processSteps, products } from "@/lib/dripf
 import type { CartItem } from "@/lib/dripforge/types"
 import type { ServiceVisibilitySettings } from "@/lib/admin/types"
 import { SiteText } from "@/components/dripforge/editable-site-text"
+import { SiteImage } from "@/components/dripforge/editable-site-image"
 import { SiteTextPhrase } from "@/components/dripforge/site-text-phrase"
 import { useAiPublicSettings } from "@/hooks/use-ai-public-settings"
 import { SHOP_ROUTES } from "@/lib/dripforge/shop-routes"
@@ -119,11 +119,10 @@ export function HomePage({
             </div>
             <div className="relative w-full lg:w-1/2">
               <div className="relative aspect-square">
-                <Image
-                  src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/ChatGPT%20Image%2017.%20Mai%202026%2C%2022_30_40-QRFbP2eouxkeDTfBuUpwhiWA8fn1Ng.png"
-                  alt="DripForge"
+                <SiteImage
+                  imageKey="landingpage_hero_image"
                   fill
-                  className="animate-float object-contain"
+                  imageClassName="animate-float object-contain"
                   priority
                 />
               </div>
@@ -189,11 +188,10 @@ export function HomePage({
                     </Link>
                   </div>
                   <div className="relative ml-4 h-40 w-40 opacity-50">
-                    <Image
-                      src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/ChatGPT%20Image%2017.%20Mai%202026%2C%2000_02_54-d7wTZgFb3k2tGqbkACQpqJbzNVYTwR.png"
-                      alt="3D Printer"
+                    <SiteImage
+                      imageKey="landingpage_expertise_3d_image"
                       fill
-                      className="object-contain"
+                      imageClassName="object-contain"
                     />
                   </div>
                 </div>
@@ -222,11 +220,10 @@ export function HomePage({
                     </Link>
                   </div>
                   <div className="relative ml-4 h-40 w-40 opacity-50">
-                    <Image
-                      src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/ChatGPT%20Image%2017.%20Mai%202026%2C%2000_02_54-d7wTZgFb3k2tGqbkACQpqJbzNVYTwR.png"
-                      alt="Laser Engraver"
+                    <SiteImage
+                      imageKey="landingpage_expertise_laser_image"
                       fill
-                      className="object-contain"
+                      imageClassName="object-contain"
                     />
                   </div>
                 </div>

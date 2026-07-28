@@ -11,6 +11,7 @@ import {
   isAuthError,
   requireAdminSession,
 } from "@/lib/admin/require-admin-session"
+import { sanitizeSiteImagesInput } from "@/lib/admin/site-images"
 import { sanitizeSiteTextsInput } from "@/lib/admin/site-texts"
 import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
 import { sanitizeDocumentTemplateInput } from "@/lib/documents/document-template-types"
@@ -23,12 +24,18 @@ export async function GET(request: Request) {
 
   try {
     await warmCosmosInfrastructure()
-    const [texts, meta, documentTemplate] = await Promise.all([
+    const [bundle, meta, documentTemplate] = await Promise.all([
       getSiteConfigStaging(),
       getSiteConfigMeta(),
       getDocumentTemplateSettings(),
     ])
-    return NextResponse.json({ texts, meta, documentTemplate, environment: "staging" })
+    return NextResponse.json({
+      texts: bundle.texts,
+      images: bundle.images,
+      meta,
+      documentTemplate,
+      environment: "staging",
+    })
   } catch (error) {
     const dbResponse = adminDatabaseErrorResponse(error)
     if (dbResponse) return dbResponse
@@ -48,26 +55,41 @@ export async function PUT(request: Request) {
     await warmCosmosInfrastructure()
     const body = (await request.json()) as {
       texts?: Partial<Record<string, string>>
+      images?: Partial<Record<string, unknown>>
       documentTemplate?: unknown
     }
     const hasTexts = body.texts && typeof body.texts === "object"
+    const hasImages = body.images && typeof body.images === "object"
     const hasDocumentTemplate =
       body.documentTemplate && typeof body.documentTemplate === "object"
 
-    if (!hasTexts && !hasDocumentTemplate) {
-      return NextResponse.json({ error: "Text- oder Dokumenten-Daten fehlen." }, { status: 400 })
+    if (!hasTexts && !hasImages && !hasDocumentTemplate) {
+      return NextResponse.json(
+        { error: "Text-, Bild- oder Dokumenten-Daten fehlen." },
+        { status: 400 }
+      )
     }
 
-    const [existingTexts, existingDocumentTemplate] = await Promise.all([
+    const [existing, existingDocumentTemplate] = await Promise.all([
       getSiteConfigStaging(),
       getDocumentTemplateSettings(),
     ])
 
-    const savedTexts = hasTexts
-      ? await saveSiteConfigStaging(
-          sanitizeSiteTextsInput({ ...existingTexts, ...body.texts })
-        )
-      : existingTexts
+    const savedBundle =
+      hasTexts || hasImages
+        ? await saveSiteConfigStaging({
+            texts: hasTexts
+              ? sanitizeSiteTextsInput({ ...existing.texts, ...body.texts })
+              : existing.texts,
+            images: hasImages
+              ? sanitizeSiteImagesInput({
+                  ...existing.images,
+                  ...body.images,
+                })
+              : existing.images,
+          })
+        : existing
+
     const savedDocumentTemplate = hasDocumentTemplate
       ? await saveDocumentTemplateSettings(
           sanitizeDocumentTemplateInput(body.documentTemplate, existingDocumentTemplate)
@@ -75,7 +97,8 @@ export async function PUT(request: Request) {
       : existingDocumentTemplate
     const meta = await getSiteConfigMeta()
     return NextResponse.json({
-      texts: savedTexts,
+      texts: savedBundle.texts,
+      images: savedBundle.images,
       meta,
       documentTemplate: savedDocumentTemplate,
       environment: "staging",

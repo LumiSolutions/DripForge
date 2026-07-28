@@ -69,6 +69,7 @@ import {
   cosmosGetSiteConfigStaging,
   cosmosPublishSiteConfig,
   cosmosSaveSiteConfigStaging,
+  type SiteConfigBundle,
 } from "@/lib/admin/cosmos-site-config"
 import {
   cosmosGetSiteTexts,
@@ -113,6 +114,11 @@ import {
   type DocumentTemplateSettings,
 } from "@/lib/documents/document-template-types"
 import { mergeSiteTexts, sanitizeSiteTextsInput, type SiteTexts } from "@/lib/admin/site-texts"
+import {
+  mergeSiteImages,
+  sanitizeSiteImagesInput,
+  type SiteImages,
+} from "@/lib/admin/site-images"
 import type { AdminFilament } from "@/lib/admin/filament-types"
 import {
   mergeMaterialStats,
@@ -619,63 +625,93 @@ export async function setShopLive(shopLive: boolean): Promise<AdminSettings> {
   return next
 }
 
-export async function getSiteConfigProduction(): Promise<SiteTexts> {
+function parseSiteConfigFile(
+  stored: unknown
+): SiteConfigBundle | null {
+  if (!stored || typeof stored !== "object") return null
+  const raw = stored as Record<string, unknown>
+  if ("texts" in raw || "images" in raw) {
+    return {
+      texts: mergeSiteTexts(
+        (raw.texts as Partial<Record<string, string>> | undefined) ?? null
+      ),
+      images: mergeSiteImages(
+        (raw.images as Partial<Record<string, unknown>> | undefined) ?? null
+      ),
+    }
+  }
+  // Legacy: flache Text-Map ohne images
+  return {
+    texts: mergeSiteTexts(raw as Partial<Record<string, string>>),
+    images: mergeSiteImages(null),
+  }
+}
+
+export async function getSiteConfigProduction(): Promise<SiteConfigBundle> {
   return withCosmosFallback(
     "getSiteConfigProduction",
     cosmosGetSiteConfigProduction,
     async () => {
-      const stored = await readJsonFile<Partial<Record<string, string>> | null>(
-        SITE_CONFIG_PRODUCTION_FILE,
-        null
-      )
-      if (stored) return mergeSiteTexts(stored)
+      const stored = await readJsonFile<unknown>(SITE_CONFIG_PRODUCTION_FILE, null)
+      const parsed = parseSiteConfigFile(stored)
+      if (parsed) return parsed
 
       const legacy = await readJsonFile<Partial<Record<string, string>> | null>(
         SITE_TEXTS_FILE,
         null
       )
-      return mergeSiteTexts(legacy)
+      return {
+        texts: mergeSiteTexts(legacy),
+        images: mergeSiteImages(null),
+      }
     }
   )
 }
 
-export async function getSiteConfigStaging(): Promise<SiteTexts> {
+export async function getSiteConfigStaging(): Promise<SiteConfigBundle> {
   return withCosmosFallback(
     "getSiteConfigStaging",
     cosmosGetSiteConfigStaging,
     async () => {
-      const stored = await readJsonFile<Partial<Record<string, string>> | null>(
-        SITE_CONFIG_STAGING_FILE,
-        null
-      )
-      if (stored) return mergeSiteTexts(stored)
+      const stored = await readJsonFile<unknown>(SITE_CONFIG_STAGING_FILE, null)
+      const parsed = parseSiteConfigFile(stored)
+      if (parsed) return parsed
       return getSiteConfigProduction()
     }
   )
 }
 
-export async function saveSiteConfigStaging(texts: SiteTexts): Promise<SiteTexts> {
-  const sanitized = sanitizeSiteTextsInput(texts)
+export async function saveSiteConfigStaging(
+  input: {
+    texts?: SiteTexts
+    images?: SiteImages
+  }
+): Promise<SiteConfigBundle> {
+  const existing = await getSiteConfigStaging()
+  const bundle: SiteConfigBundle = {
+    texts: sanitizeSiteTextsInput(input.texts ?? existing.texts),
+    images: sanitizeSiteImagesInput(input.images ?? existing.images),
+  }
   return withCosmosFallback(
     "saveSiteConfigStaging",
+    async () => cosmosSaveSiteConfigStaging(bundle),
     async () => {
-      await cosmosSaveSiteConfigStaging(sanitized)
-      return sanitized
-    },
-    async () => {
-      await writeJsonFile(SITE_CONFIG_STAGING_FILE, sanitized)
-      return sanitized
+      await writeJsonFile(SITE_CONFIG_STAGING_FILE, bundle)
+      return bundle
     }
   )
 }
 
-export async function publishSiteConfig(): Promise<SiteTexts> {
+export async function publishSiteConfig(): Promise<SiteConfigBundle> {
   return withCosmosFallback(
     "publishSiteConfig",
     async () => cosmosPublishSiteConfig(),
     async () => {
       const staging = await getSiteConfigStaging()
-      const published = sanitizeSiteTextsInput(staging)
+      const published: SiteConfigBundle = {
+        texts: sanitizeSiteTextsInput(staging.texts),
+        images: sanitizeSiteImagesInput(staging.images),
+      }
       await writeJsonFile(SITE_CONFIG_PRODUCTION_FILE, published)
       return published
     }
@@ -694,11 +730,13 @@ export async function getSiteConfigMeta(): Promise<{
 }
 
 export async function getSiteTexts(): Promise<SiteTexts> {
-  return getSiteConfigProduction()
+  const bundle = await getSiteConfigProduction()
+  return bundle.texts
 }
 
 export async function saveSiteTexts(texts: SiteTexts): Promise<SiteTexts> {
-  return saveSiteConfigStaging(texts)
+  const saved = await saveSiteConfigStaging({ texts })
+  return saved.texts
 }
 
 export async function getMaterialStats(): Promise<MaterialStatsMap> {

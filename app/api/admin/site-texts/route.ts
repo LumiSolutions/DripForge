@@ -20,11 +20,16 @@ export async function GET(request: Request) {
 
   try {
     await warmCosmosInfrastructure()
-    const [texts, meta] = await Promise.all([
+    const [bundle, meta] = await Promise.all([
       getSiteConfigStaging(),
       getSiteConfigMeta(),
     ])
-    return NextResponse.json({ texts, meta, environment: "staging" })
+    return NextResponse.json({
+      texts: bundle.texts,
+      images: bundle.images,
+      meta,
+      environment: "staging",
+    })
   } catch (error) {
     const dbResponse = adminDatabaseErrorResponse(error)
     if (dbResponse) return dbResponse
@@ -48,10 +53,15 @@ export async function PUT(request: Request) {
     }
 
     const existing = await getSiteConfigStaging()
-    const texts = sanitizeSiteTextsInput({ ...existing, ...body.texts })
-    const saved = await saveSiteConfigStaging(texts)
+    const texts = sanitizeSiteTextsInput({ ...existing.texts, ...body.texts })
+    const saved = await saveSiteConfigStaging({ texts })
     const meta = await getSiteConfigMeta()
-    return NextResponse.json({ texts: saved, meta, environment: "staging" })
+    return NextResponse.json({
+      texts: saved.texts,
+      images: saved.images,
+      meta,
+      environment: "staging",
+    })
   } catch (error) {
     const dbResponse = adminDatabaseErrorResponse(error)
     if (dbResponse) return dbResponse

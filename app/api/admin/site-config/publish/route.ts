@@ -15,13 +15,14 @@ export async function POST(request: Request) {
 
   try {
     await warmCosmosInfrastructure()
-    const texts = await publishSiteConfig()
+    const published = await publishSiteConfig()
     const meta = await getSiteConfigMeta()
     return NextResponse.json({
-      texts,
+      texts: published.texts,
+      images: published.images,
       meta,
       environment: "production",
-      message: "Staging-Texte wurden live veröffentlicht.",
+      message: "Staging-Inhalte wurden live veröffentlicht.",
     })
   } catch (error) {
     const dbResponse = adminDatabaseErrorResponse(error)

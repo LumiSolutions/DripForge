@@ -79,6 +79,8 @@ export type StoredOrder = {
 export type OrderEmailNotifications = {
   receivedAt?: string
   confirmedAt?: string
+  /** Status «bereit für Versand / Abholbereit» */
+  readyAt?: string
   shippedAt?: string
 }
 

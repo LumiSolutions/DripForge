@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import Image from "next/image"
 import Link from "next/link"
 import { Mail, MapPin, Printer, Zap } from "lucide-react"
 import type { CompanySettings } from "@/lib/admin/types"
@@ -14,6 +13,7 @@ import {
 import type { ServiceVisibilitySettings } from "@/lib/admin/types"
 import { shopViewHref } from "@/lib/dripforge/shop-routes"
 import { SiteText } from "@/components/dripforge/editable-site-text"
+import { SiteImage } from "@/components/dripforge/editable-site-image"
 
 export function ShopFooter() {
   const [companyFooter, setCompanyFooter] = useState<CompanySettings>(
@@ -51,12 +51,12 @@ export function ShopFooter() {
         <div className="grid gap-8 md:grid-cols-4">
           <div>
             <div className="mb-4 flex items-center gap-2">
-              <Image
-                src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/ChatGPT%20Image%2016.%20Mai%202026%2C%2022_19_51-CjFqSwPCG95cJ4BMP2Ono6hKObBX8y.png"
-                alt="DripForge"
+              <SiteImage
+                imageKey="brand_logo"
                 width={28}
                 height={28}
-                className="rounded"
+                imageClassName="rounded"
+                className="shrink-0"
               />
               <span className="font-bold">
                 <span className="text-primary">Drip</span>

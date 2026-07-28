@@ -1,15 +1,22 @@
 import {
   cosmosGetSiteConfigProduction,
+  cosmosGetSiteConfigStaging,
   cosmosSaveSiteConfigStaging,
 } from "@/lib/admin/cosmos-site-config"
 import type { SiteTexts } from "@/lib/admin/site-texts"
 
-/** @deprecated Legacy alias — liest Production. */
+/** @deprecated Legacy alias — liest Production-Texte. */
 export async function cosmosGetSiteTexts(): Promise<SiteTexts> {
-  return cosmosGetSiteConfigProduction()
+  const bundle = await cosmosGetSiteConfigProduction()
+  return bundle.texts
 }
 
-/** @deprecated Legacy alias — speichert Staging. */
+/** @deprecated Legacy alias — speichert Staging-Texte (Bilder bleiben erhalten). */
 export async function cosmosSaveSiteTexts(texts: SiteTexts): Promise<SiteTexts> {
-  return cosmosSaveSiteConfigStaging(texts)
+  const existing = await cosmosGetSiteConfigStaging()
+  const saved = await cosmosSaveSiteConfigStaging({
+    texts,
+    images: existing.images,
+  })
+  return saved.texts
 }

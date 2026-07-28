@@ -10,6 +10,7 @@ import {
   isAuthError,
   requireAdminSession,
 } from "@/lib/admin/require-admin-session"
+import { mergeSiteImages } from "@/lib/admin/site-images"
 import { mergeSiteTexts, sanitizeSiteTextsInput } from "@/lib/admin/site-texts"
 import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
 
@@ -20,17 +21,21 @@ export async function GET(request: Request) {
     await warmCosmosInfrastructure()
     const preview =
       new URL(request.url).searchParams.get(SITE_CONFIG_PREVIEW_PARAM) === "true"
-    const texts = preview
+    const bundle = preview
       ? await getSiteConfigStaging()
       : await getSiteConfigProduction()
     return NextResponse.json(
-      { texts, preview },
+      { texts: bundle.texts, images: bundle.images, preview },
       { headers: { "Cache-Control": "no-store, max-age=0" } }
     )
   } catch (error) {
     console.error("Site-Texts API: Laden fehlgeschlagen.", error)
     return NextResponse.json(
-      { texts: mergeSiteTexts(null), preview: false },
+      {
+        texts: mergeSiteTexts(null),
+        images: mergeSiteImages(null),
+        preview: false,
+      },
       { headers: { "Cache-Control": "no-store, max-age=0" } }
     )
   }
@@ -48,9 +53,13 @@ export async function PUT(request: Request) {
     }
 
     const existing = await getSiteConfigStaging()
-    const texts = sanitizeSiteTextsInput({ ...existing, ...body.texts })
-    const saved = await saveSiteConfigStaging(texts)
-    return NextResponse.json({ texts: saved, environment: "staging" })
+    const texts = sanitizeSiteTextsInput({ ...existing.texts, ...body.texts })
+    const saved = await saveSiteConfigStaging({ texts })
+    return NextResponse.json({
+      texts: saved.texts,
+      images: saved.images,
+      environment: "staging",
+    })
   } catch (error) {
     const dbResponse = adminDatabaseErrorResponse(error)
     if (dbResponse) return dbResponse

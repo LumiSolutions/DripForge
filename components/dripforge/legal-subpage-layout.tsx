@@ -1,9 +1,9 @@
 "use client"
 
 import { useEffect, type ReactNode } from "react"
-import Image from "next/image"
 import Link from "next/link"
 import { SiteText } from "@/components/dripforge/editable-site-text"
+import { SiteImage } from "@/components/dripforge/editable-site-image"
 
 export function LegalSubpageLayout({ children }: { children: ReactNode }) {
   useEffect(() => {
@@ -18,12 +18,12 @@ export function LegalSubpageLayout({ children }: { children: ReactNode }) {
       <header className="sticky top-0 z-50 border-b border-border/50 bg-background/80 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4">
           <Link href="/" className="flex items-center gap-2">
-            <Image
-              src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/ChatGPT%20Image%2016.%20Mai%202026%2C%2022_19_51-CjFqSwPCG95cJ4BMP2Ono6hKObBX8y.png"
-              alt="DripForge Logo"
+            <SiteImage
+              imageKey="brand_logo"
               width={32}
               height={32}
-              className="rounded"
+              imageClassName="rounded"
+              className="shrink-0"
             />
             <span className="text-xl font-bold">
               <span className="text-primary">Drip</span>

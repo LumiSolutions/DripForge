@@ -1,6 +1,5 @@
 "use client"
 
-import Image from "next/image"
 import Link from "next/link"
 import {
   Printer,
@@ -16,6 +15,7 @@ import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { FilamentColorPicker } from "@/components/dripforge/shared/filament-color-picker"
 import { ProcessStepItem } from "@/components/dripforge/shared/process-step-item"
+import { SiteImage } from "@/components/dripforge/editable-site-image"
 import { materials3D, processSteps } from "@/lib/dripforge/data"
 import { SHOP_ROUTES } from "@/lib/dripforge/shop-routes"
 import { useFilamentCatalog } from "@/hooks/use-filament-catalog"
@@ -62,11 +62,10 @@ export function Page3DDruck({
     <div className="space-y-12 pb-12 md:space-y-24 md:pb-24">
       <section className="relative overflow-hidden py-12 md:py-20">
           <div className="absolute inset-0">
-            <Image
-              src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/pc3-BE2inKSo4vqNzyJPw5eT2lZzb9cXDP.jpg"
-              alt="3D Printer"
+            <SiteImage
+              imageKey="page_3d_druck_hero_image"
               fill
-              className="object-cover opacity-15"
+              imageClassName="object-cover opacity-15"
             />
             <div className="absolute inset-0 bg-gradient-to-b from-background via-background/90 to-background" />
           </div>

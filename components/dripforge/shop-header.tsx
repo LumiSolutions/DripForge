@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import Image from "next/image"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import {
@@ -25,6 +24,7 @@ import {
 import type { ServiceVisibilitySettings } from "@/lib/admin/types"
 import { shopCartHref, shopNavHref } from "@/lib/dripforge/shop-routes"
 import { HEADER_ICON_BTN_CLASS } from "@/components/dripforge/support-nav-link"
+import { SiteImage } from "@/components/dripforge/editable-site-image"
 import {
   ThemeInboundTour,
   useThemeInboundTourVisible,
@@ -145,12 +145,12 @@ export function ShopHeader(props: ShopHeaderProps) {
 
   const logo = (
     <>
-      <Image
-        src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/ChatGPT%20Image%2016.%20Mai%202026%2C%2022_19_51-CjFqSwPCG95cJ4BMP2Ono6hKObBX8y.png"
-        alt="DripForge Logo"
+      <SiteImage
+        imageKey="brand_logo"
         width={32}
         height={32}
-        className="rounded"
+        imageClassName="rounded"
+        className="shrink-0"
       />
       <span className="text-xl font-bold">
         <span className="text-primary">Drip</span>

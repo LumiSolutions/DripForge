@@ -71,7 +71,7 @@ export function SiteConfigPreviewBanner() {
   const publishLive = async () => {
     if (
       !window.confirm(
-        "Staging-Texte wirklich live veröffentlichen? Besucher sehen danach sofort diese Version."
+        "Staging-Inhalte (Texte & Bilder) wirklich live veröffentlichen? Besucher sehen danach sofort diese Version."
       )
     ) {
       return
@@ -104,7 +104,7 @@ export function SiteConfigPreviewBanner() {
   return (
     <div className="pointer-events-none fixed inset-x-0 top-0 z-[300] flex justify-center px-4 pt-[max(0.5rem,env(safe-area-inset-top))]">
       <div className="pointer-events-auto flex max-w-4xl flex-wrap items-center justify-center gap-2 rounded-xl border border-amber-500/40 bg-amber-500/95 px-4 py-2 text-sm font-medium text-amber-950 shadow-lg backdrop-blur-sm">
-        <span>Staging-Vorschau — Besucher sehen diese Texte noch nicht.</span>
+        <span>Staging-Vorschau — Besucher sehen diese Texte und Bilder noch nicht.</span>
         {canInlineEdit && (
           <Button
             type="button"
