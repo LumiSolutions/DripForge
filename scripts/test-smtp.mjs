@@ -39,25 +39,23 @@ function loadEnvFile(filename) {
 loadEnvFile(".env.local")
 loadEnvFile(".env")
 
-function parseSecure(port) {
+function parseSecure() {
   const raw = (process.env.SMTP_SECURE || "").trim().toLowerCase()
-  if (raw === "true" || raw === "1" || raw === "yes") return true
-  if (raw === "false" || raw === "0" || raw === "no") return false
-  return port === 465
+  return raw === "true" || raw === "1" || raw === "yes"
 }
 
 function getConfig() {
-  const host = process.env.SMTP_HOST?.trim()
-  const user = process.env.SMTP_USER?.trim()
   const pass = process.env.SMTP_PASS?.trim()
-  if (!host || !user || !pass) {
+  if (!pass) {
     throw new Error(
-      "SMTP nicht konfiguriert. Bitte SMTP_HOST, SMTP_USER und SMTP_PASS in .env.local setzen."
+      "SMTP nicht konfiguriert. Bitte SMTP_PASS in .env.local setzen."
     )
   }
 
-  const port = Number(process.env.SMTP_PORT ?? 465)
-  const secure = parseSecure(Number.isFinite(port) && port > 0 ? port : 465)
+  const host = process.env.SMTP_HOST?.trim() || "mail.hostpoint.ch"
+  const user = process.env.SMTP_USER?.trim() || "shop@dripforge.ch"
+  const port = Number(process.env.SMTP_PORT ?? 587)
+  const secure = parseSecure()
   const from =
     process.env.EMAIL_FROM?.trim() ||
     process.env.SMTP_FROM?.trim() ||
@@ -69,7 +67,7 @@ function getConfig() {
 
   return {
     host,
-    port: Number.isFinite(port) && port > 0 ? port : 465,
+    port: Number.isFinite(port) && port > 0 ? port : 587,
     secure,
     user,
     pass,
@@ -100,7 +98,10 @@ async function main() {
       user: config.user,
       pass: config.pass,
     },
-    ...(config.secure || config.port !== 587 ? {} : { requireTLS: true }),
+    tls: {
+      rejectUnauthorized: false,
+    },
+    ...(!config.secure ? { requireTLS: true } : {}),
   })
 
   console.log("1/2 Verbindung prüfen (verify)…")
