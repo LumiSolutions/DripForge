@@ -21,6 +21,9 @@ import { formatChf } from "@/lib/invoices/invoice-format"
 
 const MM = 2.834645669
 const PDF_CONTENT_WIDTH_MM = 170
+/** Platz am unteren Rand für den fixen Footer (Inhalt darf nicht hineinragen). */
+const FOOTER_RESERVED_MM = 24
+const FOOTER_BOTTOM_OFFSET_MM = 12
 
 export const pdfDocumentColors = {
   anthracite: "#1f2937",
@@ -59,7 +62,7 @@ export function createPdfDocumentLayoutStyles(template: DocumentTemplateSettings
       lineHeight: 1.4,
       paddingTop: pagePaddingTop,
       paddingHorizontal: 20 * MM,
-      paddingBottom: 32,
+      paddingBottom: FOOTER_RESERVED_MM * MM,
     },
     paymentPage: {
       fontFamily: font,
@@ -68,13 +71,13 @@ export function createPdfDocumentLayoutStyles(template: DocumentTemplateSettings
       lineHeight: 1.4,
       paddingTop: pagePaddingTop,
       paddingHorizontal: 20 * MM,
-      paddingBottom: 40,
+      paddingBottom: FOOTER_RESERVED_MM * MM,
       position: "relative",
     },
-    /** Zahlungsblock am unteren Blattrand (Abstand ~40pt zum Rand) */
+    /** Zahlungsblock über dem Footer */
     paymentBottomContainer: {
       position: "absolute",
-      bottom: 40,
+      bottom: FOOTER_RESERVED_MM * MM,
       left: 20 * MM,
       right: 20 * MM,
       backgroundColor: "transparent",
@@ -260,31 +263,38 @@ export function createPdfDocumentLayoutStyles(template: DocumentTemplateSettings
       textAlign: "center",
       maxWidth: "85%",
     },
+    /**
+     * Fixer Footer am unteren Rand — erscheint auf jeder Seite (`fixed`).
+     * Mehrzeilig, zentriert, dezentes Grau.
+     */
     centerFooter: {
       position: "absolute",
-      bottom: 15 * MM,
-      left: 0,
-      right: 0,
+      bottom: FOOTER_BOTTOM_OFFSET_MM * MM,
+      left: 20 * MM,
+      right: 20 * MM,
       textAlign: "center",
-      lineHeight: 1.2,
+      lineHeight: 1.35,
     },
     footerLine1: {
       ...bold,
-      fontSize: scaledSize(base, 7.5),
-      color: pdfDocumentColors.anthraciteMid,
+      fontSize: 9,
+      color: pdfDocumentColors.anthraciteLight,
       marginBottom: 2,
-      lineHeight: 1.2,
+      lineHeight: 1.35,
+      textAlign: "center",
     },
     footerLine2: {
-      fontSize: scaledSize(base, 7),
+      fontSize: 9,
       color: pdfDocumentColors.anthraciteLight,
       marginBottom: 2,
-      lineHeight: 1.2,
+      lineHeight: 1.35,
+      textAlign: "center",
     },
     footerLine3: {
-      fontSize: scaledSize(base, 7),
+      fontSize: 9,
       color: pdfDocumentColors.anthraciteLight,
-      lineHeight: 1.2,
+      lineHeight: 1.35,
+      textAlign: "center",
     },
   })
 }
@@ -368,9 +378,8 @@ function PdfCenterFooter({
 }) {
   const hasFooter = footerLines.line1 || footerLines.line2 || footerLines.line3
   if (!hasFooter) return null
-  // Ohne `fixed`: nur auf dieser Seite (nicht auf Folgeseiten wiederholen)
   return (
-    <View style={styles.centerFooter}>
+    <View style={styles.centerFooter} fixed>
       {footerLines.line1 ? (
         <Text style={styles.footerLine1}>{footerLines.line1}</Text>
       ) : null}
@@ -488,7 +497,7 @@ export function PdfDocumentLayout({
           </View>
         ) : null}
 
-        {/* Footer nur auf Seite 1 */}
+        {/* Fixer Footer auf allen Seiten (inkl. Folgeseiten) */}
         <PdfCenterFooter styles={styles} footerLines={footerLines} />
       </Page>
 
@@ -499,6 +508,7 @@ export function PdfDocumentLayout({
             logoUrl={logoUrl}
             alignment={template.logoAlignment}
           />
+          <PdfCenterFooter styles={styles} footerLines={footerLines} />
 
           <View style={styles.paymentBottomContainer}>
             {!alreadyPaid && paymentBlockText ? (

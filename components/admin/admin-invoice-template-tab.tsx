@@ -308,9 +308,9 @@ function DocumentLivePreview({
             <p className="mt-3 max-w-[90%] text-[0.85em] text-slate-500">{footerNote}</p>
           ) : null}
 
-          <div className="invoice-footer">
+          <div className="invoice-footer mt-8 border-t border-slate-200 pt-3 text-center text-[9px] leading-snug text-slate-500">
             {footerLines.line1 ? (
-              <p className="font-bold text-slate-500">{footerLines.line1}</p>
+              <p className="footer-line-1 font-bold">{footerLines.line1}</p>
             ) : null}
             {footerLines.line2 ? <p>{footerLines.line2}</p> : null}
             {footerLines.line3 ? <p>{footerLines.line3}</p> : null}
@@ -393,6 +393,13 @@ function DocumentLivePreview({
                   <p className="payment-amount">CHF 128.00</p>
                 </div>
               </div>
+            </div>
+            <div className="invoice-footer">
+              {footerLines.line1 ? (
+                <p className="footer-line-1">{footerLines.line1}</p>
+              ) : null}
+              {footerLines.line2 ? <p>{footerLines.line2}</p> : null}
+              {footerLines.line3 ? <p>{footerLines.line3}</p> : null}
             </div>
           </div>
         ) : null}
@@ -1047,8 +1054,8 @@ const MAX_LOGO_BYTES = 5 * 1024 * 1024
                 QR-Zahlteil fuer diesen Dokumenttyp anzeigen
               </label>
               <p className="text-xs text-muted-foreground">
-                Footer-Kontaktdaten erscheinen nur auf der ersten Seite (Rechnung) als
-                dezenter Block ganz unten — nicht auf der Zahlungsverbindungs-Seite.
+                Footer-Kontaktdaten erscheinen fixiert am unteren Rand auf allen Seiten
+                (inkl. Folgeseiten und Zahlungsverbindung), zentriert und dezent grau.
               </p>
             </CardContent>
           </Card>

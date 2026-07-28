@@ -1,6 +1,6 @@
 /**
  * Dokumenten-Vorschau / Print-Parität mit der React-PDF-Rechnung.
- * PDF nutzt dieselben Masse (A4, 20mm Seitenränder, Footer 15mm vom unteren Rand).
+ * PDF nutzt dieselben Masse (A4, 20mm Seitenränder, Footer fixiert unten auf allen Seiten).
  */
 
 @media print {
@@ -54,16 +54,16 @@
   padding: 0 20mm 24mm;
 }
 
-/* Footer nur auf der ersten Seite — kompakt */
+/* Fixer Footer auf allen Seiten — zentriert, dezent grau */
 .invoice-footer {
   position: absolute;
-  bottom: 15mm;
-  left: 0;
-  right: 0;
+  bottom: 12mm;
+  left: 20mm;
+  right: 20mm;
   text-align: center;
-  line-height: 1.2;
-  font-size: 0.8rem;
-  color: #9ca3af;
+  line-height: 1.35;
+  font-size: 9px;
+  color: #6b7280;
 }
 
 .invoice-footer p,
@@ -71,8 +71,8 @@
   margin: 2px 0;
 }
 
-.payment-page .invoice-footer {
-  display: none !important;
+.invoice-footer .footer-line-1 {
+  font-weight: 700;
 }
 
 .payment-page {
@@ -86,7 +86,7 @@
 
 .payment-bottom-container {
   position: absolute;
-  bottom: 40px;
+  bottom: 24mm;
   left: 20mm;
   right: 20mm;
   width: auto;
