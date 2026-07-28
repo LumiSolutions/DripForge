@@ -3,6 +3,15 @@
  * PDF nutzt dieselben Masse (A4, 20mm Seitenränder, Footer fixiert unten auf allen Seiten).
  */
 
+.document-preview-page,
+.document-preview-page * {
+  hyphens: none !important;
+  -webkit-hyphens: none !important;
+  -moz-hyphens: none !important;
+  -ms-hyphens: none !important;
+  -webkit-locale: "de-CH";
+}
+
 @media print {
   @page {
     size: A4;

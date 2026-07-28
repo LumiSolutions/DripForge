@@ -18,6 +18,7 @@ import {
   type DocumentTypeTextSettings,
 } from "@/lib/documents/document-template-types"
 import { pdfBoldStyle, resolvePdfFontFamily } from "@/lib/documents/pdf-fonts"
+import { sanitizePdfText } from "@/lib/documents/sanitize-pdf-text"
 import { formatChf } from "@/lib/invoices/invoice-format"
 
 const MM = 2.834645669
@@ -64,6 +65,7 @@ export function createPdfDocumentLayoutStyles(template: DocumentTemplateSettings
       paddingTop: pagePaddingTop,
       paddingHorizontal: 20 * MM,
       paddingBottom: FOOTER_RESERVED_MM * MM,
+      hyphens: "none",
     },
     paymentPage: {
       fontFamily: font,
@@ -74,6 +76,7 @@ export function createPdfDocumentLayoutStyles(template: DocumentTemplateSettings
       paddingHorizontal: 20 * MM,
       paddingBottom: FOOTER_RESERVED_MM * MM,
       position: "relative",
+      hyphens: "none",
     },
     /** Zahlungsblock über dem Footer */
     paymentBottomContainer: {
@@ -487,39 +490,57 @@ export function PdfDocumentLayout({
   const styles = createPdfDocumentLayoutStyles(template)
   const infoLabels = resolvePdfInfoPanelLabels(documentType)
   const logoUrl = template.logoUrl ?? undefined
-  const headerLine = applyDocumentTemplatePlaceholders(
-    documentText.headerLine,
-    placeholderValues
+  const headerLine = sanitizePdfText(
+    applyDocumentTemplatePlaceholders(documentText.headerLine, placeholderValues)
   )
-  const referenceLine = applyDocumentTemplatePlaceholders(
-    documentText.referenceLine,
-    placeholderValues
+  const referenceLine = sanitizePdfText(
+    applyDocumentTemplatePlaceholders(
+      documentText.referenceLine,
+      placeholderValues
+    )
   )
-  const introText = applyDocumentTemplatePlaceholders(
-    documentText.introText,
-    placeholderValues
+  const introText = sanitizePdfText(
+    applyDocumentTemplatePlaceholders(documentText.introText, placeholderValues)
   )
-  const footerNote = applyDocumentTemplatePlaceholders(
-    documentText.footerNote,
-    placeholderValues
+  const footerNote = sanitizePdfText(
+    applyDocumentTemplatePlaceholders(documentText.footerNote, placeholderValues)
   )
-  const paymentBlockText = applyDocumentTemplatePlaceholders(
-    documentText.paymentBlockText,
-    placeholderValues
+  const paymentBlockText = sanitizePdfText(
+    applyDocumentTemplatePlaceholders(
+      documentText.paymentBlockText,
+      placeholderValues
+    )
   )
-  const customFooter = applyDocumentTemplatePlaceholders(
-    documentText.centerFooterText,
-    placeholderValues
+  const customFooter = sanitizePdfText(
+    applyDocumentTemplatePlaceholders(
+      documentText.centerFooterText,
+      placeholderValues
+    )
   )
-  const footerLines = resolveDocumentFooterLines(template, customFooter)
-  const accountHolder = resolveKontoinhaber(template)
+  const footerLinesRaw = resolveDocumentFooterLines(template, customFooter)
+  const footerLines = {
+    line1: sanitizePdfText(footerLinesRaw.line1),
+    line2: sanitizePdfText(footerLinesRaw.line2),
+    line3: sanitizePdfText(footerLinesRaw.line3),
+  }
+  const accountHolder = sanitizePdfText(resolveKontoinhaber(template))
   const alreadyPaid = Boolean(payment?.alreadyPaid)
   const showPaymentPage = documentText.showPaymentBlock && Boolean(payment)
   const qrImageUrl = payment?.qrImageUrl ?? template.qrPaymentImageUrl
-  const paymentMethodLabel =
+  const paymentMethodLabel = sanitizePdfText(
     payment?.paymentMethodLabel?.trim() || "Online-Zahlung"
-  const receiptMessage = `Dieser Beleg dient als Quittung. Der Betrag wurde bereits erfolgreich via ${paymentMethodLabel} beglichen. Vielen Dank!`
+  )
+  const receiptMessage = sanitizePdfText(
+    `Dieser Beleg dient als Quittung. Der Betrag wurde bereits erfolgreich via ${paymentMethodLabel} beglichen. Vielen Dank!`
+  )
   const recipientCountry = formatPdfRecipientCountry(recipient.country)
+  const recipientName = sanitizePdfText(
+    `${recipient.firstName} ${recipient.lastName}`
+  )
+  const recipientStreet = sanitizePdfText(recipient.street)
+  const recipientCityLine = sanitizePdfText(
+    `${recipient.zip} ${recipient.city}`
+  )
 
   return (
     <Document title={title} author={template.firmenname}>
@@ -531,45 +552,65 @@ export function PdfDocumentLayout({
         />
 
         <View style={styles.recipientBlock}>
-          <Text style={styles.recipientLine}>
-            {recipient.firstName} {recipient.lastName}
-          </Text>
-          <Text style={styles.recipientLine}>{recipient.street}</Text>
-          <Text style={styles.recipientLine}>
-            {recipient.zip} {recipient.city}
-          </Text>
+          <Text style={styles.recipientLine}>{recipientName}</Text>
+          <Text style={styles.recipientLine}>{recipientStreet}</Text>
+          <Text style={styles.recipientLine}>{recipientCityLine}</Text>
           {recipientCountry ? (
-            <Text style={styles.recipientLine}>{recipientCountry}</Text>
+            <Text style={styles.recipientLine}>
+              {sanitizePdfText(recipientCountry)}
+            </Text>
           ) : null}
         </View>
 
         <View style={styles.infoPanel}>
           <View style={styles.infoField}>
-            <Text style={styles.infoLabel}>{infoLabels.number}</Text>
-            <Text style={styles.infoValue}>{documentMeta.documentNumber}</Text>
+            <Text style={styles.infoLabel}>
+              {sanitizePdfText(infoLabels.number)}
+            </Text>
+            <Text style={styles.infoValue}>
+              {sanitizePdfText(documentMeta.documentNumber)}
+            </Text>
           </View>
           <View style={styles.infoField}>
-            <Text style={styles.infoLabel}>{infoLabels.date}</Text>
-            <Text style={styles.infoValue}>{documentMeta.documentDate}</Text>
+            <Text style={styles.infoLabel}>
+              {sanitizePdfText(infoLabels.date)}
+            </Text>
+            <Text style={styles.infoValue}>
+              {sanitizePdfText(documentMeta.documentDate)}
+            </Text>
           </View>
           <View style={styles.infoField}>
-            <Text style={styles.infoLabel}>{infoLabels.terms}</Text>
-            <Text style={styles.infoValue}>{documentMeta.paymentTermsLabel}</Text>
+            <Text style={styles.infoLabel}>
+              {sanitizePdfText(infoLabels.terms)}
+            </Text>
+            <Text style={styles.infoValue}>
+              {sanitizePdfText(documentMeta.paymentTermsLabel)}
+            </Text>
           </View>
           <View style={styles.infoField}>
-            <Text style={styles.infoLabel}>{infoLabels.due}</Text>
-            <Text style={styles.infoValue}>{documentMeta.dueDate}</Text>
+            <Text style={styles.infoLabel}>
+              {sanitizePdfText(infoLabels.due)}
+            </Text>
+            <Text style={styles.infoValue}>
+              {sanitizePdfText(documentMeta.dueDate)}
+            </Text>
           </View>
           <View style={styles.infoField}>
-            <Text style={styles.infoLabel}>{infoLabels.shipping}</Text>
-            <Text style={styles.infoValue}>{documentMeta.shippingLabel}</Text>
+            <Text style={styles.infoLabel}>
+              {sanitizePdfText(infoLabels.shipping)}
+            </Text>
+            <Text style={styles.infoValue}>
+              {sanitizePdfText(documentMeta.shippingLabel)}
+            </Text>
           </View>
         </View>
 
         <View style={styles.headerRule} />
         <View style={styles.headerAccent} />
         <Text style={styles.headerLine}>{headerLine}</Text>
-        {referenceLine ? <Text style={styles.referenceLine}>{referenceLine}</Text> : null}
+        {referenceLine ? (
+          <Text style={styles.referenceLine}>{referenceLine}</Text>
+        ) : null}
         {introText ? <Text style={styles.introText}>{introText}</Text> : null}
 
         {children}
@@ -616,23 +657,31 @@ export function PdfDocumentLayout({
                   {template.iban ? (
                     <>
                       <Text style={[styles.paymentLineBold, { marginTop: 6 }]}>IBAN</Text>
-                      <Text style={styles.paymentLine}>{template.iban}</Text>
+                      <Text style={styles.paymentLine}>
+                        {sanitizePdfText(template.iban)}
+                      </Text>
                     </>
                   ) : null}
                   {template.bankname ? (
-                    <Text style={styles.paymentLine}>{template.bankname}</Text>
+                    <Text style={styles.paymentLine}>
+                      {sanitizePdfText(template.bankname)}
+                    </Text>
                   ) : null}
                   <Text style={[styles.paymentLineBold, { marginTop: 6 }]}>
                     Referenz / Zahlungszweck
                   </Text>
-                  <Text style={styles.paymentLine}>{payment.reference}</Text>
+                  <Text style={styles.paymentLine}>
+                    {sanitizePdfText(payment.reference)}
+                  </Text>
                 </View>
                 <View style={styles.paymentRightColumn}>
                   {qrImageUrl ? (
                     // eslint-disable-next-line jsx-a11y/alt-text -- @react-pdf Image
                     <Image style={styles.qrImage} src={qrImageUrl} />
                   ) : null}
-                  <Text style={styles.paymentAmount}>{formatChf(payment.amount)}</Text>
+                  <Text style={styles.paymentAmount}>
+                    {sanitizePdfText(formatChf(payment.amount))}
+                  </Text>
                 </View>
               </View>
             )}

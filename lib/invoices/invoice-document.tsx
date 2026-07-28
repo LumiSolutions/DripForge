@@ -22,6 +22,9 @@ import {
   formatInvoiceItemDetails,
   getInvoiceLineTotal,
 } from "@/lib/invoices/invoice-item-details"
+import {
+  sanitizePdfText,
+} from "@/lib/documents/sanitize-pdf-text"
 
 function scaledSize(baseFontSize: number, sizeAtBase9: number): number {
   return Math.round(sizeAtBase9 * (baseFontSize / 9) * 10) / 10
@@ -52,16 +55,17 @@ function createInvoiceDocumentStyles(template: DocumentTemplateSettings) {
       flexDirection: "row",
       backgroundColor: pdfDocumentColors.tableHeader,
       paddingVertical: 8,
-      paddingHorizontal: 8,
+      paddingHorizontal: 6,
       alignItems: "center",
     },
     th: {
       color: "#ffffff",
       ...bold,
-      fontSize: scaledSize(base, 6.2),
+      fontSize: scaledSize(base, 5.8),
       textTransform: "uppercase",
-      letterSpacing: 0.35,
+      letterSpacing: 0.2,
       whiteSpace: "nowrap",
+      hyphens: "none",
     },
     thCenter: {
       textAlign: "center",
@@ -72,7 +76,7 @@ function createInvoiceDocumentStyles(template: DocumentTemplateSettings) {
     tableRow: {
       flexDirection: "row",
       paddingVertical: 8,
-      paddingHorizontal: 8,
+      paddingHorizontal: 6,
       borderBottomWidth: 1,
       borderBottomColor: pdfDocumentColors.border,
       alignItems: "flex-start",
@@ -80,51 +84,61 @@ function createInvoiceDocumentStyles(template: DocumentTemplateSettings) {
     tableRowAlt: {
       backgroundColor: pdfDocumentColors.bgMuted,
     },
-    colPos: { width: "6%" },
-    colLeistung: { width: "40%" },
-    colQty: { width: "18%" },
-    colUnit: { width: "19%" },
-    colBetrag: { width: "17%" },
-    // Lieferschein ohne Preise
-    colLeistungWide: { width: "76%" },
-    colQtyWide: { width: "18%" },
+    // EINZELPREIS (ANSATZ) braucht mehr Breite — sonst Soft-Wrap/Glyphen-Artefakte
+    colPos: { width: "5%" },
+    colLeistung: { width: "36%" },
+    colQty: { width: "16%" },
+    colUnit: { width: "24%" },
+    colBetrag: { width: "19%" },
+    colLeistungWide: { width: "79%" },
+    colQtyWide: { width: "16%" },
     cellPos: {
       fontSize: scaledSize(base, 8),
       color: pdfDocumentColors.anthraciteMid,
       textAlign: "center",
+      hyphens: "none",
     },
     cellName: {
       ...bold,
       fontSize: scaledSize(base, 8.5),
       color: pdfDocumentColors.anthracite,
       marginBottom: 2,
+      hyphens: "none",
     },
     cellDetails: {
       fontSize: scaledSize(base, 7),
       color: pdfDocumentColors.anthraciteLight,
       lineHeight: 1.4,
+      hyphens: "none",
     },
     cellQty: {
       fontSize: scaledSize(base, 8),
       textAlign: "center",
       color: pdfDocumentColors.anthraciteMid,
+      whiteSpace: "nowrap",
+      hyphens: "none",
     },
     cellMoney: {
       fontSize: scaledSize(base, 8),
       textAlign: "right",
       color: pdfDocumentColors.anthraciteMid,
+      whiteSpace: "nowrap",
+      hyphens: "none",
     },
     cellMoneyBold: {
       ...bold,
       fontSize: scaledSize(base, 8),
       textAlign: "right",
       color: pdfDocumentColors.anthracite,
+      whiteSpace: "nowrap",
+      hyphens: "none",
     },
     legalNote: {
       fontSize: scaledSize(base, 7),
       color: pdfDocumentColors.anthraciteLight,
       marginBottom: 12,
       lineHeight: 1.35,
+      hyphens: "none",
     },
     totalsWrap: {
       flexDirection: "row",
@@ -149,10 +163,13 @@ function createInvoiceDocumentStyles(template: DocumentTemplateSettings) {
     },
     totalLabel: {
       color: pdfDocumentColors.anthraciteLight,
+      hyphens: "none",
     },
     totalValue: {
       textAlign: "right",
       color: pdfDocumentColors.anthraciteMid,
+      whiteSpace: "nowrap",
+      hyphens: "none",
     },
     totalSubtotalRow: {
       flexDirection: "row",
@@ -167,12 +184,15 @@ function createInvoiceDocumentStyles(template: DocumentTemplateSettings) {
       ...bold,
       fontSize: scaledSize(base, 8.5),
       color: pdfDocumentColors.anthracite,
+      hyphens: "none",
     },
     totalSubtotalValue: {
       ...bold,
       fontSize: scaledSize(base, 8.5),
       textAlign: "right",
       color: pdfDocumentColors.anthracite,
+      whiteSpace: "nowrap",
+      hyphens: "none",
     },
     totalGrand: {
       flexDirection: "row",
@@ -185,12 +205,15 @@ function createInvoiceDocumentStyles(template: DocumentTemplateSettings) {
       ...bold,
       fontSize: scaledSize(base, 10),
       color: "#ffffff",
+      hyphens: "none",
     },
     totalGrandValue: {
       ...bold,
       fontSize: scaledSize(base, 11),
       textAlign: "right",
       color: "#ffffff",
+      whiteSpace: "nowrap",
+      hyphens: "none",
     },
   })
 }
@@ -317,7 +340,7 @@ export function InvoiceDocument({
           ) : null}
         </View>
         {order.items.map((item, index) => {
-          const details = formatInvoiceItemDetails(item)
+          const details = sanitizePdfText(formatInvoiceItemDetails(item))
           return (
             <View
               key={item.id}
@@ -330,7 +353,9 @@ export function InvoiceDocument({
                   isDeliveryNote ? styles.colLeistungWide : styles.colLeistung
                 }
               >
-                <Text style={styles.cellName}>{item.name}</Text>
+                <Text style={styles.cellName}>
+                  {sanitizePdfText(item.name)}
+                </Text>
                 {details ? (
                   <Text style={styles.cellDetails}>{details}</Text>
                 ) : null}
@@ -340,16 +365,25 @@ export function InvoiceDocument({
                   isDeliveryNote ? styles.colQtyWide : styles.colQty,
                   styles.cellQty,
                 ]}
+                wrap={false}
               >
-                {formatBelegQuantityWithUnit(item.quantity, item.unit)}
+                {sanitizePdfText(
+                  formatBelegQuantityWithUnit(item.quantity, item.unit)
+                )}
               </Text>
               {!isDeliveryNote ? (
                 <>
-                  <Text style={[styles.colUnit, styles.cellMoney]}>
-                    {formatChf(item.price)}
+                  <Text
+                    style={[styles.colUnit, styles.cellMoney]}
+                    wrap={false}
+                  >
+                    {sanitizePdfText(formatChf(item.price))}
                   </Text>
-                  <Text style={[styles.colBetrag, styles.cellMoneyBold]}>
-                    {formatChf(getInvoiceLineTotal(item))}
+                  <Text
+                    style={[styles.colBetrag, styles.cellMoneyBold]}
+                    wrap={false}
+                  >
+                    {sanitizePdfText(formatChf(getInvoiceLineTotal(item)))}
                   </Text>
                 </>
               ) : null}
@@ -359,7 +393,9 @@ export function InvoiceDocument({
       </View>
 
       {!isDeliveryNote && !order.totals.mwstAktiv ? (
-        <Text style={styles.legalNote}>{MWST_EXEMPT_LEGAL_NOTE}</Text>
+        <Text style={styles.legalNote}>
+          {sanitizePdfText(MWST_EXEMPT_LEGAL_NOTE)}
+        </Text>
       ) : null}
 
       {!isDeliveryNote ? (
@@ -368,42 +404,53 @@ export function InvoiceDocument({
             <View style={styles.totalSubtotalRow}>
               <Text style={styles.totalSubtotalLabel}>Zwischensumme</Text>
               <Text style={styles.totalSubtotalValue}>
-                {formatChf(order.totals.subtotal)}
+                {sanitizePdfText(formatChf(order.totals.subtotal))}
               </Text>
             </View>
             {showShipping ? (
               <View style={styles.totalRow}>
                 <Text style={styles.totalLabel}>
-                  Versand ({shippingLabel(order.shippingMethod)})
+                  {sanitizePdfText(
+                    `Versand (${shippingLabel(order.shippingMethod)})`
+                  )}
                 </Text>
                 <Text style={styles.totalValue}>
-                  {formatChf(order.totals.shippingCost)}
+                  {sanitizePdfText(formatChf(order.totals.shippingCost))}
                 </Text>
               </View>
             ) : null}
             {(order.totals.discountAmount ?? 0) > 0 ? (
               <View style={styles.totalRow}>
                 <Text style={styles.totalLabel}>
-                  Rabatt
-                  {order.totals.couponCode ? ` (${order.totals.couponCode})` : ""}
+                  {sanitizePdfText(
+                    `Rabatt${
+                      order.totals.couponCode
+                        ? ` (${order.totals.couponCode})`
+                        : ""
+                    }`
+                  )}
                 </Text>
                 <Text style={styles.totalValue}>
-                  - {formatChf(order.totals.discountAmount ?? 0)}
+                  {sanitizePdfText(
+                    `- ${formatChf(order.totals.discountAmount ?? 0)}`
+                  )}
                 </Text>
               </View>
             ) : null}
             {order.totals.mwstAktiv ? (
               <View style={styles.totalRow}>
                 <Text style={styles.totalLabel}>
-                  MwSt. ({mwstSatz.toFixed(1)}%)
+                  {sanitizePdfText(`MwSt. (${mwstSatz.toFixed(1)}%)`)}
                 </Text>
-                <Text style={styles.totalValue}>{formatChf(order.totals.vat)}</Text>
+                <Text style={styles.totalValue}>
+                  {sanitizePdfText(formatChf(order.totals.vat))}
+                </Text>
               </View>
             ) : null}
             <View style={styles.totalGrand}>
               <Text style={styles.totalGrandLabel}>Gesamtbetrag</Text>
               <Text style={styles.totalGrandValue}>
-                {formatChf(order.totals.total)}
+                {sanitizePdfText(formatChf(order.totals.total))}
               </Text>
             </View>
           </View>

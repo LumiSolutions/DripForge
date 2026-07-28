@@ -267,7 +267,7 @@ function DocumentLivePreview({
           ) : null}
 
           <div className="mt-4 overflow-hidden rounded border border-slate-300">
-            <div className="grid grid-cols-[0.35fr_2.2fr_0.9fr_0.95fr_0.85fr] bg-[#5b7c99] px-2 py-2 text-[0.62em] font-bold uppercase tracking-wider text-white">
+            <div className="grid grid-cols-[0.3fr_1.8fr_0.85fr_1.15fr_0.85fr] bg-[#5b7c99] px-2 py-2 text-[0.62em] font-bold uppercase tracking-wider text-white">
               <span className="text-center whitespace-nowrap">Pos</span>
               <span className="whitespace-nowrap">Leistung & Beschreibung</span>
               <span className="text-center whitespace-nowrap">Menge (Aufwand)</span>
@@ -280,7 +280,7 @@ function DocumentLivePreview({
               <div
                 key={item.name}
                 className={cn(
-                  "grid grid-cols-[0.35fr_2.2fr_0.9fr_0.95fr_0.85fr] border-t border-slate-200 px-2 py-2",
+                  "grid grid-cols-[0.3fr_1.8fr_0.85fr_1.15fr_0.85fr] border-t border-slate-200 px-2 py-2",
                   index % 2 === 1 && "bg-slate-100"
                 )}
               >
