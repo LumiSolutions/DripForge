@@ -84,16 +84,20 @@ function mapOrderToCustomerSummary(order: StoredOrder): CustomerOrderSummary {
   }
 }
 
-/** Nur Bestellungen, deren Rechnungs-E-Mail mit dem Konto übereinstimmt. */
+/** Bestellungen dem Kundenkonto zuordnen (Session-E-Mail oder Rechnungs-E-Mail). */
 export async function getOrdersForCustomerEmail(
   email: string
 ): Promise<CustomerOrderSummary[]> {
   const normalized = normalizeCustomerEmail(email)
   const allOrders = await getOrders()
 
-  const matched = allOrders.filter(
-    (order) => normalizeCustomerEmail(order.billing.email) === normalized
-  )
+  const matched = allOrders.filter((order) => {
+    const billing = normalizeCustomerEmail(order.billing.email)
+    const account = order.accountEmail
+      ? normalizeCustomerEmail(order.accountEmail)
+      : ""
+    return billing === normalized || account === normalized
+  })
 
   return matched
     .sort(
@@ -111,6 +115,11 @@ export async function getOrderForCustomerEmail(
   const orders = await getOrders()
   const order = orders.find((o) => o.orderId === orderId)
   if (!order) return null
-  if (normalizeCustomerEmail(order.billing.email) !== normalized) return null
+
+  const billing = normalizeCustomerEmail(order.billing.email)
+  const account = order.accountEmail
+    ? normalizeCustomerEmail(order.accountEmail)
+    : ""
+  if (billing !== normalized && account !== normalized) return null
   return order
 }

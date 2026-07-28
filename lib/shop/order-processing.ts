@@ -71,6 +71,11 @@ export async function processOrderPayload(
     enforceGatewayMinForPoints?: boolean
     /** Session-E-Mail des eingeloggten Kunden (bindet Punkte/Konto) */
     sessionEmail?: string | null
+    /**
+     * true = Eingangs-Mails hier nicht senden (Caller sendet nach Punkten).
+     * Default false für Stripe/TWINT-Pending-Orders.
+     */
+    skipInboundEmails?: boolean
   }
 ): Promise<ProcessOrderResult> {
   if (!payload.items?.length || !payload.billing?.email) {
@@ -210,27 +215,10 @@ export async function processOrderPayload(
   }
 
   await saveOrder(order)
+  console.info(`Bestellung: Order-Record persistiert (${orderId}).`)
 
-  const inboundNotifications = Promise.allSettled([
-    notifyOrderReceived(order, settings),
-    notifyAdminNewOrder(order, settings),
-  ])
-
-  try {
-    const results = await inboundNotifications
-    for (const result of results) {
-      if (result.status === "rejected") {
-        console.error(
-          `Bestellung: Eingangs-Benachrichtigung fehlgeschlagen (${orderId}).`,
-          result.reason
-        )
-      }
-    }
-  } catch (emailError) {
-    console.error(
-      `Bestellung: Eingangs-Benachrichtigung fehlgeschlagen (${orderId}).`,
-      emailError
-    )
+  if (!options?.skipInboundEmails) {
+    await sendInboundOrderEmailsSafe(order, settings)
   }
 
   if (appliedCoupon && order.paymentConfirmed) {
@@ -253,6 +241,32 @@ export async function processOrderPayload(
     itemResults,
     appliedCouponCode: appliedCoupon?.code ?? null,
     settings,
+  }
+}
+
+/** E-Mails nach erfolgreicher Bestellung — Fehler brechen den Checkout nie ab. */
+export async function sendInboundOrderEmailsSafe(
+  order: StoredOrder,
+  settings?: AdminSettings
+): Promise<void> {
+  try {
+    const results = await Promise.allSettled([
+      notifyOrderReceived(order, settings),
+      notifyAdminNewOrder(order, settings),
+    ])
+    for (const result of results) {
+      if (result.status === "rejected") {
+        console.error(
+          `Bestellung: Eingangs-Benachrichtigung fehlgeschlagen (${order.orderId}).`,
+          result.reason
+        )
+      }
+    }
+  } catch (emailError) {
+    console.error(
+      `Bestellung: Eingangs-Benachrichtigung fehlgeschlagen (${order.orderId}).`,
+      emailError
+    )
   }
 }
 
@@ -346,83 +360,130 @@ export async function fulfillPaidShopOrder(
       : {}),
   }
   await saveOrder(updated)
+  console.info(`Shop-Fulfillment: Zahlung bestätigt, Order gespeichert (${orderId}).`)
 
   const rawCoupon = order.totals.couponCode
   if (rawCoupon) {
-    await incrementCouponRedemption(rawCoupon)
+    try {
+      await incrementCouponRedemption(rawCoupon)
+    } catch (couponError) {
+      console.error(
+        `Shop-Fulfillment: Coupon-Einlösung fehlgeschlagen (${orderId}).`,
+        couponError
+      )
+    }
   }
 
   const sessionEmail =
     options.userId?.trim() || order.accountEmail?.trim() || null
 
-  const { accountEmail, order: orderWithCustomer } =
-    await bindOrderToCustomer(updated, {
+  let orderWithCustomer: StoredOrder = {
+    ...updated,
+    ...(sessionEmail ? { accountEmail: sessionEmail } : {}),
+  }
+  let creditEmail =
+    sessionEmail ||
+    order.accountEmail?.trim() ||
+    normalizeCustomerEmailFallback(order.billing.email)
+
+  try {
+    const bound = await bindOrderToCustomer(updated, {
       sessionEmail,
-      // Adresse wurde beim Checkout-Anlegen bereits gespeichert (falls gewünscht)
       saveAddressToAccount: options.saveAddressToAccount === true,
     })
+    orderWithCustomer = bound.order
+    creditEmail = bound.accountEmail
+  } catch (bindError) {
+    console.error(
+      `Shop-Fulfillment: Kundenbindung fehlgeschlagen (${orderId}) — fahre mit Punkten fort.`,
+      bindError
+    )
+    try {
+      await saveOrder(orderWithCustomer)
+    } catch (saveError) {
+      console.error(
+        `Shop-Fulfillment: accountEmail konnte nicht nachgetragen werden (${orderId}).`,
+        saveError
+      )
+    }
+  }
 
-  await applyInventoryReservationForOrder(orderWithCustomer)
+  try {
+    await applyInventoryReservationForOrder(orderWithCustomer)
+  } catch (inventoryError) {
+    console.error(
+      `Shop-Fulfillment: Lagerreservation fehlgeschlagen (${orderId}).`,
+      inventoryError
+    )
+  }
 
-  const creditEmail = accountEmail
   const rewardCfg = buildRewardPointsPublicSettings(settings)
   const rewardPointsEnabled = rewardCfg.enableRewardPointsSystem
-
-  const pointsRedeemed = normalizeLoyaltyPoints(order.totals.pointsRedeemed ?? 0)
-  if (rewardPointsEnabled && pointsRedeemed > 0) {
-    const redeem = await redeemLoyaltyPointsForOrder(
-      creditEmail,
-      pointsRedeemed,
-      orderId,
-      { expiryMonths: rewardCfg.loyaltyPointsExpiryMonths }
-    )
-    if (!redeem.success && redeem.reason !== "already_redeemed") {
-      console.error(
-        `Shop-Fulfillment: Punkteeinlösung fehlgeschlagen (${orderId}, ${redeem.reason}).`
-      )
-    }
-  }
-
-  const pointsPurchased = normalizeLoyaltyPoints(order.totals.pointsPurchased ?? 0)
-  if (rewardPointsEnabled && pointsPurchased > 0) {
-    const purchaseGrant = await grantLoyaltyPoints(
-      creditEmail,
-      pointsPurchased,
-      `purchase:${orderId}`,
-      "purchase",
-      `Punktekauf mit Bestellung ${orderId}`,
-      { expiryMonths: rewardCfg.loyaltyPointsExpiryMonths }
-    )
-    if (!purchaseGrant.success && purchaseGrant.reason !== "already_granted") {
-      console.error(
-        `Shop-Fulfillment: Punktekauf fehlgeschlagen (${orderId}, ${purchaseGrant.reason}).`
-      )
-    }
-  }
-
-  const grant = await grantAiCreditsForPaidOrder(
-    creditEmail,
-    order.totals.total,
-    paymentRef
-  )
-
   let loyaltyPointsGranted = 0
-  if (rewardPointsEnabled) {
-    const earnBase = calculateLoyaltyEarnBaseChf(order.totals)
-    const loyaltyGrant = await grantLoyaltyPointsForPaidOrder(
-      creditEmail,
-      earnBase,
-      orderId,
-      {
-        earnPercent: rewardCfg.loyaltyEarnPercent,
-        expiryMonths: rewardCfg.loyaltyPointsExpiryMonths,
+  let aiCreditsGranted = 0
+
+  try {
+    const pointsRedeemed = normalizeLoyaltyPoints(order.totals.pointsRedeemed ?? 0)
+    if (rewardPointsEnabled && pointsRedeemed > 0) {
+      const redeem = await redeemLoyaltyPointsForOrder(
+        creditEmail,
+        pointsRedeemed,
+        orderId,
+        { expiryMonths: rewardCfg.loyaltyPointsExpiryMonths }
+      )
+      if (!redeem.success && redeem.reason !== "already_redeemed") {
+        console.error(
+          `Shop-Fulfillment: Punkteeinlösung fehlgeschlagen (${orderId}, ${redeem.reason}).`
+        )
       }
+    }
+
+    const pointsPurchased = normalizeLoyaltyPoints(order.totals.pointsPurchased ?? 0)
+    if (rewardPointsEnabled && pointsPurchased > 0) {
+      const purchaseGrant = await grantLoyaltyPoints(
+        creditEmail,
+        pointsPurchased,
+        `purchase:${orderId}`,
+        "purchase",
+        `Punktekauf mit Bestellung ${orderId}`,
+        { expiryMonths: rewardCfg.loyaltyPointsExpiryMonths }
+      )
+      if (!purchaseGrant.success && purchaseGrant.reason !== "already_granted") {
+        console.error(
+          `Shop-Fulfillment: Punktekauf fehlgeschlagen (${orderId}, ${purchaseGrant.reason}).`
+        )
+      }
+    }
+
+    const grant = await grantAiCreditsForPaidOrder(
+      creditEmail,
+      order.totals.total,
+      paymentRef
     )
-    loyaltyPointsGranted = loyaltyGrant.success ? loyaltyGrant.points : 0
+    if (grant.granted) aiCreditsGranted = grant.credits
+
+    if (rewardPointsEnabled) {
+      const earnBase = calculateLoyaltyEarnBaseChf(order.totals)
+      const loyaltyGrant = await grantLoyaltyPointsForPaidOrder(
+        creditEmail,
+        earnBase,
+        orderId,
+        {
+          earnPercent: rewardCfg.loyaltyEarnPercent,
+          expiryMonths: rewardCfg.loyaltyPointsExpiryMonths,
+        }
+      )
+      loyaltyPointsGranted = loyaltyGrant.success ? loyaltyGrant.points : 0
+    }
+  } catch (pointsError) {
+    console.error(
+      `Shop-Fulfillment: Punkte/Credits fehlgeschlagen (${orderId}) — Bestellung bleibt erhalten.`,
+      pointsError
+    )
   }
 
   console.info(
-    `Shop-Fulfillment: ${orderId} bezahlt${grant.granted ? `, +${grant.credits} KI-Credits` : ""}${loyaltyPointsGranted > 0 ? `, +${loyaltyPointsGranted} Treuepunkte` : ""}.`
+    `Shop-Fulfillment: ${orderId} bezahlt${aiCreditsGranted > 0 ? `, +${aiCreditsGranted} KI-Credits` : ""}${loyaltyPointsGranted > 0 ? `, +${loyaltyPointsGranted} Treuepunkte` : ""}.`
   )
 
   try {
@@ -434,9 +495,12 @@ export async function fulfillPaidShopOrder(
     )
   }
 
+  // Falls Eingangsmail beim Pending-Checkout noch fehlte
+  await sendInboundOrderEmailsSafe(orderWithCustomer, settings)
+
   return {
     fulfilled: true,
-    aiCreditsGranted: grant.granted ? grant.credits : 0,
+    aiCreditsGranted,
     loyaltyPointsGranted,
   }
 }

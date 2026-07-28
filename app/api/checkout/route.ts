@@ -63,6 +63,7 @@ export async function POST(request: Request) {
       paymentConfirmed: false,
       enforceGatewayMinForPoints: true,
       sessionEmail,
+      skipInboundEmails: true,
     })
 
     const { bindOrderToCustomer } = await import("@/lib/shop/bind-order-to-account")

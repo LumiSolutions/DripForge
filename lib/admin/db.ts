@@ -44,6 +44,7 @@ import {
 } from "@/lib/admin/storage-bridge"
 import { logCosmosError } from "@/lib/cosmos/log-error"
 import {
+  isCosmosConfigured,
   cosmosGetCustomers,
   cosmosGetCustomerByNumber,
   cosmosGetOrderById,
@@ -209,13 +210,17 @@ async function saveOrderToFile(order: StoredOrder): Promise<void> {
 }
 
 export async function saveOrder(order: StoredOrder): Promise<void> {
-  await withCosmosFallback(
-    "saveOrder",
-    async () => {
-      await cosmosSaveOrder(order)
-    },
-    () => saveOrderToFile(order)
-  )
+  // Auf Azure darf ein Cosmos-Fehler NICHT still aufs Dateisystem fallen —
+  // sonst entstehen Treuepunkte ohne persistente Bestellung.
+  if (!isCosmosConfigured()) {
+    await saveOrderToFile(order)
+    return
+  }
+
+  await withCosmosRequired("saveOrder", async () => {
+    await cosmosSaveOrder(order)
+  })
+  console.info(`Bestellung gespeichert in Cosmos DB (${order.orderId}).`)
 }
 
 async function deleteOrderFromFile(orderId: string): Promise<boolean> {

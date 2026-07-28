@@ -11,6 +11,18 @@ export type SmtpRuntimeConfig = {
   from: string
 }
 
+/** Entfernt versehentliche Anführungszeichen aus Azure-/ENV-Werten. */
+function stripEnvQuotes(value: string): string {
+  const trimmed = value.trim()
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    return trimmed.slice(1, -1)
+  }
+  return trimmed
+}
+
 export function isSmtpConfigured(): boolean {
   return Boolean(
     process.env.SMTP_HOST?.trim() &&
@@ -30,13 +42,13 @@ function parseSecureFlag(port: number): boolean {
 export function getSmtpRuntimeConfig(): SmtpRuntimeConfig | null {
   if (!isSmtpConfigured()) return null
 
-  const host = process.env.SMTP_HOST!.trim()
-  const port = Number(process.env.SMTP_PORT ?? 465)
-  const user = process.env.SMTP_USER!.trim()
-  const pass = process.env.SMTP_PASS!.trim()
+  const host = stripEnvQuotes(process.env.SMTP_HOST!)
+  const port = Number(stripEnvQuotes(process.env.SMTP_PORT ?? "465"))
+  const user = stripEnvQuotes(process.env.SMTP_USER!)
+  const pass = stripEnvQuotes(process.env.SMTP_PASS!)
   const from =
-    process.env.EMAIL_FROM?.trim() ||
-    process.env.SMTP_FROM?.trim() ||
+    stripEnvQuotes(process.env.EMAIL_FROM ?? "") ||
+    stripEnvQuotes(process.env.SMTP_FROM ?? "") ||
     `"DripForge" <${user}>`
 
   return {
@@ -55,6 +67,16 @@ export function buildSmtpTransporter() {
     throw new Error("SMTP ist nicht konfiguriert (SMTP_HOST/USER/PASS fehlen).")
   }
 
+  console.info("E-Mail: SMTP-Transporter wird erstellt.", {
+    host: config.host,
+    port: config.port,
+    secure: config.secure,
+    user: config.user,
+    from: config.from,
+    passConfigured: Boolean(config.pass),
+    passLength: config.pass.length,
+  })
+
   const options: SMTPTransport.Options = {
     host: config.host,
     port: config.port,
@@ -63,6 +85,9 @@ export function buildSmtpTransporter() {
       user: config.user,
       pass: config.pass,
     },
+    connectionTimeout: 20_000,
+    greetingTimeout: 20_000,
+    socketTimeout: 30_000,
   }
 
   // Port 587: explizit STARTTLS erzwingen (Hostpoint)
@@ -75,8 +100,8 @@ export function buildSmtpTransporter() {
 
 export function resolveSmtpFrom(fallbackName: string, fallbackEmail: string): string {
   return (
-    process.env.EMAIL_FROM?.trim() ||
-    process.env.SMTP_FROM?.trim() ||
+    stripEnvQuotes(process.env.EMAIL_FROM ?? "") ||
+    stripEnvQuotes(process.env.SMTP_FROM ?? "") ||
     `"${fallbackName}" <${fallbackEmail}>`
   )
 }
@@ -88,6 +113,27 @@ export type SendSmtpMailOptions = {
   text: string
   html: string
   attachments?: Mail.Attachment[]
+}
+
+function formatSmtpError(error: unknown): Record<string, unknown> {
+  if (!(error instanceof Error)) {
+    return { error }
+  }
+  const anyErr = error as Error & {
+    code?: string
+    response?: string
+    responseCode?: number
+    command?: string
+  }
+  return {
+    name: anyErr.name,
+    message: anyErr.message,
+    code: anyErr.code,
+    response: anyErr.response,
+    responseCode: anyErr.responseCode,
+    command: anyErr.command,
+    stack: anyErr.stack,
+  }
 }
 
 export async function sendSmtpMail(options: SendSmtpMailOptions): Promise<boolean> {
@@ -106,12 +152,20 @@ export async function sendSmtpMail(options: SendSmtpMailOptions): Promise<boolea
       to: options.to,
       subject: options.subject,
       messageId: info.messageId,
+      accepted: info.accepted,
+      rejected: info.rejected,
+      response: info.response,
     })
     return true
   } catch (error) {
     console.error(
       "E-Mail: SMTP-Versand fehlgeschlagen — Request wird trotzdem fortgesetzt.",
-      { to: options.to, subject: options.subject, error }
+      {
+        to: options.to,
+        subject: options.subject,
+        from: options.from,
+        ...formatSmtpError(error),
+      }
     )
     return false
   }
