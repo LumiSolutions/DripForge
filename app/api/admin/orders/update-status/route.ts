@@ -17,7 +17,7 @@ import {
   requireAdminSession,
 } from "@/lib/admin/require-admin-session"
 import {
-  maybeNotifyOrderConfirmed,
+  maybeNotifyOrderStatusChange,
   notifyOrderShipped,
 } from "@/lib/email/order-notifications"
 import type { OrderStatus, ProductionStatus } from "@/lib/admin/types"
@@ -83,7 +83,7 @@ export async function PATCH(request: Request) {
       if (!order) {
         return NextResponse.json({ error: "Bestellung nicht gefunden." }, { status: 404 })
       }
-      const emailSent = await maybeNotifyOrderConfirmed(existing, order)
+      const emailSent = await maybeNotifyOrderStatusChange(existing, order)
       return NextResponse.json({ order, emailSent })
     }
 
@@ -92,7 +92,7 @@ export async function PATCH(request: Request) {
       if (!order) {
         return NextResponse.json({ error: "Bestellung nicht gefunden." }, { status: 404 })
       }
-      const emailSent = await maybeNotifyOrderConfirmed(existing, order)
+      const emailSent = await maybeNotifyOrderStatusChange(existing, order)
       return NextResponse.json({ order, emailSent })
     }
 

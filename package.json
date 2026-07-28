@@ -10,7 +10,8 @@
     "dev:tunnel": "node scripts/dev-tunnel.mjs",
     "build": "next build && node scripts/prepare-standalone.mjs",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:smtp": "node scripts/test-smtp.mjs"
   },
   "dependencies": {
     "@azure/cosmos": "^4.9.3",

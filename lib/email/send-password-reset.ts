@@ -1,23 +1,8 @@
-import nodemailer from "nodemailer"
-
-function isSmtpConfigured(): boolean {
-  return Boolean(
-    process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS
-  )
-}
-
-function buildTransporter() {
-  const port = Number(process.env.SMTP_PORT ?? 587)
-  return nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port,
-    secure: port === 465,
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
-  })
-}
+import {
+  isSmtpConfigured,
+  resolveSmtpFrom,
+  sendSmtpMail,
+} from "@/lib/email/smtp"
 
 type SendPasswordResetOptions = {
   to: string
@@ -28,44 +13,45 @@ type SendPasswordResetOptions = {
 export async function sendPasswordResetEmail(
   options: SendPasswordResetOptions
 ): Promise<boolean> {
-  const subject = "DripForge — Passwort zuruecksetzen"
+  const subject = "DripForge — Passwort zurücksetzen"
   const text = [
     "Guten Tag,",
     "",
-    `Sie haben eine Anfrage zum Zuruecksetzen Ihres ${options.accountLabel}-Passworts gestellt.`,
+    `Sie haben eine Anfrage zum Zurücksetzen Ihres ${options.accountLabel}-Passworts gestellt.`,
     "",
-    "Oeffnen Sie den folgenden Link innerhalb von 1 Stunde:",
+    "Öffnen Sie den folgenden Link innerhalb von 1 Stunde:",
     options.resetUrl,
     "",
     "Falls Sie diese Anfrage nicht gestellt haben, ignorieren Sie diese E-Mail.",
     "",
-    "Freundliche Gruesse",
+    "Freundliche Grüsse",
     "DripForge",
   ].join("\n")
 
   if (!isSmtpConfigured()) {
-    console.info("Passwort-Reset: SMTP nicht konfiguriert — Link fuer lokale Tests:")
-    console.info(`  Empfaenger: ${options.to}`)
+    console.info("Passwort-Reset: SMTP nicht konfiguriert — Link für lokale Tests:")
+    console.info(`  Empfänger: ${options.to}`)
     console.info(`  Reset-Link: ${options.resetUrl}`)
     return true
   }
 
-  const from =
-    process.env.SMTP_FROM?.trim() ||
-    `"DripForge" <${process.env.SMTP_USER}>`
+  const from = resolveSmtpFrom("DripForge", process.env.SMTP_USER?.trim() || "shop@dripforge.ch")
 
-  try {
-    const transporter = buildTransporter()
-    await transporter.sendMail({
-      from,
-      to: options.to,
-      subject,
-      text,
-    })
-    console.info(`Passwort-Reset: E-Mail gesendet an ${options.to}.`)
-    return true
-  } catch (error) {
-    console.error(`Passwort-Reset: E-Mail-Versand fehlgeschlagen (${options.to}).`, error)
-    throw error
+  const sent = await sendSmtpMail({
+    from,
+    to: options.to,
+    subject,
+    text,
+    html: text
+      .split("\n")
+      .map((line) => (line ? `<p style="margin:0 0 8px;">${line}</p>` : "<br/>"))
+      .join(""),
+  })
+
+  if (!sent) {
+    throw new Error(`Passwort-Reset: E-Mail-Versand fehlgeschlagen (${options.to}).`)
   }
+
+  console.info(`Passwort-Reset: E-Mail gesendet an ${options.to}.`)
+  return true
 }
