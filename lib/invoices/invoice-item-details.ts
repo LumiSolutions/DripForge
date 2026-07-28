@@ -6,13 +6,19 @@ function fontLabel(fontId?: string): string | null {
   return LASER_FONT_OPTIONS.find((f) => f.id === fontId)?.label ?? fontId
 }
 
-/** Kurzbeschreibung fuer die Rechnungsposition (Masse, Varianten, Farben). */
+/**
+ * Beschreibungszeile unter dem Positionsnamen (PDF).
+ * Bevorzugt Freitext (`description` / Beleg-Details), sonst Shop-Metadaten.
+ */
 export function formatInvoiceItemDetails(item: StoredOrderItem): string {
+  const freeText = item.description?.trim()
+  if (freeText) return freeText
+
   const d = item.customDetails
   const parts: string[] = []
 
   if (item.type === "3d") {
-    parts.push("3D-Druck")
+    if (d?.variant?.trim()) parts.push(d.variant.trim())
     if (d?.fileName) parts.push(`Datei: ${d.fileName}`)
     if (d?.dimensions) parts.push(`Masse: ${d.dimensions}`)
     if (d?.scale) parts.push(`Skalierung: ${d.scale}`)
@@ -20,7 +26,6 @@ export function formatInvoiceItemDetails(item: StoredOrderItem): string {
     if (d?.color) parts.push(`Farben: ${d.color}`)
     if (d?.colorWishes) parts.push(`Farbwünsche: ${d.colorWishes}`)
   } else {
-    parts.push("Lasergravur")
     if (d?.material) parts.push(`Material: ${d.material}`)
     const variant = d?.variant ?? d?.materialVariant
     if (variant) parts.push(`Variante: ${variant}`)
@@ -31,7 +36,7 @@ export function formatInvoiceItemDetails(item: StoredOrderItem): string {
     if (font) parts.push(`Schrift: ${font}`)
   }
 
-  return parts.length > 1 ? parts.slice(1).join(" · ") : parts[0] ?? "—"
+  return parts.join(" · ")
 }
 
 export function getInvoiceLineTotal(item: StoredOrderItem): number {

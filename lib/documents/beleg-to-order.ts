@@ -11,10 +11,11 @@ export function belegToSyntheticOrder(beleg: Beleg): StoredOrder {
     price: hidePrices ? 0 : pos.unitPrice,
     quantity: pos.quantity,
     unit: pos.unit,
+    description: pos.details?.trim() || undefined,
     type: "3d" as const,
-    customDetails: pos.details
+    customDetails: pos.details?.trim()
       ? {
-          variant: pos.details,
+          variant: pos.details.trim(),
         }
       : undefined,
   }))

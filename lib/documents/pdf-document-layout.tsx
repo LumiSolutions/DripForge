@@ -27,10 +27,13 @@ export const pdfDocumentColors = {
   anthraciteMid: "#374151",
   anthraciteLight: "#6b7280",
   orange: "#f97316",
-  border: "#e5e7eb",
-  bgMuted: "#f8fafc",
+  border: "#cbd5e1",
+  bgMuted: "#f1f5f9",
   infoPanel: "#f3f4f6",
-  tableHeader: "#1e293b",
+  /** Blau-grau Tabellenkopf / Gesamtbetrag */
+  tableHeader: "#5b7c99",
+  totalsBg: "#ffffff",
+  totalsAccent: "#e8eef5",
   paidGreen: "#15803d",
 }
 
@@ -43,6 +46,10 @@ export function createPdfDocumentLayoutStyles(template: DocumentTemplateSettings
   const font = resolvePdfFontFamily(template.fontFamily)
   const bold = pdfBoldStyle(template.fontFamily)
   const logoWidthMm = (PDF_CONTENT_WIDTH_MM * template.logoWidthPercent) / 100
+  const headerHeightPt = DOCUMENT_HEADER_HEIGHT_MM * MM
+  /** Extra Abstand unter dem Logo, damit Inhalt nicht in den Header ragt. */
+  const headerBottomGapPt = 10
+  const pagePaddingTop = headerHeightPt + headerBottomGapPt
 
   return StyleSheet.create({
     page: {
@@ -50,7 +57,7 @@ export function createPdfDocumentLayoutStyles(template: DocumentTemplateSettings
       fontSize: base,
       color: pdfDocumentColors.anthracite,
       lineHeight: 1.4,
-      paddingTop: 0,
+      paddingTop: pagePaddingTop,
       paddingHorizontal: 20 * MM,
       paddingBottom: 32,
     },
@@ -59,7 +66,7 @@ export function createPdfDocumentLayoutStyles(template: DocumentTemplateSettings
       fontSize: base,
       color: pdfDocumentColors.anthracite,
       lineHeight: 1.4,
-      paddingTop: 0,
+      paddingTop: pagePaddingTop,
       paddingHorizontal: 20 * MM,
       paddingBottom: 40,
       position: "relative",
@@ -72,9 +79,16 @@ export function createPdfDocumentLayoutStyles(template: DocumentTemplateSettings
       right: 20 * MM,
       backgroundColor: "transparent",
     },
+    /**
+     * Logo-Header auf jeder Seite (fixed).
+     * Position absolut relativ zur Seite — Inhalt beginnt unter pagePaddingTop.
+     */
     logoHeader: {
-      height: DOCUMENT_HEADER_HEIGHT_MM * MM,
-      marginBottom: 0,
+      position: "absolute",
+      top: 0,
+      left: 20 * MM,
+      right: 20 * MM,
+      height: headerHeightPt,
       justifyContent: "center",
     },
     logo: {
@@ -331,6 +345,7 @@ function PdfLogoHeader({
 }) {
   return (
     <View
+      fixed
       style={[
         styles.logoHeader,
         { flexDirection: "row", justifyContent: logoJustifyContent(alignment) },

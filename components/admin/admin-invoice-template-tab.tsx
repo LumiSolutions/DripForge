@@ -73,20 +73,18 @@ const LOGO_ALIGNMENT_LABELS: Record<DocumentLogoAlignment, string> = {
 
 const PREVIEW_ITEMS = [
   {
-    name: "3D-Druck Prototyp",
-    details: "PLA Schwarz, 80 x 60 x 25 mm, gehaeuse.stl",
-    quantity: 2,
-    unit: "CHF 45.50",
-    total: "CHF 91.00",
-    vat: "0%",
+    name: "Grafik & Layout",
+    details: "Erstellen der Grafik-Mastervorlage für Lasergravur",
+    quantity: "2 Std",
+    unitPrice: "CHF 60.00",
+    total: "CHF 120.00",
   },
   {
-    name: "Lasergravur Holz",
-    details: "Birke, Gravurtext: DripForge 2026",
-    quantity: 1,
-    unit: "CHF 28.00",
-    total: "CHF 28.00",
-    vat: "0%",
+    name: "Maschineneinrichtung",
+    details: "Einrichten des xTool S1 und Probelauf",
+    quantity: "1 Std",
+    unitPrice: "CHF 45.00",
+    total: "CHF 45.00",
   },
 ]
 
@@ -257,29 +255,32 @@ function DocumentLivePreview({
             </p>
           ) : null}
 
-          <div className="mt-4 overflow-hidden rounded border border-slate-200">
-            <div className="grid grid-cols-[1fr_1.4fr_0.45fr_0.75fr_0.75fr_0.55fr] bg-slate-800 px-2 py-2 text-[0.65em] font-bold uppercase tracking-wider text-white">
-              <span>Produkt</span>
-              <span>Details</span>
-              <span className="text-center">Menge</span>
-              <span className="text-right">Einzelpreis</span>
-              <span className="text-right">Total</span>
-              <span className="text-right">MWST</span>
+          <div className="mt-4 overflow-hidden rounded border border-slate-300">
+            <div className="grid grid-cols-[0.35fr_2.2fr_0.9fr_0.95fr_0.85fr] bg-[#5b7c99] px-2 py-2 text-[0.62em] font-bold uppercase tracking-wider text-white">
+              <span className="text-center">Pos</span>
+              <span>Leistung & Beschreibung</span>
+              <span className="text-center">Menge (Aufwand)</span>
+              <span className="text-right">Einzelpreis (Ansatz)</span>
+              <span className="text-right">Betrag</span>
             </div>
             {PREVIEW_ITEMS.map((item, index) => (
               <div
                 key={item.name}
                 className={cn(
-                  "grid grid-cols-[1fr_1.4fr_0.45fr_0.75fr_0.75fr_0.55fr] border-t border-slate-200 px-2 py-2",
-                  index % 2 === 1 && "bg-slate-50"
+                  "grid grid-cols-[0.35fr_2.2fr_0.9fr_0.95fr_0.85fr] border-t border-slate-200 px-2 py-2",
+                  index % 2 === 1 && "bg-slate-100"
                 )}
               >
-                <span className="font-semibold">{item.name}</span>
-                <span className="text-slate-500">{item.details}</span>
+                <span className="text-center text-slate-600">{index + 1}</span>
+                <div>
+                  <p className="font-semibold text-slate-800">{item.name}</p>
+                  <p className="text-[0.85em] leading-snug text-slate-500">
+                    {item.details}
+                  </p>
+                </div>
                 <span className="text-center text-slate-600">{item.quantity}</span>
-                <span className="text-right text-slate-600">{item.unit}</span>
+                <span className="text-right text-slate-600">{item.unitPrice}</span>
                 <span className="text-right font-semibold">{item.total}</span>
-                <span className="text-right text-slate-600">{item.vat}</span>
               </div>
             ))}
           </div>
@@ -287,18 +288,18 @@ function DocumentLivePreview({
           <p className="mt-2 text-[0.72em] text-slate-500">{MWST_EXEMPT_LEGAL_NOTE}</p>
 
           <div className="mt-3 flex justify-end">
-            <div className="w-[42%] rounded border border-slate-200 bg-white px-3 py-2">
-              <div className="flex justify-between text-slate-500">
+            <div className="w-[48%] overflow-hidden rounded border border-slate-300">
+              <div className="flex justify-between bg-[#e8eef5] px-3 py-1.5 font-semibold text-slate-800">
                 <span>Zwischensumme</span>
-                <span>CHF 119.00</span>
+                <span>CHF 165.00</span>
               </div>
-              <div className="mt-1 flex justify-between text-slate-500">
+              <div className="flex justify-between px-3 py-1 text-slate-500">
                 <span>Versand (A-Post)</span>
                 <span>CHF 9.00</span>
               </div>
-              <div className="mt-2 flex justify-between border-t-2 border-orange-500 pt-2 font-bold">
+              <div className="flex justify-between bg-[#5b7c99] px-3 py-2 font-bold text-white">
                 <span>Gesamtbetrag</span>
-                <span>CHF 128.00</span>
+                <span>CHF 174.00</span>
               </div>
             </div>
           </div>

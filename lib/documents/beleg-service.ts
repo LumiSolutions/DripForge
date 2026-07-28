@@ -18,6 +18,7 @@ import {
   type BelegType,
 } from "@/lib/documents/beleg-types"
 import { resolveBelegVatFields } from "@/lib/documents/beleg-vat"
+import { formatInvoiceItemDetails } from "@/lib/invoices/invoice-item-details"
 
 export async function createBelegDraft(input: {
   type: BelegType
@@ -114,8 +115,7 @@ function orderItemsToPositions(order: StoredOrder): BelegPosition[] {
       {
         id: item.id || `item-${index + 1}`,
         name: item.name,
-        details:
-          item.type === "3d" ? "3D-Druck" : item.type === "laser" ? "Laser" : undefined,
+        details: formatInvoiceItemDetails(item) || undefined,
         quantity: item.quantity,
         unit: item.unit || "Stk",
         unitPrice: item.price,

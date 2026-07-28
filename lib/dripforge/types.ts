@@ -97,6 +97,11 @@ export interface CartItem {
   quantity: number
   /** Mengeneinheit für Belege/PDF (z. B. Stk, Std) — optional. */
   unit?: string
+  /**
+   * Freitext-Beschreibung (Beleg-Feld «Details») — wird im PDF
+   * unter dem Positionsnamen gerendert.
+   */
+  description?: string
   type: "3d" | "laser"
   /** Visueller Snapshot der Live-Vorschau (PNG Base64) fuer die Admin-Bestelluebersicht */
   leitbild?: string
