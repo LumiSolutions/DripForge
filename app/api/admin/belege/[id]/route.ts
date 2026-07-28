@@ -8,7 +8,8 @@ import {
   cosmosUpsertBeleg,
 } from "@/lib/admin/cosmos-belege"
 import { recordBelegPaymentJournalEntry } from "@/lib/accounting/beleg-journal"
-import { normalizeBeleg } from "@/lib/documents/beleg-types"
+import { normalizeBeleg, normalizeBelegAddress } from "@/lib/documents/beleg-types"
+import { upsertCustomerFromBelegAddress } from "@/lib/admin/upsert-customer-from-beleg"
 
 function isAuthError(value: unknown): value is NextResponse {
   return value instanceof NextResponse
@@ -49,12 +50,29 @@ export async function PUT(request: Request, context: Ctx) {
     }
 
     const body = (await request.json()) as Partial<typeof existing>
+    const kunde = body.kunde
+      ? normalizeBelegAddress(body.kunde)
+      : existing.kunde
+
+    let customerId =
+      body.customerId !== undefined ? body.customerId : existing.customerId
+    try {
+      customerId = await upsertCustomerFromBelegAddress(kunde, customerId)
+    } catch (customerError) {
+      console.warn(
+        "Beleg PUT: Kunden-Upsert fehlgeschlagen.",
+        formatCosmosError(customerError)
+      )
+    }
+
     const beleg = normalizeBeleg(
       {
         ...existing,
         ...body,
         id: existing.id,
         type: existing.type,
+        kunde,
+        customerId,
       },
       existing
     )

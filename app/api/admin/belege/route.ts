@@ -47,6 +47,7 @@ export async function POST(request: Request) {
       lieferAdresse?: Record<string, string>
       positionen?: Array<Record<string, unknown>>
       notes?: string
+      customerId?: string | null
     }
 
     const type = body.type
@@ -63,6 +64,7 @@ export async function POST(request: Request) {
         : undefined,
       positionen: Array.isArray(body.positionen) ? body.positionen : [],
       notes: body.notes,
+      customerId: body.customerId ?? null,
     })
 
     try {

@@ -80,6 +80,10 @@ import {
   resolveBelegVatFields,
 } from "@/lib/documents/beleg-vat"
 import type { Account } from "@/lib/accounting/account-types"
+import {
+  BelegCustomerPicker,
+  customerListItemToBelegAddress,
+} from "@/components/admin/beleg-customer-picker"
 
 /** Einzeilig startend, wächst mit dem Inhalt (kein seitliches Scrollen). */
 function AutoResizeTextarea({
@@ -132,6 +136,7 @@ type EditorState = {
   id?: string
   status: BelegStatus
   kunde: BelegAddress
+  customerId?: string | null
   positionen: BelegPosition[]
   notes: string
 }
@@ -158,6 +163,7 @@ function emptyEditor(type: BelegType = "offerte"): EditorState {
     type,
     status: statusesForType(type)[0],
     kunde: emptyBelegAddress(),
+    customerId: null,
     positionen: [
       normalizeBelegPosition(
         {
@@ -270,6 +276,7 @@ export function AdminBelegeTab() {
       id: beleg.id,
       status: beleg.status,
       kunde: beleg.kunde,
+      customerId: beleg.customerId ?? null,
       positionen: beleg.positionen.length
         ? beleg.positionen.map((pos, i) => normalizeBelegPosition(pos, i))
         : emptyEditor().positionen,
@@ -356,6 +363,7 @@ export function AdminBelegeTab() {
             type: editor.type,
             status: editor.status,
             kunde: editor.kunde,
+            customerId: editor.customerId ?? null,
             positionen,
             notes: editor.notes,
           }),
@@ -370,6 +378,7 @@ export function AdminBelegeTab() {
           body: JSON.stringify({
             status: editor.status,
             kunde: editor.kunde,
+            customerId: editor.customerId ?? null,
             positionen,
             notes: editor.notes,
           }),
@@ -685,7 +694,22 @@ export function AdminBelegeTab() {
             </div>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-3 rounded-xl border border-border/60 p-3">
+            <BelegCustomerPicker
+              onSelect={(customer) => {
+                setEditor((prev) => ({
+                  ...prev,
+                  customerId: customer.kundennummer,
+                  kunde: customerListItemToBelegAddress(customer),
+                }))
+              }}
+            />
+            {editor.customerId ? (
+              <p className={cn("text-xs", adminUi.muted)}>
+                Verknüpft: {editor.customerId}
+              </p>
+            ) : null}
+            <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>Vorname</Label>
               <Input
@@ -728,6 +752,7 @@ export function AdminBelegeTab() {
                 value={editor.kunde.city}
                 onChange={(e) => updateKunde("city", e.target.value)}
               />
+            </div>
             </div>
           </div>
 

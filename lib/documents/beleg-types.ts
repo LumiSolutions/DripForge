@@ -61,6 +61,11 @@ export type Beleg = {
   status: BelegStatus
   kunde: BelegAddress
   lieferAdresse?: BelegAddress
+  /**
+   * Verknüpfung zur Kundenverwaltung (kundennummer).
+   * Wird beim Speichern anhand der E-Mail gesetzt/aktualisiert.
+   */
+  customerId?: string | null
   positionen: BelegPosition[]
   /** Netto-Zwischensumme (ohne MwSt.). */
   subtotal: number
@@ -315,6 +320,10 @@ export function normalizeBeleg(
     lieferAdresse: raw.lieferAdresse
       ? normalizeBelegAddress(raw.lieferAdresse)
       : existing?.lieferAdresse,
+    customerId:
+      raw.customerId !== undefined
+        ? String(raw.customerId ?? "").trim() || null
+        : existing?.customerId ?? null,
     positionen,
     subtotal: totals.subtotal,
     vatTotal: totals.vatTotal,

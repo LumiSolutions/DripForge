@@ -221,7 +221,6 @@ function DocumentLivePreview({
             <p>Max Muster</p>
             <p>Musterstrasse 12</p>
             <p>8000 Zürich</p>
-            <p>Schweiz</p>
           </div>
 
           <div className="mb-4 grid grid-cols-5 gap-2 rounded bg-slate-100 px-3 py-2">

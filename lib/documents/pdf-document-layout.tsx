@@ -356,6 +356,45 @@ export function resolvePdfInfoPanelLabels(
   }
 }
 
+/** Land nur für Ausland anzeigen — CH/Schweiz entfällt im Adressblock. */
+export function formatPdfRecipientCountry(
+  country: string | null | undefined
+): string | null {
+  const raw = String(country ?? "").trim()
+  if (!raw) return null
+
+  const normalized = raw.toLowerCase().replace(/\./g, "")
+  const swissAliases = new Set([
+    "ch",
+    "che",
+    "schweiz",
+    "switzerland",
+    "suisse",
+    "svizzera",
+    "swiss",
+  ])
+  if (swissAliases.has(normalized)) return null
+
+  const displayNames: Record<string, string> = {
+    de: "Deutschland",
+    deu: "Deutschland",
+    deutschland: "Deutschland",
+    at: "Österreich",
+    aut: "Österreich",
+    oesterreich: "Österreich",
+    österreich: "Österreich",
+    li: "Liechtenstein",
+    lie: "Liechtenstein",
+    fr: "Frankreich",
+    fra: "Frankreich",
+    frankreich: "Frankreich",
+    it: "Italien",
+    ita: "Italien",
+    italien: "Italien",
+  }
+  return displayNames[normalized] ?? raw
+}
+
 export type PdfDocumentPayment = {
   amount: number
   reference: string
@@ -480,6 +519,7 @@ export function PdfDocumentLayout({
   const paymentMethodLabel =
     payment?.paymentMethodLabel?.trim() || "Online-Zahlung"
   const receiptMessage = `Dieser Beleg dient als Quittung. Der Betrag wurde bereits erfolgreich via ${paymentMethodLabel} beglichen. Vielen Dank!`
+  const recipientCountry = formatPdfRecipientCountry(recipient.country)
 
   return (
     <Document title={title} author={template.firmenname}>
@@ -498,7 +538,9 @@ export function PdfDocumentLayout({
           <Text style={styles.recipientLine}>
             {recipient.zip} {recipient.city}
           </Text>
-          <Text style={styles.recipientLine}>{recipient.country}</Text>
+          {recipientCountry ? (
+            <Text style={styles.recipientLine}>{recipientCountry}</Text>
+          ) : null}
         </View>
 
         <View style={styles.infoPanel}>

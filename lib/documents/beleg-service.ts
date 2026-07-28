@@ -19,6 +19,7 @@ import {
 } from "@/lib/documents/beleg-types"
 import { resolveBelegVatFields } from "@/lib/documents/beleg-vat"
 import { formatInvoiceItemDetails } from "@/lib/invoices/invoice-item-details"
+import { upsertCustomerFromBelegAddress } from "@/lib/admin/upsert-customer-from-beleg"
 
 export async function createBelegDraft(input: {
   type: BelegType
@@ -29,18 +30,31 @@ export async function createBelegDraft(input: {
   notes?: string
   linkedTo?: string | null
   sourceOrderId?: string | null
+  customerId?: string | null
 }): Promise<Beleg> {
   const id = await cosmosAllocateBelegNummer(input.type)
   const positionen = (input.positionen ?? []).map((p, i) =>
     normalizeBelegPosition(p ?? {}, i)
   )
   const totals = computeBelegTotals(positionen)
+
+  let customerId = input.customerId ?? null
+  try {
+    customerId = await upsertCustomerFromBelegAddress(input.kunde, customerId)
+  } catch (error) {
+    console.warn(
+      "Beleg: Kunden-Upsert fehlgeschlagen — Beleg wird ohne Verknüpfung gespeichert.",
+      error
+    )
+  }
+
   const beleg = normalizeBeleg({
     id,
     type: input.type,
     status: input.status ?? defaultStatusForType(input.type),
     kunde: input.kunde,
     lieferAdresse: input.lieferAdresse,
+    customerId,
     positionen,
     subtotal: totals.subtotal,
     vatTotal: totals.vatTotal,
@@ -74,6 +88,7 @@ export async function convertBeleg(
       notes: source.notes,
       linkedTo: source.id,
       sourceOrderId: source.sourceOrderId,
+      customerId: source.customerId,
     })
   }
 
@@ -87,6 +102,7 @@ export async function convertBeleg(
       notes: source.notes,
       linkedTo: source.id,
       sourceOrderId: source.sourceOrderId,
+      customerId: source.customerId,
     })
   }
 

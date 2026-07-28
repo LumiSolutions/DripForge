@@ -82,6 +82,11 @@ export type CustomerListItem = {
   name: string
   email: string
   city: string
+  firstName: string
+  lastName: string
+  street: string
+  zip: string
+  country: string
   orderCount: number
   status: CustomerAccountStatus
   createdAt: string
@@ -94,6 +99,11 @@ export function toCustomerListItem(customer: StoredCustomer): CustomerListItem {
     name: customerDisplayName(customer.billing),
     email: customer.email,
     city: customer.billing.city,
+    firstName: customer.billing.firstName,
+    lastName: customer.billing.lastName,
+    street: customer.billing.street,
+    zip: customer.billing.zip,
+    country: customer.billing.country || "CH",
     orderCount: customer.orderIds.length,
     status: normalizeAccountStatus(customer.status),
     createdAt: customer.createdAt,
