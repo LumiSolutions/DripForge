@@ -69,7 +69,7 @@ export async function ensureOrderInvoicePdf(
   settings?: AdminSettings
 ): Promise<Buffer> {
   if (!orderIsInvoiceEligible(order)) {
-    throw new Error("Rechnung erst nach Zahlungsbestaetigung verfuegbar.")
+    throw new Error("Rechnung erst nach Zahlungsbestätigung verfügbar.")
   }
 
   return generateAndStoreOrderInvoice(order, settings)

@@ -40,11 +40,11 @@ export function PageKontakt({ setCurrentView }: { setCurrentView: (view: string)
       return
     }
     if (!email.trim() || !isValidKontaktEmail(email)) {
-      setSubmitError("Bitte geben Sie eine gueltige E-Mail-Adresse an.")
+      setSubmitError("Bitte geben Sie eine gültige E-Mail-Adresse an.")
       return
     }
     if (!inquiryType) {
-      setSubmitError("Bitte waehlen Sie einen Anfrage-Typ.")
+      setSubmitError("Bitte wählen Sie einen Anfrage-Typ.")
       return
     }
     if (!subject.trim()) {
@@ -78,7 +78,7 @@ export function PageKontakt({ setCurrentView }: { setCurrentView: (view: string)
 
       setSubmitSuccess(
         data.message ??
-          "Vielen Dank — Ihre Nachricht wurde uebermittelt. Wir melden uns so schnell wie moeglich."
+          "Vielen Dank — Ihre Nachricht wurde übermittelt. Wir melden uns so schnell wie möglich."
       )
     } catch (err) {
       setSubmitError(

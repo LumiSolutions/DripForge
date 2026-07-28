@@ -151,7 +151,7 @@ export function AdminResetPasswordForm() {
     setError(null)
 
     if (password !== confirm) {
-      setError("Passwoerter stimmen nicht ueberein.")
+      setError("Passwörter stimmen nicht überein.")
       return
     }
 
@@ -191,7 +191,7 @@ export function AdminResetPasswordForm() {
       <div className={cn("flex min-h-screen items-center justify-center px-4", adminUi.loginPage)}>
         <div className={cn("max-w-sm p-6 text-center", adminUi.loginCard)}>
           <p className="text-sm text-red-600 dark:text-red-400">
-            Dieser Link ist ungueltig oder abgelaufen.
+            Dieser Link ist ungültig oder abgelaufen.
           </p>
           <Link href={adminPortalPath("/passwort-vergessen")} className={cn("mt-4 inline-block text-xs", adminUi.footerBtn)}>
             Neuen Link anfordern

@@ -67,7 +67,7 @@ function assertModernCustomerNumber(kundennummer: string): void {
 }
 
 /**
- * Vergibt die naechste eindeutige Kundennummer im Format YY-#####.
+ * Vergibt die nächste eindeutige Kundennummer im Format YY-#####.
  * Cosmos: atomarer Counter mit ETag; lokal: Pool-basierte +1-Logik.
  */
 export async function allocateNextCustomerNumber(): Promise<string> {

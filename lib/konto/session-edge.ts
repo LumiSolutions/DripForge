@@ -6,7 +6,7 @@ const KONTO_PUBLIC_PATHS = [
   "/konto/login",
   "/konto/registrieren",
   "/konto/passwort-vergessen",
-  "/konto/passwort-zuruecksetzen",
+  "/konto/passwort-zurücksetzen",
 ]
 
 export function isKontoPublicPath(pathname: string): boolean {

@@ -86,7 +86,7 @@ export async function ensureDatabase(): Promise<Database> {
           const database = cosmos.database(DATABASE_ID)
           await database.read()
           console.info(
-            `Cosmos DB: Datenbank "${DATABASE_ID}" per read() erreichbar (create uebersprungen).`
+            `Cosmos DB: Datenbank "${DATABASE_ID}" per read() erreichbar (create übersprungen).`
           )
           return database
         } catch (readError) {
@@ -141,7 +141,7 @@ async function ensureContainer(
           const container = database.container(containerId)
           await container.read()
           console.info(
-            `Cosmos DB: Container "${containerId}" per read() erreichbar (create uebersprungen).`
+            `Cosmos DB: Container "${containerId}" per read() erreichbar (create übersprungen).`
           )
           return container
         } catch (readError) {

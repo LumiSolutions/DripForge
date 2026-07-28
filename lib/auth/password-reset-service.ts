@@ -7,10 +7,10 @@ import { sendPasswordResetEmail } from "@/lib/email/send-password-reset"
 import { getAccountByEmail, saveAccount, isActiveCustomerAccount } from "@/lib/konto/account-db"
 
 const GENERIC_SUCCESS =
-  "Falls ein Konto mit dieser E-Mail existiert, erhalten Sie in Kuerze einen Link zum Zuruecksetzen."
+  "Falls ein Konto mit dieser E-Mail existiert, erhalten Sie in Kuerze einen Link zum Zurücksetzen."
 
 const TESTER_BLOCKED =
-  "Tester-Passwoerter koennen aus Sicherheitsgruenden nicht per E-Mail zurueckgesetzt werden. Bitte wenden Sie sich an einen Administrator."
+  "Tester-Passwörter können aus Sicherheitsgruenden nicht per E-Mail zurückgesetzt werden. Bitte wenden Sie sich an einen Administrator."
 
 function buildResetUrl(origin: string, path: string, token: string): string {
   const base = origin.replace(/\/$/, "")
@@ -56,7 +56,7 @@ export async function requestPasswordReset(
     const adminEmail = getAdminResetEmail() ?? normalized
     const resetUrl = buildResetUrl(
       origin,
-      adminPortalPath("/passwort-zuruecksetzen"),
+      adminPortalPath("/passwort-zurücksetzen"),
       token
     )
     await sendPasswordResetEmail({
@@ -84,7 +84,7 @@ export async function requestPasswordReset(
     passwordResetExpiresAt: expiresAt,
   })
 
-  const resetUrl = buildResetUrl(origin, "/konto/passwort-zuruecksetzen", token)
+  const resetUrl = buildResetUrl(origin, "/konto/passwort-zurücksetzen", token)
   await sendPasswordResetEmail({
     to: normalized,
     resetUrl,

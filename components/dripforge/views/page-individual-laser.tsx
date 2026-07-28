@@ -230,7 +230,7 @@ export function PageIndividualLaser({
           </span>
         </h1>
         <p className="mx-auto mt-4 max-w-2xl text-muted-foreground">
-          Text oder Logo hochladen, Schrift waehlen und live auf dem Material
+          Text oder Logo hochladen, Schrift wählen und live auf dem Material
           positionieren.
         </p>
       </div>
@@ -239,8 +239,8 @@ export function PageIndividualLaser({
         <IndividualProcessBar
           steps={[
             "Bild / Text",
-            "Material waehlen",
-            "Groesse & Menge",
+            "Material wählen",
+            "Grösse & Menge",
             "Warenkorb",
           ]}
           activeStep={activeStep}
@@ -262,7 +262,7 @@ export function PageIndividualLaser({
 
             <Card className="rounded-2xl border-border/50 bg-card/50 shadow-sm">
               <CardContent className="p-6">
-                <h3 className="mb-4 font-bold">Material waehlen</h3>
+                <h3 className="mb-4 font-bold">Material wählen</h3>
                 <div className="grid grid-cols-2 gap-3">
                   {laserMaterials.map((m) => (
                     <button
@@ -331,7 +331,7 @@ export function PageIndividualLaser({
 
             <Card className="rounded-2xl border-border/50 bg-card/50 shadow-sm">
               <CardContent className="p-6">
-                <h3 className="mb-4 font-bold">Groesse waehlen</h3>
+                <h3 className="mb-4 font-bold">Grösse wählen</h3>
                 <div className="grid gap-3 sm:grid-cols-3">
                   {INDIVIDUAL_LASER_SIZES.map((s) => (
                     <button
@@ -391,7 +391,7 @@ export function PageIndividualLaser({
                     </div>
                   )}
                   <div className="flex justify-between gap-3">
-                    <span className="text-muted-foreground">Groesse</span>
+                    <span className="text-muted-foreground">Grösse</span>
                     <span className="text-right font-medium">
                       {sizePreset.dimensionsLabel}
                     </span>
@@ -399,7 +399,7 @@ export function PageIndividualLaser({
                   {engravingMetrics && engravingMetrics.maxAreaMm2 > 0 && (
                     <div className="flex justify-between gap-3">
                       <span className="text-muted-foreground">
-                        Gravurflaeche (ca.)
+                        Gravurfläche (ca.)
                       </span>
                       <span className="font-medium">
                         {engravingMetrics.maxAreaMm2.toFixed(0)} mm²
@@ -415,7 +415,7 @@ export function PageIndividualLaser({
                   {priceBreakdown.areaSurcharge > 0 && (
                     <div className="flex justify-between gap-3">
                       <span className="text-muted-foreground">
-                        Aufschlag Grossflaeche
+                        Aufschlag Grossfläche
                       </span>
                       <span className="font-medium">
                         CHF {priceBreakdown.areaSurcharge.toFixed(2)}
@@ -470,7 +470,7 @@ export function PageIndividualLaser({
                     size="sm"
                     variant="outline"
                     onClick={() => setQuantity(quantity + 1)}
-                    aria-label="Anzahl erhoehen"
+                    aria-label="Anzahl erhöhen"
                   >
                     <Plus className="h-4 w-4" />
                   </Button>

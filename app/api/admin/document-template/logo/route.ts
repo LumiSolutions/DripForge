@@ -72,8 +72,8 @@ export async function POST(request: Request) {
         {
           error:
             buffer.length > MAX_IMAGE_DATA_URL_BYTES
-              ? "Logo-Upload fehlgeschlagen. Fuer Dateien ueber 2 MB muss Azure Storage konfiguriert sein."
-              : "Logo-Upload fehlgeschlagen. Azure Storage konfigurieren oder kleinere Datei waehlen.",
+              ? "Logo-Upload fehlgeschlagen. Für Dateien über 2 MB muss Azure Storage konfiguriert sein."
+              : "Logo-Upload fehlgeschlagen. Azure Storage konfigurieren oder kleinere Datei wählen.",
         },
         { status: 503 }
       )

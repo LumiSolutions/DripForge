@@ -8,7 +8,7 @@ import {
   cosmosDeleteCustomer,
 } from "@/lib/admin/cosmos-store"
 
-/** CRM-Kunden ohne Reconciliation (fuer Nummernvergabe / Sync). */
+/** CRM-Kunden ohne Reconciliation (für Nummernvergabe / Sync). */
 export async function getCustomersSnapshot(): Promise<StoredCustomer[]> {
   return withCosmosRequired("getCustomersSnapshot", cosmosGetCustomers)
 }

@@ -1,4 +1,4 @@
-/** Gemeinsame Tailwind-Klassen fuer das Admin-Dashboard (Light + Dark). */
+/** Gemeinsame Tailwind-Klassen für das Admin-Dashboard (Light + Dark). */
 export const adminUi = {
   page: "bg-slate-50 text-slate-900 dark:bg-zinc-950 dark:text-zinc-100",
   muted: "text-slate-500 dark:text-zinc-400",

@@ -2,9 +2,9 @@
  * Laser-Preisparameter — spaeter aus Admin-Portal / Datenbank laden.
  */
 export type LaserPricingConfig = {
-  /** Basis-Aufschlag pro mm² ueber dem Freibetrag (CHF) */
+  /** Basis-Aufschlag pro mm² über dem Freibetrag (CHF) */
   surchargePerMm2: number
-  /** Gravurflaeche ohne Aufschlag (mm²) */
+  /** Gravurfläche ohne Aufschlag (mm²) */
   freeEngravingAreaMm2: number
 }
 

@@ -41,13 +41,13 @@ export function ColorInstructionsPanel({
         <h4 className="text-sm font-semibold">Farbanweisungen</h4>
         <p className="mt-1 text-xs text-muted-foreground">
           Dein Modell enthaelt keine eingebetteten Farben — beschreibe oder
-          skizziere die gewuenschte Farbverteilung.
+          skizziere die gewünschte Farbverteilung.
         </p>
       </div>
 
       <div className="space-y-2">
         <Label htmlFor="color-wishes">
-          Spezifische Farbwuensche &amp; Details
+          Spezifische Farbwünsche &amp; Details
         </Label>
         <Textarea
           id="color-wishes"
@@ -80,7 +80,7 @@ export function ColorInstructionsPanel({
               tabIndex={-1}
             >
               <ImagePlus className="h-4 w-4" />
-              Bild waehlen
+              Bild wählen
             </Button>
           </div>
 

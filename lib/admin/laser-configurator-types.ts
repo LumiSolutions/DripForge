@@ -4,7 +4,7 @@ export const LASER_CONFIGURATOR_DOC_TYPE = "laser-configurator-settings"
 export type LaserConfiguratorSettings = {
   /** Option «Eigenes Produkt einschicken & verarbeiten» (Personalisierte Laserkreation) */
   allowCustomerShipping: boolean
-  /** Einsende-Instruktionen & Lieferadresse fuer Kunden-Einsendungen */
+  /** Einsende-Instruktionen & Lieferadresse für Kunden-Einsendungen */
   customerShippingInstructions: string
   updatedAt: string
 }

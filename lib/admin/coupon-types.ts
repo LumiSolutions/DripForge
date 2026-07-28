@@ -6,7 +6,7 @@ export type StoredCoupon = {
   code: string
   discountType: CouponDiscountType
   discountValue: number
-  /** ISO-Datum (Ende des Tages gueltig) oder null = kein Ablauf */
+  /** ISO-Datum (Ende des Tages gültig) oder null = kein Ablauf */
   expiresAt: string | null
   /** null = unbegrenzt */
   maxRedemptions: number | null

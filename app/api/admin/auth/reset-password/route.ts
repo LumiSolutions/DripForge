@@ -38,7 +38,7 @@ export async function POST(request: Request) {
     const payload = parsePasswordResetToken(token)
     if (!payload || payload.type !== "admin") {
       return NextResponse.json(
-        { error: "Ungueltiger oder abgelaufener Link." },
+        { error: "Ungültiger oder abgelaufener Link." },
         { status: 400 }
       )
     }
@@ -46,7 +46,7 @@ export async function POST(request: Request) {
     const account = await getStaffById("admin")
     if (!account) {
       return NextResponse.json(
-        { error: "Ungueltiger oder abgelaufener Link." },
+        { error: "Ungültiger oder abgelaufener Link." },
         { status: 400 }
       )
     }
@@ -58,7 +58,7 @@ export async function POST(request: Request) {
     )
     if (!verified) {
       return NextResponse.json(
-        { error: "Ungueltiger oder abgelaufener Link." },
+        { error: "Ungültiger oder abgelaufener Link." },
         { status: 400 }
       )
     }
@@ -81,7 +81,7 @@ export async function POST(request: Request) {
       const secret = decryptTotpSecret(account.totpSecretEncrypted)
       if (!secret || !verifyTotpCode(secret, totpCode)) {
         return NextResponse.json(
-          { error: "Ungueltiger 2FA-Code." },
+          { error: "Ungültiger 2FA-Code." },
           { status: 401 }
         )
       }
@@ -96,12 +96,12 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
-      message: "Admin-Passwort wurde erfolgreich geaendert.",
+      message: "Admin-Passwort wurde erfolgreich geändert.",
     })
   } catch (error) {
     console.error("Admin-Auth: Passwort-Reset fehlgeschlagen.", error)
     return NextResponse.json(
-      { error: "Passwort konnte nicht geaendert werden." },
+      { error: "Passwort konnte nicht geändert werden." },
       { status: 500 }
     )
   }

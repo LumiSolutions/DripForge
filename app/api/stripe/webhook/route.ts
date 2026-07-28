@@ -92,8 +92,8 @@ export async function POST(request: Request) {
   try {
     event = stripe.webhooks.constructEvent(body, signature, webhookSecret)
   } catch (error) {
-    console.error("Stripe Webhook: Signatur ungueltig.", error)
-    return NextResponse.json({ error: "Ungueltige Signatur." }, { status: 400 })
+    console.error("Stripe Webhook: Signatur ungültig.", error)
+    return NextResponse.json({ error: "Ungültige Signatur." }, { status: 400 })
   }
 
   try {

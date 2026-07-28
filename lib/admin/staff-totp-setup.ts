@@ -47,7 +47,7 @@ export async function getTotpSetupMaterial(
     }
 
     throw new TotpSecretError(
-      "Gespeichertes 2FA-Secret konnte nicht gelesen werden. Bitte ADMIN_2FA_ENCRYPTION_KEY pruefen oder 2FA im Portal zuruecksetzen."
+      "Gespeichertes 2FA-Secret konnte nicht gelesen werden. Bitte ADMIN_2FA_ENCRYPTION_KEY prüfen oder 2FA im Portal zurücksetzen."
     )
   }
 
@@ -70,7 +70,7 @@ export async function getTotpSetupMaterial(
   }
 }
 
-/** Entfernt 2FA-Secret und deaktiviert TOTP (fuer Neu-Einrichtung). */
+/** Entfernt 2FA-Secret und deaktiviert TOTP (für Neu-Einrichtung). */
 export async function clearStaff2fa(role: StaffRole): Promise<StaffAccount | null> {
   const account = await getStaffById(role)
   if (!account) return null

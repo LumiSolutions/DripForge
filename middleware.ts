@@ -89,7 +89,7 @@ export async function middleware(request: NextRequest) {
       return NextResponse.next()
     }
   } catch (error) {
-    console.warn("Middleware: Launch-Status nicht verfuegbar — Coming Soon aktiv.", error)
+    console.warn("Middleware: Launch-Status nicht verfügbar — Coming Soon aktiv.", error)
   }
 
   if (pathname.startsWith("/konfigurator")) {

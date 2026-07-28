@@ -67,7 +67,7 @@ export const LASER_FONT_OPTIONS: LaserFontOption[] = [
   {
     id: "futuristisch",
     label: "Futuristisch (Monospace)",
-    description: "JetBrains Mono · praezise",
+    description: "JetBrains Mono · präzise",
     fontFamily:
       "var(--laser-font-jetbrains), 'JetBrains Mono', 'Courier New', monospace",
     tilePreviewStyle: { fontWeight: 500, fontSize: "1.25rem" },
@@ -108,7 +108,7 @@ export function getLaserFontOption(fontId: LaserFontId): LaserFontOption {
   )
 }
 
-/** CSS font-family fuer Canvas und Vorschau */
+/** CSS font-family für Canvas und Vorschau */
 export function getLaserFontFamily(fontId: LaserFontId): string {
   return getLaserFontOption(fontId).fontFamily
 }
@@ -128,7 +128,7 @@ export function getLaserFontStyle(
 const DROPDOWN_FONT_SIZE = "0.875rem"
 const INPUT_FONT_SIZE = "0.9375rem"
 
-/** Kompakte Schrift-Vorschau im Dropdown (ohne grosse tile-Groessen) */
+/** Kompakte Schrift-Vorschau im Dropdown (ohne grosse tile-Grössen) */
 export function getLaserFontDropdownStyle(fontId: LaserFontId): CSSProperties {
   const opt = getLaserFontOption(fontId)
   const { fontSize: _omitSize, ...typography } = opt.tilePreviewStyle ?? {}
@@ -141,7 +141,7 @@ export function getLaserFontDropdownStyle(fontId: LaserFontId): CSSProperties {
   }
 }
 
-/** Lesbare Groesse fuer Gravur-Textarea */
+/** Lesbare Grösse für Gravur-Textarea */
 export function getLaserFontInputStyle(fontId: LaserFontId): CSSProperties {
   const opt = getLaserFontOption(fontId)
   const { fontSize: _omitSize, ...typography } = opt.canvasStyle ?? {}

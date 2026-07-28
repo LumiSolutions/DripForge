@@ -12,7 +12,7 @@ export function isStripeConfigured(): boolean {
 export function getStripe(): Stripe {
   if (!isStripeConfigured()) {
     throw new Error(
-      "Stripe ist nicht konfiguriert (STRIPE_SECRET_KEY fehlt oder ist ungueltig)."
+      "Stripe ist nicht konfiguriert (STRIPE_SECRET_KEY fehlt oder ist ungültig)."
     )
   }
   if (!stripeClient) {

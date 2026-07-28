@@ -203,7 +203,7 @@ export function OrderActions({
         </Button>
       ) : (
         <p className="text-xs text-muted-foreground">
-          Rechnung verfuegbar, sobald die Zahlung bestaetigt ist.
+          Rechnung verfügbar, sobald die Zahlung bestätigt ist.
         </p>
       )}
       <Button type="button" size="sm" variant="ghost" asChild>

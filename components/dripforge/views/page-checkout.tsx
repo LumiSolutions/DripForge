@@ -395,7 +395,7 @@ export function PageCheckout({
       if (!data.valid || !data.totals) {
         setCouponTotals(null)
         setAppliedCouponCode(null)
-        setCouponError(data.error ?? "Gutschein ungueltig.")
+        setCouponError(data.error ?? "Gutschein ungültig.")
         return
       }
       setCouponTotals(data.totals)
@@ -1338,7 +1338,7 @@ export function PageCheckout({
                 <Lock className="mr-2 h-4 w-4" />
                 {isSubmitting
                   ? paymentMethod === "invoice"
-                    ? "Bestellung wird uebermittelt…"
+                    ? "Bestellung wird übermittelt…"
                     : "Weiterleitung zur Kasse…"
                   : paymentMethod === "invoice"
                     ? "Jetzt zahlungspflichtig bestellen"

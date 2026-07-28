@@ -24,7 +24,7 @@ export function normalizeCustomerEmail(email: string): string {
   return email.trim().toLowerCase()
 }
 
-/** Synchrone Vergabe fuer JSON-Fallback (strikt +1 pro Jahr-Praefix). */
+/** Synchrone Vergabe für JSON-Fallback (strikt +1 pro Jahr-Praefix). */
 export function generateCustomerNumber(
   existing: Array<{ kundennummer: string }>,
   referenceDate = new Date()

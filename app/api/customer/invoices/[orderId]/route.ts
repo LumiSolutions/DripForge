@@ -29,7 +29,7 @@ export async function GET(request: Request, context: RouteContext) {
 
     if (!canDownload) {
       return NextResponse.json(
-        { error: "Rechnung ist erst nach Zahlungsbestaetigung verfuegbar." },
+        { error: "Rechnung ist erst nach Zahlungsbestätigung verfügbar." },
         { status: 403 }
       )
     }

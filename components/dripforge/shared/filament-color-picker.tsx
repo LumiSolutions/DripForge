@@ -191,7 +191,7 @@ export function FilamentColorPicker({
               selectedColor?.inStock ? "bg-green-500/20 text-green-400" : "bg-red-500/20 text-red-400"
             )}>
               {selectedColor?.inStock ? <CheckCircle2 className="h-3 w-3" /> : <X className="h-3 w-3" />}
-              {selectedColor?.inStock ? "Auf Lager" : "Nicht verfuegbar"}
+              {selectedColor?.inStock ? "Auf Lager" : "Nicht verfügbar"}
             </span>
           </div>
           <FilamentStatsPanel color={selectedColor} />

@@ -1,7 +1,7 @@
 import type { NextConfig } from "next"
 
 const nextConfig: NextConfig = {
-  // Optimiertes Paket fuer Azure Static Web Apps (schnellerer Warm-up, <250 MB)
+  // Optimiertes Paket für Azure Static Web Apps (schnellerer Warm-up, <250 MB)
   output: "standalone",
   experimental: {
     /** STL-Uploads bis 50 MB (Druckanfragen-API); Standard ist 10 MB. */

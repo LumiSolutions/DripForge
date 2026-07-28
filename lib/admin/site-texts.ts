@@ -69,7 +69,7 @@ export const DEFAULT_SITE_TEXTS = {
   shop_custom_laser_description:
     "Laden Sie Ihr Bild oder Text hoch und wir gravieren es auf dem Material Ihrer Wahl.",
   shop_delivery_notice:
-    "Falls du eine andere Groesse fuer dieses Produkt wuenschst, fertigen wir dies gerne fuer dich an. Melde dich einfach kurz ueber unser",
+    "Falls du eine andere Grösse für dieses Produkt wünschst, fertigen wir dies gerne für dich an. Melde dich einfach kurz über unser",
   shop_empty_category: "Keine Produkte in dieser Kategorie.",
 
   konto_welcome_title: "Mein Konto",
@@ -81,7 +81,7 @@ export const DEFAULT_SITE_TEXTS = {
   konto_register_subtitle:
     "Mit derselben E-Mail wie bei Bestellungen siehst du deine Auftraege automatisch.",
   konto_support_hint:
-    "Bei Fragen zu Bestellungen oder Designs erreichst du uns jederzeit ueber das Kontaktformular.",
+    "Bei Fragen zu Bestellungen oder Designs erreichst du uns jederzeit über das Kontaktformular.",
 
   footer_tagline:
     "Verwandeln Sie Ihre Ideen in Realität mit präzisem 3D-Druck und Lasergravur-Services.",
@@ -147,14 +147,14 @@ export const SITE_TEXT_SECTIONS: SiteTextSection[] = [
       { key: "landingpage_hero_cta_primary", label: "Primaerer Button" },
       { key: "landingpage_hero_cta_secondary", label: "Sekundaerer Button" },
       { key: "landingpage_top_products_prefix", label: "Top-Produkte Prefix (z.B. Unsere)" },
-      { key: "landingpage_top_products_heading", label: "Top-Produkte Ueberschrift" },
+      { key: "landingpage_top_products_heading", label: "Top-Produkte Überschrift" },
       {
         key: "landingpage_top_products_subtitle",
         label: "Top-Produkte Untertitel",
         multiline: true,
       },
       { key: "landingpage_top_products_cta", label: "Top-Produkte Karten-Link" },
-      { key: "landingpage_expertise_heading", label: "Expertise-Ueberschrift" },
+      { key: "landingpage_expertise_heading", label: "Expertise-Überschrift" },
       { key: "landingpage_expertise_prefix", label: "Expertise-Prefix (z.B. Unsere)" },
       {
         key: "landingpage_expertise_subtitle_both",
@@ -166,7 +166,7 @@ export const SITE_TEXT_SECTIONS: SiteTextSection[] = [
         label: "Expertise-Text (ein Service)",
         multiline: true,
       },
-      { key: "landingpage_why_heading", label: "Warum-Ueberschrift" },
+      { key: "landingpage_why_heading", label: "Warum-Überschrift" },
       { key: "landingpage_why_prefix", label: "Warum-Prefix (z.B. Warum)" },
       { key: "landingpage_why_subtitle", label: "Warum-Text", multiline: true },
       { key: "landingpage_cta_title_prefix", label: "CTA-Titel Prefix (z.B. Bereit zum)" },
@@ -176,8 +176,8 @@ export const SITE_TEXT_SECTIONS: SiteTextSection[] = [
       { key: "landingpage_cta_button_contact", label: "CTA-Button Kontakt" },
       { key: "landingpage_trust_offer", label: "Vertrauens-Badge: Offerte" },
       { key: "landingpage_trust_shipping", label: "Vertrauens-Badge: Versand" },
-      { key: "landingpage_trust_quality", label: "Vertrauens-Badge: Qualitaet" },
-      { key: "landingpage_countdown_label", label: "Countdown-Ueberschrift" },
+      { key: "landingpage_trust_quality", label: "Vertrauens-Badge: Qualität" },
+      { key: "landingpage_countdown_label", label: "Countdown-Überschrift" },
       { key: "landingpage_countdown_teaser", label: "Coming-Soon Teaser" },
       { key: "landingpage_countdown_title", label: "Coming-Soon Titel" },
       {
@@ -252,7 +252,7 @@ export const SITE_TEXT_SECTIONS: SiteTextSection[] = [
       { key: "shop_hero_title_brand", label: "Shop-Titel Marke" },
       { key: "shop_hero_title_suffix", label: "Shop-Titel Suffix" },
       { key: "shop_hero_subtitle", label: "Shop-Einleitung", multiline: true },
-      { key: "shop_custom_section_title", label: "Individuell-Ueberschrift" },
+      { key: "shop_custom_section_title", label: "Individuell-Überschrift" },
       {
         key: "shop_custom_section_subtitle",
         label: "Individuell-Untertitel",
@@ -262,7 +262,7 @@ export const SITE_TEXT_SECTIONS: SiteTextSection[] = [
       { key: "shop_custom_3d_description", label: "3D-Karte Text", multiline: true },
       { key: "shop_custom_laser_title", label: "Laser-Karte Titel" },
       { key: "shop_custom_laser_description", label: "Laser-Karte Text", multiline: true },
-      { key: "shop_delivery_notice", label: "Lieferzeit / Groessen-Hinweis", multiline: true },
+      { key: "shop_delivery_notice", label: "Lieferzeit / Grössen-Hinweis", multiline: true },
       { key: "shop_empty_category", label: "Leere Kategorie Meldung" },
     ],
   },

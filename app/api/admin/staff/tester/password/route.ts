@@ -58,7 +58,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("Admin: Tester-Passwort-Reset fehlgeschlagen.", error)
     return NextResponse.json(
-      { error: "Passwort konnte nicht zurueckgesetzt werden." },
+      { error: "Passwort konnte nicht zurückgesetzt werden." },
       { status: 500 }
     )
   }

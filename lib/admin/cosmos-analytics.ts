@@ -18,7 +18,7 @@ function analyticsOrdersQuerySql(mode: OrdersStorageMode): string {
 }
 
 /**
- * Schlanke Cosmos-Abfrage: nur Felder fuer Aggregation (weniger RU/Traffic als SELECT *).
+ * Schlanke Cosmos-Abfrage: nur Felder für Aggregation (weniger RU/Traffic als SELECT *).
  */
 export async function cosmosFetchOrdersForAnalytics(): Promise<OrderAnalyticsRow[]> {
   const { container, mode } = await resolveOrdersContainer()

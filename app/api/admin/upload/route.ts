@@ -60,7 +60,7 @@ export async function POST(request: Request) {
         )
       } else {
         return NextResponse.json(
-          { error: "Upload fehlgeschlagen. Datei zu gross oder Storage nicht verfuegbar." },
+          { error: "Upload fehlgeschlagen. Datei zu gross oder Storage nicht verfügbar." },
           { status: 503 }
         )
       }

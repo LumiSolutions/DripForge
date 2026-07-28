@@ -41,7 +41,7 @@ import { ProductDetailErrorBoundary } from "@/components/dripforge/product-detai
 export type Product3DPreviewProps = {
   modelUrl?: string
   color?: string
-  /** Feste Produktmasse fuer Bemaßungslabels im Viewer */
+  /** Feste Produktmasse für Bemaßungslabels im Viewer */
   fixedDimensionsMm?: DimensionsMm | null
   className?: string
 }

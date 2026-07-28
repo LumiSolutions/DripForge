@@ -68,9 +68,9 @@ function readDimensionAxis(raw: Record<string, unknown>, keys: string[]): number
 function safeDimensions(raw: unknown): ProductDimensionsMm | undefined {
   if (!raw || typeof raw !== "object") return undefined
   const record = raw as Record<string, unknown>
-  const length = readDimensionAxis(record, ["length", "laenge", "l", "x"])
+  const length = readDimensionAxis(record, ["length", "länge", "l", "x"])
   const width = readDimensionAxis(record, ["width", "breite", "w", "y"])
-  const height = readDimensionAxis(record, ["height", "hoehe", "h", "z"])
+  const height = readDimensionAxis(record, ["height", "höhe", "h", "z"])
   if (length <= 0 && width <= 0 && height <= 0) return undefined
   return {
     length: length > 0 ? length : 100,
@@ -111,14 +111,14 @@ export function isShopProductDocument(
   return true
 }
 
-/** Storefront: fehlende oder unvollstaendige Cosmos-Felder abfangen. */
+/** Storefront: fehlende oder unvollständige Cosmos-Felder abfangen. */
 export function normalizeShopProduct(
   raw: Partial<Product> & { id?: string; docType?: string; dimensions?: unknown }
 ): Product {
   try {
     const source = (raw ?? {}) as Record<string, unknown>
     if (!isShopProductDocument(source)) {
-      console.warn("Shop: Ungueltiges Produkt-Dokument ignoriert.", source)
+      console.warn("Shop: Ungültiges Produkt-Dokument ignoriert.", source)
     }
 
     const price = safeNumber(source.price, 0)

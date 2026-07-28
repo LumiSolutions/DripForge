@@ -42,13 +42,13 @@ export async function POST(request: Request) {
     }
     if (!email || !isValidKontaktEmail(email)) {
       return NextResponse.json(
-        { error: "Bitte geben Sie eine gueltige E-Mail-Adresse an." },
+        { error: "Bitte geben Sie eine gültige E-Mail-Adresse an." },
         { status: 400 }
       )
     }
     if (!inquiryType) {
       return NextResponse.json(
-        { error: "Bitte waehlen Sie einen Anfrage-Typ." },
+        { error: "Bitte wählen Sie einen Anfrage-Typ." },
         { status: 400 }
       )
     }
@@ -97,7 +97,7 @@ export async function POST(request: Request) {
       ok: true,
       anfrageId: anfrage.id,
       message:
-        "Vielen Dank — Ihre Nachricht wurde uebermittelt. Wir melden uns so schnell wie moeglich.",
+        "Vielen Dank — Ihre Nachricht wurde übermittelt. Wir melden uns so schnell wie möglich.",
     })
   } catch (error) {
     console.error("[Kontakt] Speichern fehlgeschlagen.", error)

@@ -29,10 +29,10 @@ export function validateSaleDiscount(
   wert: number
 ): string | null {
   if (basisPreis <= 0) {
-    return "Bitte einen gueltigen Basispreis eingeben."
+    return "Bitte einen gültigen Basispreis eingeben."
   }
   if (wert <= 0) {
-    return "Der Rabatt-Wert muss groesser als 0 sein."
+    return "Der Rabatt-Wert muss grösser als 0 sein."
   }
   if (typ === "percent") {
     if (wert >= 100) {
@@ -44,7 +44,7 @@ export function validateSaleDiscount(
 
   const endpreis = calculateSalePrice(basisPreis, typ, wert)
   if (endpreis <= 0) {
-    return "Der berechnete Endpreis muss groesser als CHF 0.00 sein."
+    return "Der berechnete Endpreis muss grösser als CHF 0.00 sein."
   }
 
   return null

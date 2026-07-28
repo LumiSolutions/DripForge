@@ -99,7 +99,7 @@ export function AdminStatsTab() {
     try {
       const res = await fetch("/api/admin/analytics", { cache: "no-store" })
       const json = (await res.json()) as AdminAnalytics
-      if (!res.ok) throw new Error("Statistiken nicht verfuegbar")
+      if (!res.ok) throw new Error("Statistiken nicht verfügbar")
       setData(json)
     } catch (err) {
       console.warn("Admin: Statistiken konnten nicht geladen werden.", err)
@@ -222,7 +222,7 @@ export function AdminStatsTab() {
                 adminUi.empty
               )}
             >
-              Noch keine Bestelldaten fuer den Verlauf.
+              Noch keine Bestelldaten für den Verlauf.
             </div>
           ) : (
             <ResponsiveContainer width="100%" height="100%">

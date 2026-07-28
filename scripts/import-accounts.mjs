@@ -114,7 +114,7 @@ const now = new Date().toISOString()
 for (const row of rows) {
   const parsed = normalizeAccountRow(row)
   if (!parsed.number || !parsed.name || !parsed.type) {
-    console.warn("Ueberspringe unvollstaendige Zeile:", row)
+    console.warn("Überspringe unvollständige Zeile:", row)
     skipped += 1
     continue
   }
@@ -165,5 +165,5 @@ console.log(`  Arbeitsblatt:  ${sheetName}`)
 console.log(`  Zeilen gelesen: ${rows.length}`)
 console.log(`  Neu importiert: ${imported}`)
 console.log(`  Aktualisiert:   ${updated}`)
-console.log(`  Uebersprungen:  ${skipped}`)
+console.log(`  Übersprungen:  ${skipped}`)
 console.log(`  Konten in DB:   ${totalInDb}`)

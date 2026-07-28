@@ -28,7 +28,7 @@ export function captureCanvasLeitbild(
     const leitbildUrl = canvas.toDataURL("image/png")
     if (!leitbildUrl || leitbildUrl === "data:,") {
       console.warn(
-        "Leitbild: Canvas-Auslese lieferte ein leeres Bild. preserveDrawingBuffer pruefen."
+        "Leitbild: Canvas-Auslese lieferte ein leeres Bild. preserveDrawingBuffer prüfen."
       )
       return null
     }

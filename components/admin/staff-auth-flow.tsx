@@ -246,7 +246,7 @@ export function StaffAuthFlow({
                 )}
               >
                 QR-Code mit Google Authenticator, Microsoft Authenticator o.&auml;.
-                scannen. Beide Handys koennen nacheinander denselben Code
+                scannen. Beide Handys können nacheinander denselben Code
                 erfassen, bevor Sie den 6-stelligen Code bestaetigen.
               </p>
               {/* eslint-disable-next-line @next/next/no-img-element */}

@@ -27,7 +27,7 @@ export function formatProductWeight(gewicht: number | null | undefined): string 
   return `${Math.round(safeAxis(gewicht, 0))} g`
 }
 
-/** Fuer 3D-Bemaßung: X = Länge, Y = Höhe, Z = Breite */
+/** Für 3D-Bemaßung: X = Länge, Y = Höhe, Z = Breite */
 export function productDimensionsToViewerMm(dims: ProductDimensionsMm): {
   x: number
   y: number

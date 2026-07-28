@@ -70,7 +70,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error:
-            "QR-Upload fehlgeschlagen. Azure Storage konfigurieren oder kleinere Datei waehlen.",
+            "QR-Upload fehlgeschlagen. Azure Storage konfigurieren oder kleinere Datei wählen.",
         },
         { status: 503 }
       )

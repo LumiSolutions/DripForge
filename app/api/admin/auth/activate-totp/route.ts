@@ -43,7 +43,7 @@ export async function POST(request: Request) {
 
     if (!verifyTotpCode(secret, code)) {
       return NextResponse.json(
-        { error: "Ungueltiger Verifizierungscode." },
+        { error: "Ungültiger Verifizierungscode." },
         { status: 401 }
       )
     }

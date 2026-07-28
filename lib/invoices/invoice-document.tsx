@@ -234,30 +234,36 @@ export function InvoiceDocument({
 
   const styles = createInvoiceDocumentStyles(template)
   const isDeliveryNote = documentType === "deliveryNote"
+  const isQuote = documentType === "quote"
   const showShipping = order.totals.shippingCost > 0
+
+  const paymentTermsLabel = isDeliveryNote
+    ? "—"
+    : isQuote
+      ? `${template.paymentTermsDays} Tage`
+      : getInvoicePaymentTermsLabel(
+          order.paymentMethod,
+          template.paymentTermsDays
+        )
 
   return (
     <PdfDocumentLayout
       title={`${documentText.label} ${order.orderId}`}
       template={template}
       documentText={documentText}
+      documentType={documentType}
       recipient={recipient}
       documentMeta={{
         documentNumber: order.orderId,
         documentDate: formattedDate,
-        paymentTermsLabel: isDeliveryNote
-          ? "—"
-          : getInvoicePaymentTermsLabel(
-              order.paymentMethod,
-              template.paymentTermsDays
-            ),
+        paymentTermsLabel,
         dueDate: isDeliveryNote
           ? "—"
           : formatDocumentDueDate(order.createdAt, template.paymentTermsDays),
         shippingLabel: shippingLabel(order.shippingMethod),
       }}
       placeholderValues={placeholderValues}
-      payment={isDeliveryNote ? null : payment}
+      payment={isDeliveryNote || isQuote ? null : payment}
     >
       <View style={styles.table}>
         <View style={styles.tableHeader}>

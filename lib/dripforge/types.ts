@@ -42,9 +42,9 @@ export type Product = {
   laserMaterialId?: LaserMaterialId
   /** GLB/GLTF-URL aus dem Admin-Portal */
   modelUrl?: string
-  /** Produktfotos fuer die Galerie (Admin-Portal) */
+  /** Produktfotos für die Galerie (Admin-Portal) */
   images?: string[]
-  /** Feste Abmessungen — nicht durch den Kunden veraenderbar */
+  /** Feste Abmessungen — nicht durch den Kunden veränderbar */
   dimensionsMm?: ProductDimensionsMm
   /** Volumen (Standard: cm³) */
   volumen?: number
@@ -61,7 +61,7 @@ export type Product = {
   isTopProduct?: boolean
   /** Produkt-Galerie (Admin) */
   galerieBilder?: string[]
-  /** Hintergrund fuer Laser-Individualisierung im Shop */
+  /** Hintergrund für Laser-Individualisierung im Shop */
   individualisierungsBild?: string
   /** Fest verknuepfte 3D-Basisgeometrie */
   modellDateiUrl?: string
@@ -103,7 +103,7 @@ export interface CartItem {
    */
   description?: string
   type: "3d" | "laser"
-  /** Visueller Snapshot der Live-Vorschau (PNG Base64) fuer die Admin-Bestelluebersicht */
+  /** Visueller Snapshot der Live-Vorschau (PNG Base64) für die Admin-Bestellübersicht */
   leitbild?: string
   customDetails?: {
     fileName?: string

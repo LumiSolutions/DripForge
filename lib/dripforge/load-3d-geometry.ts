@@ -33,7 +33,7 @@ export type LoadedIndividualModel = {
   nativeScene?: THREE.Object3D | null
   /** Modell bringt eigene Farben/Texturen mit */
   hasEmbeddedColors: boolean
-  /** Bounding-Box-Groesse der Datei in mm (vor Viewer-Normierung) */
+  /** Bounding-Box-Grösse der Datei in mm (vor Viewer-Normierung) */
   sourceSizeMm: THREE.Vector3
   longestAxisMm: number
 }

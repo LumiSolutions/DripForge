@@ -28,7 +28,7 @@ export function KontoDesignsPage() {
             Meine Designs
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Gespeicherte Logos und Konfigurationen fuer schnelle Nachbestellungen — demnächst
+            Gespeicherte Logos und Konfigurationen für schnelle Nachbestellungen — demnächst
             direkt aus dem Shop speicherbar.
           </p>
         </div>

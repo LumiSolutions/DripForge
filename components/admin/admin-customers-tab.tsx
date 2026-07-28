@@ -282,7 +282,7 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
           {!selectedId ? (
             <div className={cn("flex min-h-[320px] flex-col items-center justify-center text-center", adminUi.muted)}>
               <UserRound className="mb-3 h-10 w-10 opacity-30" />
-              <p>Kunde auswaehlen fuer Stammdaten und Bestellhistorie</p>
+              <p>Kunde auswählen für Stammdaten und Bestellhistorie</p>
             </div>
           ) : detailLoading ? (
             <div className={cn("flex min-h-[320px] items-center justify-center", adminUi.loader)}>

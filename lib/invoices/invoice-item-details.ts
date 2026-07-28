@@ -29,7 +29,7 @@ export function formatInvoiceItemDetails(item: StoredOrderItem): string {
     if (d?.material) parts.push(`Material: ${d.material}`)
     const variant = d?.variant ?? d?.materialVariant
     if (variant) parts.push(`Variante: ${variant}`)
-    if (d?.size) parts.push(`Groesse: ${d.size}`)
+    if (d?.size) parts.push(`Grösse: ${d.size}`)
     const text = d?.userText ?? d?.engravingText
     if (text?.trim()) parts.push(`Gravur: «${text.trim()}»`)
     const font = fontLabel(d?.userFont)

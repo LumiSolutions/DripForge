@@ -144,7 +144,7 @@ export async function POST(request: Request) {
     try {
       metadata = JSON.parse(metadataRaw) as Record<string, unknown>
     } catch {
-      return NextResponse.json({ error: "Metadaten sind ungueltig." }, { status: 400 })
+      return NextResponse.json({ error: "Metadaten sind ungültig." }, { status: 400 })
     }
 
     const contactMethod = parseContactMethod(metadata.contactMethod)
@@ -157,7 +157,7 @@ export async function POST(request: Request) {
 
     if (!contactMethod) {
       return NextResponse.json(
-        { error: "Bitte waehlen Sie einen Kontaktkanal." },
+        { error: "Bitte wählen Sie einen Kontaktkanal." },
         { status: 400 }
       )
     }
@@ -165,7 +165,7 @@ export async function POST(request: Request) {
     if (contactMethod === "email") {
       if (!customerEmail || !isValidContactEmail(customerEmail)) {
         return NextResponse.json(
-          { error: "Bitte geben Sie eine gueltige E-Mail-Adresse an." },
+          { error: "Bitte geben Sie eine gültige E-Mail-Adresse an." },
           { status: 400 }
         )
       }
@@ -174,7 +174,7 @@ export async function POST(request: Request) {
     if (contactMethod === "whatsapp") {
       if (!customerPhone || !isValidContactPhone(customerPhone)) {
         return NextResponse.json(
-          { error: "Bitte geben Sie eine gueltige Telefonnummer fuer WhatsApp an." },
+          { error: "Bitte geben Sie eine gültige Telefonnummer für WhatsApp an." },
           { status: 400 }
         )
       }
@@ -188,7 +188,7 @@ export async function POST(request: Request) {
     }
 
     if (!Number.isFinite(scalePercent) || scalePercent <= 0) {
-      return NextResponse.json({ error: "Skalierung ist ungueltig." }, { status: 400 })
+      return NextResponse.json({ error: "Skalierung ist ungültig." }, { status: 400 })
     }
 
     const filamentMaterial = String(metadata.filamentMaterial ?? "").trim()
@@ -196,7 +196,7 @@ export async function POST(request: Request) {
 
     if (!filamentMaterial || filamentColors.length === 0) {
       return NextResponse.json(
-        { error: "Bitte waehlen Sie Material und mindestens eine Farbe." },
+        { error: "Bitte wählen Sie Material und mindestens eine Farbe." },
         { status: 400 }
       )
     }
@@ -281,7 +281,7 @@ export async function POST(request: Request) {
       ok: true,
       anfrageId: anfrage.id,
       message:
-        "Ihre unverbindliche Anfrage wurde uebermittelt. Wir melden uns mit dem exakten Festpreis.",
+        "Ihre unverbindliche Anfrage wurde übermittelt. Wir melden uns mit dem exakten Festpreis.",
     })
   } catch (error) {
     console.error("[Druckanfrage] Speichern fehlgeschlagen.", error)

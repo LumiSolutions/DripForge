@@ -119,9 +119,9 @@ export const DEFAULT_DOCUMENT_TYPE_TEXTS: Record<
     numberPlaceholder: "rechnungsnummer",
     headerLine: "Rechnung Nr. {rechnungsnummer}",
     referenceLine: "I/Referenz {rechnungsnummer}",
-    introText: "Vielen Dank fuer Ihre Bestellung bei {firmenname}.",
+    introText: "Vielen Dank für Ihre Bestellung bei {firmenname}.",
     closingText:
-      "Bitte ueberweisen Sie den Gesamtbetrag innerhalb von {zahlungsfrist} Tagen auf IBAN {iban}{bank}. Verwendungszweck: {rechnungsnummer}",
+      "Bitte überweisen Sie den Gesamtbetrag innerhalb von {zahlungsfrist} Tagen auf IBAN {iban}{bank}. Verwendungszweck: {rechnungsnummer}",
     footerNote: "",
     paymentBlockText:
       "Zahlbar innert {zahlungsfrist} Tagen. Bitte geben Sie die Referenz als Zahlungszweck an.",
@@ -129,12 +129,13 @@ export const DEFAULT_DOCUMENT_TYPE_TEXTS: Record<
     showPaymentBlock: true,
   },
   quote: {
-    label: "Angebot",
+    label: "Offerte",
     numberPlaceholder: "angebotsnummer",
-    headerLine: "Angebot Nr. {angebotsnummer}",
+    headerLine: "Offerte Nr. {angebotsnummer}",
     referenceLine: "Referenz {angebotsnummer}",
-    introText: "Vielen Dank fuer Ihre Anfrage bei {firmenname}.",
-    closingText: "Dieses Angebot ist ab {datum} erstellt und freibleibend.",
+    introText: "Vielen Dank für Ihre Anfrage bei {firmenname}.",
+    closingText:
+      "Dieses Angebot ist ab {datum} erstellt und {zahlungsfrist} Tage gültig.",
     footerNote: "",
     paymentBlockText: "",
     centerFooterText: "",
@@ -166,7 +167,7 @@ export const DEFAULT_DOCUMENT_TEMPLATE: DocumentTemplateSettings = {
   logoUrl: DRIPFORGE_LOGO_URL,
   logoAlignment: "right",
   logoWidthPercent: DEFAULT_LOGO_WIDTH_PERCENT,
-  fontFamily: "helvetica",
+  fontFamily: "inter",
   baseFontSize: 10,
   qrPaymentImageUrl: null,
   paymentTermsDays: 30,

@@ -29,7 +29,7 @@ export async function resolveSupportersContainer(): Promise<SupportersContainerS
     const shared = await getSettingsContainer()
     resolved = { container: shared, mode: "shared" }
     console.warn(
-      "Cosmos DB: Container 'project-supporters' nicht verfuegbar — Supporter werden im Container 'settings' (docType=project-supporter) gespeichert."
+      "Cosmos DB: Container 'project-supporters' nicht verfügbar — Supporter werden im Container 'settings' (docType=project-supporter) gespeichert."
     )
     return resolved
   }

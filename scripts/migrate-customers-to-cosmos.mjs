@@ -50,7 +50,7 @@ let migrated = 0
 for (const customer of customers) {
   const kundennummer = customer?.kundennummer?.trim()
   if (!kundennummer) {
-    console.warn("Ueberspringe Eintrag ohne kundennummer:", customer)
+    console.warn("Überspringe Eintrag ohne kundennummer:", customer)
     continue
   }
   await container.items.upsert({ ...customer, id: kundennummer })

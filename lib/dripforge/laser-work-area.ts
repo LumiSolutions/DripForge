@@ -12,7 +12,7 @@ export type LaserSizePreset = {
   priceMultiplier: number
 }
 
-/** Groessen fuer individuelle Laserauftraege */
+/** Grössen für individuelle Laserauftraege */
 export const INDIVIDUAL_LASER_SIZES: LaserSizePreset[] = [
   {
     id: "small",

@@ -901,8 +901,8 @@ export function AdminSettingsTab() {
                 </summary>
                 <div className="mt-4 space-y-4">
                   <p className={cn("text-xs", adminUi.muted)}>
-                    Vorbereitung fuer «Eigenes Produkt einschicken & verarbeiten» bei der
-                    Personalisierten Laserkreation. Sichtbar fuer Kunden nur bei aktiviertem Toggle.
+                    Vorbereitung für «Eigenes Produkt einschicken & verarbeiten» bei der
+                    Personalisierten Laserkreation. Sichtbar für Kunden nur bei aktiviertem Toggle.
                   </p>
                   <div
                     className={cn(
@@ -915,7 +915,7 @@ export function AdminSettingsTab() {
                         Option: Kunden-Einsendung erlauben
                       </Label>
                       <p className={cn("text-xs", adminUi.muted)}>
-                        Aktiviert die Einsende-Option im Laser-Konfigurator fuer Kunden.
+                        Aktiviert die Einsende-Option im Laser-Konfigurator für Kunden.
                       </p>
                     </div>
                     <Switch

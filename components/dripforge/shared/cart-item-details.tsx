@@ -64,7 +64,7 @@ export function CartItemDetails({
           {d.color && <li>Farben: {d.color}</li>}
           {d.dimensions && <li>Masse: {d.dimensions}</li>}
           {d.scale && <li>Skalierung: {d.scale}</li>}
-          {d.colorWishes && <li>Farbwuensche: {d.colorWishes}</li>}
+          {d.colorWishes && <li>Farbwünsche: {d.colorWishes}</li>}
           {d.colorReferenceImageName && (
             <li>Vorlagebild: {d.colorReferenceImageName}</li>
           )}
@@ -78,7 +78,7 @@ export function CartItemDetails({
           {(d.variant || d.materialVariant) && (
             <li>Variante: {d.variant ?? d.materialVariant}</li>
           )}
-          {d.size && <li>Groesse: {d.size}</li>}
+          {d.size && <li>Grösse: {d.size}</li>}
           {d.userFont && (
             <li>
               Schrift:{" "}

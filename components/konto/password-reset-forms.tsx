@@ -52,7 +52,7 @@ export function KontoForgotPasswordForm() {
           </div>
           <p className="text-sm text-muted-foreground">
             Geben Sie Ihre E-Mail-Adresse ein. Sie erhalten einen Link zum
-            Zuruecksetzen (gueltig 1 Stunde).
+            Zurücksetzen (gültig 1 Stunde).
           </p>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
@@ -118,7 +118,7 @@ export function KontoResetPasswordForm() {
     setError(null)
 
     if (password !== confirm) {
-      setError("Passwoerter stimmen nicht ueberein.")
+      setError("Passwörter stimmen nicht überein.")
       return
     }
 
@@ -156,7 +156,7 @@ export function KontoResetPasswordForm() {
         <Card className="rounded-2xl border-border/50">
           <CardContent className="space-y-4 p-8 text-center">
             <p className="text-sm text-red-500">
-              Dieser Link ist ungueltig oder abgelaufen.
+              Dieser Link ist ungültig oder abgelaufen.
             </p>
             <Link href="/konto/passwort-vergessen" className="text-sm text-primary hover:underline">
               Neuen Link anfordern

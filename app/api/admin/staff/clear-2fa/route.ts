@@ -8,14 +8,14 @@ import type { StaffRole } from "@/lib/admin/staff-types"
 
 const VALID_ROLES: StaffRole[] = ["admin", "tester"]
 
-/** Loescht gespeicherte 2FA-Secrets (Admin + Tester) fuer saubere Neu-Einrichtung. */
+/** Löscht gespeicherte 2FA-Secrets (Admin + Tester) für saubere Neu-Einrichtung. */
 export async function POST(request: Request) {
   const auth = requireAdminSession(request)
   if (isAuthError(auth)) return auth
 
   if (auth.role !== "admin") {
     return NextResponse.json(
-      { error: "Nur Admins duerfen 2FA-Secrets zuruecksetzen." },
+      { error: "Nur Admins duerfen 2FA-Secrets zurücksetzen." },
       { status: 403 }
     )
   }
@@ -31,13 +31,13 @@ export async function POST(request: Request) {
         success: true,
         cleared: result.cleared,
         message:
-          "2FA fuer Admin und Tester zurueckgesetzt. Beim naechsten Login erscheint die Ersteinrichtung.",
+          "2FA für Admin und Tester zurückgesetzt. Beim nächsten Login erscheint die Ersteinrichtung.",
       })
     }
 
     if (!VALID_ROLES.includes(body.role)) {
       return NextResponse.json(
-        { error: 'Ungueltige Rolle. Erlaubt: "admin", "tester", "all".' },
+        { error: 'Ungültige Rolle. Erlaubt: "admin", "tester", "all".' },
         { status: 400 }
       )
     }
@@ -45,7 +45,7 @@ export async function POST(request: Request) {
     const account = await clearStaff2fa(body.role)
     if (!account) {
       return NextResponse.json(
-        { error: `Kein Staff-Konto fuer Rolle "${body.role}" gefunden.` },
+        { error: `Kein Staff-Konto für Rolle "${body.role}" gefunden.` },
         { status: 404 }
       )
     }
@@ -53,7 +53,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       cleared: [body.role],
-      message: `2FA fuer ${body.role} zurueckgesetzt.`,
+      message: `2FA für ${body.role} zurückgesetzt.`,
     })
   } catch (error) {
     console.error("Admin: 2FA-Clear fehlgeschlagen.", error)

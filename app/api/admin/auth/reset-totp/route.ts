@@ -36,7 +36,7 @@ export async function POST(request: Request) {
         return NextResponse.json(
           {
             error:
-              "Aktive 2FA kann nur mit Bestaetigung zurueckgesetzt werden (Header x-confirm-reset).",
+              "Aktive 2FA kann nur mit Bestätigung zurückgesetzt werden (Header x-confirm-reset).",
           },
           { status: 400 }
         )
@@ -54,7 +54,7 @@ export async function POST(request: Request) {
       isNewSecret: material.isNewSecret,
       message: material.isNewSecret
         ? "Neuer QR-Code erstellt. Bestaetigen Sie die Einrichtung mit einem Code aus der App."
-        : "Bestehender QR-Code. Beide Geraete koennen nacheinander scannen oder den Schluessel manuell eintragen.",
+        : "Bestehender QR-Code. Beide Geräte können nacheinander scannen oder den Schlüssel manuell eintragen.",
     })
   } catch (error) {
     if (error instanceof TotpSecretError) {
@@ -62,7 +62,7 @@ export async function POST(request: Request) {
     }
     console.error("Admin-Auth: 2FA-Reset fehlgeschlagen.", error)
     return NextResponse.json(
-      { error: "2FA konnte nicht zurueckgesetzt werden." },
+      { error: "2FA konnte nicht zurückgesetzt werden." },
       { status: 500 }
     )
   }

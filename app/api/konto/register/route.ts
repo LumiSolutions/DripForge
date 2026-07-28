@@ -30,7 +30,7 @@ export async function POST(request: Request) {
 
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return NextResponse.json(
-        { error: "Bitte eine gueltige E-Mail eingeben." },
+        { error: "Bitte eine gültige E-Mail eingeben." },
         { status: 400 }
       )
     }

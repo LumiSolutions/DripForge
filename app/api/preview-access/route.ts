@@ -8,7 +8,7 @@ const PREVIEW_COOKIE_MAX_AGE = 60 * 60 * 24 * 90
 
 /**
  * Tester-Vorschau: Schritt 1 (Passwort).
- * TOTP-Schritte laufen ueber /api/admin/auth/* (setup-totp, confirm-totp, verify-totp).
+ * TOTP-Schritte laufen über /api/admin/auth/* (setup-totp, confirm-totp, verify-totp).
  */
 export async function POST(request: Request) {
   try {

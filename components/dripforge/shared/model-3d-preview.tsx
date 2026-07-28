@@ -256,7 +256,7 @@ function PreviewPlaceholder({
           <Box className="mb-3 h-12 w-12 text-red-400/80" />
           <p className="text-sm font-medium text-red-400">{error}</p>
           <p className="mt-2 text-xs text-muted-foreground">
-            Bitte STL, OBJ, GLB oder GLTF waehlen.
+            Bitte STL, OBJ, GLB oder GLTF wählen.
           </p>
         </>
       ) : (
@@ -266,7 +266,7 @@ function PreviewPlaceholder({
             Lade deine 3D-Datei hoch, um die Live-Vorschau zu starten
           </p>
           <p className="mt-2 text-xs text-muted-foreground">
-            Drehen, Zoomen und Farben direkt im Viewer pruefen
+            Drehen, Zoomen und Farben direkt im Viewer prüfen
           </p>
         </>
       )}

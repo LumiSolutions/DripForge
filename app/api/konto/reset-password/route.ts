@@ -34,7 +34,7 @@ export async function POST(request: Request) {
     const payload = parsePasswordResetToken(token)
     if (!payload || payload.type !== "customer") {
       return NextResponse.json(
-        { error: "Ungueltiger oder abgelaufener Link." },
+        { error: "Ungültiger oder abgelaufener Link." },
         { status: 400 }
       )
     }
@@ -42,7 +42,7 @@ export async function POST(request: Request) {
     const account = await getAccountByEmail(payload.accountId)
     if (!account || !isActiveCustomerAccount(account)) {
       return NextResponse.json(
-        { error: "Ungueltiger oder abgelaufener Link." },
+        { error: "Ungültiger oder abgelaufener Link." },
         { status: 400 }
       )
     }
@@ -54,7 +54,7 @@ export async function POST(request: Request) {
     )
     if (!verified) {
       return NextResponse.json(
-        { error: "Ungueltiger oder abgelaufener Link." },
+        { error: "Ungültiger oder abgelaufener Link." },
         { status: 400 }
       )
     }
@@ -68,12 +68,12 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
-      message: "Passwort wurde erfolgreich geaendert. Sie koennen sich jetzt anmelden.",
+      message: "Passwort wurde erfolgreich geändert. Sie können sich jetzt anmelden.",
     })
   } catch (error) {
     console.error("Konto: Passwort-Reset fehlgeschlagen.", error)
     return NextResponse.json(
-      { error: "Passwort konnte nicht geaendert werden." },
+      { error: "Passwort konnte nicht geändert werden." },
       { status: 500 }
     )
   }

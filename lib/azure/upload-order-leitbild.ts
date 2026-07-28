@@ -16,14 +16,14 @@ export async function uploadOrderLeitbild(
   const connectionString = process.env.AZURE_STORAGE_CONNECTION_STRING
   if (!connectionString) {
     console.warn(
-      "Leitbild-Speicher: AZURE_STORAGE_CONNECTION_STRING fehlt — Upload uebersprungen."
+      "Leitbild-Speicher: AZURE_STORAGE_CONNECTION_STRING fehlt — Upload übersprungen."
     )
     return null
   }
 
   const buffer = decodeBase64Png(leitbildDataUrl)
   if (!buffer || buffer.length === 0) {
-    console.warn("Leitbild-Speicher: Ungueltiges PNG-Format.")
+    console.warn("Leitbild-Speicher: Ungültiges PNG-Format.")
     return null
   }
 

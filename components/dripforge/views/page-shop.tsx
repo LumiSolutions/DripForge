@@ -530,7 +530,7 @@ export function PageShop({
                         size="sm"
                         variant="outline"
                         onClick={() => setQuantity(quantity + 1)}
-                        aria-label="Anzahl erhoehen"
+                        aria-label="Anzahl erhöhen"
                       >
                         <Plus className="h-4 w-4" />
                       </Button>
@@ -618,7 +618,7 @@ export function PageShop({
                           </h3>
                           <dl className="divide-y divide-border/60 rounded-lg border border-border/50 bg-muted/30">
                             <div className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
-                              <dt className="text-muted-foreground">Laenge</dt>
+                              <dt className="text-muted-foreground">Länge</dt>
                               <dd className="font-mono font-semibold tabular-nums">
                                 {productDimensions.length.toFixed(1)} mm
                               </dd>
@@ -630,7 +630,7 @@ export function PageShop({
                               </dd>
                             </div>
                             <div className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
-                              <dt className="text-muted-foreground">Hoehe</dt>
+                              <dt className="text-muted-foreground">Höhe</dt>
                               <dd className="font-mono font-semibold tabular-nums">
                                 {productDimensions.height.toFixed(1)} mm
                               </dd>
@@ -733,7 +733,7 @@ export function PageShop({
                                   size="sm"
                                   variant="outline"
                                   onClick={() => setQuantity(quantity + 1)}
-                                  aria-label="Anzahl erhoehen"
+                                  aria-label="Anzahl erhöhen"
                                 >
                                   <Plus className="h-4 w-4" />
                                 </Button>

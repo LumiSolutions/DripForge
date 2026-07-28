@@ -18,7 +18,7 @@ export class HardDeleteOrderError extends Error {
 }
 
 /**
- * Unwiderrufliches Loeschen einer Bestellung inkl. verknuepfter Belege
+ * Unwiderrufliches Löschen einer Bestellung inkl. verknuepfter Belege
  * und Entfernen der Order-ID aus dem CRM-Kunden.
  */
 export async function hardDeleteOrder(orderId: string): Promise<void> {

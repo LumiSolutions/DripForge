@@ -7,7 +7,7 @@ export async function GET() {
     const settings = await getSettings()
     return NextResponse.json(settings.checkout)
   } catch (error) {
-    console.error("Shop-API: Checkout-Einstellungen nicht verfuegbar.", error)
+    console.error("Shop-API: Checkout-Einstellungen nicht verfügbar.", error)
     return NextResponse.json(buildDefaultAdminSettings().checkout)
   }
 }

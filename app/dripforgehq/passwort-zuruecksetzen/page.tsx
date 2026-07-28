@@ -2,7 +2,7 @@ import { Suspense } from "react"
 import { Loader2 } from "lucide-react"
 import { AdminResetPasswordForm } from "@/components/admin/admin-password-reset-forms"
 
-export default function DripforgeHqPasswortZuruecksetzenPage() {
+export default function DripforgeHqPasswortZurücksetzenPage() {
   return (
     <Suspense
       fallback={

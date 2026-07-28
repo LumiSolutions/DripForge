@@ -33,14 +33,14 @@ export async function POST(request: Request) {
 
     if (intent === "admin" && role !== "admin") {
       return NextResponse.json(
-        { error: "Nur Administratoren koennen sich im Admin-Bereich anmelden." },
+        { error: "Nur Administratoren können sich im Admin-Bereich anmelden." },
         { status: 403 }
       )
     }
 
     if (intent === "preview" && role !== "tester") {
       return NextResponse.json(
-        { error: "Vorschau-Zugang ist nur fuer Tester verfuegbar." },
+        { error: "Vorschau-Zugang ist nur für Tester verfügbar." },
         { status: 403 }
       )
     }

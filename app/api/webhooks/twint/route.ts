@@ -71,12 +71,12 @@ export async function POST(request: Request) {
   const signature = request.headers.get("x-webhook-signature")
 
   if (!verifyPayrexxWebhookSignature(rawBody, signature)) {
-    return NextResponse.json({ error: "Ungueltige Webhook-Signatur." }, { status: 401 })
+    return NextResponse.json({ error: "Ungültige Webhook-Signatur." }, { status: 401 })
   }
 
   const transaction = parsePayrexxWebhookPayload(rawBody)
   if (!transaction) {
-    return NextResponse.json({ error: "Ungueltiger Webhook-Payload." }, { status: 400 })
+    return NextResponse.json({ error: "Ungültiger Webhook-Payload." }, { status: 400 })
   }
 
   if (transaction.status !== "confirmed") {

@@ -26,7 +26,7 @@ export async function GET() {
       })),
     })
   } catch (error) {
-    console.error("Shop-API: Druck-Preise nicht verfuegbar.", error)
+    console.error("Shop-API: Druck-Preise nicht verfügbar.", error)
     const defaults = createDefaultPrintCalculatorSettings()
     return NextResponse.json({
       configured: false,
@@ -62,7 +62,7 @@ export async function POST(request: Request) {
 
     if (volumeCm3 <= 0) {
       return NextResponse.json(
-        { error: "Volumen muss groesser als 0 sein." },
+        { error: "Volumen muss grösser als 0 sein." },
         { status: 400 }
       )
     }

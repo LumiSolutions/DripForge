@@ -15,7 +15,7 @@ export function PrintVolumeWarning() {
         <div className="space-y-3 text-sm leading-relaxed">
           <p>
             <span className="font-bold">Modell zu gross!</span> Dieses Objekt
-            ueberschreitet unseren maximalen Druckbereich von{" "}
+            überschreitet unseren maximalen Druckbereich von{" "}
             {MAX_PRINT_DIMENSION_MM} x {MAX_PRINT_DIMENSION_MM} x{" "}
             {MAX_PRINT_DIMENSION_MM} mm.
           </p>
@@ -28,10 +28,10 @@ export function PrintVolumeWarning() {
                 {MAX_PRINT_DIMENSION_MM} mm liegen.
               </li>
               <li>
-                Moechtest du das Modell unbedingt in dieser Uebergroesse drucken
-                lassen? Kein Problem! Kontaktiere uns fuer eine
+                Möchtest du das Modell unbedingt in dieser Übergrösse drucken
+                lassen? Kein Problem! Kontaktiere uns für eine
                 Spezialanfertigung (z. B. ein Druck in mehreren Einzelteilen)
-                direkt ueber unser{" "}
+                direkt über unser{" "}
                 <Link
                   href="/kontakt"
                   className="font-semibold text-red-800 underline underline-offset-2 hover:text-red-600 dark:text-red-200 dark:hover:text-red-100"

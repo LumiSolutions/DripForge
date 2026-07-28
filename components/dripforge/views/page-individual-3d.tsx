@@ -280,7 +280,7 @@ export function PageIndividual3D() {
 
       if (!extension || !previewExtensions.includes(extension)) {
         setLoadError(
-          "Fuer die Live-Vorschau bitte STL, OBJ, GLB oder GLTF verwenden (.3MF nur als Auftrag)."
+          "Für die Live-Vorschau bitte STL, OBJ, GLB oder GLTF verwenden (.3MF nur als Auftrag)."
         )
         setUploadedFile(file)
         resetModelState()
@@ -349,22 +349,22 @@ export function PageIndividual3D() {
       return "Modellabmessungen werden noch berechnet — bitte kurz warten."
     }
     if (isOversized) {
-      return "Das Modell ueberschreitet den maximalen Druckbereich. Bitte verkleinern Sie die Skalierung."
+      return "Das Modell überschreitet den maximalen Druckbereich. Bitte verkleinern Sie die Skalierung."
     }
     if (priceLoading || !priceBreakdown) {
       return "Der Richtpreis wird noch berechnet — bitte kurz warten."
     }
     if (!multiColorSelection) {
-      return "Bitte waehlen Sie Material und mindestens eine Farbe."
+      return "Bitte wählen Sie Material und mindestens eine Farbe."
     }
     if (colorCount < 1) {
-      return "Bitte waehlen Sie mindestens eine Farbe."
+      return "Bitte wählen Sie mindestens eine Farbe."
     }
     if (!allColorsInStock) {
       return "Mindestens eine gewaehlte Farbe ist nicht auf Lager."
     }
     if (!contactMethod) {
-      return "Bitte waehlen Sie einen Kontaktkanal (E-Mail oder WhatsApp)."
+      return "Bitte wählen Sie einen Kontaktkanal (E-Mail oder WhatsApp)."
     }
     return null
   }
@@ -386,12 +386,12 @@ export function PageIndividual3D() {
     }
 
     if (contactMethod === "email" && !isValidContactEmail(customerEmail)) {
-      setSubmitError("Bitte geben Sie eine gueltige E-Mail-Adresse an.")
+      setSubmitError("Bitte geben Sie eine gültige E-Mail-Adresse an.")
       return
     }
 
     if (contactMethod === "whatsapp" && !isValidContactPhone(customerPhone)) {
-      setSubmitError("Bitte geben Sie eine gueltige Telefonnummer fuer WhatsApp an.")
+      setSubmitError("Bitte geben Sie eine gültige Telefonnummer für WhatsApp an.")
       return
     }
 
@@ -470,7 +470,7 @@ export function PageIndividual3D() {
 
       setSubmitSuccess(
         data.message ??
-          "Ihre unverbindliche Anfrage wurde uebermittelt. Wir melden uns mit dem exakten Festpreis."
+          "Ihre unverbindliche Anfrage wurde übermittelt. Wir melden uns mit dem exakten Festpreis."
       )
     } catch (err) {
       setSubmitError(
@@ -500,7 +500,7 @@ export function PageIndividual3D() {
           </span>
         </h1>
         <p className="mx-auto mt-4 max-w-2xl text-muted-foreground">
-          Lade deine Datei hoch, waehle AMS-Farben und passe die Groesse an — die
+          Lade deine Datei hoch, waehle AMS-Farben und passe die Grösse an — die
           Vorschau zeigt exakte Masse (320 mm = 100 %).
         </p>
       </div>
@@ -509,8 +509,8 @@ export function PageIndividual3D() {
         <IndividualProcessBar
           steps={[
             "Datei hochladen",
-            "Material waehlen",
-            "Farbe & Groesse",
+            "Material wählen",
+            "Farbe & Grösse",
             "Anfrage senden",
           ]}
           activeStep={activeStep}
@@ -553,7 +553,7 @@ export function PageIndividual3D() {
                       <Upload className="mb-2 h-10 w-10 text-muted-foreground" />
                       <p className="font-medium">Datei hierher ziehen</p>
                       <p className="text-sm text-muted-foreground">
-                        oder klicken zum Auswaehlen
+                        oder klicken zum Auswählen
                       </p>
                       <p className="mt-2 text-xs text-muted-foreground">
                         STL, OBJ, GLB, GLTF (Live-Vorschau) · 3MF (max. 50 MB)
@@ -626,11 +626,11 @@ export function PageIndividual3D() {
 
             <Card className="border-border/50 bg-card/50">
               <CardContent className="p-6">
-                <h3 className="mb-4 font-bold">3. Groesse & Menge</h3>
+                <h3 className="mb-4 font-bold">3. Grösse & Menge</h3>
                 <div className="space-y-5">
                   <div className="space-y-3">
                     <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-                      <span className="font-medium">Groesse (Skalierung)</span>
+                      <span className="font-medium">Grösse (Skalierung)</span>
                       <div className="flex items-center gap-1.5">
                         <Input
                           type="number"
@@ -832,8 +832,8 @@ export function PageIndividual3D() {
                       </span>
                     </div>
                     <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-                      *Dies ist eine unverbindliche Schaetzung. Wir pruefen Ihre Datei nach
-                      der Uebermittlung in unserem Slicing-System (Bambulab) und kontaktieren
+                      *Dies ist eine unverbindliche Schätzung. Wir prüfen Ihre Datei nach
+                      der Übermittlung in unserem Slicing-System (Bambulab) und kontaktieren
                       Sie mit dem exakten Festpreis.
                     </p>
                   </div>
@@ -936,7 +936,7 @@ export function PageIndividual3D() {
                   </Button>
                   {isOversized && (
                     <p className="mt-3 text-center text-sm font-medium text-red-500">
-                      Anfrage gesperrt: Modell ueberschreitet den maximalen Druckbereich.
+                      Anfrage gesperrt: Modell überschreitet den maximalen Druckbereich.
                     </p>
                   )}
                   {multiColorSelection && !allColorsInStock && (

@@ -13,7 +13,7 @@ export type PreparedGltfScene = {
   sizeAt100: PreparedSceneSize
 }
 
-/** Zentrieren, auf Viewport-Groesse skalieren, Unterkante auf Y = 0 */
+/** Zentrieren, auf Viewport-Grösse skalieren, Unterkante auf Y = 0 */
 export function prepareGltfScene(source: THREE.Object3D): PreparedGltfScene {
   const scene = source.clone(true)
   scene.updateMatrixWorld(true)

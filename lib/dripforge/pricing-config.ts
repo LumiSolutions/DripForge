@@ -1,5 +1,5 @@
 /**
- * Zentrale Preisparameter fuer den 3D-Konfigurator.
+ * Zentrale Preisparameter für den 3D-Konfigurator.
  * Spaeter per fetch aus Admin-Portal / Datenbank ersetzen.
  */
 export type PricingConfig = {

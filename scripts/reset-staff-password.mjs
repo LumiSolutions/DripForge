@@ -1,5 +1,5 @@
 /**
- * Setzt das Passwort fuer Admin- und/oder Tester-Konten zurueck (Cosmos DB oder lokale JSON).
+ * Setzt das Passwort für Admin- und/oder Tester-Konten zurueck (Cosmos DB oder lokale JSON).
  *
  * Usage:
  *   node scripts/reset-staff-password.mjs
@@ -193,7 +193,7 @@ async function main() {
       process.exit(1)
     }
 
-    console.log(`DripForge: Passwort zuruecksetzen fuer "${role}"...`)
+    console.log(`DripForge: Passwort zurücksetzen für "${role}"...`)
 
     let ok = false
     if (isCosmosConfigured()) {
@@ -205,7 +205,7 @@ async function main() {
         console.error(`[cosmos] ${role} fehlgeschlagen:`, err.message)
       }
     } else {
-      console.log("[cosmos] Nicht konfiguriert — uebersprungen.")
+      console.log("[cosmos] Nicht konfiguriert — übersprungen.")
     }
 
     const localOk = resetInLocalFile(role, password)
@@ -213,12 +213,12 @@ async function main() {
     ok = ok || localOk
 
     if (!ok) {
-      console.warn(`${role}: nichts geaendert.`)
+      console.warn(`${role}: nichts geändert.`)
       process.exit(1)
     }
 
     if (clear2fa) {
-      console.log(`[${role}] 2FA deaktiviert — beim naechsten Login QR-Code neu einrichten.`)
+      console.log(`[${role}] 2FA deaktiviert — beim nächsten Login QR-Code neu einrichten.`)
     }
   }
 

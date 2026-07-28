@@ -7,7 +7,7 @@
 } from "lucide-react"
 import type { LaserMaterial, Product } from "@/lib/dripforge/types"
 
-/** Demo-GLBs fuer Seed-Produkte 1–4 (nur lokaler Fallback-Datensatz). */
+/** Demo-GLBs für Seed-Produkte 1–4 (nur lokaler Fallback-Datensatz). */
 const SEED_PRODUCT_MODEL_URLS: Record<string, string> = {
   "1": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/Box/glTF-Binary/Box.glb",
   "2": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/CesiumMilkTruck/glTF-Binary/CesiumMilkTruck.glb",
@@ -28,7 +28,7 @@ export const products: Product[] = [
     id: "1",
     name: "Geometrischer Handyhalter",
     description:
-      "Modernes geometrisches Design. Perfekt fuer Schreibtisch oder Nachttisch.",
+      "Modernes geometrisches Design. Perfekt für Schreibtisch oder Nachttisch.",
     price: 19.99,
     originalPrice: 24.99,
     basisPreis: 24.99,
@@ -59,7 +59,7 @@ export const products: Product[] = [
     id: "3",
     name: "Kopfhoererhalter",
     description:
-      "Platzsparender Kopfhoererhalter fuer unter den Schreibtisch.",
+      "Platzsparender Kopfhoererhalter für unter den Schreibtisch.",
     price: 14.99,
     originalPrice: null,
     type: "3d",
@@ -72,7 +72,7 @@ export const products: Product[] = [
   {
     id: "4",
     name: "Sukkulenten Pflanztopf",
-    description: "Minimalistischer Pflanztopf mit Drainage fuer kleine Pflanzen.",
+    description: "Minimalistischer Pflanztopf mit Drainage für kleine Pflanzen.",
     price: 29.99,
     originalPrice: null,
     type: "3d",
@@ -121,7 +121,7 @@ export const products: Product[] = [
     id: "8",
     name: "Schiefer Namensschild",
     description:
-      "Elegantes Schieferschild perfekt fuer Auszeichnungen oder Deko.",
+      "Elegantes Schieferschild perfekt für Auszeichnungen oder Deko.",
     price: 39.99,
     originalPrice: null,
     type: "laser",

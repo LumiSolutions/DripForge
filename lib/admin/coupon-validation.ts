@@ -12,7 +12,7 @@ export function validateCouponForCheckout(
   const code = normalizeCouponCode(rawCode)
 
   if (!coupon) {
-    return { valid: false, error: "Gutscheincode ist ungueltig." }
+    return { valid: false, error: "Gutscheincode ist ungültig." }
   }
 
   if (!coupon.aktiv) {
@@ -20,7 +20,7 @@ export function validateCouponForCheckout(
   }
 
   if (coupon.code !== code) {
-    return { valid: false, error: "Gutscheincode ist ungueltig." }
+    return { valid: false, error: "Gutscheincode ist ungültig." }
   }
 
   if (coupon.expiresAt) {

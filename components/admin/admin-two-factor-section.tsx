@@ -81,7 +81,7 @@ export function AdminTwoFactorSection() {
     if (totpEnabled) {
       if (
         !confirm(
-          "2FA wirklich neu einrichten? Der bisherige Authenticator-Eintrag wird ungueltig, bis Sie den neuen Code bestaetigen."
+          "2FA wirklich neu einrichten? Der bisherige Authenticator-Eintrag wird ungültig, bis Sie den neuen Code bestaetigen."
         )
       ) {
         return
@@ -95,7 +95,7 @@ export function AdminTwoFactorSection() {
   const clearAllStaff2fa = async () => {
     if (
       !confirm(
-        "Alle gespeicherten 2FA-Secrets (Admin + Tester) loeschen? Beide Rollen muessen 2FA beim naechsten Login neu einrichten."
+        "Alle gespeicherten 2FA-Secrets (Admin + Tester) löschen? Beide Rollen muessen 2FA beim nächsten Login neu einrichten."
       )
     ) {
       return
@@ -112,15 +112,15 @@ export function AdminTwoFactorSection() {
         body: JSON.stringify({ role: "all" }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? "Zuruecksetzen fehlgeschlagen")
+      if (!res.ok) throw new Error(data.error ?? "Zurücksetzen fehlgeschlagen")
       setTotpEnabled(false)
       setQrDataUrl(null)
       setSecretBase32(null)
       setupMaterialRef.current = null
       setCode("")
-      setSuccess(data.message ?? "2FA zurueckgesetzt.")
+      setSuccess(data.message ?? "2FA zurückgesetzt.")
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Zuruecksetzen fehlgeschlagen")
+      setError(err instanceof Error ? err.message : "Zurücksetzen fehlgeschlagen")
     } finally {
       setBusy(false)
     }
@@ -202,7 +202,7 @@ export function AdminTwoFactorSection() {
         {qrDataUrl && (
           <form onSubmit={(e) => void activate(e)} className="space-y-4">
             <p className={cn("text-sm", adminUi.muted)}>
-              QR-Code scannen (mehrere Geraete nacheinander moeglich) oder
+              QR-Code scannen (mehrere Geräte nacheinander möglich) oder
               Schlüssel manuell eintragen, dann mit einem 6-stelligen Code
               bestaetigen:
             </p>
@@ -278,7 +278,7 @@ export function AdminTwoFactorSection() {
             ) : (
               <Trash2 className="mr-2 h-4 w-4" />
             )}
-            2FA komplett zuruecksetzen (Admin + Tester)
+            2FA komplett zurücksetzen (Admin + Tester)
           </Button>
         </div>
       </CardContent>

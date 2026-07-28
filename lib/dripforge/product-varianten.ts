@@ -25,7 +25,7 @@ export function resolveProductVarianten(product: Product): string[] {
   return raw.map((v) => (typeof v === "string" ? v.trim() : "")).filter(Boolean)
 }
 
-/** Fuer Admin-Vorschau: Array als kommagetrennten Text. */
+/** Für Admin-Vorschau: Array als kommagetrennten Text. */
 export function formatVariantenForAdmin(varianten: string[]): string {
   return varianten.join(", ")
 }

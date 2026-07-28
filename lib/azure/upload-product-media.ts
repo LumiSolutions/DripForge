@@ -12,7 +12,7 @@ export async function uploadProductMediaBlob(
   const connectionString = process.env.AZURE_STORAGE_CONNECTION_STRING
   if (!connectionString) {
     console.warn(
-      "Produkt-Medien: AZURE_STORAGE_CONNECTION_STRING fehlt — Upload uebersprungen."
+      "Produkt-Medien: AZURE_STORAGE_CONNECTION_STRING fehlt — Upload übersprungen."
     )
     return null
   }
@@ -40,7 +40,7 @@ export async function uploadProductMediaBlob(
   }
 }
 
-/** Fallback fuer lokale Entwicklung ohne Blob Storage (nur Bilder). */
+/** Fallback für lokale Entwicklung ohne Blob Storage (nur Bilder). */
 export function bufferToDataUrl(buffer: Buffer, contentType: string): string {
   const base64 = buffer.toString("base64")
   return `data:${contentType};base64,${base64}`

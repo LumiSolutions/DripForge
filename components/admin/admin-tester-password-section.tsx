@@ -71,7 +71,7 @@ export function AdminTesterPasswordSection() {
               Tester-Passwort
             </h3>
             <p className={cn("mt-1 text-sm", adminUi.muted)}>
-              Tester koennen ihr Passwort nicht per E-Mail zuruecksetzen. Setzen Sie
+              Tester können ihr Passwort nicht per E-Mail zurücksetzen. Setzen Sie
               hier ein neues Passwort oder erzeugen Sie ein temporaeres.
             </p>
           </div>
@@ -85,7 +85,7 @@ export function AdminTesterPasswordSection() {
             <p className={cn("text-xs", adminUi.muted)}>Temporaeres Passwort:</p>
             <p className="mt-1 font-mono text-sm font-semibold">{temporaryPassword}</p>
             <p className={cn("mt-2 text-xs", adminUi.muted)}>
-              Bitte dem Tester sicher mitteilen. Beim naechsten Login ist 2FA weiterhin erforderlich.
+              Bitte dem Tester sicher mitteilen. Beim nächsten Login ist 2FA weiterhin erforderlich.
             </p>
           </div>
         )}

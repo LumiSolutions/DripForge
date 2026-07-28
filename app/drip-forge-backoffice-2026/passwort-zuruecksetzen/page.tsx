@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation"
 
-export default function LegacyBackofficePasswortZuruecksetzenRedirect() {
+export default function LegacyBackofficePasswortZurücksetzenRedirect() {
   redirect("/")
 }

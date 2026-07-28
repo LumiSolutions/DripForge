@@ -7,7 +7,7 @@ export async function GET() {
     const settings = await getSettings()
     return NextResponse.json(settings.company)
   } catch (error) {
-    console.error("Shop-API: Firmendaten nicht verfuegbar.", error)
+    console.error("Shop-API: Firmendaten nicht verfügbar.", error)
     return NextResponse.json(buildDefaultAdminSettings().company)
   }
 }

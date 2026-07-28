@@ -445,14 +445,14 @@ export function AdminProductsTab() {
   }
 
   const removeProduct = async (id: string) => {
-    if (!confirm("Produkt wirklich loeschen?")) return
+    if (!confirm("Produkt wirklich löschen?")) return
     try {
       const res = await fetch(`/api/admin/products/${id}`, {
         method: "DELETE",
         credentials: "include",
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? "Loeschen fehlgeschlagen")
+      if (!res.ok) throw new Error(data.error ?? "Löschen fehlgeschlagen")
       await loadProducts()
       if (form.id === id) closeEditor()
     } catch (err) {
@@ -545,7 +545,7 @@ export function AdminProductsTab() {
                   onClick={() => void removeProduct(form.id!)}
                 >
                   <Trash2 className="mr-1.5 h-4 w-4" />
-                  Loeschen
+                  Löschen
                 </Button>
               )}
             </div>
@@ -687,7 +687,7 @@ export function AdminProductsTab() {
                     {(["length", "width", "height"] as const).map((axis, i) => (
                       <div key={axis} className="space-y-1.5">
                         <Label className={cn("text-xs", adminUi.labelMuted)}>
-                          {["Laenge", "Breite", "Hoehe"][i]} (mm)
+                          {["Länge", "Breite", "Höhe"][i]} (mm)
                         </Label>
                         <Input
                           type="number"

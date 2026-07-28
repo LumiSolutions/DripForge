@@ -13,7 +13,7 @@ export type CustomerAccount = {
   deliveryZip?: string
   deliveryCity?: string
   deliverySameAsBilling?: boolean
-  /** Verknuepfung zum CRM (falls bereits Bestellungen) */
+  /** Verknüpfung zum CRM (falls bereits Bestellungen) */
   kundennummer?: string
   /** Portal-Kontostatus (Soft Delete) */
   status?: import("@/lib/konto/account-status").CustomerAccountStatus
@@ -50,9 +50,9 @@ export type SavedCustomerDesign = {
   customerEmail: string
   label: string
   designType: "laser" | "3d" | "other"
-  /** Vorschau-URL oder Data-URL (spaeter Azure Blob) */
+  /** Vorschau-URL oder Data-URL (später Azure Blob) */
   previewUrl?: string | null
-  /** Gespeicherte Konfiguration fuer Nachbestellung */
+  /** Gespeicherte Konfiguration für Nachbestellung */
   config: Record<string, unknown>
   createdAt: string
   updatedAt: string

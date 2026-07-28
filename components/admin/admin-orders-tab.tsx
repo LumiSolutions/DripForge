@@ -198,7 +198,7 @@ function OrderDetailPanel({ order }: { order: StoredOrder }) {
                   )}
                   {item.customDetails?.colorWishes && (
                     <li>
-                      <span className={adminUi.muted}>Farbwuensche:</span>{" "}
+                      <span className={adminUi.muted}>Farbwünsche:</span>{" "}
                       {item.customDetails.colorWishes}
                     </li>
                   )}
@@ -309,7 +309,7 @@ function OrderDetailPanel({ order }: { order: StoredOrder }) {
 
             <div className="space-y-3">
               <h5 className={cn("text-xs font-semibold uppercase tracking-wide", adminUi.muted)}>
-                Qualitaetssicherung — Leitbild
+                Qualitätssicherung — Leitbild
               </h5>
               {item.leitbild || item.leitbildUrl ? (
                 <div className={cn("overflow-hidden rounded-xl border bg-black/40", adminUi.thumbnail)}>
@@ -542,7 +542,7 @@ export function AdminOrdersTab({
       ) : null}
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h2 className={cn("text-xl font-bold", adminUi.heading)}>Bestelluebersicht</h2>
+          <h2 className={cn("text-xl font-bold", adminUi.heading)}>Bestellübersicht</h2>
           <p className={cn("text-sm", adminUi.muted)}>
             Produktions-Cockpit — {orders.length} Bestellung
             {orders.length !== 1 ? "en" : ""}

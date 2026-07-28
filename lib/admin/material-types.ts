@@ -21,7 +21,7 @@ export type MaterialVariant = {
   id: string
   farbe?: string
   farbeBildUrl?: string
-  groesse?: string
+  grösse?: string
   dicke?: string
   gewichtGramm?: number
   stockAvailable: number

@@ -101,15 +101,27 @@ function renderTemplateText(text: string, values: Record<string, string>): strin
 }
 
 function previewNumberLabel(documentType: DocumentTemplateType): string {
-  if (documentType === "quote") return "Angebotsnummer"
+  if (documentType === "quote") return "Offertennummer"
   if (documentType === "deliveryNote") return "Lieferscheinnummer"
   return "Rechnungsnummer"
 }
 
 function previewDateLabel(documentType: DocumentTemplateType): string {
-  if (documentType === "quote") return "Angebotsdatum"
+  if (documentType === "quote") return "Offertendatum"
   if (documentType === "deliveryNote") return "Lieferscheindatum"
   return "Rechnungsdatum"
+}
+
+function previewTermsLabel(documentType: DocumentTemplateType): string {
+  if (documentType === "quote") return "Gültigkeit"
+  if (documentType === "deliveryNote") return "Lieferstatus"
+  return "Zahlungsfrist"
+}
+
+function previewDueLabel(documentType: DocumentTemplateType): string {
+  if (documentType === "quote") return "Gültig bis"
+  if (documentType === "deliveryNote") return "Lieferdatum"
+  return "Fälligkeitsdatum"
 }
 
 function DocumentLivePreview({
@@ -208,7 +220,7 @@ function DocumentLivePreview({
           <div className="mb-3 max-w-[52%] leading-relaxed">
             <p>Max Muster</p>
             <p>Musterstrasse 12</p>
-            <p>8000 Zuerich</p>
+            <p>8000 Zürich</p>
             <p>Schweiz</p>
           </div>
 
@@ -227,13 +239,13 @@ function DocumentLivePreview({
             </div>
             <div>
               <p className="text-[0.65em] uppercase tracking-wide text-slate-400">
-                Zahlungsfrist
+                {previewTermsLabel(documentType)}
               </p>
               <p className="font-semibold">{template.paymentTermsDays} Tage</p>
             </div>
             <div>
               <p className="text-[0.65em] uppercase tracking-wide text-slate-400">
-                Faelligkeitsdatum
+                {previewDueLabel(documentType)}
               </p>
               <p className="font-semibold">{dueDate}</p>
             </div>
@@ -625,7 +637,7 @@ const MAX_LOGO_BYTES = 5 * 1024 * 1024
       <div>
         <h1 className="text-2xl font-bold">Dokumenten-Vorlagen</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Globales Master-Layout fuer Rechnungen, Angebote, Lieferscheine und weitere
+          Globales Master-Layout für Rechnungen, Angebote, Lieferscheine und weitere
           PDF-Belege. Platzhalter: {DOCUMENT_PLACEHOLDERS.join(", ")}
         </p>
       </div>
@@ -837,7 +849,7 @@ const MAX_LOGO_BYTES = 5 * 1024 * 1024
             <CardContent className="space-y-4 p-6">
               <h2 className="font-semibold">Schrift &amp; Textformatierung</h2>
               <p className="text-sm text-muted-foreground">
-                Gilt global fuer Live-Vorschau und PDF-Export aller Dokumenten-Vorlagen.
+                Gilt global für Live-Vorschau und PDF-Export aller Dokumenten-Vorlagen.
               </p>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
@@ -861,7 +873,7 @@ const MAX_LOGO_BYTES = 5 * 1024 * 1024
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="baseFontSize">Basis-Schriftgroesse</Label>
+                  <Label htmlFor="baseFontSize">Basis-Schriftgrösse</Label>
                   <Select
                     value={String(template.baseFontSize)}
                     onValueChange={(value) =>
@@ -888,7 +900,7 @@ const MAX_LOGO_BYTES = 5 * 1024 * 1024
             <CardContent className="space-y-4 p-6">
               <h2 className="font-semibold">QR-Code Zahlteil (Bild hochladen)</h2>
               <p className="text-sm text-muted-foreground">
-                Fuer normale IBAN-Zahlungen: QR-Zahlteil als Bild hochladen. Wird neben den
+                Für normale IBAN-Zahlungen: QR-Zahlteil als Bild hochladen. Wird neben den
                 Zahlungsdaten in der Vorschau und im PDF angezeigt.
               </p>
               <div className="flex flex-wrap items-center gap-4">
@@ -1051,7 +1063,7 @@ const MAX_LOGO_BYTES = 5 * 1024 * 1024
                   onChange={(e) => updateDocumentField("showPaymentBlock", e.target.checked)}
                   className="h-4 w-4 rounded border-border"
                 />
-                QR-Zahlteil fuer diesen Dokumenttyp anzeigen
+                QR-Zahlteil für diesen Dokumenttyp anzeigen
               </label>
               <p className="text-xs text-muted-foreground">
                 Footer-Kontaktdaten erscheinen fixiert am unteren Rand auf allen Seiten

@@ -103,7 +103,7 @@ export async function createTwintGateway(
     parsed = JSON.parse(raw) as PayrexxApiResponse
   } catch {
     throw new Error(
-      `Payrexx-Antwort ungueltig (${response.status}): ${raw.slice(0, 200)}`
+      `Payrexx-Antwort ungültig (${response.status}): ${raw.slice(0, 200)}`
     )
   }
 
@@ -120,7 +120,7 @@ export async function createTwintGateway(
   return gateway
 }
 
-/** Webhook-Signatur (X-Webhook-Signature) mit dem Payrexx Signing Key pruefen. */
+/** Webhook-Signatur (X-Webhook-Signature) mit dem Payrexx Signing Key prüfen. */
 export function verifyPayrexxWebhookSignature(
   rawBody: string,
   signatureHeader: string | null

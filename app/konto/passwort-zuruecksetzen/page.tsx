@@ -2,7 +2,7 @@ import { Suspense } from "react"
 import { Loader2 } from "lucide-react"
 import { KontoResetPasswordForm } from "@/components/konto/password-reset-forms"
 
-export default function PasswortZuruecksetzenPage() {
+export default function PasswortZurücksetzenPage() {
   return (
     <Suspense
       fallback={

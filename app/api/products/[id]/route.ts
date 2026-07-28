@@ -42,10 +42,10 @@ export async function GET(_request: Request, context: RouteContext) {
 
     const services = getSafeServiceVisibility(settings.services)
     if (raw.type === "3d" && !services.druck3d) {
-      return NextResponse.json({ error: "Produkt nicht verfuegbar." }, { status: 404 })
+      return NextResponse.json({ error: "Produkt nicht verfügbar." }, { status: 404 })
     }
     if (raw.type === "laser" && !services.lasergravur) {
-      return NextResponse.json({ error: "Produkt nicht verfuegbar." }, { status: 404 })
+      return NextResponse.json({ error: "Produkt nicht verfügbar." }, { status: 404 })
     }
 
     const product = normalizeShopProduct(raw)

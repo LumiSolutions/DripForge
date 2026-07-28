@@ -1,5 +1,5 @@
 /**
- * Setzt 2FA-Secrets fuer Admin- und Tester-Konten zurueck (Cosmos DB oder lokale JSON).
+ * Setzt 2FA-Secrets für Admin- und Tester-Konten zurueck (Cosmos DB oder lokale JSON).
  *
  * Usage:
  *   node scripts/reset-staff-2fa.mjs
@@ -70,13 +70,13 @@ async function clearInCosmos(role) {
     resource = result.resource
   } catch (err) {
     if (err.code === 404 || err.statusCode === 404) {
-      console.warn(`[cosmos] Kein Dokument fuer "${role}" gefunden.`)
+      console.warn(`[cosmos] Kein Dokument für "${role}" gefunden.`)
       return false
     }
     throw err
   }
   if (!resource) {
-    console.warn(`[cosmos] Kein Dokument fuer "${role}" gefunden.`)
+    console.warn(`[cosmos] Kein Dokument für "${role}" gefunden.`)
     return false
   }
 
@@ -101,7 +101,7 @@ function clearInLocalFile(role) {
   const accounts = JSON.parse(readFileSync(filePath, "utf8"))
   const index = accounts.findIndex((a) => a.id === role || a.role === role)
   if (index < 0) {
-    console.warn(`[local] Kein Eintrag fuer "${role}".`)
+    console.warn(`[local] Kein Eintrag für "${role}".`)
     return false
   }
 
@@ -117,7 +117,7 @@ function clearInLocalFile(role) {
 }
 
 async function main() {
-  console.log("DripForge: 2FA-Secrets zuruecksetzen fuer:", targets.join(", "))
+  console.log("DripForge: 2FA-Secrets zurücksetzen für:", targets.join(", "))
 
   for (const role of targets) {
     let ok = false
@@ -129,17 +129,17 @@ async function main() {
         console.error(`[cosmos] ${role} fehlgeschlagen:`, err.message)
       }
     } else {
-      console.log("[cosmos] Nicht konfiguriert — uebersprungen.")
+      console.log("[cosmos] Nicht konfiguriert — übersprungen.")
     }
 
     const localOk = clearInLocalFile(role)
     if (localOk) console.log(`[local] ${role}: aktualisiert`)
     ok = ok || localOk
 
-    if (!ok) console.warn(`${role}: nichts geaendert.`)
+    if (!ok) console.warn(`${role}: nichts geändert.`)
   }
 
-  console.log("\nFertig. Beim naechsten Login erscheint die Ersteinrichtung mit QR-Code.")
+  console.log("\nFertig. Beim nächsten Login erscheint die Ersteinrichtung mit QR-Code.")
 }
 
 main().catch((err) => {

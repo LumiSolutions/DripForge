@@ -14,7 +14,7 @@ export async function GET() {
       customerShippingInstructions: settings.customerShippingInstructions,
     })
   } catch (error) {
-    console.error("Shop-API: Laser-Konfigurator-Einstellungen nicht verfuegbar.", error)
+    console.error("Shop-API: Laser-Konfigurator-Einstellungen nicht verfügbar.", error)
     const defaults = createDefaultLaserConfiguratorSettings()
     return NextResponse.json({
       allowCustomerShipping: defaults.allowCustomerShipping,

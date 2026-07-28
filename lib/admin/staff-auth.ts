@@ -123,7 +123,7 @@ export async function completeTotpVerification(
 
   if (!verifyTotpCode(secret, code)) {
     return NextResponse.json(
-      { error: "Ungueltiger Verifizierungscode." },
+      { error: "Ungültiger Verifizierungscode." },
       { status: 401 }
     )
   }
@@ -146,7 +146,7 @@ export function finalizeStaffAuth(
 ): NextResponse {
   if (intent === "preview" && role !== "tester" && role !== "admin") {
     return NextResponse.json(
-      { error: "Keine Berechtigung fuer Vorschau-Zugang." },
+      { error: "Keine Berechtigung für Vorschau-Zugang." },
       { status: 403 }
     )
   }

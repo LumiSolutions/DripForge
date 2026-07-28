@@ -27,7 +27,7 @@ export type PrintCalculatorGlobalParams = {
   defaultPrintGramsPerHour: number
   /** Auto-Offerte: Infill-Anteil (0–1, z. B. 0.15 = 15 % Infill) */
   defaultInfillFactor: number
-  /** Vorbereitung/Nacharbeit fuer Auto-Offerte (Minuten) */
+  /** Vorbereitung/Nacharbeit für Auto-Offerte (Minuten) */
   defaultPrepPostMinutes: number
   setupFeeChf: number
   multiColorSurchargePercentPerExtra: number

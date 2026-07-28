@@ -64,7 +64,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     if (body.productionStatus) {
       if (!isProductionStatus(body.productionStatus)) {
         return NextResponse.json(
-          { error: "Ungueltiger Produktionsstatus." },
+          { error: "Ungültiger Produktionsstatus." },
           { status: 400 }
         )
       }

@@ -1,11 +1,11 @@
-/** Maskiert sensible Teile fuer sicheres Server-Logging. */
+/** Maskiert sensible Teile für sicheres Server-Logging. */
 export function maskCosmosEndpoint(endpoint?: string): string {
   if (!endpoint?.trim()) return "(nicht gesetzt)"
   try {
     const url = new URL(endpoint)
     return `${url.protocol}//${url.hostname}/...`
   } catch {
-    return "(ungueltige URL)"
+    return "(ungültige URL)"
   }
 }
 

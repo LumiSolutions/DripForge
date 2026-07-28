@@ -50,11 +50,11 @@ export async function POST(request: Request) {
       passwordHash: hashPassword(newPassword),
     })
 
-    return NextResponse.json({ success: true, message: "Passwort wurde geaendert." })
+    return NextResponse.json({ success: true, message: "Passwort wurde geändert." })
   } catch (error) {
-    console.error("Konto: Passwort-Aenderung fehlgeschlagen.", error)
+    console.error("Konto: Passwort-Änderung fehlgeschlagen.", error)
     return NextResponse.json(
-      { error: "Passwort konnte nicht geaendert werden." },
+      { error: "Passwort konnte nicht geändert werden." },
       { status: 500 }
     )
   }

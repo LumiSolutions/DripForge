@@ -40,7 +40,7 @@ export function requireStaffTwoFactorSession(
     )
   }
   if (!allowedRoles.includes(payload.role)) {
-    return unauthorized("Keine Berechtigung fuer diese Aktion.", 403)
+    return unauthorized("Keine Berechtigung für diese Aktion.", 403)
   }
   return { userId: payload.userId, role: payload.role }
 }

@@ -9,7 +9,7 @@ export type PublicAiCategory = {
   name: string
 }
 
-/** Oeffentliche KI-Freigabe fuer Shop/Frontend (ohne Admin-Secrets). */
+/** Öffentliche KI-Freigabe für Shop/Frontend (ohne Admin-Secrets). */
 export async function GET() {
   try {
     const settings = await getAiSettings()

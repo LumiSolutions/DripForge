@@ -21,7 +21,7 @@ export async function GET(request: Request) {
 
   const parsed = parseAllowedBlobUrl(blobUrl)
   if (!parsed) {
-    return NextResponse.json({ error: "Ungueltige Blob-URL." }, { status: 400 })
+    return NextResponse.json({ error: "Ungültige Blob-URL." }, { status: 400 })
   }
 
   try {

@@ -82,10 +82,10 @@ type LaserDesignerStudioProps = LaserDesignerBaseProps & {
   showVariantPicker?: boolean
   /** Produkt-Varianten aus Admin (Stichworte); leer = keine Auswahl */
   varianten?: string[]
-  /** Admin-Hintergrundbild fuer Laser-Individualisierung */
+  /** Admin-Hintergrundbild für Laser-Individualisierung */
   customizationBackgroundUrl?: string
   onEngravingMetricsChange?: (metrics: LaserEngravingMetrics) => void
-  /** Ref auf die Live-Vorschau-Flaeche fuer Leitbild-Snapshot beim Warenkorb */
+  /** Ref auf die Live-Vorschau-Fläche für Leitbild-Snapshot beim Warenkorb */
   previewSurfaceRef?: RefObject<HTMLDivElement | null>
 }
 
@@ -135,7 +135,7 @@ type DragSession = {
   centerClientY: number
 }
 
-/** Sperrt Browser-Scroll/-Select/-Drag waehrend Canvas-Gesten (Mobil + Desktop). */
+/** Sperrt Browser-Scroll/-Select/-Drag während Canvas-Gesten (Mobil + Desktop). */
 const CANVAS_TOUCH_LOCK_CLASS =
   "touch-none select-none [-webkit-user-drag:none] [-webkit-touch-callout:none]"
 
@@ -252,7 +252,7 @@ function InteractiveCanvasElement({
   }
 
   const beginTouchDrag = (e: React.TouchEvent, mode: DragMode) => {
-    // Moderne Browser: PointerEvents uebernehmen Start; CSS touch-action sperrt Scroll.
+    // Moderne Browser: PointerEvents übernehmen Start; CSS touch-action sperrt Scroll.
     if (typeof window !== "undefined" && "PointerEvent" in window) return
     const touch = e.touches[0]
     if (!touch) return
@@ -315,7 +315,7 @@ function InteractiveCanvasElement({
             <button
               type="button"
               data-handle="resize"
-              aria-label="Groesse aendern"
+              aria-label="Grösse ändern"
               className={cn(
                 "absolute z-30 h-4 w-4 rounded-sm border-2 border-cyan-400 bg-cyan-400 shadow-md",
                 "cursor-se-resize hover:scale-110",
@@ -396,7 +396,7 @@ function ElementTransformControls({
           />
         </div>
         <div className="space-y-1.5">
-          <Label className="text-xs">Hoehe (mm)</Label>
+          <Label className="text-xs">Höhe (mm)</Label>
           <Input
             type="number"
             min={1}
@@ -406,14 +406,14 @@ function ElementTransformControls({
             disabled={!sizeMm}
             onChange={(e) => applyHeightMm(Number(e.target.value))}
             className="h-9 tabular-nums"
-            aria-label="Gravur-Hoehe in Millimetern"
+            aria-label="Gravur-Höhe in Millimetern"
           />
         </div>
       </div>
 
       <div className="space-y-2">
         <div className="flex items-center justify-between text-xs">
-          <Label>Groesse (Skalierung)</Label>
+          <Label>Grösse (Skalierung)</Label>
           <span className="font-mono text-muted-foreground">{layout.scale.toFixed(2)}x</span>
         </div>
         <input
@@ -458,7 +458,7 @@ function ElementTransformControls({
           className="flex-1 text-xs"
           onClick={() => onChange({ scale: Math.min(3, layout.scale + 0.1) })}
         >
-          Groesser
+          Grösser
         </Button>
         <Button
           type="button"
@@ -552,7 +552,7 @@ function LaserDesignerSettings({
         <CardContent className="p-6">
           <div className="mb-4 flex items-center gap-2">
             <Stamp className="h-4 w-4 text-cyan-400" />
-            <h3 className="font-bold">Variante waehlen</h3>
+            <h3 className="font-bold">Variante wählen</h3>
           </div>
           <div className="grid grid-cols-2 gap-3">
             {varianten.map((varianteStichwort) => {
@@ -594,11 +594,11 @@ function LaserDesignerSettings({
         <CardContent className="p-6 space-y-5">
           <div className="space-y-2">
             <Label htmlFor="designer-font" className="text-sm font-semibold">
-              Schriftart waehlen
+              Schriftart wählen
             </Label>
             {!hasText && (
               <p className="text-xs text-muted-foreground">
-                Bitte zuerst Gravur-Text eingeben, um die Schriftart zu waehlen.
+                Bitte zuerst Gravur-Text eingeben, um die Schriftart zu wählen.
               </p>
             )}
             <div className="relative">
@@ -976,7 +976,7 @@ function LaserDesignerPreview({
 
         <p className="mb-3 text-xs text-muted-foreground">
           Innen ziehen = verschieben · Griff oben = drehen · Griff unten rechts =
-          Groesse. Alles bleibt innerhalb von {workAreaLabel}.
+          Grösse. Alles bleibt innerhalb von {workAreaLabel}.
         </p>
 
         <div
@@ -1085,7 +1085,7 @@ function LaserDesignerPreview({
         <div className="relative z-0 mt-4 space-y-4 border-t border-border/50 pt-4">
           {liveMmLabel && (engravingText.trim() || imageLayout.src) && (
             <p className="rounded-lg border border-border/50 bg-background/60 px-3 py-2 text-center font-mono text-xs text-muted-foreground">
-              Gravur-Groesse:{" "}
+              Gravur-Grösse:{" "}
               <span className="font-semibold text-foreground">
                 {liveMmLabel.widthMm.toFixed(1)} x {liveMmLabel.heightMm.toFixed(1)} mm
               </span>

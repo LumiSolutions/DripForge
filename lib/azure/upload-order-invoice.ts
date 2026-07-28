@@ -9,7 +9,7 @@ export async function uploadOrderInvoicePdf(
   const connectionString = process.env.AZURE_STORAGE_CONNECTION_STRING
   if (!connectionString) {
     console.warn(
-      "Rechnungs-Speicher: AZURE_STORAGE_CONNECTION_STRING fehlt — Upload uebersprungen."
+      "Rechnungs-Speicher: AZURE_STORAGE_CONNECTION_STRING fehlt — Upload übersprungen."
     )
     return null
   }

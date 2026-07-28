@@ -23,9 +23,9 @@ export async function POST(request: Request) {
     if (error instanceof TotpSecretError) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
-    console.error("Admin-Auth: 2FA-Bestaetigung fehlgeschlagen.", error)
+    console.error("Admin-Auth: 2FA-Bestätigung fehlgeschlagen.", error)
     return NextResponse.json(
-      { error: "2FA-Bestaetigung fehlgeschlagen." },
+      { error: "2FA-Bestätigung fehlgeschlagen." },
       { status: 500 }
     )
   }

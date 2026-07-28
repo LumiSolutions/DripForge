@@ -65,7 +65,7 @@ export async function GET(request: Request, context: RouteContext) {
   const type = new URL(request.url).searchParams.get("type") as AssetType | null
 
   if (!type || !["leitbild", "logo", "skizze"].includes(type)) {
-    return NextResponse.json({ error: "Ungueltiger Asset-Typ." }, { status: 400 })
+    return NextResponse.json({ error: "Ungültiger Asset-Typ." }, { status: 400 })
   }
 
   const order = await getOrderForCustomerEmail(auth.email, orderId)
@@ -75,7 +75,7 @@ export async function GET(request: Request, context: RouteContext) {
 
   const asset = resolveAssetSource(orderId, itemId, type, order)
   if (!asset) {
-    return NextResponse.json({ error: "Datei nicht verfuegbar." }, { status: 404 })
+    return NextResponse.json({ error: "Datei nicht verfügbar." }, { status: 404 })
   }
 
   if (asset.src.startsWith("data:")) {
@@ -95,7 +95,7 @@ export async function GET(request: Request, context: RouteContext) {
 
   const parsed = parseAllowedBlobUrl(asset.src)
   if (!parsed) {
-    return NextResponse.json({ error: "Ungueltige Datei-URL." }, { status: 400 })
+    return NextResponse.json({ error: "Ungültige Datei-URL." }, { status: 400 })
   }
 
   const file = await downloadBlobAsBuffer(parsed.container, parsed.blobName)

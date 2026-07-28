@@ -14,6 +14,7 @@ import {
   resolveKontoinhaber,
   type DocumentLogoAlignment,
   type DocumentTemplateSettings,
+  type DocumentTemplateType,
   type DocumentTypeTextSettings,
 } from "@/lib/documents/document-template-types"
 import { pdfBoldStyle, resolvePdfFontFamily } from "@/lib/documents/pdf-fonts"
@@ -316,6 +317,45 @@ export type PdfDocumentMeta = {
   shippingLabel: string
 }
 
+/** Beschriftungen der grauen Meta-Infobox je Dokumenttyp. */
+export type PdfInfoPanelLabels = {
+  number: string
+  date: string
+  terms: string
+  due: string
+  shipping: string
+}
+
+export function resolvePdfInfoPanelLabels(
+  documentType: DocumentTemplateType
+): PdfInfoPanelLabels {
+  if (documentType === "quote") {
+    return {
+      number: "Offertennummer",
+      date: "Offertendatum",
+      terms: "Gültigkeit",
+      due: "Gültig bis",
+      shipping: "Versandart",
+    }
+  }
+  if (documentType === "deliveryNote") {
+    return {
+      number: "Lieferscheinnummer",
+      date: "Lieferscheindatum",
+      terms: "Lieferstatus",
+      due: "Lieferdatum",
+      shipping: "Versandart",
+    }
+  }
+  return {
+    number: "Rechnungsnummer",
+    date: "Rechnungsdatum",
+    terms: "Zahlungsfrist",
+    due: "Fälligkeitsdatum",
+    shipping: "Versandart",
+  }
+}
+
 export type PdfDocumentPayment = {
   amount: number
   reference: string
@@ -329,6 +369,7 @@ export type PdfDocumentLayoutProps = {
   title: string
   template: DocumentTemplateSettings
   documentText: DocumentTypeTextSettings
+  documentType?: DocumentTemplateType
   recipient: PdfDocumentRecipient
   documentMeta: PdfDocumentMeta
   placeholderValues: Record<string, string>
@@ -397,6 +438,7 @@ export function PdfDocumentLayout({
   title,
   template,
   documentText,
+  documentType = "invoice",
   recipient,
   documentMeta,
   placeholderValues,
@@ -404,6 +446,7 @@ export function PdfDocumentLayout({
   children,
 }: PdfDocumentLayoutProps) {
   const styles = createPdfDocumentLayoutStyles(template)
+  const infoLabels = resolvePdfInfoPanelLabels(documentType)
   const logoUrl = template.logoUrl ?? undefined
   const headerLine = applyDocumentTemplatePlaceholders(
     documentText.headerLine,
@@ -460,23 +503,23 @@ export function PdfDocumentLayout({
 
         <View style={styles.infoPanel}>
           <View style={styles.infoField}>
-            <Text style={styles.infoLabel}>Rechnungsnummer</Text>
+            <Text style={styles.infoLabel}>{infoLabels.number}</Text>
             <Text style={styles.infoValue}>{documentMeta.documentNumber}</Text>
           </View>
           <View style={styles.infoField}>
-            <Text style={styles.infoLabel}>Rechnungsdatum</Text>
+            <Text style={styles.infoLabel}>{infoLabels.date}</Text>
             <Text style={styles.infoValue}>{documentMeta.documentDate}</Text>
           </View>
           <View style={styles.infoField}>
-            <Text style={styles.infoLabel}>Zahlungsfrist</Text>
+            <Text style={styles.infoLabel}>{infoLabels.terms}</Text>
             <Text style={styles.infoValue}>{documentMeta.paymentTermsLabel}</Text>
           </View>
           <View style={styles.infoField}>
-            <Text style={styles.infoLabel}>Faelligkeitsdatum</Text>
+            <Text style={styles.infoLabel}>{infoLabels.due}</Text>
             <Text style={styles.infoValue}>{documentMeta.dueDate}</Text>
           </View>
           <View style={styles.infoField}>
-            <Text style={styles.infoLabel}>Versandart</Text>
+            <Text style={styles.infoLabel}>{infoLabels.shipping}</Text>
             <Text style={styles.infoValue}>{documentMeta.shippingLabel}</Text>
           </View>
         </View>
