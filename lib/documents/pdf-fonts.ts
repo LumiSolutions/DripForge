@@ -54,6 +54,10 @@ export function ensureDocumentPdfFonts(): void {
       },
     ],
   })
+
+  // Soft-Hyphens von react-pdf erzeugen oft kaputte Symbole (□) in Headers —
+  // Wörter nicht trennen.
+  Font.registerHyphenationCallback((word) => [word])
 }
 
 /**

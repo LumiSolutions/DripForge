@@ -27,6 +27,15 @@ function scaledSize(baseFontSize: number, sizeAtBase9: number): number {
   return Math.round(sizeAtBase9 * (baseFontSize / 9) * 10) / 10
 }
 
+/** Saubere ASCII-Header ohne Soft-Hyphen / Entities. */
+const TABLE_HEADER = {
+  pos: "Pos",
+  leistung: "Leistung & Beschreibung",
+  menge: "Menge (Aufwand)",
+  einzelpreis: "Einzelpreis (Ansatz)",
+  betrag: "Betrag",
+} as const
+
 function createInvoiceDocumentStyles(template: DocumentTemplateSettings) {
   const base = template.baseFontSize
   const bold = pdfBoldStyle(template.fontFamily)
@@ -52,6 +61,7 @@ function createInvoiceDocumentStyles(template: DocumentTemplateSettings) {
       fontSize: scaledSize(base, 6.2),
       textTransform: "uppercase",
       letterSpacing: 0.35,
+      whiteSpace: "nowrap",
     },
     thCenter: {
       textAlign: "center",
@@ -70,14 +80,14 @@ function createInvoiceDocumentStyles(template: DocumentTemplateSettings) {
     tableRowAlt: {
       backgroundColor: pdfDocumentColors.bgMuted,
     },
-    colPos: { width: "7%" },
-    colLeistung: { width: "43%" },
-    colQty: { width: "16%" },
-    colUnit: { width: "17%" },
+    colPos: { width: "6%" },
+    colLeistung: { width: "40%" },
+    colQty: { width: "18%" },
+    colUnit: { width: "19%" },
     colBetrag: { width: "17%" },
     // Lieferschein ohne Preise
-    colLeistungWide: { width: "77%" },
-    colQtyWide: { width: "16%" },
+    colLeistungWide: { width: "76%" },
+    colQtyWide: { width: "18%" },
     cellPos: {
       fontSize: scaledSize(base, 8),
       color: pdfDocumentColors.anthraciteMid,
@@ -267,14 +277,17 @@ export function InvoiceDocument({
     >
       <View style={styles.table}>
         <View style={styles.tableHeader}>
-          <Text style={[styles.colPos, styles.th, styles.thCenter]}>Pos</Text>
+          <Text style={[styles.colPos, styles.th, styles.thCenter]} wrap={false}>
+            {TABLE_HEADER.pos}
+          </Text>
           <Text
             style={[
               isDeliveryNote ? styles.colLeistungWide : styles.colLeistung,
               styles.th,
             ]}
+            wrap={false}
           >
-            Leistung & Beschreibung
+            {TABLE_HEADER.leistung}
           </Text>
           <Text
             style={[
@@ -282,16 +295,23 @@ export function InvoiceDocument({
               styles.th,
               styles.thCenter,
             ]}
+            wrap={false}
           >
-            Menge (Aufwand)
+            {TABLE_HEADER.menge}
           </Text>
           {!isDeliveryNote ? (
             <>
-              <Text style={[styles.colUnit, styles.th, styles.thRight]}>
-                Einzelpreis (Ansatz)
+              <Text
+                style={[styles.colUnit, styles.th, styles.thRight]}
+                wrap={false}
+              >
+                {TABLE_HEADER.einzelpreis}
               </Text>
-              <Text style={[styles.colBetrag, styles.th, styles.thRight]}>
-                Betrag
+              <Text
+                style={[styles.colBetrag, styles.th, styles.thRight]}
+                wrap={false}
+              >
+                {TABLE_HEADER.betrag}
               </Text>
             </>
           ) : null}

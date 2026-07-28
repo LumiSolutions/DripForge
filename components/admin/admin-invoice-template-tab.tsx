@@ -268,11 +268,13 @@ function DocumentLivePreview({
 
           <div className="mt-4 overflow-hidden rounded border border-slate-300">
             <div className="grid grid-cols-[0.35fr_2.2fr_0.9fr_0.95fr_0.85fr] bg-[#5b7c99] px-2 py-2 text-[0.62em] font-bold uppercase tracking-wider text-white">
-              <span className="text-center">Pos</span>
-              <span>Leistung & Beschreibung</span>
-              <span className="text-center">Menge (Aufwand)</span>
-              <span className="text-right">Einzelpreis (Ansatz)</span>
-              <span className="text-right">Betrag</span>
+              <span className="text-center whitespace-nowrap">Pos</span>
+              <span className="whitespace-nowrap">Leistung & Beschreibung</span>
+              <span className="text-center whitespace-nowrap">Menge (Aufwand)</span>
+              <span className="text-right whitespace-nowrap">
+                Einzelpreis (Ansatz)
+              </span>
+              <span className="text-right whitespace-nowrap">Betrag</span>
             </div>
             {PREVIEW_ITEMS.map((item, index) => (
               <div
