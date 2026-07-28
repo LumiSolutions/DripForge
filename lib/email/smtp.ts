@@ -24,50 +24,42 @@ function stripEnvQuotes(value: string): string {
 }
 
 export function isSmtpConfigured(): boolean {
-  return Boolean(
-    process.env.SMTP_HOST?.trim() &&
-      process.env.SMTP_USER?.trim() &&
-      process.env.SMTP_PASS?.trim()
-  )
+  // HOST kann Default (Hostpoint) sein — USER + PASS sind Pflicht
+  return Boolean(process.env.SMTP_USER?.trim() && process.env.SMTP_PASS?.trim())
 }
 
 function parseSecureFlag(port: number): boolean {
   const raw = process.env.SMTP_SECURE?.trim().toLowerCase()
   if (raw === "true" || raw === "1" || raw === "yes") return true
   if (raw === "false" || raw === "0" || raw === "no") return false
-  // Hostpoint: 465 = SSL, 587 = STARTTLS
   return port === 465
 }
 
 export function getSmtpRuntimeConfig(): SmtpRuntimeConfig | null {
   if (!isSmtpConfigured()) return null
 
-  const host = stripEnvQuotes(process.env.SMTP_HOST!)
-  const port = Number(stripEnvQuotes(process.env.SMTP_PORT ?? "465"))
   const user = stripEnvQuotes(process.env.SMTP_USER!)
   const pass = stripEnvQuotes(process.env.SMTP_PASS!)
+  const host = stripEnvQuotes(process.env.SMTP_HOST ?? "mail.hostpoint.ch")
+  const port = Number(stripEnvQuotes(process.env.SMTP_PORT ?? "465"))
+  const resolvedPort = Number.isFinite(port) && port > 0 ? port : 465
   const from =
     stripEnvQuotes(process.env.EMAIL_FROM ?? "") ||
     stripEnvQuotes(process.env.SMTP_FROM ?? "") ||
-    `"DripForge" <${user}>`
+    `DripForge <${user}>`
 
   return {
-    host,
-    port: Number.isFinite(port) && port > 0 ? port : 465,
-    secure: parseSecureFlag(Number.isFinite(port) && port > 0 ? port : 465),
+    host: host || "mail.hostpoint.ch",
+    port: resolvedPort,
+    secure: parseSecureFlag(resolvedPort),
     user,
     pass,
     from,
   }
 }
 
-export function buildSmtpTransporter() {
-  const config = getSmtpRuntimeConfig()
-  if (!config) {
-    throw new Error("SMTP ist nicht konfiguriert (SMTP_HOST/USER/PASS fehlen).")
-  }
-
-  console.info("E-Mail: SMTP-Transporter wird erstellt.", {
+function logSmtpConfig(config: SmtpRuntimeConfig, phase: string) {
+  console.log(`[SMTP] ${phase}`, {
     host: config.host,
     port: config.port,
     secure: config.secure,
@@ -75,7 +67,28 @@ export function buildSmtpTransporter() {
     from: config.from,
     passConfigured: Boolean(config.pass),
     passLength: config.pass.length,
+    // Hilfe bei kaputten .env-Escapes (z. B. $$ → $)
+    passEndsWithDollar: config.pass.endsWith("$"),
   })
+}
+
+let cachedTransporter: ReturnType<typeof nodemailer.createTransport> | null =
+  null
+let cachedConfigKey: string | null = null
+
+export function buildSmtpTransporter() {
+  const config = getSmtpRuntimeConfig()
+  if (!config) {
+    throw new Error("SMTP ist nicht konfiguriert (SMTP_USER/SMTP_PASS fehlen).")
+  }
+
+  const configKey = `${config.host}|${config.port}|${config.secure}|${config.user}|${config.pass.length}`
+  if (cachedTransporter && cachedConfigKey === configKey) {
+    console.log("[SMTP] Wiederverwende bestehenden Transporter.")
+    return cachedTransporter
+  }
+
+  logSmtpConfig(config, "Transporter wird erstellt")
 
   const options: SMTPTransport.Options = {
     host: config.host,
@@ -85,24 +98,31 @@ export function buildSmtpTransporter() {
       user: config.user,
       pass: config.pass,
     },
-    connectionTimeout: 20_000,
-    greetingTimeout: 20_000,
-    socketTimeout: 30_000,
+    connectionTimeout: 12_000,
+    greetingTimeout: 12_000,
+    socketTimeout: 20_000,
+    tls: {
+      // Hostpoint Zertifikat / SNI
+      servername: config.host,
+      minVersion: "TLSv1.2",
+    },
   }
 
-  // Port 587: explizit STARTTLS erzwingen (Hostpoint)
   if (!config.secure && config.port === 587) {
     options.requireTLS = true
+    console.log("[SMTP] STARTTLS für Port 587 aktiviert (requireTLS).")
   }
 
-  return nodemailer.createTransport(options)
+  cachedTransporter = nodemailer.createTransport(options)
+  cachedConfigKey = configKey
+  return cachedTransporter
 }
 
 export function resolveSmtpFrom(fallbackName: string, fallbackEmail: string): string {
   return (
     stripEnvQuotes(process.env.EMAIL_FROM ?? "") ||
     stripEnvQuotes(process.env.SMTP_FROM ?? "") ||
-    `"${fallbackName}" <${fallbackEmail}>`
+    `${fallbackName} <${fallbackEmail}>`
   )
 }
 
@@ -117,13 +137,17 @@ export type SendSmtpMailOptions = {
 
 function formatSmtpError(error: unknown): Record<string, unknown> {
   if (!(error instanceof Error)) {
-    return { error }
+    return { error: String(error) }
   }
   const anyErr = error as Error & {
     code?: string
     response?: string
     responseCode?: number
     command?: string
+    errno?: number
+    syscall?: string
+    address?: string
+    port?: number
   }
   return {
     name: anyErr.name,
@@ -132,41 +156,77 @@ function formatSmtpError(error: unknown): Record<string, unknown> {
     response: anyErr.response,
     responseCode: anyErr.responseCode,
     command: anyErr.command,
+    errno: anyErr.errno,
+    syscall: anyErr.syscall,
+    address: anyErr.address,
+    port: anyErr.port,
     stack: anyErr.stack,
   }
 }
 
 export async function sendSmtpMail(options: SendSmtpMailOptions): Promise<boolean> {
+  const startedAt = Date.now()
+  console.log("[SMTP] sendSmtpMail gestartet", {
+    to: options.to,
+    from: options.from,
+    subject: options.subject,
+    hasHtml: Boolean(options.html),
+    hasText: Boolean(options.text),
+    attachmentCount: options.attachments?.length ?? 0,
+    configured: isSmtpConfigured(),
+  })
+
   if (!isSmtpConfigured()) {
-    console.info("E-Mail: SMTP nicht konfiguriert — Versand übersprungen.", {
-      to: options.to,
-      subject: options.subject,
-    })
+    console.error(
+      "[SMTP] ABBRUCH: SMTP_USER/SMTP_PASS fehlen in der Umgebung — Versand übersprungen.",
+      { to: options.to, subject: options.subject }
+    )
     return false
   }
 
+  const config = getSmtpRuntimeConfig()
+  if (config) logSmtpConfig(config, "Vor dem Versand")
+
   try {
+    console.log("[SMTP] buildSmtpTransporter()…")
     const transporter = buildSmtpTransporter()
+
+    console.log("[SMTP] transporter.verify()…")
+    try {
+      await transporter.verify()
+      console.log(`[SMTP] verify OK (${Date.now() - startedAt}ms)`)
+    } catch (verifyError) {
+      console.error("[SMTP] verify FEHLGESCHLAGEN — sende trotzdem (Fallback).", {
+        ...formatSmtpError(verifyError),
+        elapsedMs: Date.now() - startedAt,
+      })
+    }
+
+    console.log("[SMTP] transporter.sendMail()…")
     const info = await transporter.sendMail(options)
-    console.info("E-Mail: SMTP-Versand erfolgreich.", {
+    console.log("[SMTP] Versand ERFOLGREICH", {
       to: options.to,
       subject: options.subject,
       messageId: info.messageId,
       accepted: info.accepted,
       rejected: info.rejected,
+      pending: info.pending,
       response: info.response,
+      envelope: info.envelope,
+      elapsedMs: Date.now() - startedAt,
     })
     return true
   } catch (error) {
-    console.error(
-      "E-Mail: SMTP-Versand fehlgeschlagen — Request wird trotzdem fortgesetzt.",
-      {
-        to: options.to,
-        subject: options.subject,
-        from: options.from,
-        ...formatSmtpError(error),
-      }
-    )
+    console.error("[SMTP] Versand FEHLGESCHLAGEN — Checkout wird nicht abgebrochen.", {
+      to: options.to,
+      subject: options.subject,
+      from: options.from,
+      elapsedMs: Date.now() - startedAt,
+      ...formatSmtpError(error),
+    })
+    // Transporter-Cache bei Auth-/Netzfehlern verwerfen
+    cachedTransporter = null
+    cachedConfigKey = null
     return false
   }
 }
@@ -179,10 +239,11 @@ export async function verifySmtpConnection(): Promise<{
   const config = getSmtpRuntimeConfig()
   if (!config) {
     throw new Error(
-      "SMTP nicht konfiguriert. Bitte SMTP_HOST, SMTP_USER und SMTP_PASS setzen."
+      "SMTP nicht konfiguriert. Bitte SMTP_USER und SMTP_PASS setzen (Host default: mail.hostpoint.ch)."
     )
   }
 
+  logSmtpConfig(config, "verifySmtpConnection")
   const transporter = buildSmtpTransporter()
   await transporter.verify()
   return {

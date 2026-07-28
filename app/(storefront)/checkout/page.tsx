@@ -22,7 +22,7 @@ function CheckoutPageInner() {
     if (searchParams.get("order_success") === "1") {
       setCheckoutNoticeVariant("success")
       setOrderSuccessMessage(
-        "Vielen Dank! Deine Zahlung war erfolgreich. Die Bestellung wird verarbeitet — KI-Credits werden nach Bestätigung gutgeschrieben."
+        "Vielen Dank! Deine Zahlung war erfolgreich. Die Bestellung wird verarbeitet."
       )
       setCart([])
       window.history.replaceState({}, "", "/checkout")
@@ -65,10 +65,6 @@ function CheckoutPageInner() {
         cart={cart}
         onOrderComplete={() => {
           setCart([])
-          setCheckoutNoticeVariant("success")
-          setOrderSuccessMessage(
-            "Vielen Dank! Deine Bestellung wurde erfolgreich übermittelt. Bei «Kauf auf Rechnung» erhältst du die Rechnung per E-Mail, sobald SMTP im Portal konfiguriert ist."
-          )
         }}
       />
     </>

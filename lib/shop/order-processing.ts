@@ -249,22 +249,39 @@ export async function sendInboundOrderEmailsSafe(
   order: StoredOrder,
   settings?: AdminSettings
 ): Promise<void> {
+  console.log("[OrderEmail] Starte Eingangs-Benachrichtigungen", {
+    orderId: order.orderId,
+    customerEmail: order.billing.email,
+    accountEmail: order.accountEmail ?? null,
+    smtpConfigured: Boolean(
+      process.env.SMTP_USER?.trim() && process.env.SMTP_PASS?.trim()
+    ),
+    smtpHost: process.env.SMTP_HOST?.trim() || "(default mail.hostpoint.ch)",
+    smtpPort: process.env.SMTP_PORT?.trim() || "(default 465)",
+  })
+
   try {
     const results = await Promise.allSettled([
       notifyOrderReceived(order, settings),
       notifyAdminNewOrder(order, settings),
     ])
-    for (const result of results) {
-      if (result.status === "rejected") {
-        console.error(
-          `Bestellung: Eingangs-Benachrichtigung fehlgeschlagen (${order.orderId}).`,
-          result.reason
-        )
+    results.forEach((result, index) => {
+      const label = index === 0 ? "customer" : "admin"
+      if (result.status === "fulfilled") {
+        console.log(`[OrderEmail] ${label}: settled ok`, {
+          orderId: order.orderId,
+          sent: result.value,
+        })
+      } else {
+        console.error(`[OrderEmail] ${label}: rejected`, {
+          orderId: order.orderId,
+          reason: result.reason,
+        })
       }
-    }
+    })
   } catch (emailError) {
     console.error(
-      `Bestellung: Eingangs-Benachrichtigung fehlgeschlagen (${order.orderId}).`,
+      `[OrderEmail] Unerwarteter Fehler (${order.orderId}).`,
       emailError
     )
   }

@@ -50,6 +50,7 @@ import { useRewardPointsEnabled } from "@/hooks/use-reward-points-enabled"
 import type { CartItem } from "@/lib/dripforge/types"
 import { cn } from "@/lib/utils"
 import { submitOrder, startStripeCheckout, startTwintCheckout, type OrderPayload } from "@/lib/dripforge/submit-order"
+import { CheckoutSuccessModal } from "@/components/dripforge/checkout-success-modal"
 import type { CompanySettings } from "@/lib/admin/types"
 import { DEFAULT_COMPANY_SETTINGS } from "@/lib/admin/types"
 
@@ -175,7 +176,7 @@ export function PageCheckout({
 }: {
   setCurrentView: (view: string) => void
   cart: CartItem[]
-  onOrderComplete?: () => void
+  onOrderComplete?: (orderId: string) => void
 }) {
   const { applyMergedCart } = useCart()
   const [checkoutConfig, setCheckoutConfig] = useState<CheckoutRuntimeConfig>(
@@ -217,6 +218,7 @@ export function PageCheckout({
   const [authSuccessMessage, setAuthSuccessMessage] = useState<string | null>(
     null
   )
+  const [successOrderId, setSuccessOrderId] = useState<string | null>(null)
   const { loggedIn, loyaltyPoints, loading: loyaltyLoading, refresh: refreshLoyalty } =
     useCustomerLoyaltyPoints()
   const rewardPointsEnabled = useRewardPointsEnabled()
@@ -661,8 +663,23 @@ export function PageCheckout({
       return
     }
 
-    onOrderComplete?.()
-    setCurrentView("home")
+    const orderId = result.data.orderId
+    onOrderComplete?.(orderId)
+    setSuccessOrderId(orderId)
+  }
+
+  if (successOrderId) {
+    return (
+      <CheckoutSuccessModal
+        open
+        orderId={successOrderId}
+        showOrdersLink={loggedIn}
+        onContinueShopping={() => {
+          setSuccessOrderId(null)
+          setCurrentView("shop")
+        }}
+      />
+    )
   }
 
   if (cart.length === 0) {

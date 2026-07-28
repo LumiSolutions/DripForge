@@ -222,9 +222,6 @@ export default function DripForgeApp() {
             cart={cart}
             onOrderComplete={() => {
               setCart([])
-              setOrderSuccessMessage(
-                "Vielen Dank! Deine Bestellung wurde erfolgreich übermittelt. Bei «Kauf auf Rechnung» erhältst du die Rechnung per E-Mail, sobald SMTP im Portal konfiguriert ist."
-              )
             }}
           />
         )}

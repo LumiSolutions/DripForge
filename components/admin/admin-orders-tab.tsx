@@ -1,6 +1,6 @@
 "use client"
 
-import { Fragment, useCallback, useEffect, useState } from "react"
+import { Fragment, useCallback, useEffect, useRef, useState } from "react"
 import {
   ChevronDown,
   ChevronRight,
@@ -369,27 +369,85 @@ export function AdminOrdersTab({
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [newOrderNotice, setNewOrderNotice] = useState<string | null>(null)
+  const knownOrderIdsRef = useRef<Set<string> | null>(null)
+  const audioCtxRef = useRef<AudioContext | null>(null)
 
-  const loadOrders = useCallback(async () => {
-    setLoading(true)
-    setError(null)
+  const playNewOrderChime = useCallback(() => {
     try {
-      const res = await fetch("/api/admin/orders")
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? "Laden fehlgeschlagen")
-      setOrders(data.orders ?? [])
-    } catch (err) {
-      console.warn("Admin: Bestellungen konnten nicht geladen werden.", err)
-      setError(
-        err instanceof Error ? err.message : "Bestellungen konnten nicht geladen werden."
-      )
-    } finally {
-      setLoading(false)
+      const AudioCtx =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext?: typeof AudioContext })
+          .webkitAudioContext
+      if (!AudioCtx) return
+      const ctx = audioCtxRef.current ?? new AudioCtx()
+      audioCtxRef.current = ctx
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.type = "sine"
+      osc.frequency.value = 880
+      gain.gain.value = 0.04
+      osc.connect(gain)
+      gain.connect(ctx.destination)
+      osc.start()
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.35)
+      osc.stop(ctx.currentTime + 0.35)
+    } catch {
+      /* Audio optional */
     }
   }, [])
 
+  const loadOrders = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) {
+      setLoading(true)
+      setError(null)
+    }
+    try {
+      const res = await fetch("/api/admin/orders", { cache: "no-store" })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? "Laden fehlgeschlagen")
+      const nextOrders = (data.orders ?? []) as StoredOrder[]
+
+      const nextIds = new Set(nextOrders.map((o) => o.orderId))
+      if (knownOrderIdsRef.current) {
+        const fresh = nextOrders.filter(
+          (o) => !knownOrderIdsRef.current!.has(o.orderId)
+        )
+        if (fresh.length > 0) {
+          const newest = fresh[0]
+          setNewOrderNotice(
+            fresh.length === 1
+              ? `Neue Bestellung: ${newest.orderId}`
+              : `${fresh.length} neue Bestellungen eingegangen`
+          )
+          playNewOrderChime()
+        }
+      }
+      knownOrderIdsRef.current = nextIds
+      setOrders(nextOrders)
+    } catch (err) {
+      console.warn("Admin: Bestellungen konnten nicht geladen werden.", err)
+      if (!opts?.silent) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Bestellungen konnten nicht geladen werden."
+        )
+      }
+    } finally {
+      if (!opts?.silent) setLoading(false)
+    }
+  }, [playNewOrderChime])
+
   useEffect(() => {
     void loadOrders()
+  }, [loadOrders])
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      void loadOrders({ silent: true })
+    }, 20_000)
+    return () => window.clearInterval(timer)
   }, [loadOrders])
 
   useEffect(() => {
@@ -467,12 +525,28 @@ export function AdminOrdersTab({
 
   return (
     <div className="space-y-4">
+      {newOrderNotice ? (
+        <div
+          role="status"
+          className="flex items-center justify-between gap-3 rounded-xl border border-emerald-500/40 bg-emerald-500/15 px-4 py-3 text-sm text-emerald-900 dark:text-emerald-100"
+        >
+          <span className="font-medium">{newOrderNotice}</span>
+          <button
+            type="button"
+            className="text-xs font-semibold underline underline-offset-2"
+            onClick={() => setNewOrderNotice(null)}
+          >
+            Schliessen
+          </button>
+        </div>
+      ) : null}
       <div className="flex items-center justify-between gap-4">
         <div>
           <h2 className={cn("text-xl font-bold", adminUi.heading)}>Bestelluebersicht</h2>
           <p className={cn("text-sm", adminUi.muted)}>
             Produktions-Cockpit — {orders.length} Bestellung
             {orders.length !== 1 ? "en" : ""}
+            <span className="ml-2 text-xs opacity-70">(Auto-Refresh 20s)</span>
           </p>
         </div>
         <Button
