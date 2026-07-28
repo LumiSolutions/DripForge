@@ -163,7 +163,7 @@ export function BelegCustomerPicker({ onSelect, className }: CustomerPickerProps
             <ul
               className={cn(
                 "z-[80] max-h-64 overflow-auto rounded-md border shadow-lg",
-                adminUi.panel
+                adminUi.card
               )}
               style={{
                 position: "fixed",
