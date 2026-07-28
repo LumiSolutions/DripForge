@@ -8,6 +8,7 @@ import {
   type DocumentTemplateSettings,
   type DocumentTemplateType,
 } from "@/lib/documents/document-template-types"
+import { formatBelegQuantityWithUnit } from "@/lib/documents/beleg-types"
 import { PdfDocumentLayout, pdfDocumentColors } from "@/lib/documents/pdf-document-layout"
 import { pdfBoldStyle } from "@/lib/documents/pdf-fonts"
 import {
@@ -63,7 +64,7 @@ function createInvoiceDocumentStyles(template: DocumentTemplateSettings) {
     },
     colProduct: { width: "18%" },
     colDetails: { width: "28%" },
-    colQty: { width: "8%", textAlign: "center" },
+    colQty: { width: "11%", textAlign: "center" },
     colUnit: { width: "14%", textAlign: "right" },
     colTotal: { width: "14%", textAlign: "right" },
     colVat: { width: "10%", textAlign: "right" },
@@ -251,7 +252,9 @@ export function InvoiceDocument({
             <View style={styles.colDetails}>
               <Text style={styles.cellDetails}>{formatInvoiceItemDetails(item)}</Text>
             </View>
-            <Text style={[styles.colQty, styles.cellQty]}>{item.quantity}</Text>
+            <Text style={[styles.colQty, styles.cellQty]}>
+              {formatBelegQuantityWithUnit(item.quantity, item.unit)}
+            </Text>
             {!isDeliveryNote ? (
               <>
                 <Text style={[styles.colUnit, styles.cellMoney]}>

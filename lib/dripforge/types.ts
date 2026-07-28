@@ -95,6 +95,8 @@ export interface CartItem {
   name: string
   price: number
   quantity: number
+  /** Mengeneinheit für Belege/PDF (z. B. Stk, Std) — optional. */
+  unit?: string
   type: "3d" | "laser"
   /** Visueller Snapshot der Live-Vorschau (PNG Base64) fuer die Admin-Bestelluebersicht */
   leitbild?: string

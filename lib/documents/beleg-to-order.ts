@@ -10,6 +10,7 @@ export function belegToSyntheticOrder(beleg: Beleg): StoredOrder {
     name: pos.name,
     price: hidePrices ? 0 : pos.unitPrice,
     quantity: pos.quantity,
+    unit: pos.unit,
     type: "3d" as const,
     customDetails: pos.details
       ? {

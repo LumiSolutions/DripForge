@@ -22,11 +22,18 @@ export type BelegAddress = {
   company?: string
 }
 
+/** Vorschläge für Positions-Einheiten (Freitext bleibt erlaubt). */
+export const BELEG_UNIT_OPTIONS = ["Stk", "Std", "kWh", "m", "Psch"] as const
+
+export const DEFAULT_BELEG_UNIT = "Stk"
+
 export type BelegPosition = {
   id: string
   name: string
   details?: string
   quantity: number
+  /** Mengeneinheit, z. B. Stk, Std, kWh (Freitext erlaubt). */
+  unit: string
   unitPrice: number
   /**
    * Ertragskonto (Kontonummer aus dem Buchhaltungs-Kontenplan),
@@ -225,8 +232,23 @@ export function normalizeBelegAddress(raw: Partial<BelegAddress> | null | undefi
   }
 }
 
+export function normalizeBelegUnit(raw: unknown): string {
+  if (raw == null) return DEFAULT_BELEG_UNIT
+  const value = String(raw).trim()
+  return value || DEFAULT_BELEG_UNIT
+}
+
+export function formatBelegQuantityWithUnit(
+  quantity: number,
+  unit?: string | null
+): string {
+  const qty = Number.isFinite(quantity) ? String(quantity) : "0"
+  const unitLabel = String(unit ?? "").trim()
+  return unitLabel ? `${qty} ${unitLabel}` : qty
+}
+
 export function normalizeBelegPosition(
-  raw: Partial<BelegPosition> & { id?: string },
+  raw: Partial<BelegPosition> & { id?: string; einheit?: string },
   index: number
 ): BelegPosition {
   const quantity = Math.max(0, Number(raw.quantity) || 0)
@@ -244,12 +266,18 @@ export function normalizeBelegPosition(
     unitPrice,
     discountPercent
   )
+  const unit = normalizeBelegUnit(
+    raw.unit !== undefined && raw.unit !== null && String(raw.unit).trim() !== ""
+      ? raw.unit
+      : raw.einheit
+  )
 
   return {
     id: String(raw.id ?? `pos-${index + 1}`).trim() || `pos-${index + 1}`,
     name: String(raw.name ?? "").trim() || `Position ${index + 1}`,
     details: String(raw.details ?? "").trim() || undefined,
     quantity,
+    unit,
     unitPrice,
     accountCode,
     discountPercent,

@@ -117,6 +117,7 @@ function orderItemsToPositions(order: StoredOrder): BelegPosition[] {
         details:
           item.type === "3d" ? "3D-Druck" : item.type === "laser" ? "Laser" : undefined,
         quantity: item.quantity,
+        unit: item.unit || "Stk",
         unitPrice: item.price,
         accountCode:
           item.type === "laser" ? accounts.revenueLaser : accounts.revenue3d,
@@ -136,6 +137,7 @@ function orderItemsToPositions(order: StoredOrder): BelegPosition[] {
           id: "shipping",
           name: "Versand",
           quantity: 1,
+          unit: "Stk",
           unitPrice: order.totals.shippingCost,
           accountCode: accounts.revenue3d,
           discountPercent: 0,

@@ -51,6 +51,8 @@ import { adminUi } from "@/lib/admin/admin-ui-classes"
 import { cn } from "@/lib/utils"
 import {
   BELEG_TYPE_LABELS,
+  BELEG_UNIT_OPTIONS,
+  DEFAULT_BELEG_UNIT,
   clampDiscountPercent,
   computeBelegTotals,
   computePositionDiscountAmount,
@@ -161,6 +163,7 @@ function emptyEditor(type: BelegType = "offerte"): EditorState {
         {
           name: "",
           quantity: 1,
+          unit: DEFAULT_BELEG_UNIT,
           unitPrice: 0,
           accountCode: defaultBelegRevenueAccountCode(),
           discountPercent: 0,
@@ -744,6 +747,7 @@ export function AdminBelegeTab() {
                         {
                           name: "",
                           quantity: 1,
+                          unit: DEFAULT_BELEG_UNIT,
                           unitPrice: 0,
                           accountCode: resolveBelegAccountCode(
                             defaultBelegRevenueAccountCode(),
@@ -851,6 +855,22 @@ export function AdminBelegeTab() {
                         }
                       />
                     </div>
+                    <div className="space-y-1 lg:col-span-1">
+                      <Label className="text-xs">Einheit</Label>
+                      <Input
+                        list={`beleg-unit-options-${pos.id}`}
+                        value={pos.unit}
+                        placeholder={DEFAULT_BELEG_UNIT}
+                        onChange={(e) =>
+                          updatePosition(index, { unit: e.target.value })
+                        }
+                      />
+                      <datalist id={`beleg-unit-options-${pos.id}`}>
+                        {BELEG_UNIT_OPTIONS.map((option) => (
+                          <option key={option} value={option} />
+                        ))}
+                      </datalist>
+                    </div>
                     <div className="space-y-1 lg:col-span-2">
                       <Label className="text-xs">Preis</Label>
                       <Input
@@ -898,7 +918,7 @@ export function AdminBelegeTab() {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="space-y-1 sm:col-span-2 lg:col-span-5">
+                    <div className="space-y-1 sm:col-span-2 lg:col-span-4">
                       <Label className="text-xs">Konto</Label>
                       <Select
                         value={accountCode}
