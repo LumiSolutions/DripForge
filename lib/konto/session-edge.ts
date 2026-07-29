@@ -2,16 +2,24 @@ import type { CustomerSessionPayload } from "@/lib/konto/account-types"
 
 export const CUSTOMER_SESSION_COOKIE = "dripforge_customer_session"
 
+/**
+ * Öffentliche Konto-Routen — ohne Session erreichbar.
+ * Wichtig: Reset-Pfad muss der App-Route entsprechen (ASCII `zuruecksetzen`).
+ */
 const KONTO_PUBLIC_PATHS = [
   "/konto/login",
   "/konto/registrieren",
   "/konto/passwort-vergessen",
+  "/konto/passwort-zuruecksetzen",
+  // Legacy-Alias mit Umlaut (falls irgendwo noch verlinkt)
   "/konto/passwort-zurücksetzen",
 ]
 
 export function isKontoPublicPath(pathname: string): boolean {
+  // Query-String ist in pathname nicht enthalten; Trailing-Slash tolerieren
+  const normalized = pathname.replace(/\/+$/, "") || pathname
   return KONTO_PUBLIC_PATHS.some(
-    (p) => pathname === p || pathname.startsWith(`${p}/`)
+    (p) => normalized === p || normalized.startsWith(`${p}/`)
   )
 }
 
