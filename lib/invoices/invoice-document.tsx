@@ -67,6 +67,16 @@ function createInvoiceDocumentStyles(template: DocumentTemplateSettings) {
       whiteSpace: "nowrap",
       hyphens: "none",
     },
+    /** Menge / Einzelpreis / Betrag: nie mitten im Wort umbrechen */
+    thNowrap: {
+      color: "#ffffff",
+      ...bold,
+      fontSize: scaledSize(base, 5.8),
+      textTransform: "uppercase",
+      letterSpacing: 0.2,
+      whiteSpace: "nowrap",
+      hyphens: "none",
+    },
     thCenter: {
       textAlign: "center",
     },
@@ -315,7 +325,7 @@ export function InvoiceDocument({
           <Text
             style={[
               isDeliveryNote ? styles.colQtyWide : styles.colQty,
-              styles.th,
+              styles.thNowrap,
               styles.thCenter,
             ]}
             wrap={false}
@@ -325,13 +335,13 @@ export function InvoiceDocument({
           {!isDeliveryNote ? (
             <>
               <Text
-                style={[styles.colUnit, styles.th, styles.thRight]}
+                style={[styles.colUnit, styles.thNowrap, styles.thRight]}
                 wrap={false}
               >
                 {TABLE_HEADER.einzelpreis}
               </Text>
               <Text
-                style={[styles.colBetrag, styles.th, styles.thRight]}
+                style={[styles.colBetrag, styles.thNowrap, styles.thRight]}
                 wrap={false}
               >
                 {TABLE_HEADER.betrag}
