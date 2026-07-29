@@ -219,6 +219,8 @@ export function PageCheckout({
     null
   )
   const [successOrderId, setSuccessOrderId] = useState<string | null>(null)
+  const [successPaymentMethod, setSuccessPaymentMethod] =
+    useState<PaymentMethodId | null>(null)
   const { loggedIn, loyaltyPoints, loading: loyaltyLoading, refresh: refreshLoyalty } =
     useCustomerLoyaltyPoints()
   const rewardPointsEnabled = useRewardPointsEnabled()
@@ -663,6 +665,7 @@ export function PageCheckout({
 
     const orderId = result.data.orderId
     onOrderComplete?.(orderId)
+    setSuccessPaymentMethod(paymentMethod)
     setSuccessOrderId(orderId)
   }
 
@@ -671,9 +674,11 @@ export function PageCheckout({
       <CheckoutSuccessModal
         open
         orderId={successOrderId}
+        paymentMethod={successPaymentMethod ?? undefined}
         showOrdersLink={loggedIn}
         onContinueShopping={() => {
           setSuccessOrderId(null)
+          setSuccessPaymentMethod(null)
           setCurrentView("shop")
         }}
       />
