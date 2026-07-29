@@ -62,7 +62,14 @@ export type StripeCheckoutResult =
   | { ok: false; error: string }
 
 export type TwintCheckoutResult =
-  | { ok: true; url: string; gatewayHash: string; orderId: string }
+  | {
+      ok: true
+      orderId: string
+      twintPaymentUrl: string
+      amountChf: number
+      amountFormatted: string
+      successPath: string
+    }
   | { ok: false; error: string }
 
 export async function startStripeCheckout(
@@ -114,18 +121,19 @@ export async function startTwintCheckout(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ ...payload, paymentMethod: "twint" }),
     })
 
     const data = (await response.json()) as {
-      url?: string
-      gatewayHash?: string
       orderId?: string
-      pointsOnly?: boolean
+      twintPaymentUrl?: string
+      amountChf?: number
+      amountFormatted?: string
+      successPath?: string
       error?: string
     }
 
-    if (!response.ok || !data.url) {
+    if (!response.ok || !data.orderId || !data.twintPaymentUrl) {
       return {
         ok: false,
         error: data.error ?? "TWINT-Checkout konnte nicht gestartet werden.",
@@ -134,12 +142,17 @@ export async function startTwintCheckout(
 
     return {
       ok: true,
-      url: data.url,
-      gatewayHash: data.gatewayHash ?? "",
-      orderId: data.orderId ?? "",
+      orderId: data.orderId,
+      twintPaymentUrl: data.twintPaymentUrl,
+      amountChf: data.amountChf ?? payload.totals.total,
+      amountFormatted:
+        data.amountFormatted ?? payload.totals.total.toFixed(2),
+      successPath:
+        data.successPath ??
+        `/bestellung/erfolg?order_id=${encodeURIComponent(data.orderId)}&method=twint`,
     }
   } catch (error) {
-    console.error("TWINT Checkout: Netzwerkfehler.", error)
+    console.error("TWINT-Checkout: Netzwerkfehler.", error)
     return {
       ok: false,
       error: "Verbindungsfehler. Bitte später erneut versuchen.",

@@ -10,6 +10,10 @@ import {
 import { recordBelegPaymentJournalEntry } from "@/lib/accounting/beleg-journal"
 import { normalizeBeleg, normalizeBelegAddress } from "@/lib/documents/beleg-types"
 import { upsertCustomerFromBelegAddress } from "@/lib/admin/upsert-customer-from-beleg"
+import {
+  sendInboundOfferteEmailsSafe,
+  shouldSendOfferteEmails,
+} from "@/lib/email/beleg-notifications"
 
 function isAuthError(value: unknown): value is NextResponse {
   return value instanceof NextResponse
@@ -85,6 +89,11 @@ export async function PUT(request: Request, context: Ctx) {
         formatCosmosError(journalError)
       )
     }
+
+    if (shouldSendOfferteEmails(existing, saved)) {
+      void sendInboundOfferteEmailsSafe(saved)
+    }
+
     return NextResponse.json({ beleg: saved })
   } catch (error) {
     console.error("Beleg PUT fehlgeschlagen.", formatCosmosError(error))

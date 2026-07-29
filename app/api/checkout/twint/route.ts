@@ -1,30 +1,82 @@
 import { NextResponse } from "next/server"
-import { normalizeCustomerEmail } from "@/lib/admin/customers"
+import type { NextRequest } from "next/server"
+import { getOrderById } from "@/lib/admin/db"
+import { applyInventoryReservationForOrder } from "@/lib/admin/order-inventory-hook"
+import { CosmosDatabaseError } from "@/lib/admin/storage-bridge"
 import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
 import type { OrderPayload } from "@/lib/dripforge/submit-order"
 import { getSessionEmailFromRequest } from "@/lib/konto/api-auth"
+import { bindOrderToCustomer } from "@/lib/shop/bind-order-to-account"
 import {
-  createTwintGateway,
-  isPayrexxConfigured,
-} from "@/lib/payrexx/client"
-import { createOrderId, fulfillPaidShopOrder, processOrderPayload } from "@/lib/shop/order-processing"
-import { getSiteOrigin } from "@/lib/stripe/client"
+  processOrderPayload,
+  sendInboundOrderEmailsSafe,
+} from "@/lib/shop/order-processing"
+import {
+  buildTwintPaymentUrl,
+  formatTwintAmount,
+  getTwintPaymentLinkBase,
+  isTwintPaymentLinkConfigured,
+} from "@/lib/twint/payment-link"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 
-export async function GET() {
+/**
+ * TWINT-Zahlungslink-Checkout.
+ * GET: Status / Link für bestehende Bestellung
+ * POST: Bestellung anlegen (ausstehend), Mails senden, Zahlungslink zurückgeben
+ */
+export async function GET(request: NextRequest) {
+  const orderId = request.nextUrl.searchParams.get("orderId")?.trim()
+
+  if (!orderId) {
+    return NextResponse.json({
+      configured: isTwintPaymentLinkConfigured(),
+      provider: "twint-payment-link",
+    })
+  }
+
+  if (!isTwintPaymentLinkConfigured()) {
+    return NextResponse.json(
+      { error: "TWINT-Zahlungslink ist nicht konfiguriert." },
+      { status: 503 }
+    )
+  }
+
+  const order = await getOrderById(orderId)
+  if (!order) {
+    return NextResponse.json({ error: "Bestellung nicht gefunden." }, { status: 404 })
+  }
+
+  if (order.paymentMethod !== "twint") {
+    return NextResponse.json(
+      { error: "Bestellung ist keine TWINT-Bestellung." },
+      { status: 400 }
+    )
+  }
+
+  const amountChf = order.totals.total
+  const twintPaymentUrl = buildTwintPaymentUrl({
+    orderId: order.orderId,
+    amountChf,
+  })
+
   return NextResponse.json({
-    configured: isPayrexxConfigured(),
+    configured: true,
+    orderId: order.orderId,
+    amountChf,
+    amountFormatted: formatTwintAmount(amountChf),
+    paymentConfirmed: Boolean(order.paymentConfirmed),
+    twintPaymentUrl,
   })
 }
 
 export async function POST(request: Request) {
-  if (!isPayrexxConfigured()) {
+  if (!isTwintPaymentLinkConfigured()) {
     return NextResponse.json(
       {
         error:
-          "Payrexx/TWINT ist noch nicht konfiguriert. Bitte PAYREXX_INSTANCE_NAME und PAYREXX_API_SECRET in der Umgebung hinterlegen.",
+          "TWINT-Zahlungslink ist nicht konfiguriert. Bitte TWINT_PAYMENT_LINK setzen.",
         configured: false,
       },
       { status: 503 }
@@ -32,7 +84,14 @@ export async function POST(request: Request) {
   }
 
   try {
-    await warmCosmosInfrastructure()
+    try {
+      await warmCosmosInfrastructure()
+    } catch (warmError) {
+      console.warn(
+        "TWINT-Checkout: Cosmos-Warmup fehlgeschlagen — versuche Bestellung trotzdem.",
+        warmError
+      )
+    }
 
     const payload = (await request.json()) as OrderPayload
     if (!payload.items?.length || !payload.billing?.email) {
@@ -44,88 +103,106 @@ export async function POST(request: Request) {
 
     if (payload.paymentMethod !== "twint") {
       return NextResponse.json(
-        { error: "Diese Route ist nur für TWINT-Zahlungen vorgesehen." },
+        { error: "Diese Route ist nur für TWINT-Zahlungen." },
         { status: 400 }
       )
     }
 
     const sessionEmail = await getSessionEmailFromRequest()
-    const billingEmail = normalizeCustomerEmail(payload.billing.email)
-    const userId = sessionEmail || billingEmail
 
-    const orderId = createOrderId()
-    const { order } = await processOrderPayload(payload, {
-      orderId,
-      paymentConfirmed: false,
-      enforceGatewayMinForPoints: true,
-      sessionEmail,
-      skipInboundEmails: true,
-    })
+    // Pending: wartet auf TWINT-Zahlung — keine Credits/Punkte bis Zahlung bestätigt
+    const { order, itemResults, settings } = await processOrderPayload(
+      { ...payload, paymentMethod: "twint" },
+      {
+        paymentConfirmed: false,
+        enforceGatewayMinForPoints: false,
+        sessionEmail,
+        skipInboundEmails: true,
+      }
+    )
 
-    const { bindOrderToCustomer } = await import("@/lib/shop/bind-order-to-account")
-    const { order: boundOrder } = await bindOrderToCustomer(order, {
-      sessionEmail,
-      saveAddressToAccount: payload.saveAddressToAccount !== false,
-    })
+    let orderWithCustomer = order
+    let kundennummer: string | undefined
+    let accountEmail =
+      sessionEmail || order.billing.email.trim().toLowerCase()
 
-    const totalCents = Math.round(boundOrder.totals.total * 100)
-    if (totalCents < 50) {
-      await fulfillPaidShopOrder(orderId, {
-        userId,
-        totalChf: boundOrder.totals.total,
-        saveAddressToAccount: false,
+    try {
+      const bound = await bindOrderToCustomer(order, {
+        sessionEmail,
+        saveAddressToAccount: payload.saveAddressToAccount !== false,
       })
-      return NextResponse.json({
-        configured: true,
-        orderId,
-        pointsOnly: true,
-        url: `${getSiteOrigin(request)}/checkout?order_success=1`,
-      })
+      orderWithCustomer = bound.order
+      kundennummer = bound.customer.kundennummer
+      accountEmail = bound.accountEmail
+    } catch (bindError) {
+      console.error(
+        `TWINT-Checkout: Kundenbindung fehlgeschlagen (${order.orderId}) — Bestellung bleibt erhalten.`,
+        bindError
+      )
     }
 
-    const origin = getSiteOrigin(request)
-    const itemSummary = `${boundOrder.items.length} Artikel — TWINT`
+    try {
+      await applyInventoryReservationForOrder(orderWithCustomer)
+    } catch (inventoryError) {
+      console.error(
+        `TWINT-Checkout: Lagerreservation fehlgeschlagen (${order.orderId}).`,
+        inventoryError
+      )
+    }
 
-    const gateway = await createTwintGateway({
-      amountCents: totalCents,
-      orderId,
-      purpose: `DripForge Bestellung ${orderId}`,
-      successRedirectUrl: `${origin}/checkout?order_success=1`,
-      failedRedirectUrl: `${origin}/checkout?payment_failed=1`,
-      cancelRedirectUrl: `${origin}/checkout?canceled=1`,
-      customer: {
-        firstName: payload.billing.firstName,
-        lastName: payload.billing.lastName,
-        email: billingEmail,
-        phone: payload.billing.phone,
-        street: payload.billing.street,
-        zip: payload.billing.zip,
-        city: payload.billing.city,
-        country: payload.billing.country,
-      },
-      vatRate: boundOrder.totals.mwstAktiv ? undefined : 0,
+    // E-Mails NACH DB-Save — awaited (SWA killt sonst fire-and-forget).
+    try {
+      console.log("[TWINT-Checkout] Starte sendOrderConfirmation (await)…", {
+        orderId: orderWithCustomer.orderId,
+      })
+      const emailResult = await sendInboundOrderEmailsSafe(
+        orderWithCustomer,
+        settings
+      )
+      console.log("[TWINT-Checkout] sendOrderConfirmation Ergebnis", {
+        orderId: orderWithCustomer.orderId,
+        ...emailResult,
+      })
+    } catch (mailError) {
+      console.error(
+        `TWINT-Checkout: E-Mail-Versand fehlgeschlagen (${order.orderId}) — Bestellung bleibt erhalten.`,
+        mailError
+      )
+    }
+
+    const amountChf = orderWithCustomer.totals.total
+    const twintPaymentUrl = buildTwintPaymentUrl({
+      orderId: orderWithCustomer.orderId,
+      amountChf,
     })
 
-    const { saveOrder } = await import("@/lib/admin/db")
-    await saveOrder({
-      ...boundOrder,
-      accountEmail: userId,
-      payrexxGatewayHash: gateway.hash,
-    })
+    console.info(
+      `TWINT-Checkout: Bestellung ${orderWithCustomer.orderId} angelegt (ausstehend), Link bereit.`
+    )
 
     return NextResponse.json({
+      success: true,
       configured: true,
-      url: gateway.link,
-      gatewayHash: gateway.hash,
-      orderId,
-      purpose: itemSummary,
+      orderId: orderWithCustomer.orderId,
+      kundennummer,
+      accountEmail,
+      amountChf,
+      amountFormatted: formatTwintAmount(amountChf),
+      twintPaymentUrl,
+      twintPaymentLinkBase: getTwintPaymentLinkBase(),
+      items: itemResults,
+      message: "Bestellung gespeichert — bitte per TWINT bezahlen.",
+      successPath: `/bestellung/erfolg?order_id=${encodeURIComponent(orderWithCustomer.orderId)}&method=twint&amount=${encodeURIComponent(formatTwintAmount(amountChf))}`,
     })
   } catch (error) {
-    console.error("TWINT Checkout: Erstellung fehlgeschlagen.", error)
+    console.error("Fehler beim Speichern der Bestellung:", error)
+    console.error("TWINT-Checkout: Erstellung fehlgeschlagen.", error)
     const message =
-      error instanceof Error
-        ? error.message
-        : "TWINT-Checkout konnte nicht gestartet werden."
-    return NextResponse.json({ error: message }, { status: 500 })
+      error instanceof CosmosDatabaseError
+        ? "Bestellung konnte nicht in der Datenbank gespeichert werden. Bitte erneut versuchen."
+        : error instanceof Error
+          ? error.message
+          : "TWINT-Checkout konnte nicht gestartet werden."
+    return NextResponse.json({ error: message, success: false }, { status: 500 })
   }
 }

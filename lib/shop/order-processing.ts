@@ -31,8 +31,10 @@ import {
 } from "@/lib/konto/loyalty-points"
 import { orderHasCustomerInbound } from "@/lib/admin/customer-inbound-order"
 import { applyInventoryReservationForOrder } from "@/lib/admin/order-inventory-hook"
-import { notifyOrderReceived } from "@/lib/email/order-notifications"
-import { notifyAdminNewOrder } from "@/lib/email/admin-inbound-notifications"
+import {
+  sendOrderConfirmation,
+  type SendOrderEmailsResult,
+} from "@/lib/email/send-order-emails"
 import {
   buildRewardPointsPublicSettings,
   normalizeEnableRewardPointsSystem,
@@ -43,10 +45,13 @@ import {
   bindOrderToCustomer,
   resolveLoyaltyAccountEmail,
 } from "@/lib/shop/bind-order-to-account"
+import {
+  normalizeOrderForPersistence,
+  sanitizeOrderItemForPersistence,
+} from "@/lib/admin/normalize-order"
 
 function stripLeitbildPayload(item: StoredOrderItem): StoredOrderItem {
-  const { leitbild: _removed, ...rest } = item
-  return rest
+  return sanitizeOrderItemForPersistence(item)
 }
 
 export type ProcessOrderResult = {
@@ -191,7 +196,7 @@ export async function processOrderPayload(
     })
   })
 
-  const order: StoredOrder = {
+  const order: StoredOrder = normalizeOrderForPersistence({
     orderId,
     createdAt: new Date().toISOString(),
     status: "ausstehend",
@@ -212,17 +217,33 @@ export async function processOrderPayload(
     ...(options?.sessionEmail?.trim()
       ? { accountEmail: resolveLoyaltyAccountEmail(options.sessionEmail, payload.billing.email) }
       : {}),
-  }
+  })
 
+  // DB zuerst — erst danach (außerhalb dieses Schritts) Mails
   await saveOrder(order)
   console.info(`Bestellung: Order-Record persistiert (${orderId}).`)
 
+  // E-Mails sind entkoppelt — Fehler hier dürfen die Bestellung nie ungültig machen.
   if (!options?.skipInboundEmails) {
-    await sendInboundOrderEmailsSafe(order, settings)
+    try {
+      await sendOrderConfirmation(order, settings)
+    } catch (mailError) {
+      console.error(
+        `Bestellung: Eingangsmails fehlgeschlagen (${orderId}) — Bestellung bleibt gespeichert.`,
+        mailError
+      )
+    }
   }
 
   if (appliedCoupon && order.paymentConfirmed) {
-    await incrementCouponRedemption(appliedCoupon.code)
+    try {
+      await incrementCouponRedemption(appliedCoupon.code)
+    } catch (couponError) {
+      console.error(
+        `Bestellung: Coupon-Einlösung fehlgeschlagen (${orderId}) — Bestellung bleibt gespeichert.`,
+        couponError
+      )
+    }
   }
 
   if (order.paymentConfirmed) {
@@ -248,42 +269,15 @@ export async function processOrderPayload(
 export async function sendInboundOrderEmailsSafe(
   order: StoredOrder,
   settings?: AdminSettings
-): Promise<void> {
-  console.log("[OrderEmail] Starte Eingangs-Benachrichtigungen", {
-    orderId: order.orderId,
-    customerEmail: order.billing.email,
-    accountEmail: order.accountEmail ?? null,
-    smtpConfigured: Boolean(
-      process.env.SMTP_USER?.trim() && process.env.SMTP_PASS?.trim()
-    ),
-    smtpHost: process.env.SMTP_HOST?.trim() || "(default mail.hostpoint.ch)",
-    smtpPort: process.env.SMTP_PORT?.trim() || "(default 587)",
-  })
-
+): Promise<SendOrderEmailsResult> {
   try {
-    const results = await Promise.allSettled([
-      notifyOrderReceived(order, settings),
-      notifyAdminNewOrder(order, settings),
-    ])
-    results.forEach((result, index) => {
-      const label = index === 0 ? "customer" : "admin"
-      if (result.status === "fulfilled") {
-        console.log(`[OrderEmail] ${label}: settled ok`, {
-          orderId: order.orderId,
-          sent: result.value,
-        })
-      } else {
-        console.error(`[OrderEmail] ${label}: rejected`, {
-          orderId: order.orderId,
-          reason: result.reason,
-        })
-      }
-    })
-  } catch (emailError) {
+    return await sendOrderConfirmation(order, settings)
+  } catch (error) {
     console.error(
-      `[OrderEmail] Unerwarteter Fehler (${order.orderId}).`,
-      emailError
+      `Bestellung: Eingangsmails fehlgeschlagen (${order.orderId}) — Bestellung bleibt gespeichert.`,
+      error
     )
+    return { customerSent: false, adminSent: false }
   }
 }
 
@@ -348,6 +342,10 @@ export async function fulfillPaidShopOrder(
     userId?: string | null
     totalChf?: number
     saveAddressToAccount?: boolean
+    /** Stripe customer_details.email — überschreibt billing.email für Bestätigung */
+    customerEmail?: string | null
+    /** Wenn true: Eingangsmails nicht hier senden (z. B. Webhook mit eigenem try/catch) */
+    skipInboundEmails?: boolean
   }
 ): Promise<{ fulfilled: boolean; aiCreditsGranted: number; loyaltyPointsGranted: number }> {
   const order = await getOrderById(orderId)
@@ -366,8 +364,15 @@ export async function fulfillPaidShopOrder(
     options.payrexxTransactionUuid?.trim() ||
     orderId
 
+  const stripeCustomerEmail = options.customerEmail?.trim().toLowerCase() || ""
+  const billing =
+    stripeCustomerEmail && stripeCustomerEmail !== order.billing.email.trim().toLowerCase()
+      ? { ...order.billing, email: stripeCustomerEmail }
+      : order.billing
+
   const updated: StoredOrder = {
     ...order,
+    billing,
     paymentConfirmed: true,
     ...(options.stripeSessionId
       ? { stripeSessionId: options.stripeSessionId }
@@ -513,7 +518,9 @@ export async function fulfillPaidShopOrder(
   }
 
   // Falls Eingangsmail beim Pending-Checkout noch fehlte
-  await sendInboundOrderEmailsSafe(orderWithCustomer, settings)
+  if (!options.skipInboundEmails) {
+    await sendInboundOrderEmailsSafe(orderWithCustomer, settings)
+  }
 
   return {
     fulfilled: true,

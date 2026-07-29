@@ -19,7 +19,7 @@ const BYPASS_PREFIXES = [
   "/.swa",
 ]
 
-const LAUNCH_BYPASS_PREFIXES = ["/konto"]
+const LAUNCH_BYPASS_PREFIXES = ["/konto", "/bestellung"]
 
 type LaunchPayload = {
   shopLive?: boolean
@@ -48,6 +48,7 @@ export async function middleware(request: NextRequest) {
   }
 
   if (pathname.startsWith("/konto")) {
+    // Login, Registrierung, Passwort vergessen/zurücksetzen: öffentlich
     if (isKontoPublicPath(pathname)) {
       return NextResponse.next()
     }

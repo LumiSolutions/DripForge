@@ -23,9 +23,9 @@ import { formatChf } from "@/lib/invoices/invoice-format"
 
 const MM = 2.834645669
 const PDF_CONTENT_WIDTH_MM = 170
-/** Platz am unteren Rand für den fixen Footer (Inhalt darf nicht hineinragen). */
-const FOOTER_RESERVED_MM = 24
-const FOOTER_BOTTOM_OFFSET_MM = 12
+/** Platz am unteren Rand für den fixen Footer (3 Zeilen + Abstand). */
+const FOOTER_RESERVED_MM = 28
+const FOOTER_BOTTOM_OFFSET_MM = 10
 
 export const pdfDocumentColors = {
   anthracite: "#1f2937",
@@ -108,9 +108,11 @@ export function createPdfDocumentLayoutStyles(template: DocumentTemplateSettings
       maxWidth: "52%",
       fontSize: scaledSize(base, 10),
       lineHeight: 1.45,
+      hyphens: "none",
     },
     recipientLine: {
       marginBottom: 1,
+      hyphens: "none",
     },
     infoPanel: {
       flexDirection: "row",
@@ -130,11 +132,13 @@ export function createPdfDocumentLayoutStyles(template: DocumentTemplateSettings
       textTransform: "uppercase",
       letterSpacing: 0.6,
       marginBottom: 3,
+      hyphens: "none",
     },
     infoValue: {
       fontSize: scaledSize(base, 8.5),
       ...bold,
       color: pdfDocumentColors.anthracite,
+      hyphens: "none",
     },
     headerRule: {
       height: 1,
@@ -152,23 +156,27 @@ export function createPdfDocumentLayoutStyles(template: DocumentTemplateSettings
       fontSize: scaledSize(base, 13),
       color: pdfDocumentColors.anthracite,
       marginBottom: 4,
+      hyphens: "none",
     },
     referenceLine: {
       fontSize: scaledSize(base, 9.5),
       color: pdfDocumentColors.anthraciteMid,
       marginBottom: 8,
+      hyphens: "none",
     },
     introText: {
       fontSize: scaledSize(base, 9.5),
       color: pdfDocumentColors.anthraciteLight,
       marginBottom: 14,
       maxWidth: "90%",
+      hyphens: "none",
     },
     footerNote: {
       fontSize: scaledSize(base, 9),
       color: pdfDocumentColors.anthraciteLight,
       marginTop: 8,
       maxWidth: "90%",
+      hyphens: "none",
     },
     receiptNotice: {
       marginTop: 14,
@@ -268,8 +276,9 @@ export function createPdfDocumentLayoutStyles(template: DocumentTemplateSettings
       maxWidth: "85%",
     },
     /**
-     * Fixer Footer am unteren Rand — erscheint auf jeder Seite (`fixed`).
-     * Mehrzeilig, zentriert, dezentes Grau.
+     * Fixer Footer am unteren Rand — erscheint auf JEDER Seite (`fixed`).
+     * Mehrzeilig (Firma | Adresse | Kontakt), zentriert, dezentes Grau.
+     * Feste Elemente möglichst früh im Page-Tree platzieren (react-pdf).
      */
     centerFooter: {
       position: "absolute",
@@ -278,6 +287,7 @@ export function createPdfDocumentLayoutStyles(template: DocumentTemplateSettings
       right: 20 * MM,
       textAlign: "center",
       lineHeight: 1.35,
+      hyphens: "none",
     },
     footerLine1: {
       ...bold,
@@ -286,6 +296,7 @@ export function createPdfDocumentLayoutStyles(template: DocumentTemplateSettings
       marginBottom: 2,
       lineHeight: 1.35,
       textAlign: "center",
+      hyphens: "none",
     },
     footerLine2: {
       fontSize: 9,
@@ -293,12 +304,14 @@ export function createPdfDocumentLayoutStyles(template: DocumentTemplateSettings
       marginBottom: 2,
       lineHeight: 1.35,
       textAlign: "center",
+      hyphens: "none",
     },
     footerLine3: {
       fontSize: 9,
       color: pdfDocumentColors.anthraciteLight,
       lineHeight: 1.35,
       textAlign: "center",
+      hyphens: "none",
     },
   })
 }
@@ -545,11 +558,13 @@ export function PdfDocumentLayout({
   return (
     <Document title={title} author={template.firmenname}>
       <Page size="A4" style={styles.page}>
+        {/* fixed-Elemente zuerst: erscheinen zuverlässig auf allen Folgeseiten */}
         <PdfLogoHeader
           styles={styles}
           logoUrl={logoUrl}
           alignment={template.logoAlignment}
         />
+        <PdfCenterFooter styles={styles} footerLines={footerLines} />
 
         <View style={styles.recipientBlock}>
           <Text style={styles.recipientLine}>{recipientName}</Text>
@@ -622,9 +637,6 @@ export function PdfDocumentLayout({
             <Text style={styles.receiptNoticeText}>{receiptMessage}</Text>
           </View>
         ) : null}
-
-        {/* Fixer Footer auf allen Seiten (inkl. Folgeseiten) */}
-        <PdfCenterFooter styles={styles} footerLines={footerLines} />
       </Page>
 
       {showPaymentPage && payment ? (

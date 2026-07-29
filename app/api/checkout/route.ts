@@ -11,6 +11,7 @@ import {
 } from "@/lib/stripe/build-checkout-line-items"
 import { getStripeCheckoutUrls } from "@/lib/stripe/checkout-urls"
 import { getStripe, isStripeConfigured } from "@/lib/stripe/client"
+import { CosmosDatabaseError } from "@/lib/admin/storage-bridge"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -35,7 +36,14 @@ export async function POST(request: Request) {
   }
 
   try {
-    await warmCosmosInfrastructure()
+    try {
+      await warmCosmosInfrastructure()
+    } catch (warmError) {
+      console.warn(
+        "Shop Checkout: Cosmos-Warmup fehlgeschlagen — versuche Bestellung trotzdem.",
+        warmError
+      )
+    }
 
     const payload = (await request.json()) as OrderPayload
     if (!payload.items?.length || !payload.billing?.email) {
@@ -66,22 +74,39 @@ export async function POST(request: Request) {
       skipInboundEmails: true,
     })
 
-    const { bindOrderToCustomer } = await import("@/lib/shop/bind-order-to-account")
-    const { order: boundOrder } = await bindOrderToCustomer(order, {
-      sessionEmail,
-      saveAddressToAccount: payload.saveAddressToAccount !== false,
-    })
+    let boundOrder = order
+    try {
+      const { bindOrderToCustomer } = await import("@/lib/shop/bind-order-to-account")
+      const bound = await bindOrderToCustomer(order, {
+        sessionEmail,
+        saveAddressToAccount: payload.saveAddressToAccount !== false,
+      })
+      boundOrder = bound.order
+    } catch (bindError) {
+      console.error(
+        `Shop Checkout: Kundenbindung fehlgeschlagen (${orderId}) — Checkout läuft weiter.`,
+        bindError
+      )
+    }
 
     const totalCents = Math.round(boundOrder.totals.total * 100)
     const { successUrl, cancelUrl } = getStripeCheckoutUrls()
 
     if (totalCents < 50) {
-      await fulfillPaidShopOrder(orderId, {
-        userId,
-        totalChf: boundOrder.totals.total,
-        saveAddressToAccount: false,
-      })
+      try {
+        await fulfillPaidShopOrder(orderId, {
+          userId,
+          totalChf: boundOrder.totals.total,
+          saveAddressToAccount: false,
+        })
+      } catch (fulfillError) {
+        console.error(
+          `Shop Checkout: Points-only Fulfillment fehlgeschlagen (${orderId}).`,
+          fulfillError
+        )
+      }
       return NextResponse.json({
+        success: true,
         configured: true,
         orderId,
         pointsOnly: true,
@@ -94,9 +119,16 @@ export async function POST(request: Request) {
     const lineTotalCents = sumLineItemsCents(lineItems)
     const discounts = await buildCheckoutDiscounts(stripe, lineTotalCents, totalCents)
 
+    const paymentMethodTypes: Array<"card" | "twint"> =
+      payload.paymentMethod === "twint"
+        ? ["twint"]
+        : payload.paymentMethod === "card"
+          ? ["card"]
+          : ["card", "twint"]
+
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
-      payment_method_types: ["card", "twint"],
+      payment_method_types: paymentMethodTypes,
       customer_email: billingEmail,
       line_items: lineItems,
       ...(discounts ? { discounts } : {}),
@@ -116,27 +148,41 @@ export async function POST(request: Request) {
 
     if (!session.url) {
       return NextResponse.json(
-        { error: "Stripe Checkout konnte nicht erstellt werden." },
+        { error: "Stripe Checkout konnte nicht erstellt werden.", success: false },
         { status: 500 }
       )
     }
 
-    const { saveOrder } = await import("@/lib/admin/db")
-    await saveOrder({
-      ...boundOrder,
-      stripeSessionId: session.id,
-    })
+    try {
+      const { saveOrder } = await import("@/lib/admin/db")
+      await saveOrder({
+        ...boundOrder,
+        stripeSessionId: session.id,
+      })
+    } catch (sessionSaveError) {
+      // Bestellung existiert bereits — Stripe-Session-ID optional nachtragen
+      console.error(
+        `Shop Checkout: Stripe-Session-ID konnte nicht gespeichert werden (${orderId}).`,
+        sessionSaveError
+      )
+    }
 
     return NextResponse.json({
+      success: true,
       configured: true,
       url: session.url,
       sessionId: session.id,
       orderId,
     })
   } catch (error) {
+    console.error("Fehler beim Speichern der Bestellung:", error)
     console.error("Shop Checkout: Erstellung fehlgeschlagen.", error)
     const message =
-      error instanceof Error ? error.message : "Checkout konnte nicht gestartet werden."
-    return NextResponse.json({ error: message }, { status: 500 })
+      error instanceof CosmosDatabaseError
+        ? "Bestellung konnte nicht in der Datenbank gespeichert werden. Bitte erneut versuchen."
+        : error instanceof Error
+          ? error.message
+          : "Checkout konnte nicht gestartet werden."
+    return NextResponse.json({ error: message, success: false }, { status: 500 })
   }
 }

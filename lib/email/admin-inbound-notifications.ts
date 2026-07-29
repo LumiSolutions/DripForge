@@ -13,6 +13,10 @@ import {
   textToHtmlParagraphs,
 } from "@/lib/email/dripforge-email-layout"
 import { resolveEmailBranding } from "@/lib/email/order-email-context"
+import {
+  formatOrderAddressBlock,
+  resolvePaymentStatusLabel,
+} from "@/lib/email/order-email-summary"
 import { resolveAdminNotifyEmail } from "@/lib/email/resolve-admin-notify-email"
 import { resolveSmtpFrom, sendSmtpMail } from "@/lib/email/smtp"
 import { formatChf, formatInvoiceDate } from "@/lib/invoices/invoice-format"
@@ -192,22 +196,38 @@ export async function notifyAdminNewOrder(
   settings?: AdminSettings
 ): Promise<boolean> {
   const dashboardUrl = buildAdminOrderDetailUrl(order.orderId)
+  const delivery = order.delivery ?? order.billing
+  const itemLines = order.items.map(
+    (item) =>
+      `- ${item.quantity}x ${item.name} (${formatChf(item.price * item.quantity)})`
+  )
+
   const plainBody = [
-    "Es ist eine neue Bestellung oder Anfrage eingegangen.",
-    "",
-    formatOrderContactBlock(order),
+    "Neue Bestellung eingegangen.",
     "",
     `Bestellnummer: ${order.orderId}`,
+    `Kunde: ${customerDisplayName(order.billing)}`,
+    `E-Mail: ${order.billing.email}`,
+    order.billing.phone?.trim()
+      ? `Telefon: ${order.billing.phone.trim()}`
+      : null,
+    `Zahlungsart: ${order.paymentMethodLabel}`,
+    `Zahlungsstatus: ${resolvePaymentStatusLabel(order)}`,
+    `Gesamtbetrag: ${formatChf(order.totals.total)}`,
     `Eingegangen: ${formatInvoiceDate(order.createdAt)}`,
     "",
-    "Zusammenfassung:",
-    formatOrderOptionsSummary(order),
-  ].join("\n")
+    "Artikel:",
+    ...itemLines,
+    "",
+    formatOrderAddressBlock("Lieferadresse:", delivery),
+  ]
+    .filter((line) => line !== null)
+    .join("\n")
 
   return sendAdminInboundEmail({
     referenceId: order.orderId,
     title: "Neue Bestellung",
-    subject: `🚨 Neue Anfrage/Bestellung eingegangen! #${order.orderId}`,
+    subject: "Neue Bestellung eingegangen",
     plainBody,
     dashboardUrl,
     settings,

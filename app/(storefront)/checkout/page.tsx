@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils"
 
 function CheckoutPageInner() {
   const navigate = useShopNavigate()
-  const { cart, setCart } = useCart()
+  const { cart, clearCart } = useCart()
   const searchParams = useSearchParams()
   const [orderSuccessMessage, setOrderSuccessMessage] = useState<string | null>(
     null
@@ -24,7 +24,7 @@ function CheckoutPageInner() {
       setOrderSuccessMessage(
         "Vielen Dank! Deine Zahlung war erfolgreich. Die Bestellung wird verarbeitet."
       )
-      setCart([])
+      void clearCart()
       window.history.replaceState({}, "", "/checkout")
     }
     if (searchParams.get("payment_failed") === "1") {
@@ -34,7 +34,7 @@ function CheckoutPageInner() {
       )
       window.history.replaceState({}, "", "/checkout")
     }
-  }, [searchParams, setCart])
+  }, [searchParams, clearCart])
 
   return (
     <>
@@ -64,7 +64,7 @@ function CheckoutPageInner() {
         setCurrentView={navigate}
         cart={cart}
         onOrderComplete={() => {
-          setCart([])
+          void clearCart()
         }}
       />
     </>

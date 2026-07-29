@@ -1,25 +1,34 @@
 import type { CustomerSessionPayload } from "@/lib/konto/account-types"
+import { resolveCrossRuntimeSigningSecret } from "@/lib/security/env-secrets"
 
 export const CUSTOMER_SESSION_COOKIE = "dripforge_customer_session"
 
+/**
+ * Öffentliche Konto-Routen — ohne Session erreichbar.
+ * Wichtig: Reset-Pfad muss der App-Route entsprechen (ASCII `zuruecksetzen`).
+ */
 const KONTO_PUBLIC_PATHS = [
   "/konto/login",
   "/konto/registrieren",
   "/konto/passwort-vergessen",
+  "/konto/passwort-zuruecksetzen",
+  // Legacy-Alias mit Umlaut (falls irgendwo noch verlinkt)
   "/konto/passwort-zurücksetzen",
 ]
 
 export function isKontoPublicPath(pathname: string): boolean {
+  // Query-String ist in pathname nicht enthalten; Trailing-Slash tolerieren
+  const normalized = pathname.replace(/\/+$/, "") || pathname
   return KONTO_PUBLIC_PATHS.some(
-    (p) => pathname === p || pathname.startsWith(`${p}/`)
+    (p) => normalized === p || normalized.startsWith(`${p}/`)
   )
 }
 
 function getSessionSecret(): string {
-  return (
-    process.env.CUSTOMER_SESSION_SECRET?.trim() ||
-    process.env.NEXT_PUBLIC_CUSTOMER_SESSION_SECRET?.trim() ||
-    "dripforge-dev-customer-session-change-me"
+  // Kein NEXT_PUBLIC_* — Session-Secrets dürfen nicht im Client landen.
+  return resolveCrossRuntimeSigningSecret(
+    "CUSTOMER_SESSION_SECRET",
+    "ADMIN_SESSION_SECRET"
   )
 }
 

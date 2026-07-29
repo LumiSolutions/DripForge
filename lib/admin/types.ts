@@ -58,12 +58,14 @@ export type StoredOrder = {
   rechnungPdfPath?: string
   /** Stripe Checkout Session (Shop) */
   stripeSessionId?: string | null
-  /** Payrexx Gateway-Hash (TWINT) */
+  /** @deprecated Legacy Payrexx — nur noch historische Bestellungen */
   payrexxGatewayHash?: string | null
-  /** Payrexx Transaktions-UUID nach erfolgreicher Zahlung */
+  /** @deprecated Legacy Payrexx — nur noch historische Bestellungen */
   payrexxTransactionUuid?: string | null
-  /** Zahlung bestätigt (false = wartet auf Stripe-/Payrexx-Webhook) */
+  /** Zahlung bestätigt (false = wartet auf Stripe-Webhook / TWINT) */
   paymentConfirmed?: boolean
+  /** Abgeleitetes Zahlungsstatus-Label für Persistenz / Admin */
+  paymentStatus?: "pending" | "paid"
   /** Mindestens eine Position: Kunde sendet eigenes Produkt zur Laserbearbeitung ein */
   isCustomerInbound?: boolean
   /** Lager: reserviert / verbraucht / freigegeben */
@@ -204,9 +206,8 @@ export function getPaymentMethodLabel(
     case "invoice":
       return "Kauf auf Rechnung"
     case "twint":
-      return checkout.twintGatewayAktiv
-        ? "TWINT (Gateway)"
-        : "TWINT manuell"
+      // Offizieller TWINT-Zahlungslink (Checkout) — Gateway-Flag nur noch Label-Hinweis
+      return checkout.twintGatewayAktiv ? "TWINT (Gateway)" : "TWINT"
     default:
       return method
   }

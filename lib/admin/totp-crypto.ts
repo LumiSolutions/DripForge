@@ -4,14 +4,16 @@ import {
   randomBytes,
   scryptSync,
 } from "crypto"
+import { resolveSigningSecret } from "@/lib/security/env-secrets"
 
 const SALT = "dripforge-admin-2fa-v1"
 
 function getEncryptionKey(): Buffer {
-  const secret =
-    process.env.ADMIN_2FA_ENCRYPTION_KEY?.trim() ||
-    process.env.ADMIN_SESSION_SECRET?.trim() ||
-    "dripforge-admin-2fa-dev-key-change-me"
+  const secret = resolveSigningSecret(
+    "Admin-2FA-Encryption-Key",
+    "ADMIN_2FA_ENCRYPTION_KEY",
+    "ADMIN_SESSION_SECRET"
+  )
   return scryptSync(secret, SALT, 32)
 }
 

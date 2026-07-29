@@ -3,13 +3,15 @@
  * PDF nutzt dieselben Masse (A4, 20mm Seitenränder, Footer fixiert unten auf allen Seiten).
  */
 
+/* Systemweite Silbentrennung AUS — verhindert Soft-Hyphen-/Glyphen-Artefakte */
+.document-preview-pages,
+.document-preview-pages *,
 .document-preview-page,
 .document-preview-page * {
   hyphens: none !important;
   -webkit-hyphens: none !important;
   -moz-hyphens: none !important;
   -ms-hyphens: none !important;
-  -webkit-locale: "de-CH";
 }
 
 @media print {
@@ -60,19 +62,22 @@
   display: flex;
   min-height: 100%;
   flex-direction: column;
-  padding: 0 20mm 24mm;
+  /* Footer-Reservierung analog PDF (FOOTER_RESERVED_MM) */
+  padding: 0 20mm 28mm;
 }
 
-/* Fixer Footer auf allen Seiten — zentriert, dezent grau */
+/* Fixer Footer auf allen Seiten — zentriert, dezent grau, am unteren Rand */
 .invoice-footer {
   position: absolute;
-  bottom: 12mm;
+  bottom: 10mm;
   left: 20mm;
   right: 20mm;
   text-align: center;
   line-height: 1.35;
   font-size: 9px;
   color: #6b7280;
+  hyphens: none !important;
+  -webkit-hyphens: none !important;
 }
 
 .invoice-footer p,
@@ -95,7 +100,7 @@
 
 .payment-bottom-container {
   position: absolute;
-  bottom: 24mm;
+  bottom: 28mm;
   left: 20mm;
   right: 20mm;
   width: auto;

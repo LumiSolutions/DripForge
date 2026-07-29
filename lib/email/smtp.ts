@@ -11,47 +11,79 @@ export type SmtpRuntimeConfig = {
   from: string
 }
 
-/** Entfernt versehentliche Anführungszeichen aus Azure-/ENV-Werten. */
-function stripEnvQuotes(value: string): string {
-  const trimmed = value.trim()
+/** Hostpoint-taugliche Absender-Mailbox (Fallback). */
+const DEFAULT_HOSTPOINT_FROM_EMAIL = "shop@dripforge.ch"
+const DEFAULT_SMTP_HOST = "asmtp.mail.hostpoint.ch"
+
+/**
+ * Trim + entferne versehentliche Anführungszeichen aus Azure-/ENV-Werten
+ * (z. B. "shop@…" oder 'passwort' / Newlines aus Portal-Copy/Paste).
+ */
+function cleanEnv(value: string | undefined): string {
+  const trimmed = (value || "").trim()
   if (
     (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
     (trimmed.startsWith("'") && trimmed.endsWith("'"))
   ) {
-    return trimmed.slice(1, -1)
+    return trimmed.slice(1, -1).trim()
   }
   return trimmed
 }
 
-export function isSmtpConfigured(): boolean {
-  // HOST/USER können Defaults sein — PASS ist Pflicht
-  return Boolean(process.env.SMTP_PASS?.trim())
+function extractEmailAddress(value: string): string | null {
+  const angle = value.match(/<([^>]+)>/)
+  const candidate = (angle?.[1] || value).trim()
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(candidate)) return null
+  return candidate.toLowerCase()
+}
+
+function isPlaceholderValue(value: string): boolean {
+  return /change[_-]?me|your_secret|placeholder|example\.com|noreply@localhost/i.test(
+    value
+  )
 }
 
 /**
- * Hostpoint-Standard: Port 587 + STARTTLS (secure: false).
- * Nur bei explizitem SMTP_SECURE=true (typisch Port 465) wird SSL erzwungen.
+ * From MUSS eine gültige Hostpoint-Adresse sein (z. B. shop@dripforge.ch).
+ * Platzhalter / ungültige EMAIL_FROM-Werte werden verworfen.
  */
-function parseSecureFlag(): boolean {
-  const raw = process.env.SMTP_SECURE?.trim().toLowerCase()
-  return raw === "true" || raw === "1" || raw === "yes"
+function resolveFromHeader(user: string, fromEnv: string): string {
+  const envEmail = extractEmailAddress(fromEnv)
+  if (envEmail && !isPlaceholderValue(envEmail) && !isPlaceholderValue(fromEnv)) {
+    const nameMatch = fromEnv.match(/^(.+?)\s*<[^>]+>$/)
+    const name = nameMatch?.[1]?.trim().replace(/^["']|["']$/g, "") || "DripForge"
+    return `${name} <${envEmail}>`
+  }
+
+  const userEmail = extractEmailAddress(user)
+  if (userEmail && !isPlaceholderValue(userEmail)) {
+    return `DripForge <${userEmail}>`
+  }
+
+  return `DripForge <${DEFAULT_HOSTPOINT_FROM_EMAIL}>`
 }
 
-export function getSmtpRuntimeConfig(): SmtpRuntimeConfig | null {
-  if (!isSmtpConfigured()) return null
-
-  const user =
-    stripEnvQuotes(process.env.SMTP_USER ?? "") || "shop@dripforge.ch"
-  const pass = stripEnvQuotes(process.env.SMTP_PASS!)
-  const host =
-    stripEnvQuotes(process.env.SMTP_HOST ?? "") || "mail.hostpoint.ch"
-  const port = Number(stripEnvQuotes(process.env.SMTP_PORT ?? "587"))
-  const resolvedPort = Number.isFinite(port) && port > 0 ? port : 587
-  const secure = parseSecureFlag()
-  const from =
-    stripEnvQuotes(process.env.EMAIL_FROM ?? "") ||
-    stripEnvQuotes(process.env.SMTP_FROM ?? "") ||
-    `DripForge <${user}>`
+/**
+ * SMTP: Hostpoint asmtp.mail.hostpoint.ch (Default),
+ * Credentials nur aus ENV (SMTP_USER / SMTP_PASS).
+ * Port 465 → secure:true | Port 587 → STARTTLS (secure:false).
+ */
+function resolveSmtpSettings(): SmtpRuntimeConfig {
+  const user = cleanEnv(process.env.SMTP_USER)
+  const pass = cleanEnv(process.env.SMTP_PASS)
+  const host = cleanEnv(process.env.SMTP_HOST) || DEFAULT_SMTP_HOST
+  const portRaw = cleanEnv(process.env.SMTP_PORT)
+  const port = portRaw ? Number(portRaw) : 465
+  const secureEnv = cleanEnv(process.env.SMTP_SECURE).toLowerCase()
+  const resolvedPort = Number.isFinite(port) ? port : 465
+  const secure =
+    secureEnv === "false" || secureEnv === "0"
+      ? false
+      : secureEnv === "true" || secureEnv === "1"
+        ? true
+        : resolvedPort === 465
+  const fromEnv = cleanEnv(process.env.EMAIL_FROM)
+  const from = resolveFromHeader(user, fromEnv)
 
   return {
     host,
@@ -63,14 +95,56 @@ export function getSmtpRuntimeConfig(): SmtpRuntimeConfig | null {
   }
 }
 
+export function isSmtpConfigured(): boolean {
+  // HOST hat Hostpoint-Default — USER + PASS sind Pflicht
+  const user = cleanEnv(process.env.SMTP_USER)
+  const pass = cleanEnv(process.env.SMTP_PASS)
+  if (!user || !pass) return false
+  if (isPlaceholderValue(user) || isPlaceholderValue(pass)) return false
+  return true
+}
+
+/**
+ * Sichere Diagnose-Infos (ohne Klartext-Passwort) — für /api/test-email.
+ */
+export function getSmtpDiagnostics(): {
+  configuredUser: string
+  userLength: number
+  passLength: number
+  host: string
+  port: number
+  secure: boolean
+  from: string
+  passConfigured: boolean
+} {
+  const config = resolveSmtpSettings()
+  return {
+    configuredUser: config.user,
+    userLength: config.user.length,
+    passLength: config.pass.length,
+    host: config.host,
+    port: config.port,
+    secure: config.secure,
+    from: config.from,
+    passConfigured: Boolean(config.pass),
+  }
+}
+
+export function getSmtpRuntimeConfig(): SmtpRuntimeConfig | null {
+  if (!isSmtpConfigured()) return null
+  return resolveSmtpSettings()
+}
+
 function logSmtpConfig(config: SmtpRuntimeConfig, phase: string) {
   console.log(`[SMTP] ${phase}`, {
     host: config.host,
     port: config.port,
     secure: config.secure,
     starttls: !config.secure && config.port === 587,
+    ssl: config.secure && config.port === 465,
     user: config.user,
     from: config.from,
+    userLength: config.user.length,
     passConfigured: Boolean(config.pass),
     passLength: config.pass.length,
     passEndsWithDollar: config.pass.endsWith("$"),
@@ -84,53 +158,67 @@ let cachedConfigKey: string | null = null
 export function buildSmtpTransporter() {
   const config = getSmtpRuntimeConfig()
   if (!config) {
-    throw new Error("SMTP ist nicht konfiguriert (SMTP_PASS fehlt).")
+    throw new Error("SMTP ist nicht konfiguriert (SMTP_USER / SMTP_PASS fehlt).")
   }
 
-  const configKey = `${config.host}|${config.port}|${config.secure}|${config.user}|${config.pass.length}`
+  const configKey = `${config.host}|${config.port}|${config.secure}|${config.user}|${config.pass.length}|${config.from}`
   if (cachedTransporter && cachedConfigKey === configKey) {
     console.log("[SMTP] Wiederverwende bestehenden Transporter.")
     return cachedTransporter
   }
 
-  logSmtpConfig(config, "Transporter wird erstellt (Hostpoint 587/STARTTLS)")
+  logSmtpConfig(config, "Transporter wird erstellt")
 
   const options: SMTPTransport.Options = {
     host: config.host,
     port: config.port,
-    // Port 587: secure false → STARTTLS; Port 465: SMTP_SECURE=true
     secure: config.secure,
+    // Port 587: STARTTLS erzwingen
+    ...(config.port === 587 && !config.secure ? { requireTLS: true } : {}),
     auth: {
       user: config.user,
       pass: config.pass,
     },
-    connectionTimeout: 12_000,
-    greetingTimeout: 12_000,
-    socketTimeout: 20_000,
+    connectionTimeout: 15_000,
+    greetingTimeout: 15_000,
+    socketTimeout: 30_000,
     tls: {
-      // Verhindert Zertifikatsfehler bei Azure-Aufrufen / Hostpoint
+      // Hostpoint manchmal mit Zwischenzertifikaten — Versand priorisieren
       rejectUnauthorized: false,
-      servername: config.host,
       minVersion: "TLSv1.2",
     },
+    logger: false,
+    debug: false,
   }
 
-  if (!config.secure) {
-    options.requireTLS = true
-    console.log("[SMTP] STARTTLS aktiv (secure=false, requireTLS=true).")
-  }
+  console.log("[SMTP] createTransport Optionen", {
+    host: options.host,
+    port: options.port,
+    secure: options.secure,
+    requireTLS: Boolean(
+      (options as SMTPTransport.Options & { requireTLS?: boolean }).requireTLS
+    ),
+    authUser: config.user,
+  })
 
   cachedTransporter = nodemailer.createTransport(options)
   cachedConfigKey = configKey
   return cachedTransporter
 }
 
-export function resolveSmtpFrom(fallbackName: string, fallbackEmail: string): string {
-  return (
-    stripEnvQuotes(process.env.EMAIL_FROM ?? "") ||
-    stripEnvQuotes(process.env.SMTP_FROM ?? "") ||
-    `${fallbackName} <${fallbackEmail}>`
-  )
+/**
+ * From-Header immer an Hostpoint-Mailbox koppeln.
+ * Abweichende From-Adressen → Hostpoint blockiert / 535.
+ */
+export function resolveSmtpFrom(
+  _fallbackName?: string,
+  _fallbackEmail?: string
+): string {
+  const config = getSmtpRuntimeConfig()
+  if (config?.from) return config.from
+  const user = cleanEnv(process.env.SMTP_USER)
+  const fromEnv = cleanEnv(process.env.EMAIL_FROM)
+  return resolveFromHeader(user, fromEnv)
 }
 
 export type SendSmtpMailOptions = {
@@ -173,35 +261,44 @@ function formatSmtpError(error: unknown): Record<string, unknown> {
 
 export async function sendSmtpMail(options: SendSmtpMailOptions): Promise<boolean> {
   const startedAt = Date.now()
-  console.log("[SMTP] sendSmtpMail gestartet", {
-    to: options.to,
-    from: options.from,
-    subject: options.subject,
-    hasHtml: Boolean(options.html),
-    hasText: Boolean(options.text),
-    attachmentCount: options.attachments?.length ?? 0,
-    configured: isSmtpConfigured(),
-  })
 
   if (!isSmtpConfigured()) {
     console.error(
-      "[SMTP] ABBRUCH: SMTP_PASS fehlt in der Umgebung — Versand übersprungen.",
+      "[SMTP] ABBRUCH: SMTP_USER/SMTP_PASS fehlt oder ist Platzhalter — Versand übersprungen.",
       { to: options.to, subject: options.subject }
     )
     return false
   }
 
   const config = getSmtpRuntimeConfig()
-  if (config) logSmtpConfig(config, "Vor dem Versand")
+  if (!config) return false
+
+  // From IMMER an Hostpoint-konforme Config koppeln (nie freier Client-From)
+  const mailOptions: SendSmtpMailOptions = {
+    ...options,
+    from: config.from,
+  }
+
+  console.log("[SMTP] sendSmtpMail gestartet", {
+    to: mailOptions.to,
+    from: mailOptions.from,
+    subject: mailOptions.subject,
+    hasHtml: Boolean(mailOptions.html),
+    hasText: Boolean(mailOptions.text),
+    attachmentCount: mailOptions.attachments?.length ?? 0,
+    configured: true,
+  })
+
+  logSmtpConfig(config, "Vor dem Versand")
 
   try {
     console.log("[SMTP] buildSmtpTransporter()…")
     const transporter = buildSmtpTransporter()
 
-    console.log("[SMTP] transporter.verify()…")
+    console.log("[SMTP] transporter.verify() (SMTP-Handshake)…")
     try {
       await transporter.verify()
-      console.log(`[SMTP] verify OK (${Date.now() - startedAt}ms)`)
+      console.log(`[SMTP] verify OK — Handshake erfolgreich (${Date.now() - startedAt}ms)`)
     } catch (verifyError) {
       console.error("[SMTP] verify FEHLGESCHLAGEN — sende trotzdem (Fallback).", {
         ...formatSmtpError(verifyError),
@@ -209,11 +306,15 @@ export async function sendSmtpMail(options: SendSmtpMailOptions): Promise<boolea
       })
     }
 
-    console.log("[SMTP] transporter.sendMail()…")
-    const info = await transporter.sendMail(options)
-    console.log("[SMTP] Versand ERFOLGREICH", {
-      to: options.to,
-      subject: options.subject,
+    console.log("[SMTP] transporter.sendMail() Aufruf…", {
+      from: mailOptions.from,
+      to: mailOptions.to,
+      subject: mailOptions.subject,
+    })
+    const info = await transporter.sendMail(mailOptions)
+    console.log("[SMTP] transporter.sendMail() ERFOLGREICH", {
+      to: mailOptions.to,
+      subject: mailOptions.subject,
       messageId: info.messageId,
       accepted: info.accepted,
       rejected: info.rejected,
@@ -224,10 +325,10 @@ export async function sendSmtpMail(options: SendSmtpMailOptions): Promise<boolea
     })
     return true
   } catch (error) {
-    console.error("[SMTP] Versand FEHLGESCHLAGEN — Checkout wird nicht abgebrochen.", {
-      to: options.to,
-      subject: options.subject,
-      from: options.from,
+    console.error("[SMTP] transporter.sendMail() FEHLGESCHLAGEN", {
+      to: mailOptions.to,
+      subject: mailOptions.subject,
+      from: mailOptions.from,
       elapsedMs: Date.now() - startedAt,
       ...formatSmtpError(error),
     })
@@ -245,7 +346,7 @@ export async function verifySmtpConnection(): Promise<{
   const config = getSmtpRuntimeConfig()
   if (!config) {
     throw new Error(
-      "SMTP nicht konfiguriert. Bitte SMTP_PASS setzen (Default: mail.hostpoint.ch:587 STARTTLS)."
+      "SMTP nicht konfiguriert. Bitte SMTP_HOST, SMTP_USER und SMTP_PASS setzen."
     )
   }
 

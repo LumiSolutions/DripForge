@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import {
   buildSmtpTransporter,
+  getSmtpDiagnostics,
   getSmtpRuntimeConfig,
   isSmtpConfigured,
 } from "@/lib/email/smtp"
@@ -10,18 +11,35 @@ export const runtime = "nodejs"
 
 const TEST_TO = "shop@dripforge.ch"
 
+/** Diagnose ohne Klartext-Passwort: host, port, secure, Längen. */
+function diagnosticPayload() {
+  const d = getSmtpDiagnostics()
+  return {
+    host: d.host,
+    port: d.port,
+    secure: d.secure,
+    configuredUser: d.configuredUser,
+    userLength: d.userLength,
+    passLength: d.passLength,
+  }
+}
+
 /**
- * Temporärer Diagnose-Endpoint für Hostpoint SMTP auf Azure.
- * GET /api/test-email
+ * Diagnose-Endpoint für Hostpoint SMTP (Port 465 / SSL).
+ * GET /api/test-email  und  POST /api/test-email
+ * Sendet eine Test-E-Mail an shop@dripforge.ch.
  */
-export async function GET() {
+async function handleTestEmail() {
+  const diagnostics = diagnosticPayload()
+
   try {
     if (!isSmtpConfigured()) {
       return NextResponse.json(
         {
           success: false,
           error: "SMTP_PASS fehlt in der Umgebung.",
-          code: "SMTP_NOT_CONFIGURED",
+          stack: undefined,
+          ...diagnostics,
         },
         { status: 500 }
       )
@@ -33,47 +51,65 @@ export async function GET() {
         {
           success: false,
           error: "SMTP-Konfiguration konnte nicht geladen werden.",
-          code: "SMTP_CONFIG_NULL",
+          stack: undefined,
+          ...diagnostics,
         },
         { status: 500 }
       )
     }
 
-    console.log("[test-email] Sende Test-Mail…", {
-      host: config.host,
-      port: config.port,
-      secure: config.secure,
-      user: config.user,
+    console.log("[test-email] Sende Test-Mail (465/SSL)…", {
+      ...diagnostics,
       from: config.from,
       to: TEST_TO,
     })
 
     const transporter = buildSmtpTransporter()
-    await transporter.sendMail({
+    // from MUSS dem SMTP-User entsprechen (Hostpoint 535 vermeiden)
+    const info = await transporter.sendMail({
       from: config.from,
       to: TEST_TO,
       subject: "DripForge SMTP-Test",
-      text: `SMTP-Test erfolgreich.\n\nHost: ${config.host}\nPort: ${config.port}\nSecure: ${config.secure}\nZeit: ${new Date().toISOString()}`,
-      html: `<p><strong>SMTP-Test erfolgreich.</strong></p><p>Host: ${config.host}:${config.port} (secure=${config.secure})</p><p>Zeit: ${new Date().toISOString()}</p>`,
+      text: [
+        "SMTP-Test erfolgreich.",
+        "",
+        `Host: ${config.host}`,
+        `Port: ${config.port}`,
+        `Secure: ${config.secure}`,
+        `From: ${config.from}`,
+        `Zeit: ${new Date().toISOString()}`,
+      ].join("\n"),
+      html: `<p><strong>SMTP-Test erfolgreich.</strong></p><p>Host: ${config.host}:${config.port} (secure=${config.secure})</p><p>From: ${config.from}</p><p>Zeit: ${new Date().toISOString()}</p>`,
     })
 
     return NextResponse.json({
       success: true,
-      message: "E-Mail erfolgreich versendet!",
+      messageId: info.messageId,
+      ...diagnostics,
     })
   } catch (error) {
-    const err = error as Error & { code?: string }
+    const err = error instanceof Error ? error : new Error(String(error))
     console.error("[test-email] Versand fehlgeschlagen:", {
-      message: err?.message,
-      code: err?.code,
+      message: err.message,
+      stack: err.stack,
+      ...diagnostics,
     })
     return NextResponse.json(
       {
         success: false,
-        error: err?.message ?? String(error),
-        code: err?.code ?? "UNKNOWN",
+        error: err.message,
+        stack: err.stack,
+        ...diagnostics,
       },
       { status: 500 }
     )
   }
+}
+
+export async function GET() {
+  return handleTestEmail()
+}
+
+export async function POST() {
+  return handleTestEmail()
 }

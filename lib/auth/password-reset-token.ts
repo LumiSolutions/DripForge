@@ -1,4 +1,5 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "crypto"
+import { resolveSigningSecret } from "@/lib/security/env-secrets"
 
 export const RESET_TOKEN_TTL_SEC = 60 * 60
 
@@ -11,11 +12,11 @@ export type PasswordResetPayload = {
 }
 
 function getResetSecret(): string {
-  return (
-    process.env.PASSWORD_RESET_SECRET?.trim() ||
-    process.env.ADMIN_SESSION_SECRET?.trim() ||
-    process.env.CUSTOMER_SESSION_SECRET?.trim() ||
-    "dripforge-dev-password-reset-change-me"
+  return resolveSigningSecret(
+    "Password-Reset-Secret",
+    "PASSWORD_RESET_SECRET",
+    "ADMIN_SESSION_SECRET",
+    "CUSTOMER_SESSION_SECRET"
   )
 }
 

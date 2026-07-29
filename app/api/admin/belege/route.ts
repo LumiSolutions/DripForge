@@ -9,6 +9,10 @@ import {
   emptyBelegAddress,
   type BelegType,
 } from "@/lib/documents/beleg-types"
+import {
+  sendInboundOfferteEmailsSafe,
+  shouldSendOfferteEmails,
+} from "@/lib/email/beleg-notifications"
 
 function isAuthError(value: unknown): value is NextResponse {
   return value instanceof NextResponse
@@ -74,6 +78,11 @@ export async function POST(request: Request) {
         "Beleg erstellt, aber Buchhaltungseintrag fehlgeschlagen.",
         formatCosmosError(journalError)
       )
+    }
+
+    if (shouldSendOfferteEmails(null, beleg)) {
+      // Fire-and-forget: Speichern darf nicht an SMTP hängen
+      void sendInboundOfferteEmailsSafe(beleg)
     }
 
     return NextResponse.json({ beleg }, { status: 201 })

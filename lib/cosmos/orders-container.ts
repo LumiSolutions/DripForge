@@ -1,5 +1,6 @@
 import type { Container } from "@azure/cosmos"
 import { ensureDatabase, getSettingsContainer } from "@/lib/cosmos/client"
+import { logCosmosError } from "@/lib/cosmos/log-error"
 
 export const ORDER_DOC_TYPE = "order"
 
@@ -13,7 +14,8 @@ type State = {
 let resolved: State | null = null
 
 /**
- * Bestellungen: dedizierter Container wenn vorhanden, sonst settings (docType=order).
+ * Bestellungen: dedizierter Container «orders» (PK /id) anlegen oder nutzen,
+ * sonst Fallback auf settings (docType=order).
  */
 export async function resolveOrdersContainer(): Promise<State> {
   if (resolved) return resolved
@@ -21,19 +23,41 @@ export async function resolveOrdersContainer(): Promise<State> {
   const database = await ensureDatabase()
 
   try {
-    const dedicated = database.container("orders")
-    await dedicated.read()
-    resolved = { container: dedicated, mode: "dedicated" }
-    console.info("Cosmos DB: Container 'orders' aktiv.")
+    const { container } = await database.containers.createIfNotExists({
+      id: "orders",
+      partitionKey: { paths: ["/id"] },
+    })
+    resolved = { container, mode: "dedicated" }
+    console.info("Cosmos DB: Container 'orders' aktiv (createIfNotExists, PK /id).")
     return resolved
-  } catch {
-    const shared = await getSettingsContainer()
-    resolved = { container: shared, mode: "shared" }
-    console.warn(
-      "Cosmos DB: Container 'orders' nicht verfügbar — Bestellungen werden im Container 'settings' (docType=order) gespeichert."
-    )
-    return resolved
+  } catch (createError) {
+    logCosmosError("orders.createIfNotExists", createError)
+    try {
+      const dedicated = database.container("orders")
+      await dedicated.read()
+      resolved = { container: dedicated, mode: "dedicated" }
+      console.info("Cosmos DB: Container 'orders' per read() erreichbar.")
+      return resolved
+    } catch (readError) {
+      logCosmosError("orders.container.read", readError)
+      const shared = await getSettingsContainer()
+      resolved = { container: shared, mode: "shared" }
+      console.warn(
+        "Cosmos DB: Container 'orders' nicht verfügbar — Bestellungen werden im Container 'settings' (docType=order) gespeichert."
+      )
+      return resolved
+    }
   }
+}
+
+/** Nach PartitionKey-Fehlern: fest auf shared/settings umschalten. */
+export async function forceSharedOrdersContainer(): Promise<State> {
+  const shared = await getSettingsContainer()
+  resolved = { container: shared, mode: "shared" }
+  console.warn(
+    "Cosmos DB: Orders-Modus auf shared/settings umgestellt (dedizierter Container fehlgeschlagen)."
+  )
+  return resolved
 }
 
 export function ordersQuerySql(mode: OrdersStorageMode): string {

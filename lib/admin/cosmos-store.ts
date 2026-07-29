@@ -12,6 +12,7 @@ import {
   ORDER_DOC_TYPE,
   ordersQuerySql,
   resolveOrdersContainer,
+  forceSharedOrdersContainer,
   toOrderCosmosDoc,
 } from "@/lib/cosmos/orders-container"
 import {
@@ -20,7 +21,8 @@ import {
   resolveProductsContainer,
   toProductCosmosDoc,
 } from "@/lib/cosmos/products-container"
-import { logCosmosError } from "@/lib/cosmos/log-error"
+import { logCosmosError, formatCosmosError } from "@/lib/cosmos/log-error"
+import { normalizeOrderForPersistence } from "@/lib/admin/normalize-order"
 import { products as seedProducts } from "@/lib/dripforge/data"
 import { DEFAULT_CHECKOUT_RUNTIME_CONFIG } from "@/lib/dripforge/checkout-config"
 import { buildSupportPageSettings } from "@/lib/dripforge/support-page-settings"
@@ -81,10 +83,59 @@ function isCustomerDoc(doc: CosmosDoc<StoredCustomer> | null | undefined): boole
 }
 
 export async function cosmosSaveOrder(order: StoredOrder): Promise<void> {
-  const { container, mode } = await resolveOrdersContainer()
-  await container.items.upsert(
-    toOrderCosmosDoc({ ...order, id: order.orderId }, mode)
-  )
+  const normalized = normalizeOrderForPersistence(order)
+  const approxBytes = Buffer.byteLength(JSON.stringify(normalized), "utf8")
+
+  console.info("Cosmos: Speichere Bestellung", {
+    orderId: normalized.orderId,
+    paymentMethod: normalized.paymentMethod,
+    paymentStatus: normalized.paymentStatus,
+    paymentConfirmed: normalized.paymentConfirmed,
+    createdAt: normalized.createdAt,
+    itemCount: normalized.items.length,
+    approxBytes,
+  })
+
+  if (approxBytes > 1_800_000) {
+    throw new Error(
+      `Bestelldokument zu gross für Cosmos (~${Math.round(approxBytes / 1024)} KB). Bitte ohne grosse Bilddaten erneut versuchen.`
+    )
+  }
+
+  let { container, mode } = await resolveOrdersContainer()
+  const doc = toOrderCosmosDoc(normalized, mode)
+
+  try {
+    await container.items.upsert(doc)
+    console.info(`Cosmos: Bestellung upsert ok (${normalized.orderId}, mode=${mode}).`)
+    return
+  } catch (firstError) {
+    const details = formatCosmosError(firstError)
+    console.error("Fehler beim Speichern der Bestellung:", firstError)
+    logCosmosError(`cosmosSaveOrder:${normalized.orderId}:${mode}`, firstError)
+
+    // Dedizierter Container oft mit falschem PK — Fallback auf settings
+    if (mode === "dedicated") {
+      console.warn(
+        `Cosmos: Orders-Upsert im dedicated-Container fehlgeschlagen (${details.message}) — versuche settings/shared.`
+      )
+      ;({ container, mode } = await forceSharedOrdersContainer())
+      const sharedDoc = toOrderCosmosDoc(normalized, mode)
+      try {
+        await container.items.upsert(sharedDoc)
+        console.info(
+          `Cosmos: Bestellung upsert ok nach shared-Fallback (${normalized.orderId}).`
+        )
+        return
+      } catch (sharedError) {
+        console.error("Fehler beim Speichern der Bestellung:", sharedError)
+        logCosmosError(`cosmosSaveOrder:${normalized.orderId}:shared`, sharedError)
+        throw sharedError
+      }
+    }
+
+    throw firstError
+  }
 }
 
 export async function cosmosGetOrders(): Promise<StoredOrder[]> {
