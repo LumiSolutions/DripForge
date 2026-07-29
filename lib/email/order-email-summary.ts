@@ -2,6 +2,10 @@ import { SHIPPING_OPTIONS } from "@/lib/dripforge/checkout-config"
 import type { OrderAddress } from "@/lib/dripforge/submit-order"
 import type { StoredOrder } from "@/lib/admin/types"
 import { formatChf, formatInvoiceDate } from "@/lib/invoices/invoice-format"
+import {
+  resolveOrderBestellRef,
+  resolveOrderInvoiceNumber,
+} from "@/lib/invoices/order-invoice-number"
 
 export function formatOrderAddressBlock(
   label: string,
@@ -76,9 +80,16 @@ export function formatOrderSummaryPlain(order: StoredOrder): string {
     (item) =>
       `- ${item.quantity}x ${item.name} (${formatChf(item.price * item.quantity)})`
   )
+  const invoiceNumber = resolveOrderInvoiceNumber(order)
+  const bestellRef = resolveOrderBestellRef(order)
+  const hasInvoiceNumber =
+    Boolean(order.invoiceNumber?.trim()) || invoiceNumber !== order.orderId
 
   return [
-    `Bestellnummer: ${order.orderId}`,
+    hasInvoiceNumber
+      ? `Rechnungsnummer: ${invoiceNumber}`
+      : `Bestellnummer: ${order.orderId}`,
+    bestellRef && hasInvoiceNumber ? `Bestell-Ref: ${bestellRef}` : null,
     `Datum: ${formatInvoiceDate(order.createdAt)}`,
     `Zahlungsart: ${order.paymentMethodLabel}`,
     `Zahlungsstatus: ${resolvePaymentStatusLabel(order)}`,
@@ -92,5 +103,7 @@ export function formatOrderSummaryPlain(order: StoredOrder): string {
     formatOrderAddressBlock("Rechnungsadresse:", order.billing),
     "",
     formatOrderAddressBlock("Lieferadresse:", delivery),
-  ].join("\n")
+  ]
+    .filter((line) => line != null)
+    .join("\n")
 }

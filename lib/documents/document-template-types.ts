@@ -118,7 +118,7 @@ export const DEFAULT_DOCUMENT_TYPE_TEXTS: Record<
     label: "Rechnung",
     numberPlaceholder: "rechnungsnummer",
     headerLine: "Rechnung Nr. {rechnungsnummer}",
-    referenceLine: "I/Referenz {rechnungsnummer}",
+    referenceLine: "Bestell-Ref: {bestellnummer}",
     introText: "Vielen Dank für Ihre Bestellung bei {firmenname}.",
     closingText:
       "Bitte überweisen Sie den Gesamtbetrag innerhalb von {zahlungsfrist} Tagen auf IBAN {iban}{bank}. Verwendungszweck: {rechnungsnummer}",

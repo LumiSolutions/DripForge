@@ -26,7 +26,8 @@ export function belegToSyntheticOrder(beleg: Beleg): StoredOrder {
   const mwstAktiv = !hidePrices && vat > 0
 
   return {
-    orderId: beleg.id,
+    orderId: beleg.sourceOrderId?.trim() || beleg.id,
+    invoiceNumber: beleg.id,
     createdAt: beleg.createdAt,
     status: "ausstehend",
     billing: {

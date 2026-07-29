@@ -222,7 +222,11 @@ export async function upsertRechnungFromOrder(order: StoredOrder): Promise<Beleg
     })
   }
 
-  const id = await cosmosAllocateBelegNummer("rechnung")
+  const preferredId = order.invoiceNumber?.trim()
+  const id =
+    preferredId && preferredId.length > 0
+      ? preferredId
+      : await cosmosAllocateBelegNummer("rechnung")
   const now = new Date().toISOString()
   return cosmosUpsertBeleg({
     id,

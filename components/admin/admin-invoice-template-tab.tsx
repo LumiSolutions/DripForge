@@ -58,12 +58,13 @@ const DOCUMENT_PLACEHOLDERS = [
   "{rechnungsnummer}",
   "{angebotsnummer}",
   "{lieferscheinnummer}",
+  "{bestellnummer}",
 ]
 
 const PREVIEW_NUMBERS: Record<DocumentTemplateType, string> = {
-  invoice: "RE-00001",
-  quote: "AN-00001",
-  deliveryNote: "LI-00001",
+  invoice: "RE-0018",
+  quote: "OF-0001",
+  deliveryNote: "LS-0001",
 }
 
 const LOGO_ALIGNMENT_LABELS: Record<DocumentLogoAlignment, string> = {
@@ -141,14 +142,25 @@ function DocumentLivePreview({
     belegnummer: documentNumber,
     dokumentnummer: documentNumber,
     dokumenttyp: documentText.label,
-    rechnungsnummer: documentType === "invoice" ? documentNumber : "RE-00001",
-    angebotsnummer: documentType === "quote" ? documentNumber : "AN-00001",
+    rechnungsnummer: documentType === "invoice" ? documentNumber : "RE-0018",
+    angebotsnummer: documentType === "quote" ? documentNumber : "OF-0001",
     lieferscheinnummer:
-      documentType === "deliveryNote" ? documentNumber : "LI-00001",
+      documentType === "deliveryNote" ? documentNumber : "LS-0001",
+    bestellnummer: "df-1785123456-abc123",
     datum: formattedDate,
   })
-  const headerLine = renderTemplateText(documentText.headerLine, placeholderValues)
-  const referenceLine = renderTemplateText(documentText.referenceLine, placeholderValues)
+  const headerLine = renderTemplateText(
+    documentType === "invoice"
+      ? "Rechnung Nr. {rechnungsnummer}"
+      : documentText.headerLine,
+    placeholderValues
+  )
+  const referenceLine = renderTemplateText(
+    documentType === "invoice"
+      ? "Bestell-Ref: {bestellnummer}"
+      : documentText.referenceLine,
+    placeholderValues
+  )
   const introText = renderTemplateText(documentText.introText, placeholderValues)
   const footerNote = renderTemplateText(documentText.footerNote, placeholderValues)
   const paymentBlockText = renderTemplateText(
@@ -229,34 +241,40 @@ function DocumentLivePreview({
             <p>8000 Zürich</p>
           </div>
 
-          <div className="mb-4 grid grid-cols-5 gap-2 rounded bg-slate-100 px-3 py-2">
-            <div>
-              <p className="text-[0.65em] uppercase tracking-wide text-slate-400">
-                {previewNumberLabel(documentType)}
-              </p>
-              <p className="font-semibold">{documentNumber}</p>
+          <div className="mb-4 space-y-2 rounded border border-slate-200 bg-slate-100 px-3 py-2.5">
+            <div className="grid grid-cols-3 gap-3">
+              <div className="min-w-0">
+                <p className="text-[0.6em] uppercase tracking-wide text-slate-400">
+                  {previewNumberLabel(documentType)}
+                </p>
+                <p className="truncate font-semibold">{documentNumber}</p>
+              </div>
+              <div className="min-w-0">
+                <p className="text-[0.6em] uppercase tracking-wide text-slate-400">
+                  {previewDateLabel(documentType)}
+                </p>
+                <p className="font-semibold">{formattedDate}</p>
+              </div>
+              <div className="min-w-0">
+                <p className="text-[0.6em] uppercase tracking-wide text-slate-400">
+                  {previewTermsLabel(documentType)}
+                </p>
+                <p className="font-semibold">{template.paymentTermsDays} Tage</p>
+              </div>
             </div>
-            <div>
-              <p className="text-[0.65em] uppercase tracking-wide text-slate-400">
-                {previewDateLabel(documentType)}
-              </p>
-              <p className="font-semibold">{formattedDate}</p>
-            </div>
-            <div>
-              <p className="text-[0.65em] uppercase tracking-wide text-slate-400">
-                {previewTermsLabel(documentType)}
-              </p>
-              <p className="font-semibold">{template.paymentTermsDays} Tage</p>
-            </div>
-            <div>
-              <p className="text-[0.65em] uppercase tracking-wide text-slate-400">
-                {previewDueLabel(documentType)}
-              </p>
-              <p className="font-semibold">{dueDate}</p>
-            </div>
-            <div>
-              <p className="text-[0.65em] uppercase tracking-wide text-slate-400">Versandart</p>
-              <p className="font-semibold">A-Post</p>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="min-w-0">
+                <p className="text-[0.6em] uppercase tracking-wide text-slate-400">
+                  {previewDueLabel(documentType)}
+                </p>
+                <p className="font-semibold">{dueDate}</p>
+              </div>
+              <div className="min-w-0">
+                <p className="text-[0.6em] uppercase tracking-wide text-slate-400">
+                  Versand
+                </p>
+                <p className="font-semibold">A-Post</p>
+              </div>
             </div>
           </div>
 

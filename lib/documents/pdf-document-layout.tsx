@@ -128,31 +128,48 @@ export function createPdfDocumentLayoutStyles(template: DocumentTemplateSettings
       hyphens: "none",
     },
     infoPanel: {
-      flexDirection: "row",
+      flexDirection: "column",
       backgroundColor: pdfDocumentColors.infoPanel,
       borderRadius: 3,
       paddingVertical: 10,
-      paddingHorizontal: 12,
+      paddingHorizontal: 10,
       marginBottom: 16,
       borderWidth: 1,
       borderColor: pdfDocumentColors.border,
+      gap: 8,
+    },
+    infoPanelRow: {
+      flexDirection: "row",
+      alignItems: "flex-start",
     },
     infoField: {
-      flex: 1,
-      paddingRight: 6,
+      flexGrow: 1,
+      flexShrink: 1,
+      flexBasis: 0,
+      paddingRight: 8,
+      minWidth: 0,
+    },
+    infoFieldNarrow: {
+      flexGrow: 1,
+      flexShrink: 1,
+      flexBasis: 0,
+      paddingRight: 8,
+      minWidth: 0,
     },
     infoLabel: {
-      fontSize: scaledSize(base, 6.5),
+      fontSize: scaledSize(base, 6),
       color: pdfDocumentColors.anthraciteLight,
       textTransform: "uppercase",
-      letterSpacing: 0.6,
+      letterSpacing: 0.4,
       marginBottom: 3,
+      lineHeight: 1.25,
       hyphens: "none",
     },
     infoValue: {
-      fontSize: scaledSize(base, 8.5),
+      fontSize: scaledSize(base, 8),
       ...bold,
       color: pdfDocumentColors.anthracite,
+      lineHeight: 1.3,
       hyphens: "none",
     },
     headerRule: {
@@ -410,28 +427,28 @@ export function resolvePdfInfoPanelLabels(
 ): PdfInfoPanelLabels {
   if (documentType === "quote") {
     return {
-      number: "Offertennummer",
-      date: "Offertendatum",
+      number: "Offerten-Nr.",
+      date: "Datum",
       terms: "Gültigkeit",
       due: "Gültig bis",
-      shipping: "Versandart",
+      shipping: "Versand",
     }
   }
   if (documentType === "deliveryNote") {
     return {
-      number: "Lieferscheinnummer",
-      date: "Lieferscheindatum",
-      terms: "Lieferstatus",
+      number: "LS-Nr.",
+      date: "Datum",
+      terms: "Status",
       due: "Lieferdatum",
-      shipping: "Versandart",
+      shipping: "Versand",
     }
   }
   return {
-    number: "Rechnungsnummer",
-    date: "Rechnungsdatum",
+    number: "Nr.",
+    date: "Datum",
     terms: "Zahlungsfrist",
-    due: "Fälligkeitsdatum",
-    shipping: "Versandart",
+    due: "Fällig am",
+    shipping: "Versand",
   }
 }
 
@@ -658,45 +675,50 @@ export function PdfDocumentLayout({
         </View>
 
         <View style={styles.infoPanel}>
-          <View style={styles.infoField}>
-            <Text style={styles.infoLabel}>
-              {sanitizePdfText(infoLabels.number)}
-            </Text>
-            <Text style={styles.infoValue}>
-              {sanitizePdfText(documentMeta.documentNumber)}
-            </Text>
+          <View style={styles.infoPanelRow}>
+            <View style={styles.infoField}>
+              <Text style={styles.infoLabel}>
+                {sanitizePdfText(infoLabels.number)}
+              </Text>
+              <Text style={styles.infoValue}>
+                {sanitizePdfText(documentMeta.documentNumber)}
+              </Text>
+            </View>
+            <View style={styles.infoField}>
+              <Text style={styles.infoLabel}>
+                {sanitizePdfText(infoLabels.date)}
+              </Text>
+              <Text style={styles.infoValue}>
+                {sanitizePdfText(documentMeta.documentDate)}
+              </Text>
+            </View>
+            <View style={styles.infoField}>
+              <Text style={styles.infoLabel}>
+                {sanitizePdfText(infoLabels.terms)}
+              </Text>
+              <Text style={styles.infoValue}>
+                {sanitizePdfText(documentMeta.paymentTermsLabel)}
+              </Text>
+            </View>
           </View>
-          <View style={styles.infoField}>
-            <Text style={styles.infoLabel}>
-              {sanitizePdfText(infoLabels.date)}
-            </Text>
-            <Text style={styles.infoValue}>
-              {sanitizePdfText(documentMeta.documentDate)}
-            </Text>
-          </View>
-          <View style={styles.infoField}>
-            <Text style={styles.infoLabel}>
-              {sanitizePdfText(infoLabels.terms)}
-            </Text>
-            <Text style={styles.infoValue}>
-              {sanitizePdfText(documentMeta.paymentTermsLabel)}
-            </Text>
-          </View>
-          <View style={styles.infoField}>
-            <Text style={styles.infoLabel}>
-              {sanitizePdfText(infoLabels.due)}
-            </Text>
-            <Text style={styles.infoValue}>
-              {sanitizePdfText(documentMeta.dueDate)}
-            </Text>
-          </View>
-          <View style={styles.infoField}>
-            <Text style={styles.infoLabel}>
-              {sanitizePdfText(infoLabels.shipping)}
-            </Text>
-            <Text style={styles.infoValue}>
-              {sanitizePdfText(documentMeta.shippingLabel)}
-            </Text>
+          <View style={styles.infoPanelRow}>
+            <View style={styles.infoFieldNarrow}>
+              <Text style={styles.infoLabel}>
+                {sanitizePdfText(infoLabels.due)}
+              </Text>
+              <Text style={styles.infoValue}>
+                {sanitizePdfText(documentMeta.dueDate)}
+              </Text>
+            </View>
+            <View style={styles.infoFieldNarrow}>
+              <Text style={styles.infoLabel}>
+                {sanitizePdfText(infoLabels.shipping)}
+              </Text>
+              <Text style={styles.infoValue}>
+                {sanitizePdfText(documentMeta.shippingLabel)}
+              </Text>
+            </View>
+            <View style={styles.infoFieldNarrow} />
           </View>
         </View>
 

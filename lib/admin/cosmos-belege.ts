@@ -2,11 +2,14 @@ import type { SqlQuerySpec } from "@azure/cosmos"
 import { getSettingsContainer } from "@/lib/cosmos/client"
 import { logCosmosError } from "@/lib/cosmos/log-error"
 import {
+  formatBelegNummer,
+  parseBelegSequence,
+} from "@/lib/documents/beleg-number"
+import {
   BELEG_DOC_TYPE,
-  BELEG_PREFIX,
-  belegCosmosId,
   fromBelegCosmosDoc,
   toBelegCosmosDoc,
+  belegCosmosId,
   type Beleg,
   type BelegCosmosDoc,
   type BelegType,
@@ -21,36 +24,85 @@ function cosmosErrorCode(error: unknown): number | undefined {
 type BelegCounterDoc = {
   id: string
   type: BelegType
-  year: number
+  /** @deprecated Jahr nur noch für Legacy-Counter-Docs */
+  year?: number
   lastSequence: number
   updatedAt: string
 }
 
-function counterDocId(type: BelegType, year: number): string {
+/** Globaler Counter ohne Jahresanteil → RE-0018 */
+function counterDocId(type: BelegType): string {
+  return `beleg-counter:${type}`
+}
+
+function legacyCounterDocId(type: BelegType, year: number): string {
   return `beleg-counter:${type}:${year}`
 }
 
-export async function cosmosAllocateBelegNummer(type: BelegType): Promise<string> {
+async function readCounterDoc(
+  container: Awaited<ReturnType<typeof getSettingsContainer>>,
+  id: string
+): Promise<BelegCounterDoc | null> {
+  try {
+    const { resource } = await container.item(id, id).read<BelegCounterDoc>()
+    return resource ?? null
+  } catch (error) {
+    if (cosmosErrorCode(error) === 404) return null
+    throw error
+  }
+}
+
+/** Seed aus Legacy-Jahres-Countern und bestehenden Beleg-IDs. */
+async function resolveSeedSequence(
+  container: Awaited<ReturnType<typeof getSettingsContainer>>,
+  type: BelegType
+): Promise<number> {
+  let seed = 0
   const year = new Date().getFullYear()
+  for (const y of [year, year - 1, year - 2]) {
+    try {
+      const legacy = await readCounterDoc(container, legacyCounterDocId(type, y))
+      if (legacy?.lastSequence != null) {
+        const n = Number(legacy.lastSequence)
+        if (Number.isFinite(n) && n > seed) seed = Math.floor(n)
+      }
+    } catch (error) {
+      logCosmosError("cosmosAllocateBelegNummer:legacySeed", error)
+    }
+  }
+
+  try {
+    const existing = await cosmosListBelege({ type, limit: 500 })
+    for (const beleg of existing) {
+      const seq = parseBelegSequence(beleg.id)
+      if (seq != null && seq > seed) seed = seq
+    }
+  } catch (error) {
+    logCosmosError("cosmosAllocateBelegNummer:listSeed", error)
+  }
+
+  return seed
+}
+
+export async function cosmosAllocateBelegNummer(type: BelegType): Promise<string> {
   const container = await getSettingsContainer()
-  const id = counterDocId(type, year)
+  const id = counterDocId(type)
   const maxAttempts = 10
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
-      let current: BelegCounterDoc | null = null
-      try {
-        const { resource } = await container.item(id, id).read<BelegCounterDoc>()
-        current = resource ?? null
-      } catch (error) {
-        if (cosmosErrorCode(error) !== 404) {
-          logCosmosError("cosmosAllocateBelegNummer:read", error)
-          throw error
+      let current = await readCounterDoc(container, id)
+      if (!current) {
+        const seed = await resolveSeedSequence(container, type)
+        current = {
+          id,
+          type,
+          lastSequence: seed,
+          updatedAt: new Date().toISOString(),
         }
       }
 
-      const nextSequenceRaw =
-        current?.year === year ? Number(current.lastSequence) + 1 : 1
+      const nextSequenceRaw = Number(current.lastSequence) + 1
       const nextSequence =
         Number.isFinite(nextSequenceRaw) && nextSequenceRaw > 0
           ? Math.floor(nextSequenceRaw)
@@ -59,12 +111,11 @@ export async function cosmosAllocateBelegNummer(type: BelegType): Promise<string
       const nextDoc: BelegCounterDoc = {
         id,
         type,
-        year,
         lastSequence: nextSequence,
         updatedAt: new Date().toISOString(),
       }
       await container.items.upsert(nextDoc)
-      return `${BELEG_PREFIX[type]}-${year}-${String(nextSequence).padStart(4, "0")}`
+      return formatBelegNummer(type, nextSequence)
     } catch (error) {
       const code = cosmosErrorCode(error)
       if (code === 409 || code === 412 || code === 449) continue

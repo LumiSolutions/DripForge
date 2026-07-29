@@ -47,6 +47,7 @@ import {
   type OrderStatus,
   type StoredOrder,
 } from "@/lib/admin/types"
+import { formatBelegDisplayId } from "@/lib/documents/beleg-number"
 import { LASER_FONT_OPTIONS } from "@/lib/dripforge/laser-fonts"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
 import { cn } from "@/lib/utils"
@@ -609,7 +610,16 @@ export function AdminOrdersTab({
                         )}
                       </TableCell>
                       <TableCell className={cn("font-mono text-sm", adminUi.tableCell)}>
-                        {order.orderId}
+                        <div>
+                          {order.invoiceNumber
+                            ? formatBelegDisplayId(order.invoiceNumber)
+                            : order.orderId}
+                        </div>
+                        {order.invoiceNumber ? (
+                          <div className="text-xs text-muted-foreground">
+                            Bestell-Ref: {order.orderId}
+                          </div>
+                        ) : null}
                       </TableCell>
                       <TableCell className={adminUi.bodyText}>
                         {formatDate(order.createdAt)}

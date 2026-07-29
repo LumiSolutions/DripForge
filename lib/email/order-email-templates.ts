@@ -1,5 +1,6 @@
 import type { AdminSettings, StoredOrder } from "@/lib/admin/types"
 import { formatChf } from "@/lib/invoices/invoice-format"
+import { resolveOrderInvoiceNumber } from "@/lib/invoices/order-invoice-number"
 
 export type OrderEmailTemplates = {
   /** Einleitung der Kunden-Bestätigungsmail (Platzhalter erlaubt). Leer = Standard. */
@@ -53,7 +54,7 @@ export function buildOrderEmailPlaceholders(
     `${order.billing.firstName} ${order.billing.lastName}`.trim() || "Kunde"
   return {
     customerName,
-    orderNumber: order.orderId,
+    orderNumber: resolveOrderInvoiceNumber(order),
     totalAmount: formatChf(order.totals.total),
   }
 }

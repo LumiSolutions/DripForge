@@ -67,6 +67,7 @@ import {
   type BelegStatus,
   type BelegType,
 } from "@/lib/documents/beleg-types"
+import { formatBelegDisplayId } from "@/lib/documents/beleg-number"
 import {
   defaultBelegRevenueAccountCode,
   filterRevenueAccounts,
@@ -251,11 +252,13 @@ export function AdminBelegeTab() {
         if (!q) return true
         const hay = [
           b.id,
+          formatBelegDisplayId(b.id),
           b.status,
           b.kunde.firstName,
           b.kunde.lastName,
           b.kunde.email,
           b.linkedTo ?? "",
+          b.linkedTo ? formatBelegDisplayId(b.linkedTo) : "",
           b.sourceOrderId ?? "",
         ]
           .join(" ")
@@ -408,7 +411,7 @@ export function AdminBelegeTab() {
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
-      a.download = `${beleg.id}.pdf`
+      a.download = `${formatBelegDisplayId(beleg.id)}.pdf`
       a.click()
       URL.revokeObjectURL(url)
     } catch (err) {
@@ -441,7 +444,7 @@ export function AdminBelegeTab() {
   }
 
   const remove = async (beleg: Beleg) => {
-    if (!window.confirm(`Beleg ${beleg.id} wirklich löschen?`)) return
+    if (!window.confirm(`Beleg ${formatBelegDisplayId(beleg.id)} wirklich löschen?`)) return
     try {
       const res = await fetch(`/api/admin/belege/${encodeURIComponent(beleg.id)}`, {
         method: "DELETE",
@@ -553,15 +556,15 @@ export function AdminBelegeTab() {
                       {filtered.map((beleg) => (
                         <TableRow key={beleg.id}>
                           <TableCell className="font-medium">
-                            <div>{beleg.id}</div>
+                            <div>{formatBelegDisplayId(beleg.id)}</div>
                             {beleg.linkedTo ? (
                               <div className="text-xs text-muted-foreground">
-                                → {beleg.linkedTo}
+                                → {formatBelegDisplayId(beleg.linkedTo)}
                               </div>
                             ) : null}
                             {beleg.sourceOrderId ? (
                               <div className="text-xs text-muted-foreground">
-                                Order {beleg.sourceOrderId}
+                                Bestell-Ref: {beleg.sourceOrderId}
                               </div>
                             ) : null}
                           </TableCell>

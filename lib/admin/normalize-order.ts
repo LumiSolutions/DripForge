@@ -175,6 +175,9 @@ export function normalizeOrderForPersistence(
   }
   if (order.rechnungPdfUrl) normalized.rechnungPdfUrl = order.rechnungPdfUrl
   if (order.rechnungPdfPath) normalized.rechnungPdfPath = order.rechnungPdfPath
+  if (order.invoiceNumber?.trim()) {
+    normalized.invoiceNumber = order.invoiceNumber.trim()
+  }
   if (order.payrexxGatewayHash) normalized.payrexxGatewayHash = order.payrexxGatewayHash
   if (order.payrexxTransactionUuid) {
     normalized.payrexxTransactionUuid = order.payrexxTransactionUuid

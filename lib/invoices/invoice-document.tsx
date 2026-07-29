@@ -19,6 +19,10 @@ import {
   isOrderAlreadyPaid,
 } from "@/lib/invoices/invoice-format"
 import {
+  resolveOrderBestellRef,
+  resolveOrderInvoiceNumber,
+} from "@/lib/invoices/order-invoice-number"
+import {
   formatInvoiceItemDetails,
   getInvoiceLineTotal,
 } from "@/lib/invoices/invoice-item-details"
@@ -261,14 +265,17 @@ export function InvoiceDocument({
   const mwstSatz = checkout.mwstSatz
   const documentText = template.documentTypes[documentType]
   const formattedDate = formatInvoiceDate(order.createdAt)
+  const invoiceNumber = resolveOrderInvoiceNumber(order)
+  const bestellRef = resolveOrderBestellRef(order)
 
   const placeholderValues = buildDocumentPlaceholderValues(template, {
-    belegnummer: order.orderId,
-    dokumentnummer: order.orderId,
+    belegnummer: invoiceNumber,
+    dokumentnummer: invoiceNumber,
     dokumenttyp: documentText.label,
-    rechnungsnummer: order.orderId,
-    angebotsnummer: order.orderId,
-    lieferscheinnummer: order.orderId,
+    rechnungsnummer: invoiceNumber,
+    angebotsnummer: invoiceNumber,
+    lieferscheinnummer: invoiceNumber,
+    bestellnummer: bestellRef ?? order.orderId,
     datum: formattedDate,
   })
 
@@ -280,7 +287,7 @@ export function InvoiceDocument({
     (alreadyPaid || order.paymentMethod === "invoice" || Boolean(template.iban))
       ? {
           amount: order.totals.total,
-          reference: order.orderId,
+          reference: invoiceNumber,
           qrImageUrl: alreadyPaid ? null : template.qrPaymentImageUrl,
           alreadyPaid,
           paymentMethodLabel: getOrderPaymentMethodDisplayLabel(order),
@@ -305,15 +312,26 @@ export function InvoiceDocument({
           template.paymentTermsDays
         )
 
+  const documentTextForLayout = {
+    ...documentText,
+    headerLine:
+      documentType === "invoice"
+        ? "Rechnung Nr. {rechnungsnummer}"
+        : documentText.headerLine,
+    referenceLine: bestellRef
+      ? "Bestell-Ref: {bestellnummer}"
+      : documentText.referenceLine,
+  }
+
   return (
     <PdfDocumentLayout
-      title={`${documentText.label} ${order.orderId}`}
+      title={`${documentText.label} Nr. ${invoiceNumber}`}
       template={template}
-      documentText={documentText}
+      documentText={documentTextForLayout}
       documentType={documentType}
       recipient={recipient}
       documentMeta={{
-        documentNumber: order.orderId,
+        documentNumber: invoiceNumber,
         documentDate: formattedDate,
         paymentTermsLabel,
         dueDate: isDeliveryNote

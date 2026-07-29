@@ -21,6 +21,11 @@ import {
 import { resolveAdminNotifyEmail } from "@/lib/email/resolve-admin-notify-email"
 import { resolveSmtpFrom, sendSmtpMail } from "@/lib/email/smtp"
 import { formatChf, formatInvoiceDate } from "@/lib/invoices/invoice-format"
+import {
+  ensureOrderInvoiceNumber,
+  resolveOrderBestellRef,
+  resolveOrderInvoiceNumber,
+} from "@/lib/invoices/order-invoice-number"
 import { resolveSiteOrigin } from "@/lib/site/site-origin"
 
 function buildAdminPortalUrl(query: Record<string, string>): string {
@@ -222,33 +227,47 @@ export async function notifyAdminNewOrder(
   settings?: AdminSettings,
   options?: { to?: string }
 ): Promise<boolean> {
-  const dashboardUrl = buildAdminOrderDetailUrl(order.orderId)
-  const delivery = order.delivery ?? order.billing
-  const itemLines = order.items.map(
+  let workingOrder = order
+  try {
+    const invoiceNumber = await ensureOrderInvoiceNumber(order)
+    workingOrder = { ...order, invoiceNumber }
+  } catch (error) {
+    console.warn(
+      `Admin-Mail: Rechnungsnummer für ${order.orderId} konnte nicht vergeben werden.`,
+      error
+    )
+  }
+
+  const dashboardUrl = buildAdminOrderDetailUrl(workingOrder.orderId)
+  const delivery = workingOrder.delivery ?? workingOrder.billing
+  const invoiceNumber = resolveOrderInvoiceNumber(workingOrder)
+  const bestellRef = resolveOrderBestellRef(workingOrder)
+  const itemLines = workingOrder.items.map(
     (item) =>
       `- ${item.quantity}x ${item.name} (${formatChf(item.price * item.quantity)})`
   )
 
-  const fileDownloads = collectOrderFileDownloadLines(order)
+  const fileDownloads = collectOrderFileDownloadLines(workingOrder)
 
   const plainBody = [
     "Neue Bestellung eingegangen.",
     "",
-    `Bestellnummer: ${order.orderId}`,
-    `Kunde: ${customerDisplayName(order.billing)}`,
-    `E-Mail: ${order.billing.email}`,
-    order.billing.phone?.trim()
-      ? `Telefon: ${order.billing.phone.trim()}`
+    `Rechnungsnummer: ${invoiceNumber}`,
+    bestellRef ? `Bestell-Ref: ${bestellRef}` : null,
+    `Kunde: ${customerDisplayName(workingOrder.billing)}`,
+    `E-Mail: ${workingOrder.billing.email}`,
+    workingOrder.billing.phone?.trim()
+      ? `Telefon: ${workingOrder.billing.phone.trim()}`
       : null,
-    `Zahlungsart: ${order.paymentMethodLabel}`,
-    `Zahlungsstatus: ${resolvePaymentStatusLabel(order)}`,
-    `Gesamtbetrag: ${formatChf(order.totals.total)}`,
-    `Eingegangen: ${formatInvoiceDate(order.createdAt)}`,
+    `Zahlungsart: ${workingOrder.paymentMethodLabel}`,
+    `Zahlungsstatus: ${resolvePaymentStatusLabel(workingOrder)}`,
+    `Gesamtbetrag: ${formatChf(workingOrder.totals.total)}`,
+    `Eingegangen: ${formatInvoiceDate(workingOrder.createdAt)}`,
     "",
     "Artikel:",
     ...itemLines,
     "",
-    formatOrderOptionsSummary(order),
+    formatOrderOptionsSummary(workingOrder),
     "",
     ...(fileDownloads.plainLines.length > 0
       ? [...fileDownloads.plainLines, ""]
@@ -259,9 +278,9 @@ export async function notifyAdminNewOrder(
     .join("\n")
 
   return sendAdminInboundEmail({
-    referenceId: order.orderId,
+    referenceId: workingOrder.orderId,
     title: "Neue Bestellung",
-    subject: `🚨 Neue Anfrage/Bestellung eingegangen! #${order.orderId}`,
+    subject: `🚨 Neue Anfrage/Bestellung eingegangen! #${invoiceNumber}`,
     plainBody,
     dashboardUrl,
     settings,

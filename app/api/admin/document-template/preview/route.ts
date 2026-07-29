@@ -21,13 +21,14 @@ function buildPreviewOrder(documentType: DocumentTemplateType): StoredOrder {
   const now = new Date().toISOString()
   const orderId =
     documentType === "quote"
-      ? "AN-00001"
+      ? "OF-0001"
       : documentType === "deliveryNote"
-        ? "LI-00001"
-        : "RE-00001"
+        ? "LS-0001"
+        : "RE-0018"
 
   return {
-    orderId,
+    orderId: "df-1785123456-abc123",
+    invoiceNumber: orderId,
     createdAt: now,
     status: "ausstehend",
     productionStatus: "bereit_fuer_produktion",

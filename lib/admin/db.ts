@@ -387,7 +387,10 @@ export async function updateOrderShipmentDetails(
 
 async function updateOrderInvoiceInFile(
   orderId: string,
-  data: Pick<StoredOrder, "rechnungPdfUrl" | "rechnungPdfPath" | "kundennummer">
+  data: Pick<
+    StoredOrder,
+    "rechnungPdfUrl" | "rechnungPdfPath" | "kundennummer" | "invoiceNumber"
+  >
 ): Promise<StoredOrder | null> {
   const orders = await readJsonFile<StoredOrder[]>(ORDERS_FILE, [])
   const index = orders.findIndex((o) => o.orderId === orderId)
@@ -399,7 +402,10 @@ async function updateOrderInvoiceInFile(
 
 export async function updateOrderInvoice(
   orderId: string,
-  data: Pick<StoredOrder, "rechnungPdfUrl" | "rechnungPdfPath" | "kundennummer">
+  data: Pick<
+    StoredOrder,
+    "rechnungPdfUrl" | "rechnungPdfPath" | "kundennummer" | "invoiceNumber"
+  >
 ): Promise<StoredOrder | null> {
   return withCosmosFallback(
     "updateOrderInvoice",

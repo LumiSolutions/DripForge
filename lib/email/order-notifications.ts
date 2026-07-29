@@ -30,6 +30,11 @@ import {
   resolveOrderEmailIntro,
 } from "@/lib/email/order-email-templates"
 import { generateAndStoreOrderInvoice } from "@/lib/invoices/process-order-invoice"
+import {
+  ensureOrderInvoiceNumber,
+  resolveOrderBestellRef,
+  resolveOrderInvoiceNumber,
+} from "@/lib/invoices/order-invoice-number"
 import { formatChf, formatInvoiceDate } from "@/lib/invoices/invoice-format"
 import { swissPostTrackingUrl } from "@/lib/konto/customer-order-timeline"
 import {
@@ -42,6 +47,23 @@ import { resolveSiteOrigin } from "@/lib/site/site-origin"
 const VORKASSE_CORE_HINT =
   "Vielen Dank für deine Bestellung! Bitte beachte: Da es sich um eine Vorkasse-Zahlung handelt, wird deine Bestellung erst nach vollständigem Erhalt der Zahlung bearbeitet und angefertigt/versendet."
 
+async function withInvoiceNumber(order: StoredOrder): Promise<StoredOrder> {
+  try {
+    const invoiceNumber = await ensureOrderInvoiceNumber(order)
+    return { ...order, invoiceNumber }
+  } catch (error) {
+    console.warn(
+      `Rechnungsnummer für Mail ${order.orderId} konnte nicht vergeben werden.`,
+      error
+    )
+    return order
+  }
+}
+
+function orderDisplayRef(order: StoredOrder): string {
+  return resolveOrderInvoiceNumber(order)
+}
+
 async function markEmailSent(
   orderId: string,
   key: "receivedAt" | "confirmedAt" | "readyAt" | "shippedAt"
@@ -53,15 +75,24 @@ async function markEmailSent(
 
 function renderOrderDetailsHtml(order: StoredOrder): string {
   const delivery = order.delivery ?? order.billing
+  const invoiceNumber = resolveOrderInvoiceNumber(order)
+  const bestellRef = resolveOrderBestellRef(order)
+  const hasInvoiceNumber =
+    Boolean(order.invoiceNumber?.trim()) || invoiceNumber !== order.orderId
   return (
     textToHtmlParagraphs(
       [
-        `Bestellnummer: ${order.orderId}`,
+        hasInvoiceNumber
+          ? `Rechnungsnummer: ${invoiceNumber}`
+          : `Bestellnummer: ${order.orderId}`,
+        bestellRef && hasInvoiceNumber ? `Bestell-Ref: ${bestellRef}` : null,
         `Datum: ${formatInvoiceDate(order.createdAt)}`,
         `Zahlungsart: ${order.paymentMethodLabel}`,
         `Zahlungsstatus: ${resolvePaymentStatusLabel(order)}`,
         `Versandart: ${resolveShippingLabel(order)}`,
-      ].join("\n")
+      ]
+        .filter((line) => line != null)
+        .join("\n")
     ) +
     renderOrderItemsTableHtml(
       order.items.map((item) => ({
@@ -108,20 +139,30 @@ function buildTwintPaymentHint(order: StoredOrder): {
   const plain = [
     "——— TWINT-Zahlung ———",
     `Betrag: ${formatChf(order.totals.total)}`,
-    `Bestell-ID: ${order.orderId}`,
+    `Rechnungsnummer: ${orderDisplayRef(order)}`,
+    resolveOrderBestellRef(order)
+      ? `Bestell-Ref: ${resolveOrderBestellRef(order)}`
+      : null,
     "",
     `Falls du die Zahlung in der App noch nicht abgeschlossen hast, kannst du dies hier nachholen: ${twintUrl}`,
-  ].join("\n")
+  ]
+    .filter((line) => line != null)
+    .join("\n")
 
   const html =
     textToHtmlParagraphs(
       [
         "TWINT-Zahlung",
         `Betrag: ${formatChf(order.totals.total)}`,
-        `Bestell-ID: ${order.orderId}`,
+        `Rechnungsnummer: ${orderDisplayRef(order)}`,
+        resolveOrderBestellRef(order)
+          ? `Bestell-Ref: ${resolveOrderBestellRef(order)}`
+          : "",
         "",
         "Falls du die Zahlung in der App noch nicht abgeschlossen hast, kannst du dies hier nachholen:",
-      ].join("\n")
+      ]
+        .filter(Boolean)
+        .join("\n")
     ) +
     `<p style="margin:16px 0;"><a href="${twintUrl}" style="display:inline-block;padding:12px 20px;background:#000000;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">Jetzt mit TWINT bezahlen</a></p>` +
     `<p style="font-size:12px;word-break:break-all;"><a href="${twintUrl}">${twintUrl}</a></p>`
@@ -135,10 +176,11 @@ function buildInvoiceBankHint(
 ): { plain: string; html: string } | null {
   if (order.paymentMethod !== "invoice") return null
 
+  const invoiceRef = orderDisplayRef(order)
   const amount = formatChf(order.totals.total)
   const lines = [
     "——— Banküberweisung (Vorkasse) ———",
-    `Bitte überweise den Gesamtbetrag von ${amount} CHF unter Angabe der Bestell-ID ${order.orderId} als Verwendungszweck.`,
+    `Bitte überweise den Gesamtbetrag von ${amount} CHF unter Angabe der Rechnungsnummer ${invoiceRef} als Verwendungszweck.`,
   ]
   if (bank.kontoinhaber) lines.push(`Kontoinhaber: ${bank.kontoinhaber}`)
   if (bank.iban) lines.push(`IBAN: ${bank.iban}`)
@@ -148,7 +190,7 @@ function buildInvoiceBankHint(
   const html = textToHtmlParagraphs(
     [
       "Banküberweisung (Vorkasse)",
-      `Bitte überweise den Gesamtbetrag von ${amount} CHF unter Angabe der Bestell-ID ${order.orderId} als Verwendungszweck.`,
+      `Bitte überweise den Gesamtbetrag von ${amount} CHF unter Angabe der Rechnungsnummer ${invoiceRef} als Verwendungszweck.`,
       bank.kontoinhaber ? `Kontoinhaber: ${bank.kontoinhaber}` : "",
       bank.iban ? `IBAN: ${bank.iban}` : "",
       bank.bankname ? `Bank: ${bank.bankname}` : "",
@@ -173,6 +215,7 @@ export async function notifyOrderReceived(
   }
 
   try {
+    let workingOrder = await withInvoiceNumber(order)
     let adminSettings = settings
     if (!adminSettings) {
       try {
@@ -212,7 +255,7 @@ export async function notifyOrderReceived(
     let invoiceHint: { plain: string; html: string } | null = null
     try {
       const template = await getDocumentTemplateSettings()
-      invoiceHint = buildInvoiceBankHint(order, {
+      invoiceHint = buildInvoiceBankHint(workingOrder, {
         iban: template.iban?.trim() || adminSettings?.company.iban?.trim() || "",
         kontoinhaber:
           resolveKontoinhaber(template) ||
@@ -232,15 +275,16 @@ export async function notifyOrderReceived(
       )
     }
 
-    const prepaid = isPrepaidOrderAwaitingPayment(order)
+    const prepaid = isPrepaidOrderAwaitingPayment(workingOrder)
     const accountUrl = `${resolveSiteOrigin()}/konto/bestellungen`
-    const placeholders = buildOrderEmailPlaceholders(order)
+    const placeholders = buildOrderEmailPlaceholders(workingOrder)
+    const displayRef = orderDisplayRef(workingOrder)
 
     const subject = prepaid
-      ? `Deine Bestellung ${order.orderId} ist eingegangen (Wartet auf Zahlungseingang)`
-      : `Deine Bestellung ${order.orderId} ist in Bearbeitung`
+      ? `Deine Bestellung ${displayRef} ist eingegangen (Wartet auf Zahlungseingang)`
+      : `Deine Bestellung ${displayRef} ist in Bearbeitung`
 
-    const twintHint = buildTwintPaymentHint(order)
+    const twintHint = buildTwintPaymentHint(workingOrder)
 
     const introText = resolveOrderEmailIntro(adminSettings, placeholders, {
       prepaid,
@@ -261,9 +305,10 @@ export async function notifyOrderReceived(
     let pdfBuffer: Buffer | undefined
     try {
       pdfBuffer = await generateAndStoreOrderInvoice(
-        order,
+        workingOrder,
         adminSettings
       )
+      workingOrder = await withInvoiceNumber(workingOrder)
     } catch (pdfError) {
       console.error("Bestell-Mail Fehler:", pdfError)
       console.error(
@@ -279,7 +324,7 @@ export async function notifyOrderReceived(
     const plain = [
       introText,
       "",
-      formatOrderSummaryPlain(order),
+      formatOrderSummaryPlain(workingOrder),
       "",
       ...(twintHint ? [twintHint.plain, ""] : []),
       ...(invoiceHint ? [invoiceHint.plain, ""] : []),
@@ -295,7 +340,7 @@ export async function notifyOrderReceived(
       title: prepaid ? "Bestelleingang" : "Bestellbestätigung",
       bodyHtml:
         textToHtmlParagraphs(introText) +
-        renderOrderDetailsHtml(order) +
+        renderOrderDetailsHtml(workingOrder) +
         (twintHint?.html ?? "") +
         (invoiceHint?.html ?? "") +
         (pdfPlainHint ? textToHtmlParagraphs(pdfPlainHint) : "") +
@@ -314,7 +359,7 @@ export async function notifyOrderReceived(
       attachments: pdfBuffer
         ? [
             {
-              filename: `Rechnung-${order.orderId}.pdf`,
+              filename: `Rechnung-${orderDisplayRef(workingOrder)}.pdf`,
               content: pdfBuffer,
               contentType: "application/pdf",
             },
@@ -357,14 +402,16 @@ export async function notifyOrderConfirmed(
   if (order.status === "storniert") return false
 
   try {
+    const workingOrder = await withInvoiceNumber(order)
     const adminSettings = settings ?? (await getSettings())
     const branding = await resolveEmailBranding(adminSettings)
-    const customerName = `${order.billing.firstName} ${order.billing.lastName}`.trim()
-    const subject = `Deine Bestellung ${order.orderId} ist in Bearbeitung`
+    const customerName = `${workingOrder.billing.firstName} ${workingOrder.billing.lastName}`.trim()
+    const displayRef = orderDisplayRef(workingOrder)
+    const subject = `Deine Bestellung ${displayRef} ist in Bearbeitung`
 
     let pdfBuffer: Buffer | undefined
     try {
-      pdfBuffer = await generateAndStoreOrderInvoice(order, adminSettings)
+      pdfBuffer = await generateAndStoreOrderInvoice(workingOrder, adminSettings)
     } catch (error) {
       // PDF darf den Mailversand NIEMALS blockieren — Mail geht ohne Anhang raus
       console.error("Bestell-Mail Fehler:", error)
@@ -378,9 +425,9 @@ export async function notifyOrderConfirmed(
     const plain = [
       `Guten Tag ${customerName},`,
       "",
-      `gute Nachrichten — deine Bestellung ${order.orderId} ist jetzt in Bearbeitung.`,
+      `gute Nachrichten — deine Bestellung ${displayRef} ist jetzt in Bearbeitung.`,
       "",
-      formatOrderSummaryPlain(order),
+      formatOrderSummaryPlain(workingOrder),
       "",
       pdfBuffer
         ? "Im Anhang findest du die Rechnung als PDF für deine Unterlagen."
@@ -399,10 +446,10 @@ export async function notifyOrderConfirmed(
           [
             `Guten Tag ${customerName},`,
             "",
-            `gute Nachrichten — deine Bestellung ${order.orderId} ist jetzt in Bearbeitung.`,
+            `gute Nachrichten — deine Bestellung ${displayRef} ist jetzt in Bearbeitung.`,
           ].join("\n")
         ) +
-        renderOrderDetailsHtml(order) +
+        renderOrderDetailsHtml(workingOrder) +
         textToHtmlParagraphs(
           pdfBuffer
             ? "Im Anhang findest du die Rechnung als PDF für deine Unterlagen."
@@ -421,7 +468,7 @@ export async function notifyOrderConfirmed(
       attachments: pdfBuffer
         ? [
             {
-              filename: `Rechnung-${order.orderId}.pdf`,
+              filename: `Rechnung-${displayRef}.pdf`,
               content: pdfBuffer,
               contentType: "application/pdf",
             },

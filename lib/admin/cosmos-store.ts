@@ -223,7 +223,10 @@ export async function cosmosUpdateOrderShipment(
 
 export async function cosmosUpdateOrderInvoice(
   orderId: string,
-  data: Pick<StoredOrder, "rechnungPdfUrl" | "rechnungPdfPath" | "kundennummer">
+  data: Pick<
+    StoredOrder,
+    "rechnungPdfUrl" | "rechnungPdfPath" | "kundennummer" | "invoiceNumber"
+  >
 ): Promise<StoredOrder | null> {
   const order = await cosmosGetOrderById(orderId)
   if (!order) return null
