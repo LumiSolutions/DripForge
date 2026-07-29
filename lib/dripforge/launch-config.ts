@@ -1,3 +1,5 @@
+import { readEnvSecret } from "@/lib/security/env-secrets"
+
 /** Offizieller Launch: 1. August 2026, 00:00 (lokale Zeit des Browsers / Server). */
 export const LAUNCH_DATE = new Date(2026, 7, 1, 0, 0, 0, 0)
 
@@ -6,16 +8,22 @@ export const LAUNCH_DATE_ISO = "2026-08-01T00:00:00"
 export const PREVIEW_ACCESS_COOKIE = "dripforge_preview_access"
 
 /**
+ * Preview-Zugangspasswort ausschliesslich aus ENV.
+ * Kein hartkodierter Fallback.
+ */
+export function getPreviewAccessPassword(): string {
+  return process.env.PREVIEW_ACCESS_PASSWORD?.trim() || ""
+}
+
+/**
  * Tester-/Preview-Passwort ausschliesslich aus ENV.
  * Kein hartkodierter Fallback.
  */
-import { readEnvSecret } from "@/lib/security/env-secrets"
-
 export function getTesterPassword(): string {
   return (
     readEnvSecret("TESTER_PASSWORD") ||
     readEnvSecret("NEXT_PUBLIC_TESTER_PASSWORD") ||
-    readEnvSecret("PREVIEW_ACCESS_PASSWORD") ||
+    getPreviewAccessPassword() ||
     ""
   )
 }
