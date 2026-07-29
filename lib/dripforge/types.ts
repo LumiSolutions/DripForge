@@ -1,4 +1,5 @@
-export type LaserMaterialId = "wood" | "acrylic" | "stone" | "leather"
+/** Kern-IDs + freie Slugs aus dem Rohmaterial-Lager (z. B. edelstahl, custom-slug). */
+export type LaserMaterialId = string
 
 export type LaserMaterial = {
   id: LaserMaterialId

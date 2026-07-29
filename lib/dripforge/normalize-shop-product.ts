@@ -165,11 +165,9 @@ export function normalizeShopProduct(
           ? Number(source.saleRabattWert)
           : undefined,
       laserMaterialId:
-        source.laserMaterialId === "wood" ||
-        source.laserMaterialId === "acrylic" ||
-        source.laserMaterialId === "stone" ||
-        source.laserMaterialId === "leather"
-          ? source.laserMaterialId
+        typeof source.laserMaterialId === "string" &&
+        source.laserMaterialId.trim()
+          ? source.laserMaterialId.trim()
           : undefined,
       modelUrl: modellDateiUrl,
       modellDateiUrl,

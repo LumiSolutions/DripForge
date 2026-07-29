@@ -50,6 +50,7 @@ import {
   productDimensionsToViewerMm,
 } from "@/lib/dripforge/product-dimensions"
 import { ProductImageGallery } from "@/components/dripforge/shared/product-image-gallery"
+import { SafeProductImage } from "@/components/dripforge/shared/safe-product-image"
 import { ProductShopPrice } from "@/components/dripforge/shared/product-shop-price"
 import type { CartItem, Product, ProductDimensionsMm } from "@/lib/dripforge/types"
 import type { ServiceVisibilitySettings, ShopConfiguratorSettings } from "@/lib/admin/types"
@@ -438,6 +439,11 @@ export function PageShop({
                     </div>
                   </CardContent>
                 </Card>
+
+                <ProductImageGallery
+                  images={galleryImages}
+                  alt={detailProduct.name}
+                />
 
                 <LaserDesignerStudio
                   column="settings"
@@ -944,7 +950,18 @@ export function PageShop({
           </Card>
         ) : (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {displayedProducts.map((product) => (
+            {displayedProducts.map((product) => {
+              const cardImages = resolveProductImages(
+                product.id,
+                product.images,
+                product.galerieBilder
+              )
+              const coverSrc =
+                product.images?.[0]?.trim() ||
+                cardImages[0] ||
+                "/filaments/printed-pla-schwarz.png"
+              const salePercent = getSaleBadgePercent(product)
+              return (
               <Card
                 key={product.id}
                 role="button"
@@ -961,17 +978,19 @@ export function PageShop({
                   product.sale && "border-red-500/30 hover:border-red-500/60"
                 )}
               >
-                <div className="relative flex h-48 items-center justify-center bg-secondary/50">
-                  {product.sale && getSaleBadgePercent(product) != null && (
-                    <span className="absolute left-3 top-3 rounded-full bg-red-500 px-2 py-0.5 text-xs font-bold text-white">
-                      -{getSaleBadgePercent(product)}%
+                <div className="relative h-48 bg-secondary/50">
+                  {product.sale && salePercent != null && (
+                    <span className="absolute left-3 top-3 z-10 rounded-full bg-red-500 px-2 py-0.5 text-xs font-bold text-white">
+                      -{salePercent}%
                     </span>
                   )}
-                  {product.type === "3d" ? (
-                    <Printer className="h-16 w-16 text-primary/50" />
-                  ) : (
-                    <Zap className="h-16 w-16 text-cyan-400/50" />
-                  )}
+                  <SafeProductImage
+                    src={coverSrc}
+                    alt={product.name}
+                    fill
+                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+                    className="object-contain p-4"
+                  />
                 </div>
                 <CardContent className="p-4">
                   <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
@@ -1000,7 +1019,8 @@ export function PageShop({
                   </div>
                 </CardContent>
               </Card>
-            ))}
+              )
+            })}
           </div>
         )}
           </div>

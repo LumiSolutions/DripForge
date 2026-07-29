@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils"
 import { laserMaterials } from "@/lib/dripforge/data"
 import { calculateLaserPrice } from "@/lib/dripforge/calculate-laser-price"
 import { isCustomerShippingOptionEnabled } from "@/lib/dripforge/customer-shipping-visibility"
-import { INDIVIDUAL_LASER_MATERIAL_BASE_PRICES } from "@/lib/dripforge/laser-individual-config"
+import { getIndividualLaserBasePrice } from "@/lib/dripforge/laser-individual-config"
 import {
   CUSTOMER_INBOUND_MATERIAL_ID,
   CUSTOMER_INBOUND_MATERIAL_LABEL,
@@ -39,7 +39,7 @@ import {
 } from "@/components/dripforge/shared/laser-designer-studio"
 import { IndividualProcessBar } from "@/components/dripforge/shared/individual-process-bar"
 import { captureLaserPreviewLeitbild } from "@/lib/dripforge/capture-leitbild"
-import type { CartItem, LaserMaterialId } from "@/lib/dripforge/types"
+import type { CartItem } from "@/lib/dripforge/types"
 
 export function PageIndividualLaser({
   setCurrentView,
@@ -146,9 +146,7 @@ export function PageIndividualLaser({
 
   const materialBase = isCustomerInbound
     ? 0
-    : (INDIVIDUAL_LASER_MATERIAL_BASE_PRICES[
-        selectedMaterialId as LaserMaterialId
-      ] ?? 15)
+    : getIndividualLaserBasePrice(selectedMaterialId)
   const basePrice = materialBase * sizePreset.priceMultiplier
 
   const priceBreakdown = useMemo(() => {
@@ -280,7 +278,7 @@ export function PageIndividualLaser({
                       <p className="mt-2 font-bold">{m.name}</p>
                       <p className="text-xs text-muted-foreground">
                         ab CHF{" "}
-                        {INDIVIDUAL_LASER_MATERIAL_BASE_PRICES[m.id].toFixed(2)}
+                        {getIndividualLaserBasePrice(m.id).toFixed(2)}
                       </p>
                     </button>
                   ))}

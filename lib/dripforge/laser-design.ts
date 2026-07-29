@@ -1,5 +1,4 @@
 import type { CSSProperties } from "react"
-import type { LaserMaterialId } from "@/lib/dripforge/types"
 
 export type { LaserFontId } from "@/lib/dripforge/laser-fonts"
 export {
@@ -66,7 +65,7 @@ export function clampScale(scale: number): number {
 }
 
 export const MATERIAL_CANVAS_STYLES: Record<
-  LaserMaterialId,
+  string,
   { surface: string; overlay: string; label: string }
 > = {
   wood: {
@@ -89,5 +88,17 @@ export const MATERIAL_CANVAS_STYLES: Record<
     overlay: "bg-[radial-gradient(ellipse_at_center,rgba(180,83,9,0.15),transparent_60%)]",
     label: "Leder-Textur",
   },
+  edelstahl: {
+    surface: "bg-gradient-to-br from-zinc-300/30 via-slate-700/90 to-zinc-900/85",
+    overlay:
+      "bg-[linear-gradient(120deg,rgba(255,255,255,0.22)_0%,transparent_35%,rgba(148,163,184,0.18)_70%,transparent_100%)]",
+    label: "Edelstahl-Oberfläche",
+  },
+}
+
+const DEFAULT_CANVAS_STYLE = MATERIAL_CANVAS_STYLES.edelstahl
+
+export function getMaterialCanvasStyle(materialId: string) {
+  return MATERIAL_CANVAS_STYLES[materialId] ?? DEFAULT_CANVAS_STYLE
 }
 

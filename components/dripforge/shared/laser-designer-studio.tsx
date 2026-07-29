@@ -5,6 +5,7 @@ import type { CSSProperties, RefObject } from "react"
 import {
   CheckCircle2,
   ChevronDown,
+  Crosshair,
   Image as ImageIcon,
   Layers,
   Scissors,
@@ -31,7 +32,7 @@ import {
   getLaserFontInputStyle,
   getLaserFontStyle,
   LASER_FONT_OPTIONS,
-  MATERIAL_CANVAS_STYLES,
+  getMaterialCanvasStyle,
   normalizeRotation,
   pointerAngleDegrees,
   type ElementLayout,
@@ -683,7 +684,7 @@ function LaserDesignerPreview({
   const [liveMmLabel, setLiveMmLabel] = useState<ElementMmSize | null>(null)
   const [textMm, setTextMm] = useState<ElementMmSize | null>(null)
   const [imageMm, setImageMm] = useState<ElementMmSize | null>(null)
-  const canvasStyle = MATERIAL_CANVAS_STYLES[material.id]
+  const canvasStyle = getMaterialCanvasStyle(material.id)
   const fontFamily = getLaserFontFamily(selectedFont)
   const workAreaLabel = `${workAreaMm.widthMm} x ${workAreaMm.heightMm} mm`
 
@@ -1128,22 +1129,47 @@ function LaserDesignerPreview({
               Bild / Logo hochladen
             </span>
           </label>
-          {imageLayout.src && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="w-full sm:w-auto"
-              onClick={() => {
-                onStateChange({ imageLayout: { ...DEFAULT_IMAGE_LAYOUT } })
-                if (activeElement === "image") setActiveElement(null)
-              }}
-            >
-              <ImageIcon className="mr-2 h-4 w-4" />
-              Bild entfernen
-            </Button>
-          )}
+          {imageLayout.src ? (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-full border-cyan-500/30 sm:w-auto"
+                onClick={() => {
+                  onStateChange({
+                    imageLayout: {
+                      ...stateRef.current.imageLayout,
+                      x: 50,
+                      y: 50,
+                    },
+                  })
+                  setActiveElement("image")
+                }}
+              >
+                <Crosshair className="mr-2 h-4 w-4" />
+                Bild zentrieren
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-full sm:w-auto"
+                onClick={() => {
+                  onStateChange({ imageLayout: { ...DEFAULT_IMAGE_LAYOUT } })
+                  if (activeElement === "image") setActiveElement(null)
+                }}
+              >
+                <ImageIcon className="mr-2 h-4 w-4" />
+                Bild entfernen
+              </Button>
+            </>
+          ) : null}
         </div>
+        <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+          💡 Tipp: Für das beste Gravur-Ergebnis verwende am besten ein Bild mit
+          transparentem Hintergrund (.png / .svg).
+        </p>
       </CardContent>
     </Card>
   )

@@ -259,6 +259,26 @@ export const laserMaterials: LaserMaterial[] = [
     maxThickness: "5mm",
     applications: ["Geldbörsen", "Gürtel", "Schlüsselanhänger", "Lesezeichen", "Patches", "Taschen"],
   },
+  {
+    id: "edelstahl",
+    name: "Edelstahl",
+    icon: "🔩",
+    iconBg: "bg-zinc-400/20",
+    iconColor: "text-zinc-200",
+    description:
+      "Hochwertige Metalloberfläche für präzise Markierungen und Gravuren. Ideal für Schilder, Anhänger und industrielle Anwendungen.",
+    types: ["Gebürstet", "Poliert", "Matt", "Spiegel"],
+    canEngrave: true,
+    canCut: false,
+    maxThickness: null,
+    applications: [
+      "Metallschilder",
+      "Anhänger",
+      "Industriekennzeichnung",
+      "Geschenke",
+      "Typenschilder",
+    ],
+  },
 ]
 
 // Process steps

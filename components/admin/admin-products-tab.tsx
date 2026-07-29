@@ -32,6 +32,7 @@ import {
   type SaleRabattTyp,
 } from "@/lib/dripforge/product-sale"
 import type { LaserMaterialId, Product } from "@/lib/dripforge/types"
+import { buildLaserMaterialSelectOptions } from "@/lib/dripforge/laser-material-options"
 import type { MaterialItem, ProductMaterialLink } from "@/lib/admin/material-types"
 import {
   calculateGrossMarginPercent,
@@ -321,6 +322,11 @@ export function AdminProductsTab() {
     updateField("galerieBilder", [...(form.galerieBilder ?? []), url])
     setImageUrlInput("")
   }
+
+  const laserMaterialOptions = useMemo(
+    () => buildLaserMaterialSelectOptions(materialCatalog),
+    [materialCatalog]
+  )
 
   const productVariantOptions = useMemo(() => {
     const fromText = (form.variantenText ?? "")
@@ -749,10 +755,20 @@ export function AdminProductsTab() {
                       }
                       className={cn("h-10 w-full rounded-md border px-3 text-sm", adminUi.select)}
                     >
-                      <option value="wood">Holz</option>
-                      <option value="acrylic">Acryl</option>
-                      <option value="stone">Schiefer</option>
-                      <option value="leather">Leder</option>
+                      {laserMaterialOptions.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                      {/* Aktueller Wert behalten, falls nicht mehr im Katalog */}
+                      {form.laserMaterialId &&
+                      !laserMaterialOptions.some(
+                        (o) => o.value === form.laserMaterialId
+                      ) ? (
+                        <option value={form.laserMaterialId}>
+                          {form.laserMaterialId}
+                        </option>
+                      ) : null}
                     </select>
                   </div>
                   <div className="space-y-2">
