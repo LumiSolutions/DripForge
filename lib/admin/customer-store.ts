@@ -1,5 +1,8 @@
 import { normalizeCustomerEmail } from "@/lib/admin/customers"
-import { withCosmosRequired } from "@/lib/admin/storage-bridge"
+import {
+  withCosmosFallback,
+  withCosmosRequired,
+} from "@/lib/admin/storage-bridge"
 import type { StoredCustomer } from "@/lib/admin/types"
 import {
   cosmosGetCustomers,
@@ -8,9 +11,16 @@ import {
   cosmosDeleteCustomer,
 } from "@/lib/admin/cosmos-store"
 
-/** CRM-Kunden ohne Reconciliation (für Nummernvergabe / Sync). */
+/**
+ * CRM-Kunden ohne Reconciliation (für Nummernvergabe / Sync).
+ * Fallback [] — darf Checkout/Bestellung nie mit «Datenbank nicht erreichbar» abbrechen.
+ */
 export async function getCustomersSnapshot(): Promise<StoredCustomer[]> {
-  return withCosmosRequired("getCustomersSnapshot", cosmosGetCustomers)
+  return withCosmosFallback(
+    "getCustomersSnapshot",
+    cosmosGetCustomers,
+    async () => []
+  )
 }
 
 export async function saveCustomer(customer: StoredCustomer): Promise<StoredCustomer> {
