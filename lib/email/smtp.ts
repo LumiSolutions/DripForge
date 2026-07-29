@@ -11,21 +11,24 @@ export type SmtpRuntimeConfig = {
   from: string
 }
 
-/** Entfernt versehentliche Anführungszeichen aus Azure-/ENV-Werten. */
-function stripEnvQuotes(value: string): string {
-  const trimmed = value.trim()
+/**
+ * Trim + entferne versehentliche Anführungszeichen aus Azure-/ENV-Werten
+ * (z. B. "shop@…" oder 'passwort' aus Portal-Copy/Paste).
+ */
+function cleanEnv(value: string | undefined): string {
+  const trimmed = (value || "").trim()
   if (
     (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
     (trimmed.startsWith("'") && trimmed.endsWith("'"))
   ) {
-    return trimmed.slice(1, -1)
+    return trimmed.slice(1, -1).trim()
   }
   return trimmed
 }
 
 export function isSmtpConfigured(): boolean {
   // HOST/USER können Defaults sein — PASS ist Pflicht
-  return Boolean(process.env.SMTP_PASS?.trim())
+  return Boolean(cleanEnv(process.env.SMTP_PASS))
 }
 
 /**
@@ -33,23 +36,50 @@ export function isSmtpConfigured(): boolean {
  * Nur bei explizitem SMTP_SECURE=true (typisch Port 465) wird SSL erzwungen.
  */
 function parseSecureFlag(): boolean {
-  return process.env.SMTP_SECURE === "true"
+  return cleanEnv(process.env.SMTP_SECURE) === "true"
+}
+
+/**
+ * Sichere Diagnose-Infos (ohne Klartext-Passwort) — für /api/test-email.
+ */
+export function getSmtpDiagnostics(): {
+  configuredUser: string
+  userLength: number
+  passLength: number
+  host: string
+  port: number
+  from: string
+  secure: boolean
+  passConfigured: boolean
+} {
+  const user = cleanEnv(process.env.SMTP_USER) || "shop@dripforge.ch"
+  const pass = cleanEnv(process.env.SMTP_PASS)
+  const host = cleanEnv(process.env.SMTP_HOST) || "mail.hostpoint.ch"
+  const port = Number(cleanEnv(process.env.SMTP_PORT)) || 587
+  return {
+    configuredUser: user,
+    userLength: user.length,
+    passLength: pass.length,
+    host,
+    port,
+    from: `DripForge <${user}>`,
+    secure: parseSecureFlag(),
+    passConfigured: Boolean(pass),
+  }
 }
 
 export function getSmtpRuntimeConfig(): SmtpRuntimeConfig | null {
   if (!isSmtpConfigured()) return null
 
-  const user =
-    stripEnvQuotes(process.env.SMTP_USER ?? "") || "shop@dripforge.ch"
-  const pass = stripEnvQuotes(process.env.SMTP_PASS!)
-  const host =
-    stripEnvQuotes(process.env.SMTP_HOST ?? "") || "mail.hostpoint.ch"
-  const port = Number(stripEnvQuotes(process.env.SMTP_PORT ?? "")) || 587
+  // Spec: trim aller ENV-Werte — verhindert 535 durch Leerzeichen / Quotes
+  const user = cleanEnv(process.env.SMTP_USER) || "shop@dripforge.ch"
+  const pass = cleanEnv(process.env.SMTP_PASS)
+  const host = cleanEnv(process.env.SMTP_HOST) || "mail.hostpoint.ch"
+  const port = Number(cleanEnv(process.env.SMTP_PORT)) || 587
   const secure = parseSecureFlag()
-  const from =
-    stripEnvQuotes(process.env.EMAIL_FROM ?? "") ||
-    stripEnvQuotes(process.env.SMTP_FROM ?? "") ||
-    `DripForge <${user}>`
+
+  // Hostpoint verlangt: From-Adresse = authentifizierter SMTP-User
+  const from = `DripForge <${user}>`
 
   return {
     host,
@@ -124,12 +154,18 @@ export function buildSmtpTransporter() {
   return cachedTransporter
 }
 
-export function resolveSmtpFrom(fallbackName: string, fallbackEmail: string): string {
-  return (
-    stripEnvQuotes(process.env.EMAIL_FROM ?? "") ||
-    stripEnvQuotes(process.env.SMTP_FROM ?? "") ||
-    `${fallbackName} <${fallbackEmail}>`
-  )
+/**
+ * From-Header immer an den SMTP-User koppeln.
+ * Abweichende From-Adressen → Hostpoint 535 Incorrect Authentication Data.
+ */
+export function resolveSmtpFrom(
+  _fallbackName?: string,
+  _fallbackEmail?: string
+): string {
+  const config = getSmtpRuntimeConfig()
+  if (config) return config.from
+  const user = cleanEnv(process.env.SMTP_USER) || "shop@dripforge.ch"
+  return `DripForge <${user}>`
 }
 
 export type SendSmtpMailOptions = {
@@ -172,15 +208,6 @@ function formatSmtpError(error: unknown): Record<string, unknown> {
 
 export async function sendSmtpMail(options: SendSmtpMailOptions): Promise<boolean> {
   const startedAt = Date.now()
-  console.log("[SMTP] sendSmtpMail gestartet", {
-    to: options.to,
-    from: options.from,
-    subject: options.subject,
-    hasHtml: Boolean(options.html),
-    hasText: Boolean(options.text),
-    attachmentCount: options.attachments?.length ?? 0,
-    configured: isSmtpConfigured(),
-  })
 
   if (!isSmtpConfigured()) {
     console.error(
@@ -191,7 +218,25 @@ export async function sendSmtpMail(options: SendSmtpMailOptions): Promise<boolea
   }
 
   const config = getSmtpRuntimeConfig()
-  if (config) logSmtpConfig(config, "Vor dem Versand")
+  if (!config) return false
+
+  // From immer = authentifizierter User (Hostpoint 535 vermeiden)
+  const mailOptions: SendSmtpMailOptions = {
+    ...options,
+    from: config.from,
+  }
+
+  console.log("[SMTP] sendSmtpMail gestartet", {
+    to: mailOptions.to,
+    from: mailOptions.from,
+    subject: mailOptions.subject,
+    hasHtml: Boolean(mailOptions.html),
+    hasText: Boolean(mailOptions.text),
+    attachmentCount: mailOptions.attachments?.length ?? 0,
+    configured: true,
+  })
+
+  logSmtpConfig(config, "Vor dem Versand")
 
   try {
     console.log("[SMTP] buildSmtpTransporter()…")
@@ -209,10 +254,10 @@ export async function sendSmtpMail(options: SendSmtpMailOptions): Promise<boolea
     }
 
     console.log("[SMTP] transporter.sendMail()…")
-    const info = await transporter.sendMail(options)
+    const info = await transporter.sendMail(mailOptions)
     console.log("[SMTP] Versand ERFOLGREICH", {
-      to: options.to,
-      subject: options.subject,
+      to: mailOptions.to,
+      subject: mailOptions.subject,
       messageId: info.messageId,
       accepted: info.accepted,
       rejected: info.rejected,
@@ -224,9 +269,9 @@ export async function sendSmtpMail(options: SendSmtpMailOptions): Promise<boolea
     return true
   } catch (error) {
     console.error("[SMTP] Versand FEHLGESCHLAGEN — Checkout wird nicht abgebrochen.", {
-      to: options.to,
-      subject: options.subject,
-      from: options.from,
+      to: mailOptions.to,
+      subject: mailOptions.subject,
+      from: mailOptions.from,
       elapsedMs: Date.now() - startedAt,
       ...formatSmtpError(error),
     })

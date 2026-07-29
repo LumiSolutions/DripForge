@@ -45,21 +45,18 @@ function parseSecure() {
 }
 
 function getConfig() {
-  const pass = process.env.SMTP_PASS?.trim()
+  const host = (process.env.SMTP_HOST || "mail.hostpoint.ch").trim()
+  const user = (process.env.SMTP_USER || "shop@dripforge.ch").trim()
+  const pass = (process.env.SMTP_PASS || "").trim()
   if (!pass) {
     throw new Error(
       "SMTP nicht konfiguriert. Bitte SMTP_PASS in .env.local setzen."
     )
   }
-
-  const host = process.env.SMTP_HOST?.trim() || "mail.hostpoint.ch"
-  const user = process.env.SMTP_USER?.trim() || "shop@dripforge.ch"
-  const port = Number(process.env.SMTP_PORT ?? 587)
+  const port = Number(process.env.SMTP_PORT) || 587
   const secure = parseSecure()
-  const from =
-    process.env.EMAIL_FROM?.trim() ||
-    process.env.SMTP_FROM?.trim() ||
-    `"DripForge" <${user}>`
+  // From muss dem SMTP-User entsprechen (Hostpoint 535)
+  const from = `DripForge <${user}>`
   const admin =
     process.env.ADMIN_EMAIL?.trim() ||
     process.env.ADMIN_NOTIFY_EMAIL?.trim() ||
@@ -67,7 +64,7 @@ function getConfig() {
 
   return {
     host,
-    port: Number.isFinite(port) && port > 0 ? port : 587,
+    port,
     secure,
     user,
     pass,
