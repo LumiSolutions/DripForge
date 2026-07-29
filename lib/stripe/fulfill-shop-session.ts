@@ -1,10 +1,8 @@
 import type Stripe from "stripe"
 import { getOrderById, getSettings } from "@/lib/admin/db"
 import type { StoredOrder } from "@/lib/admin/types"
-import {
-  fulfillPaidShopOrder,
-  sendInboundOrderEmailsSafe,
-} from "@/lib/shop/order-processing"
+import { sendOrderConfirmationEmails } from "@/lib/email/send-order-emails"
+import { fulfillPaidShopOrder } from "@/lib/shop/order-processing"
 
 export function resolveStripeCustomerEmail(
   session: Stripe.Checkout.Session
@@ -18,29 +16,27 @@ export function resolveStripeCustomerEmail(
 }
 
 /**
- * Kunden- + Admin-Eingangsmails nach Stripe-Zahlung
- * (gleiche Templates wie «Auf Rechnung»).
+ * Kunden- + Admin-Mails nach Stripe — dieselbe Funktion wie Rechnung/TWINT.
  */
 export async function sendShopOrderEmailsAfterStripe(
   orderId: string,
   session: Stripe.Checkout.Session,
   customerEmail: string | null
-): Promise<{ sent: boolean; skipped: boolean }> {
+): Promise<{ sent: boolean; skipped: boolean; customerSent: boolean; adminSent: boolean }> {
   const settings = await getSettings()
   const order = await getOrderById(orderId)
   if (!order) {
     console.error(
       `Stripe: Bestellung ${orderId} für E-Mail-Versand nicht gefunden.`
     )
-    return { sent: false, skipped: false }
+    return { sent: false, skipped: false, customerSent: false, adminSent: false }
   }
 
-  // Idempotent: Kundenmail bereits versendet → nichts erneut senden
   if (order.emailNotifications?.receivedAt) {
     console.info(
       `Stripe: Eingangsmails bereits versendet (${orderId}), überspringe.`
     )
-    return { sent: false, skipped: true }
+    return { sent: false, skipped: true, customerSent: false, adminSent: false }
   }
 
   const orderForEmail: StoredOrder = {
@@ -53,14 +49,34 @@ export async function sendShopOrderEmailsAfterStripe(
     },
   }
 
-  console.log("[Stripe] Starte SMTP-Eingangsmails (wie Auf Rechnung)", {
+  console.info("[Stripe] Rufe sendOrderConfirmationEmails auf", {
     orderId,
     customerEmail: orderForEmail.billing.email,
     stripeSessionId: session.id,
+    paymentMethod: orderForEmail.paymentMethod,
   })
 
-  await sendInboundOrderEmailsSafe(orderForEmail, settings)
-  return { sent: true, skipped: false }
+  try {
+    const result = await sendOrderConfirmationEmails(orderForEmail, settings)
+    const sent = result.customerSent || result.adminSent
+    console.info("[Stripe] sendOrderConfirmationEmails Ergebnis", {
+      orderId,
+      ...result,
+    })
+    return {
+      sent,
+      skipped: false,
+      customerSent: result.customerSent,
+      adminSent: result.adminSent,
+    }
+  } catch (error) {
+    // Bestellung bleibt gespeichert — nur Mail-Fehler loggen
+    console.error(
+      `[Stripe] SMTP-Versand fehlgeschlagen (${orderId}) — Bestellung bleibt erhalten.`,
+      error
+    )
+    return { sent: false, skipped: false, customerSent: false, adminSent: false }
+  }
 }
 
 export async function fulfillShopOrderFromStripeSession(
@@ -69,7 +85,12 @@ export async function fulfillShopOrderFromStripeSession(
   ok: boolean
   orderId: string | null
   fulfilled: boolean
-  emails: { sent: boolean; skipped: boolean }
+  emails: {
+    sent: boolean
+    skipped: boolean
+    customerSent: boolean
+    adminSent: boolean
+  }
   error?: string
 }> {
   const purpose = session.metadata?.purpose
@@ -78,7 +99,12 @@ export async function fulfillShopOrderFromStripeSession(
       ok: false,
       orderId: null,
       fulfilled: false,
-      emails: { sent: false, skipped: false },
+      emails: {
+        sent: false,
+        skipped: false,
+        customerSent: false,
+        adminSent: false,
+      },
       error: "Session ist keine Shop-Bestellung.",
     }
   }
@@ -89,7 +115,12 @@ export async function fulfillShopOrderFromStripeSession(
       ok: false,
       orderId: null,
       fulfilled: false,
-      emails: { sent: false, skipped: false },
+      emails: {
+        sent: false,
+        skipped: false,
+        customerSent: false,
+        adminSent: false,
+      },
       error: "metadata.orderId fehlt.",
     }
   }
@@ -101,7 +132,12 @@ export async function fulfillShopOrderFromStripeSession(
       ok: false,
       orderId,
       fulfilled: false,
-      emails: { sent: false, skipped: false },
+      emails: {
+        sent: false,
+        skipped: false,
+        customerSent: false,
+        adminSent: false,
+      },
       error: "Zahlung noch nicht bestätigt.",
     }
   }
@@ -114,6 +150,7 @@ export async function fulfillShopOrderFromStripeSession(
 
   const customerEmail = resolveStripeCustomerEmail(session)
 
+  // 1) Bestellung als bezahlt speichern (Fehler hier → ok:false)
   const fulfillResult = await fulfillPaidShopOrder(orderId, {
     stripeSessionId: session.id,
     userId:
@@ -125,16 +162,18 @@ export async function fulfillShopOrderFromStripeSession(
     skipInboundEmails: true,
   })
 
-  let emails = { sent: false, skipped: false }
-  try {
-    emails = await sendShopOrderEmailsAfterStripe(
-      orderId,
-      session,
-      customerEmail
-    )
-  } catch (emailError) {
-    console.error("Stripe: SMTP-Versand fehlgeschlagen.", emailError)
-  }
+  // 2) Mails immer versuchen — Fehler loggen, Bestellung bleibt
+  console.info("[Stripe] Starte einheitlichen Order-Mailversand nach Fulfillment", {
+    orderId,
+    fulfilled: fulfillResult.fulfilled,
+    sessionId: session.id,
+  })
+
+  const emails = await sendShopOrderEmailsAfterStripe(
+    orderId,
+    session,
+    customerEmail
+  )
 
   return {
     ok: true,

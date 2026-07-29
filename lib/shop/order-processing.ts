@@ -31,10 +31,10 @@ import {
 } from "@/lib/konto/loyalty-points"
 import { orderHasCustomerInbound } from "@/lib/admin/customer-inbound-order"
 import { applyInventoryReservationForOrder } from "@/lib/admin/order-inventory-hook"
-import { notifyOrderReceived } from "@/lib/email/order-notifications"
-import { notifyAdminNewOrder } from "@/lib/email/admin-inbound-notifications"
-import { resolvePaymentStatusLabel } from "@/lib/email/order-email-summary"
-import { isSmtpConfigured } from "@/lib/email/smtp"
+import {
+  sendOrderConfirmationEmails,
+  type SendOrderEmailsResult,
+} from "@/lib/email/send-order-emails"
 import {
   buildRewardPointsPublicSettings,
   normalizeEnableRewardPointsSystem,
@@ -250,42 +250,8 @@ export async function processOrderPayload(
 export async function sendInboundOrderEmailsSafe(
   order: StoredOrder,
   settings?: AdminSettings
-): Promise<void> {
-  console.log("[OrderEmail] Starte Eingangs-Benachrichtigungen", {
-    orderId: order.orderId,
-    customerEmail: order.billing.email,
-    accountEmail: order.accountEmail ?? null,
-    paymentStatus: resolvePaymentStatusLabel(order),
-    smtpConfigured: isSmtpConfigured(),
-    smtpHost: process.env.SMTP_HOST?.trim() || "(unset)",
-    smtpPort: process.env.SMTP_PORT?.trim() || "(unset)",
-  })
-
-  try {
-    const results = await Promise.allSettled([
-      notifyOrderReceived(order, settings),
-      notifyAdminNewOrder(order, settings),
-    ])
-    results.forEach((result, index) => {
-      const label = index === 0 ? "customer" : "admin"
-      if (result.status === "fulfilled") {
-        console.log(`[OrderEmail] ${label}: settled ok`, {
-          orderId: order.orderId,
-          sent: result.value,
-        })
-      } else {
-        console.error(`[OrderEmail] ${label}: rejected`, {
-          orderId: order.orderId,
-          reason: result.reason,
-        })
-      }
-    })
-  } catch (emailError) {
-    console.error(
-      `[OrderEmail] Unerwarteter Fehler (${order.orderId}).`,
-      emailError
-    )
-  }
+): Promise<SendOrderEmailsResult> {
+  return sendOrderConfirmationEmails(order, settings)
 }
 
 async function resolvePointsToRedeem(

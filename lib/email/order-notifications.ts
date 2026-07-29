@@ -11,6 +11,7 @@ import {
 } from "@/lib/admin/kontaktanfrage-types"
 import {
   renderDripForgeEmailHtml,
+  renderEmailCtaButton,
   renderOrderItemsTableHtml,
   textToHtmlParagraphs,
 } from "@/lib/email/dripforge-email-layout"
@@ -31,6 +32,7 @@ import {
   isTwintPaymentLinkConfigured,
 } from "@/lib/twint/payment-link"
 import { resolveKontoinhaber } from "@/lib/documents/document-template-types"
+import { resolveSiteOrigin } from "@/lib/site/site-origin"
 
 const VORKASSE_CORE_HINT =
   "Vielen Dank für deine Bestellung! Bitte beachte: Da es sich um eine Vorkasse-Zahlung handelt, wird deine Bestellung erst nach vollständigem Erhalt der Zahlung bearbeitet und angefertigt/versendet."
@@ -166,10 +168,12 @@ export async function notifyOrderReceived(
     const template = await getDocumentTemplateSettings()
     const customerName = `${order.billing.firstName} ${order.billing.lastName}`.trim()
     const prepaid = isPrepaidOrderAwaitingPayment(order)
+    const accountUrl = `${resolveSiteOrigin()}/konto/bestellungen`
 
+    // Einheitliche Betreffzeilen (Stripe / bezahlt) — Vorkasse behält Klarstellung
     const subject = prepaid
       ? `Bestelleingang: Deine Bestellung ${order.orderId} bei DripForge (Wartet auf Zahlungseingang)`
-      : `Bestellbestätigung — ${order.orderId}`
+      : "Vielen Dank für Ihre Bestellung bei DripForge"
 
     const twintHint = buildTwintPaymentHint(order)
     const invoiceHint = buildInvoiceBankHint(order, {
@@ -186,19 +190,24 @@ export async function notifyOrderReceived(
       ? [
           `Guten Tag ${customerName},`,
           "",
-          "vielen Dank für deine Bestellung bei DripForge — dies ist die Bestätigung deines Bestelleingangs.",
+          "vielen Dank für Ihre Bestellung bei DripForge — dies ist die Bestätigung Ihres Bestelleingangs.",
           "",
           VORKASSE_CORE_HINT,
         ]
       : [
           `Guten Tag ${customerName},`,
           "",
-          "vielen Dank für deine Bestellung bei DripForge — wir haben sie erfolgreich erhalten.",
+          "vielen Dank für Ihre Bestellung bei DripForge — wir haben Ihre Zahlung erhalten und die Bestellung aufgenommen.",
         ]
 
     const closingPlain = prepaid
-      ? "Sobald der Zahlungseingang bei uns verbucht ist, bearbeiten wir deine Bestellung und halten dich per E-Mail auf dem Laufenden."
-      : "Wir prüfen deine Angaben und halten dich über den weiteren Verlauf per E-Mail auf dem Laufenden."
+      ? "Sobald der Zahlungseingang bei uns verbucht ist, bearbeiten wir Ihre Bestellung und halten Sie per E-Mail auf dem Laufenden."
+      : "Wir prüfen Ihre Angaben und halten Sie über den weiteren Verlauf per E-Mail auf dem Laufenden."
+
+    const accountPlain = [
+      "",
+      `Bestellungen im Kundenkonto ansehen: ${accountUrl}`,
+    ].join("\n")
 
     const plain = [
       ...introPlain,
@@ -208,6 +217,7 @@ export async function notifyOrderReceived(
       ...(twintHint ? [twintHint.plain, ""] : []),
       ...(invoiceHint ? [invoiceHint.plain, ""] : []),
       closingPlain,
+      accountPlain,
       "",
       "Freundliche Grüsse",
       branding.companyName,
@@ -220,7 +230,8 @@ export async function notifyOrderReceived(
         renderOrderDetailsHtml(order) +
         (twintHint?.html ?? "") +
         (invoiceHint?.html ?? "") +
-        textToHtmlParagraphs(closingPlain),
+        textToHtmlParagraphs(closingPlain) +
+        renderEmailCtaButton(accountUrl, "Zu meinen Bestellungen"),
       footerLines: branding.footerLines,
       logoUrl: branding.logoUrl ?? undefined,
     })

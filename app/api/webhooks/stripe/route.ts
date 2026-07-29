@@ -122,6 +122,14 @@ export async function POST(request: Request) {
       if (purpose === "support-journey") {
         await persistCompletedCheckoutSession(session)
       } else if (purpose === "shop-order") {
+        console.info(
+          "Stripe Webhook: checkout.session.completed (shop-order) — Fulfillment + E-Mails",
+          {
+            sessionId: session.id,
+            orderId: session.metadata?.orderId ?? null,
+            payment_status: session.payment_status,
+          }
+        )
         const result = await fulfillShopOrderFromStripeSession(session)
         if (!result.ok) {
           console.error("Stripe Webhook: Shop-Fulfillment fehlgeschlagen.", {
@@ -130,7 +138,7 @@ export async function POST(request: Request) {
             orderId: result.orderId,
           })
         } else {
-          console.info("Stripe Webhook: Shop-Order verarbeitet.", {
+          console.info("Stripe Webhook: Shop-Order verarbeitet (inkl. Mail-Aufruf).", {
             orderId: result.orderId,
             fulfilled: result.fulfilled,
             emails: result.emails,
