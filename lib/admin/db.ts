@@ -216,8 +216,12 @@ export async function saveOrder(order: StoredOrder): Promise<void> {
   // Primär Cosmos wenn konfiguriert. Kein stiller Dateisystem-Fallback auf Azure —
   // sonst entstehen Treuepunkte ohne persistente Bestellung.
   if (!isCosmosConfigured()) {
-    await saveOrderToFile(order)
-    console.info(`Bestellung gespeichert im Dateisystem (${order.orderId}).`)
+    const { normalizeOrderForPersistence } = await import(
+      "@/lib/admin/normalize-order"
+    )
+    const normalized = normalizeOrderForPersistence(order)
+    await saveOrderToFile(normalized)
+    console.info(`Bestellung gespeichert im Dateisystem (${normalized.orderId}).`)
     return
   }
 
@@ -226,6 +230,7 @@ export async function saveOrder(order: StoredOrder): Promise<void> {
     console.info(`Bestellung gespeichert in Cosmos DB (${order.orderId}).`)
     return
   } catch (firstError) {
+    console.error("Fehler beim Speichern der Bestellung:", firstError)
     logCosmosError("saveOrder:first-attempt", firstError)
     console.warn(
       `Bestellung: Cosmos-Schreibversuch 1 fehlgeschlagen (${order.orderId}) — Cache-Reset & Retry.`
@@ -240,6 +245,8 @@ export async function saveOrder(order: StoredOrder): Promise<void> {
       `Bestellung gespeichert in Cosmos DB nach Retry (${order.orderId}).`
     )
   } catch (retryError) {
+    console.error("Fehler beim Speichern der Bestellung:", retryError)
+    logCosmosError("saveOrder:retry-failed", retryError)
     throw new CosmosDatabaseError("saveOrder", retryError)
   }
 }

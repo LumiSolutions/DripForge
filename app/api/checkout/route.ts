@@ -175,6 +175,7 @@ export async function POST(request: Request) {
       orderId,
     })
   } catch (error) {
+    console.error("Fehler beim Speichern der Bestellung:", error)
     console.error("Shop Checkout: Erstellung fehlgeschlagen.", error)
     const message =
       error instanceof CosmosDatabaseError
