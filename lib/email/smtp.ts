@@ -33,8 +33,7 @@ export function isSmtpConfigured(): boolean {
  * Nur bei explizitem SMTP_SECURE=true (typisch Port 465) wird SSL erzwungen.
  */
 function parseSecureFlag(): boolean {
-  const raw = process.env.SMTP_SECURE?.trim().toLowerCase()
-  return raw === "true" || raw === "1" || raw === "yes"
+  return process.env.SMTP_SECURE === "true"
 }
 
 export function getSmtpRuntimeConfig(): SmtpRuntimeConfig | null {
@@ -45,8 +44,7 @@ export function getSmtpRuntimeConfig(): SmtpRuntimeConfig | null {
   const pass = stripEnvQuotes(process.env.SMTP_PASS!)
   const host =
     stripEnvQuotes(process.env.SMTP_HOST ?? "") || "mail.hostpoint.ch"
-  const port = Number(stripEnvQuotes(process.env.SMTP_PORT ?? "587"))
-  const resolvedPort = Number.isFinite(port) && port > 0 ? port : 587
+  const port = Number(stripEnvQuotes(process.env.SMTP_PORT ?? "")) || 587
   const secure = parseSecureFlag()
   const from =
     stripEnvQuotes(process.env.EMAIL_FROM ?? "") ||
@@ -55,7 +53,7 @@ export function getSmtpRuntimeConfig(): SmtpRuntimeConfig | null {
 
   return {
     host,
-    port: resolvedPort,
+    port,
     secure,
     user,
     pass,
@@ -104,11 +102,12 @@ export function buildSmtpTransporter() {
       user: config.user,
       pass: config.pass,
     },
-    connectionTimeout: 12_000,
-    greetingTimeout: 12_000,
+    // Timeouts: Requests hängen im Fehlerfall nicht endlos
+    connectionTimeout: 10_000,
+    greetingTimeout: 10_000,
     socketTimeout: 20_000,
     tls: {
-      // Verhindert Zertifikatsfehler bei Azure-Aufrufen / Hostpoint
+      // Für Port 587 (STARTTLS) und Azure/Hostpoint Zertifikate
       rejectUnauthorized: false,
       servername: config.host,
       minVersion: "TLSv1.2",

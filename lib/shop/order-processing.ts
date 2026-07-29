@@ -33,6 +33,7 @@ import { orderHasCustomerInbound } from "@/lib/admin/customer-inbound-order"
 import { applyInventoryReservationForOrder } from "@/lib/admin/order-inventory-hook"
 import { notifyOrderReceived } from "@/lib/email/order-notifications"
 import { notifyAdminNewOrder } from "@/lib/email/admin-inbound-notifications"
+import { isSmtpConfigured } from "@/lib/email/smtp"
 import {
   buildRewardPointsPublicSettings,
   normalizeEnableRewardPointsSystem,
@@ -253,9 +254,7 @@ export async function sendInboundOrderEmailsSafe(
     orderId: order.orderId,
     customerEmail: order.billing.email,
     accountEmail: order.accountEmail ?? null,
-    smtpConfigured: Boolean(
-      process.env.SMTP_USER?.trim() && process.env.SMTP_PASS?.trim()
-    ),
+    smtpConfigured: isSmtpConfigured(),
     smtpHost: process.env.SMTP_HOST?.trim() || "(default mail.hostpoint.ch)",
     smtpPort: process.env.SMTP_PORT?.trim() || "(default 587)",
   })
