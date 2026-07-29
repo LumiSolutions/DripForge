@@ -170,7 +170,14 @@ export function ShopHeader(props: ShopHeaderProps) {
     )
 
   return (
-    <header className="sticky top-0 z-50 border-b border-border/50 bg-background/80 backdrop-blur-xl">
+    <>
+      <header
+        className={cn(
+          "fixed inset-x-0 top-0 z-[100]",
+          "border-b border-border/60 bg-background/95 shadow-sm backdrop-blur-md",
+          "supports-[backdrop-filter]:bg-background/90"
+        )}
+      >
       <div className="mx-auto flex h-16 max-w-7xl flex-nowrap items-center gap-2 px-3 sm:gap-4 sm:px-4">
         {props.mode === "spa" ? (
           <button
@@ -404,6 +411,8 @@ export function ShopHeader(props: ShopHeaderProps) {
             type="button"
             className={cn(HEADER_ICON_BTN_CLASS, "md:hidden")}
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            aria-label={mobileMenuOpen ? "Menü schliessen" : "Menü öffnen"}
+            aria-expanded={mobileMenuOpen}
           >
             {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
@@ -411,7 +420,7 @@ export function ShopHeader(props: ShopHeaderProps) {
       </div>
 
       {mobileMenuOpen && (
-        <div className="border-t border-border bg-background p-4 md:hidden">
+        <div className="max-h-[min(70vh,calc(100dvh-4rem))] overflow-y-auto border-t border-border bg-background/98 p-4 shadow-md backdrop-blur-md md:hidden">
           <nav className="flex flex-col gap-2">
             {visibleNavItems.map((item) =>
               props.mode === "spa" ? (
@@ -420,7 +429,7 @@ export function ShopHeader(props: ShopHeaderProps) {
                   type="button"
                   onClick={() => handleSpaNav(item.id)}
                   className={cn(
-                    "flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors",
+                    "flex min-h-11 items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors touch-manipulation",
                     isNavActive(item.id)
                       ? "bg-secondary text-foreground"
                       : "text-muted-foreground hover:bg-secondary/50"
@@ -436,7 +445,7 @@ export function ShopHeader(props: ShopHeaderProps) {
                   prefetch
                   onClick={() => setMobileMenuOpen(false)}
                   className={cn(
-                    "inline-flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors",
+                    "inline-flex min-h-11 items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors touch-manipulation",
                     isNavActive(item.id)
                       ? "bg-secondary text-foreground"
                       : "text-muted-foreground hover:bg-secondary/50"
@@ -452,7 +461,7 @@ export function ShopHeader(props: ShopHeaderProps) {
               prefetch
               onClick={() => setMobileMenuOpen(false)}
               className={cn(
-                "flex items-center gap-3 rounded-lg border border-primary/20 px-4 py-3 text-sm font-medium",
+                "flex min-h-11 items-center gap-3 rounded-lg border border-primary/20 px-4 py-3 text-sm font-medium touch-manipulation",
                 kontoActive || kontoLoggedIn
                   ? "bg-primary/10 text-primary"
                   : "text-muted-foreground hover:bg-secondary/50"
@@ -465,6 +474,9 @@ export function ShopHeader(props: ShopHeaderProps) {
         </div>
       )}
       <ThemeInboundTour anchorRef={themeButtonRef} onThemeChange={setTheme} />
-    </header>
+      </header>
+      {/* Platzhalter: verhindert, dass Content unter dem fixed Header verschwindet */}
+      <div className="h-16 shrink-0" aria-hidden="true" />
+    </>
   )
 }

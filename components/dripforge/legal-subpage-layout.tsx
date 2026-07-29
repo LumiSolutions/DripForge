@@ -4,6 +4,7 @@ import { useEffect, type ReactNode } from "react"
 import Link from "next/link"
 import { SiteText } from "@/components/dripforge/editable-site-text"
 import { SiteImage } from "@/components/dripforge/editable-site-image"
+import { cn } from "@/lib/utils"
 
 export function LegalSubpageLayout({ children }: { children: ReactNode }) {
   useEffect(() => {
@@ -15,7 +16,13 @@ export function LegalSubpageLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <header className="sticky top-0 z-50 border-b border-border/50 bg-background/80 backdrop-blur-xl">
+      <header
+        className={cn(
+          "fixed inset-x-0 top-0 z-[100]",
+          "border-b border-border/60 bg-background/95 shadow-sm backdrop-blur-md",
+          "supports-[backdrop-filter]:bg-background/90"
+        )}
+      >
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4">
           <Link href="/" className="flex items-center gap-2">
             <SiteImage
@@ -40,6 +47,7 @@ export function LegalSubpageLayout({ children }: { children: ReactNode }) {
           </Link>
         </div>
       </header>
+      <div className="h-16 shrink-0" aria-hidden="true" />
 
       <main className="mx-auto max-w-7xl">{children}</main>
     </div>
