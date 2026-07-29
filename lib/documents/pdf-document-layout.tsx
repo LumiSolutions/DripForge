@@ -40,6 +40,9 @@ export const pdfDocumentColors = {
   totalsBg: "#ffffff",
   totalsAccent: "#e8eef5",
   paidGreen: "#15803d",
+  paidGreenBg: "#f0fdf4",
+  paidGreenBorder: "#86efac",
+  paidGreenDark: "#166534",
 }
 
 function scaledSize(baseFontSize: number, sizeAtBase9: number): number {
@@ -61,7 +64,7 @@ export function createPdfDocumentLayoutStyles(template: DocumentTemplateSettings
       fontFamily: font,
       fontSize: base,
       color: pdfDocumentColors.anthracite,
-      lineHeight: 1.4,
+      lineHeight: 1.5,
       paddingTop: pagePaddingTop,
       paddingHorizontal: 20 * MM,
       paddingBottom: FOOTER_RESERVED_MM * MM,
@@ -71,7 +74,7 @@ export function createPdfDocumentLayoutStyles(template: DocumentTemplateSettings
       fontFamily: font,
       fontSize: base,
       color: pdfDocumentColors.anthracite,
-      lineHeight: 1.4,
+      lineHeight: 1.5,
       paddingTop: pagePaddingTop,
       paddingHorizontal: 20 * MM,
       paddingBottom: FOOTER_RESERVED_MM * MM,
@@ -85,6 +88,7 @@ export function createPdfDocumentLayoutStyles(template: DocumentTemplateSettings
       left: 20 * MM,
       right: 20 * MM,
       backgroundColor: "transparent",
+      alignItems: "center",
     },
     /**
      * Logo-Header auf jeder Seite (fixed).
@@ -104,23 +108,34 @@ export function createPdfDocumentLayoutStyles(template: DocumentTemplateSettings
       objectFit: "contain",
     },
     recipientBlock: {
-      marginBottom: 10,
+      marginBottom: 14,
       maxWidth: "52%",
       fontSize: scaledSize(base, 10),
-      lineHeight: 1.45,
+      lineHeight: 1.5,
+      hyphens: "none",
+    },
+    recipientHeading: {
+      ...bold,
+      fontSize: scaledSize(base, 8),
+      textTransform: "uppercase",
+      letterSpacing: 0.7,
+      color: pdfDocumentColors.anthraciteMid,
+      marginBottom: 6,
       hyphens: "none",
     },
     recipientLine: {
-      marginBottom: 1,
+      marginBottom: 2,
       hyphens: "none",
     },
     infoPanel: {
       flexDirection: "row",
       backgroundColor: pdfDocumentColors.infoPanel,
       borderRadius: 3,
-      paddingVertical: 8,
-      paddingHorizontal: 10,
-      marginBottom: 14,
+      paddingVertical: 10,
+      paddingHorizontal: 12,
+      marginBottom: 16,
+      borderWidth: 1,
+      borderColor: pdfDocumentColors.border,
     },
     infoField: {
       flex: 1,
@@ -143,54 +158,66 @@ export function createPdfDocumentLayoutStyles(template: DocumentTemplateSettings
     headerRule: {
       height: 1,
       backgroundColor: pdfDocumentColors.border,
-      marginBottom: 10,
+      marginBottom: 8,
+      marginTop: 2,
     },
     headerAccent: {
       height: 2,
       width: 48,
       backgroundColor: pdfDocumentColors.orange,
-      marginBottom: 10,
+      marginBottom: 12,
     },
     headerLine: {
       ...bold,
       fontSize: scaledSize(base, 13),
       color: pdfDocumentColors.anthracite,
-      marginBottom: 4,
+      marginBottom: 6,
       hyphens: "none",
     },
     referenceLine: {
       fontSize: scaledSize(base, 9.5),
       color: pdfDocumentColors.anthraciteMid,
-      marginBottom: 8,
+      marginBottom: 10,
+      lineHeight: 1.45,
       hyphens: "none",
     },
     introText: {
       fontSize: scaledSize(base, 9.5),
       color: pdfDocumentColors.anthraciteLight,
-      marginBottom: 14,
+      marginBottom: 16,
       maxWidth: "90%",
+      lineHeight: 1.5,
       hyphens: "none",
     },
     footerNote: {
       fontSize: scaledSize(base, 9),
       color: pdfDocumentColors.anthraciteLight,
-      marginTop: 8,
+      marginTop: 12,
       maxWidth: "90%",
+      lineHeight: 1.5,
       hyphens: "none",
     },
     receiptNotice: {
-      marginTop: 14,
-      paddingVertical: 10,
-      paddingHorizontal: 12,
+      marginTop: 18,
+      paddingVertical: 12,
+      paddingHorizontal: 14,
       borderWidth: 1.5,
-      borderColor: pdfDocumentColors.paidGreen,
-      borderRadius: 4,
-      backgroundColor: "#f0fdf4",
+      borderColor: pdfDocumentColors.paidGreenBorder,
+      borderRadius: 6,
+      backgroundColor: pdfDocumentColors.paidGreenBg,
+      alignItems: "center",
+    },
+    receiptNoticeRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      marginBottom: 6,
     },
     receiptNoticeText: {
       fontSize: scaledSize(base, 9.5),
-      color: pdfDocumentColors.paidGreen,
-      lineHeight: 1.45,
+      color: pdfDocumentColors.paidGreenDark,
+      lineHeight: 1.5,
+      textAlign: "center",
       ...bold,
     },
     paymentInstructionTop: {
@@ -199,6 +226,7 @@ export function createPdfDocumentLayoutStyles(template: DocumentTemplateSettings
       textAlign: "center",
       marginBottom: 10,
       lineHeight: 1.35,
+      width: "100%",
     },
     paymentDashLine: {
       borderTopWidth: 1,
@@ -206,11 +234,15 @@ export function createPdfDocumentLayoutStyles(template: DocumentTemplateSettings
       borderStyle: "dashed",
       marginTop: 0,
       marginBottom: 14,
+      width: "100%",
+      alignSelf: "stretch",
     },
     paymentSection: {
       marginTop: 0,
       flexDirection: "row",
       alignItems: "flex-start",
+      width: "100%",
+      alignSelf: "stretch",
     },
     paymentLeft: {
       flex: 1,
@@ -252,28 +284,59 @@ export function createPdfDocumentLayoutStyles(template: DocumentTemplateSettings
       textAlign: "center",
     },
     paidStampWrap: {
-      marginTop: 8,
+      width: "100%",
+      marginTop: 4,
       alignItems: "center",
       justifyContent: "center",
-      paddingVertical: 12,
+      paddingVertical: 18,
+      paddingHorizontal: 16,
+      borderWidth: 1.5,
+      borderColor: pdfDocumentColors.paidGreenBorder,
+      borderRadius: 8,
+      backgroundColor: pdfDocumentColors.paidGreenBg,
+    },
+    paidStatusHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      marginBottom: 10,
+    },
+    paidCheckDot: {
+      width: 12,
+      height: 12,
+      borderRadius: 6,
+      backgroundColor: pdfDocumentColors.paidGreen,
+      marginRight: 10,
     },
     paidStamp: {
       ...bold,
-      fontSize: scaledSize(base, 28),
-      color: pdfDocumentColors.paidGreen,
-      letterSpacing: 2,
+      fontSize: scaledSize(base, 18),
+      color: pdfDocumentColors.paidGreenDark,
+      letterSpacing: 1.2,
       textAlign: "center",
-      borderWidth: 3,
-      borderColor: pdfDocumentColors.paidGreen,
-      paddingVertical: 10,
-      paddingHorizontal: 18,
     },
-    paidStampSub: {
-      marginTop: 16,
+    paidRefLine: {
+      marginTop: 2,
+      marginBottom: 10,
+      textAlign: "center",
       fontSize: scaledSize(base, 9),
       color: pdfDocumentColors.anthraciteMid,
+      lineHeight: 1.45,
+    },
+    paidRefLabel: {
+      color: pdfDocumentColors.anthraciteMid,
+    },
+    paidRefId: {
+      ...bold,
+      color: pdfDocumentColors.anthracite,
+    },
+    paidStampSub: {
+      marginTop: 2,
+      fontSize: scaledSize(base, 9.5),
+      color: pdfDocumentColors.paidGreenDark,
       textAlign: "center",
-      maxWidth: "85%",
+      maxWidth: "92%",
+      lineHeight: 1.5,
     },
     /**
      * Fixer Footer am unteren Rand — erscheint auf JEDER Seite (`fixed`).
@@ -418,6 +481,8 @@ export type PdfDocumentPayment = {
   /** Bereits online bezahlt (Karte / TWINT) */
   alreadyPaid?: boolean
   paymentMethodLabel?: string
+  /** Stripe Session-ID oder andere Gateway-Referenz */
+  paymentProviderRef?: string | null
 }
 
 export type PdfDocumentLayoutProps = {
@@ -543,9 +608,23 @@ export function PdfDocumentLayout({
   const paymentMethodLabel = sanitizePdfText(
     payment?.paymentMethodLabel?.trim() || "Online-Zahlung"
   )
-  const receiptMessage = sanitizePdfText(
-    `Dieser Beleg dient als Quittung. Der Betrag wurde bereits erfolgreich via ${paymentMethodLabel} beglichen. Vielen Dank!`
+  const paymentProviderRef = sanitizePdfText(
+    payment?.paymentProviderRef?.trim() || ""
   )
+  const isStripePayment =
+    /stripe|kreditkarte|card/i.test(paymentMethodLabel) ||
+    Boolean(payment?.paymentProviderRef?.trim()?.startsWith("cs_"))
+  const receiptMessage = sanitizePdfText(
+    isStripePayment
+      ? "Ihre Zahlung wurde erfolgreich über Stripe abgewickelt. Vielen Dank!"
+      : `Ihre Zahlung wurde erfolgreich via ${paymentMethodLabel} abgewickelt. Vielen Dank!`
+  )
+  const receiptNoticeMessage = sanitizePdfText(
+    `Dieser Beleg dient als Quittung. Der Betrag wurde bereits erfolgreich via ${paymentMethodLabel} beglichen.`
+  )
+  const paidRefCaption = isStripePayment
+    ? "Stripe-Referenz"
+    : "Zahlungsreferenz"
   const recipientCountry = formatPdfRecipientCountry(recipient.country)
   const recipientName = sanitizePdfText(
     `${recipient.firstName} ${recipient.lastName}`
@@ -567,6 +646,7 @@ export function PdfDocumentLayout({
         <PdfCenterFooter styles={styles} footerLines={footerLines} />
 
         <View style={styles.recipientBlock}>
+          <Text style={styles.recipientHeading}>Empfänger</Text>
           <Text style={styles.recipientLine}>{recipientName}</Text>
           <Text style={styles.recipientLine}>{recipientStreet}</Text>
           <Text style={styles.recipientLine}>{recipientCityLine}</Text>
@@ -634,7 +714,11 @@ export function PdfDocumentLayout({
 
         {alreadyPaid ? (
           <View style={styles.receiptNotice}>
-            <Text style={styles.receiptNoticeText}>{receiptMessage}</Text>
+            <View style={styles.receiptNoticeRow}>
+              <View style={styles.paidCheckDot} />
+              <Text style={styles.receiptNoticeText}>Bezahlt / Paid</Text>
+            </View>
+            <Text style={styles.receiptNoticeText}>{receiptNoticeMessage}</Text>
           </View>
         ) : null}
       </Page>
@@ -653,11 +737,27 @@ export function PdfDocumentLayout({
               <Text style={styles.paymentInstructionTop}>{paymentBlockText}</Text>
             ) : null}
 
-            <View style={styles.paymentDashLine} />
+            {!alreadyPaid ? <View style={styles.paymentDashLine} /> : null}
 
             {alreadyPaid ? (
               <View style={styles.paidStampWrap}>
-                <Text style={styles.paidStamp}>BEZAHLT / PAID</Text>
+                <View style={styles.paidStatusHeader}>
+                  <View style={styles.paidCheckDot} />
+                  <Text style={styles.paidStamp}>Bezahlt / Paid</Text>
+                </View>
+                {paymentProviderRef ? (
+                  <Text style={styles.paidRefLine}>
+                    <Text style={styles.paidRefLabel}>{paidRefCaption}: </Text>
+                    <Text style={styles.paidRefId}>{paymentProviderRef}</Text>
+                  </Text>
+                ) : payment.reference ? (
+                  <Text style={styles.paidRefLine}>
+                    <Text style={styles.paidRefLabel}>Bestellreferenz: </Text>
+                    <Text style={styles.paidRefId}>
+                      {sanitizePdfText(payment.reference)}
+                    </Text>
+                  </Text>
+                ) : null}
                 <Text style={styles.paidStampSub}>{receiptMessage}</Text>
               </View>
             ) : (

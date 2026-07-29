@@ -49,12 +49,13 @@ function createInvoiceDocumentStyles(template: DocumentTemplateSettings) {
       borderColor: pdfDocumentColors.border,
       borderRadius: 3,
       overflow: "hidden",
-      marginBottom: 10,
+      marginBottom: 14,
+      marginTop: 2,
     },
     tableHeader: {
       flexDirection: "row",
       backgroundColor: pdfDocumentColors.tableHeader,
-      paddingVertical: 8,
+      paddingVertical: 9,
       paddingHorizontal: 6,
       alignItems: "center",
     },
@@ -85,7 +86,7 @@ function createInvoiceDocumentStyles(template: DocumentTemplateSettings) {
     },
     tableRow: {
       flexDirection: "row",
-      paddingVertical: 8,
+      paddingVertical: 9,
       paddingHorizontal: 6,
       borderBottomWidth: 1,
       borderBottomColor: pdfDocumentColors.border,
@@ -143,17 +144,28 @@ function createInvoiceDocumentStyles(template: DocumentTemplateSettings) {
       whiteSpace: "nowrap",
       hyphens: "none",
     },
-    legalNote: {
-      fontSize: scaledSize(base, 7),
-      color: pdfDocumentColors.anthraciteLight,
-      marginBottom: 12,
-      lineHeight: 1.35,
-      hyphens: "none",
-    },
     totalsWrap: {
       flexDirection: "row",
       justifyContent: "flex-end",
+      marginBottom: 10,
+      marginTop: 4,
+    },
+    legalNote: {
+      fontSize: scaledSize(base, 7),
+      color: pdfDocumentColors.anthraciteLight,
+      marginBottom: 14,
+      marginTop: 4,
+      lineHeight: 1.45,
+      hyphens: "none",
+    },
+    sectionHeading: {
+      ...bold,
+      fontSize: scaledSize(base, 8),
+      textTransform: "uppercase",
+      letterSpacing: 0.7,
+      color: pdfDocumentColors.anthraciteMid,
       marginBottom: 8,
+      hyphens: "none",
     },
     totalsBox: {
       width: "48%",
@@ -272,6 +284,10 @@ export function InvoiceDocument({
           qrImageUrl: alreadyPaid ? null : template.qrPaymentImageUrl,
           alreadyPaid,
           paymentMethodLabel: getOrderPaymentMethodDisplayLabel(order),
+          paymentProviderRef:
+            order.stripeSessionId?.trim() ||
+            order.payrexxTransactionUuid?.trim() ||
+            null,
         }
       : null
 
@@ -308,6 +324,7 @@ export function InvoiceDocument({
       placeholderValues={placeholderValues}
       payment={isDeliveryNote || isQuote ? null : payment}
     >
+      <Text style={styles.sectionHeading}>Artikelübersicht</Text>
       <View style={styles.table}>
         <View style={styles.tableHeader}>
           <Text style={[styles.colPos, styles.th, styles.thCenter]} wrap={false}>
