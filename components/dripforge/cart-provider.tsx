@@ -11,13 +11,19 @@ import {
   type ReactNode,
 } from "react"
 import type { CartItem } from "@/lib/dripforge/types"
-import { CART_STORAGE_KEY, readClientCart } from "@/lib/dripforge/cart-storage"
+import {
+  clearClientCart,
+  readClientCart,
+  writeClientCart,
+} from "@/lib/dripforge/cart-storage"
 
 type CartContextValue = {
   cart: CartItem[]
   setCart: React.Dispatch<React.SetStateAction<CartItem[]>>
   addToCart: (item: CartItem) => void
   applyMergedCart: (items: CartItem[]) => void
+  /** Warenkorb lokal + optional am Konto leeren (Stripe-/Checkout-Erfolg). */
+  clearCart: () => Promise<void>
   syncCartToAccount: (items?: CartItem[]) => Promise<void>
 }
 
@@ -35,11 +41,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!hydrated) return
-    try {
-      localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart))
-    } catch {
-      console.warn("Warenkorb: Speichern in localStorage fehlgeschlagen.")
-    }
+    writeClientCart(cart)
   }, [cart, hydrated])
 
   const addToCart = useCallback((item: CartItem) => {
@@ -63,6 +65,23 @@ export function CartProvider({ children }: { children: ReactNode }) {
       console.warn("Warenkorb: Server-Sync fehlgeschlagen.")
     }
   }, [cart])
+
+  const clearCart = useCallback(async () => {
+    if (syncTimerRef.current) {
+      window.clearTimeout(syncTimerRef.current)
+      syncTimerRef.current = null
+    }
+    clearClientCart()
+    setCart([])
+    try {
+      const meRes = await fetch("/api/konto/me", { cache: "no-store" })
+      if (meRes.ok) {
+        await syncCartToAccount([])
+      }
+    } catch {
+      /* Gast oder offline */
+    }
+  }, [syncCartToAccount])
 
   useEffect(() => {
     if (!hydrated || cart.length === 0) return
@@ -91,8 +110,15 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, [cart, hydrated, syncCartToAccount])
 
   const value = useMemo(
-    () => ({ cart, setCart, addToCart, applyMergedCart, syncCartToAccount }),
-    [cart, addToCart, applyMergedCart, syncCartToAccount]
+    () => ({
+      cart,
+      setCart,
+      addToCart,
+      applyMergedCart,
+      clearCart,
+      syncCartToAccount,
+    }),
+    [cart, addToCart, applyMergedCart, clearCart, syncCartToAccount]
   )
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>
