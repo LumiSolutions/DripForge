@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { PREVIEW_ACCESS_COOKIE } from "@/lib/dripforge/launch-config"
-import { staffLoginStepResponse } from "@/lib/admin/staff-auth"
+import { staffLoginAfterPassword } from "@/lib/admin/staff-auth"
 import { verifyStaffPassword } from "@/lib/admin/staff-db"
 import { getAdminSessionFromRequest } from "@/lib/admin/admin-session"
 
@@ -43,7 +43,7 @@ export async function POST(request: Request) {
       )
     }
 
-    return staffLoginStepResponse(account, "preview")
+    return staffLoginAfterPassword(account, "preview")
   } catch (error) {
     console.error("Preview-Access: Anmeldung fehlgeschlagen.", error)
     return NextResponse.json(

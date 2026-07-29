@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { staffLoginStepResponse } from "@/lib/admin/staff-auth"
+import { staffLoginAfterPassword } from "@/lib/admin/staff-auth"
 import { verifyStaffPassword } from "@/lib/admin/staff-db"
 import type { StaffAuthIntent, StaffRole } from "@/lib/admin/staff-types"
 
@@ -53,7 +53,7 @@ export async function POST(request: Request) {
       )
     }
 
-    return staffLoginStepResponse(account, intent)
+    return staffLoginAfterPassword(account, intent)
   } catch (error) {
     console.error("Admin-Auth: Login fehlgeschlagen.", error)
     return NextResponse.json({ error: "Login fehlgeschlagen." }, { status: 500 })

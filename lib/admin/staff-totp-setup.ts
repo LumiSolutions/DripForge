@@ -45,10 +45,7 @@ export async function getTotpSetupMaterial(
         },
       }
     }
-
-    throw new TotpSecretError(
-      "Gespeichertes 2FA-Secret konnte nicht gelesen werden. Bitte ADMIN_2FA_ENCRYPTION_KEY prüfen oder 2FA im Portal zurücksetzen."
-    )
+    // Unlesbares Secret (z. B. anderer ADMIN_2FA_ENCRYPTION_KEY) → neu erzeugen
   }
 
   const secret = generateTotpSecret()

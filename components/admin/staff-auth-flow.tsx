@@ -49,6 +49,35 @@ export function StaffAuthFlow({
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
+  const applySetupMaterial = (qr: string, secret: string) => {
+    setupMaterialRef.current = { qrDataUrl: qr, secretBase32: secret }
+    setQrDataUrl(qr)
+    setSecretBase32(secret)
+  }
+
+  const loadSetupMaterial = async () => {
+    const setupRes = await fetch("/api/admin/auth/setup-totp", {
+      method: "POST",
+      credentials: "include",
+    })
+    const setupData = (await setupRes.json()) as {
+      error?: string
+      qrDataUrl?: string
+      secretBase32?: string
+    }
+    if (!setupRes.ok) {
+      throw new Error(setupData.error ?? "2FA-Einrichtung fehlgeschlagen")
+    }
+    if (!setupData.qrDataUrl || !setupData.secretBase32) {
+      throw new Error(
+        "QR-Code konnte nicht geladen werden. Bitte erneut versuchen oder ENABLE_ADMIN_2FA prüfen."
+      )
+    }
+    applySetupMaterial(setupData.qrDataUrl, setupData.secretBase32)
+    setStep("setup")
+    setCode("")
+  }
+
   const handlePasswordSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setError(null)
@@ -61,28 +90,28 @@ export function StaffAuthFlow({
         credentials: "include",
         body: JSON.stringify({ role, password, intent }),
       })
-      const data = await res.json()
+      const data = (await res.json()) as {
+        error?: string
+        step?: AuthStep
+        needsTotpSetup?: boolean
+        success?: boolean
+        message?: string
+      }
       if (!res.ok) throw new Error(data.error ?? "Anmeldung fehlgeschlagen")
 
-      if (data.step === "setup") {
-        const setupRes = await fetch("/api/admin/auth/setup-totp", {
-          method: "POST",
-          credentials: "include",
-        })
-        const setupData = await setupRes.json()
-        if (!setupRes.ok) {
-          throw new Error(setupData.error ?? "2FA-Einrichtung fehlgeschlagen")
-        }
-        if (setupData.qrDataUrl && setupData.secretBase32) {
-          setupMaterialRef.current = {
-            qrDataUrl: setupData.qrDataUrl,
-            secretBase32: setupData.secretBase32,
-          }
-          setQrDataUrl(setupData.qrDataUrl)
-          setSecretBase32(setupData.secretBase32)
-        }
-        setStep("setup")
+      // ENABLE_ADMIN_2FA=false → Session direkt, kein TOTP-Schritt
+      if (!data.step) {
+        setPassword("")
+        onSuccess()
+        return
+      }
+
+      if (data.step === "setup" || data.needsTotpSetup) {
+        await loadSetupMaterial()
       } else {
+        setQrDataUrl(null)
+        setSecretBase32(null)
+        setupMaterialRef.current = null
         setStep("totp")
       }
 
@@ -105,20 +134,52 @@ export function StaffAuthFlow({
         ? "/api/admin/auth/confirm-totp"
         : "/api/admin/auth/verify-totp"
 
+      const secret =
+        setupMaterialRef.current?.secretBase32 ?? secretBase32 ?? undefined
+
       const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ code }),
+        body: JSON.stringify({
+          code,
+          ...(isSetup && secret ? { secretBase32: secret } : {}),
+        }),
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? "Verifizierung fehlgeschlagen")
+      const data = (await res.json()) as {
+        error?: string
+        needsTotpSetup?: boolean
+      }
+      if (!res.ok) {
+        if (data.needsTotpSetup || /noch nicht eingerichtet/i.test(data.error ?? "")) {
+          await loadSetupMaterial()
+          setError(
+            "2FA muss neu eingerichtet werden. Bitte QR-Code scannen und Code bestätigen."
+          )
+          return
+        }
+        throw new Error(data.error ?? "Verifizierung fehlgeschlagen")
+      }
 
       setCode("")
       onSuccess()
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Verifizierung fehlgeschlagen"
+      )
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleRetrySetup = async () => {
+    setError(null)
+    setLoading(true)
+    try {
+      await loadSetupMaterial()
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "2FA-Einrichtung fehlgeschlagen"
       )
     } finally {
       setLoading(false)
@@ -282,6 +343,35 @@ export function StaffAuthFlow({
             </div>
           )}
 
+          {step === "setup" && !qrDataUrl && (
+            <div className="mb-4 space-y-3 text-center">
+              <p
+                className={cn(
+                  "text-xs",
+                  compact ? "text-zinc-500" : adminUi.muted
+                )}
+              >
+                QR-Code wird geladen oder konnte nicht angezeigt werden.
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={loading}
+                onClick={() => void handleRetrySetup()}
+                className={cn(
+                  "w-full",
+                  compact ? "border-zinc-700 text-zinc-200" : undefined
+                )}
+              >
+                {loading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  "QR-Code erneut laden"
+                )}
+              </Button>
+            </div>
+          )}
+
           <div className="space-y-2">
             <Label
               htmlFor="staff-totp"
@@ -302,6 +392,7 @@ export function StaffAuthFlow({
                 "text-center tracking-[0.3em]",
                 compact ? "border-zinc-800 bg-black/60 text-white" : adminUi.input
               )}
+              disabled={step === "setup" && !qrDataUrl}
             />
           </div>
 
@@ -319,7 +410,9 @@ export function StaffAuthFlow({
 
           <Button
             type="submit"
-            disabled={loading || code.length !== 6}
+            disabled={
+              loading || code.length !== 6 || (step === "setup" && !qrDataUrl)
+            }
             className={cn(
               "mt-5 w-full font-semibold",
               compact ? "bg-orange-500 hover:bg-orange-600" : adminUi.primaryBtn

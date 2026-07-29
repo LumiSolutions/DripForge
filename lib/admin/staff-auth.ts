@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { isAdmin2faEnabled } from "@/lib/admin/admin-2fa-config"
 import { PREVIEW_ACCESS_COOKIE } from "@/lib/dripforge/launch-config"
 import {
   ADMIN_PENDING_COOKIE,
@@ -22,16 +23,22 @@ import type { StaffAccount, StaffAuthIntent, StaffRole } from "@/lib/admin/staff
 
 const PREVIEW_COOKIE_MAX_AGE = 60 * 60 * 24 * 90
 
+/** True wenn Verify-Schritt möglich ist (aktiv + entschlüsselbares Secret). */
+export function staffCanVerifyTotp(account: StaffAccount): boolean {
+  return account.totpEnabled && staffHasPersistedTotpSecret(account)
+}
+
 export function staffLoginStepResponse(
   account: StaffAccount,
   intent: StaffAuthIntent
 ): NextResponse {
+  const canVerify = staffCanVerifyTotp(account)
   const response = NextResponse.json({
     success: true,
-    step: account.totpEnabled ? "totp" : "setup",
+    step: canVerify ? "totp" : "setup",
     role: account.role,
     totpEnabled: account.totpEnabled,
-    needsTotpSetup: !account.totpEnabled && !staffHasPersistedTotpSecret(account),
+    needsTotpSetup: !canVerify,
   })
 
   response.cookies.set(
@@ -47,9 +54,29 @@ export function staffLoginStepResponse(
   return response
 }
 
+/**
+ * Nach Passwort: 2FA-Schritt oder — wenn ENABLE_ADMIN_2FA=false — sofort Session.
+ */
+export function staffLoginAfterPassword(
+  account: StaffAccount,
+  intent: StaffAuthIntent
+): NextResponse {
+  if (!isAdmin2faEnabled()) {
+    return finalizeStaffAuth(account.role, intent)
+  }
+  return staffLoginStepResponse(account, intent)
+}
+
 export async function setupTotpForPending(
   request: Request
 ): Promise<NextResponse> {
+  if (!isAdmin2faEnabled()) {
+    return NextResponse.json(
+      { error: "2FA ist per ENABLE_ADMIN_2FA deaktiviert." },
+      { status: 400 }
+    )
+  }
+
   const pending = getAdminPendingFromRequest(request)
   if (!pending) {
     return NextResponse.json(
@@ -66,14 +93,18 @@ export async function setupTotpForPending(
     )
   }
 
-  if (account.totpEnabled) {
+  if (staffCanVerifyTotp(account)) {
     return NextResponse.json(
       { error: "2FA ist bereits aktiv. Bitte Code eingeben." },
       { status: 400 }
     )
   }
 
-  const { material } = await getTotpSetupMaterial(account)
+  // totpEnabled ohne lesbares Secret → Secret neu erzeugen und QR anzeigen
+  const forceNew =
+    Boolean(account.totpSecretEncrypted) && !staffHasPersistedTotpSecret(account)
+
+  const { material } = await getTotpSetupMaterial(account, { forceNew })
 
   return NextResponse.json({
     success: true,
@@ -91,6 +122,17 @@ export async function completeTotpVerification(
   code: string,
   options?: { enableOnConfirm?: boolean; secretBase32?: string }
 ): Promise<NextResponse> {
+  if (!isAdmin2faEnabled()) {
+    const pending = getAdminPendingFromRequest(request)
+    if (!pending) {
+      return NextResponse.json(
+        { error: "Anmeldung abgelaufen. Bitte erneut einloggen." },
+        { status: 401 }
+      )
+    }
+    return finalizeStaffAuth(pending.role, pending.intent)
+  }
+
   const pending = getAdminPendingFromRequest(request)
   if (!pending) {
     return NextResponse.json(
@@ -116,7 +158,11 @@ export async function completeTotpVerification(
 
   if (!secret) {
     return NextResponse.json(
-      { error: "2FA ist noch nicht eingerichtet. Bitte QR-Code scannen und Setup abschliessen." },
+      {
+        error:
+          "2FA ist noch nicht eingerichtet. Bitte QR-Code scannen und Setup abschliessen.",
+        needsTotpSetup: true,
+      },
       { status: 400 }
     )
   }
