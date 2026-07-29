@@ -48,7 +48,7 @@ import { useCustomerLoyaltyPoints } from "@/hooks/use-customer-loyalty-points"
 import { useRewardPointsEnabled } from "@/hooks/use-reward-points-enabled"
 import type { CartItem } from "@/lib/dripforge/types"
 import { cn } from "@/lib/utils"
-import { submitOrder, startStripeCheckout, type OrderPayload } from "@/lib/dripforge/submit-order"
+import { submitOrder, startStripeCheckout, startTwintCheckout, type OrderPayload } from "@/lib/dripforge/submit-order"
 import { CheckoutSuccessModal } from "@/components/dripforge/checkout-success-modal"
 import type { CompanySettings } from "@/lib/admin/types"
 import { DEFAULT_COMPANY_SETTINGS } from "@/lib/admin/types"
@@ -207,6 +207,8 @@ export function PageCheckout({
     discountValue: number
   } | null>(null)
   const [stripeConfigured, setStripeConfigured] = useState(false)
+  const [twintPaymentLinkConfigured, setTwintPaymentLinkConfigured] =
+    useState(true)
   const [pointsToRedeem, setPointsToRedeem] = useState(0)
   const [pointsPurchasePackage, setPointsPurchasePackage] = useState<string | null>(
     null
@@ -250,6 +252,13 @@ export function PageCheckout({
         setStripeConfigured(Boolean(data?.configured))
       })
       .catch(() => setStripeConfigured(false))
+
+    void fetch("/api/checkout/twint")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        setTwintPaymentLinkConfigured(Boolean(data?.configured))
+      })
+      .catch(() => setTwintPaymentLinkConfigured(false))
   }, [])
 
   useEffect(() => {
@@ -596,10 +605,28 @@ export function PageCheckout({
 
     setIsSubmitting(true)
 
-    if (
-      (paymentMethod === "card" || paymentMethod === "twint") &&
-      stripeConfigured
-    ) {
+    // Offizieller TWINT-Zahlungslink: Bestellung pending + Erfolgsseite mit Link/QR
+    if (paymentMethod === "twint" && twintPaymentLinkConfigured) {
+      const twintResult = await startTwintCheckout(orderPayload)
+      setIsSubmitting(false)
+      if (!twintResult.ok) {
+        setSubmitError(twintResult.error)
+        return
+      }
+      onOrderComplete?.(twintResult.orderId)
+      try {
+        sessionStorage.setItem(
+          `twintPaymentUrl:${twintResult.orderId}`,
+          twintResult.twintPaymentUrl
+        )
+      } catch {
+        /* ignore */
+      }
+      window.location.href = twintResult.successPath
+      return
+    }
+
+    if (paymentMethod === "card" && stripeConfigured) {
       const stripeResult = await startStripeCheckout(orderPayload)
       setIsSubmitting(false)
       if (!stripeResult.ok) {
@@ -618,14 +645,10 @@ export function PageCheckout({
       return
     }
 
-    if (
-      paymentMethod === "twint" &&
-      !stripeConfigured &&
-      checkoutConfig.twintGatewayAktiv
-    ) {
+    if (paymentMethod === "twint" && !twintPaymentLinkConfigured) {
       setIsSubmitting(false)
       setSubmitError(
-        "TWINT-Gateway ist derzeit nicht verfügbar (Stripe nicht konfiguriert)."
+        "TWINT-Zahlungslink ist derzeit nicht verfügbar. Bitte eine andere Zahlungsart wählen."
       )
       return
     }
@@ -781,17 +804,10 @@ export function PageCheckout({
                     onClick={() => setPaymentMethod("twint")}
                     className={cn(
                       "flex h-11 items-center justify-center rounded-xl border px-4 text-sm font-bold transition-colors",
-                      checkoutConfig.twintGatewayAktiv
-                        ? "border-cyan-600/40 bg-cyan-500/10 text-cyan-700 hover:bg-cyan-500/20 dark:text-cyan-300"
-                        : "border-cyan-600/30 bg-cyan-500/5 text-cyan-700 hover:bg-cyan-500/15 dark:text-cyan-300"
+                      "border-cyan-600/40 bg-cyan-500/10 text-cyan-700 hover:bg-cyan-500/20 dark:text-cyan-300"
                     )}
                   >
                     TWINT
-                    {!checkoutConfig.twintGatewayAktiv && (
-                      <span className="ml-1.5 text-[10px] font-normal opacity-70">
-                        (manuell)
-                      </span>
-                    )}
                   </button>
                 </div>
                 <p className="mt-3 text-center text-xs text-muted-foreground">
@@ -1035,6 +1051,7 @@ export function PageCheckout({
                       option.id === "twint"
                         ? getTwintPaymentDescription(checkoutConfig, {
                             stripeConfigured,
+                            twintPaymentLinkConfigured,
                           })
                         : option.description
                     return (
@@ -1067,25 +1084,29 @@ export function PageCheckout({
 
                 {paymentMethod === "twint" && (
                   <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-4">
-                    {stripeConfigured ? (
+                    {twintPaymentLinkConfigured ? (
                       <div className="space-y-1">
-                        <p className="text-sm font-semibold text-foreground">
-                          TWINT via Stripe
-                        </p>
+                        <div className="flex items-center gap-2">
+                          <Smartphone className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
+                          <p className="text-sm font-semibold text-foreground">
+                            Offizieller TWINT-Zahlungslink
+                          </p>
+                        </div>
                         <p className="text-xs leading-relaxed text-muted-foreground">
-                          Nach dem Klick auf «Jetzt bezahlen» wirst du zur sicheren
-                          Stripe-Kasse weitergeleitet und kannst dort mit TWINT
-                          abschliessen.
+                          Nach dem Absenden wird deine Bestellung gespeichert. Auf der
+                          nächsten Seite kannst du den Betrag direkt in der TWINT-App
+                          bezahlen (Link oder QR-Code). Bestellnummer und Betrag werden
+                          automatisch mitgegeben.
                         </p>
                       </div>
-                    ) : checkoutConfig.twintGatewayAktiv ? (
+                    ) : checkoutConfig.twintGatewayAktiv || stripeConfigured ? (
                       <div className="space-y-1">
                         <p className="text-sm font-semibold text-foreground">
-                          TWINT via Stripe
+                          TWINT nicht verfügbar
                         </p>
                         <p className="text-xs leading-relaxed text-muted-foreground">
-                          Stripe ist noch nicht konfiguriert. Bitte{" "}
-                          <code className="text-[0.7rem]">STRIPE_SECRET_KEY</code> in
+                          Der TWINT-Zahlungslink ist nicht konfiguriert. Bitte{" "}
+                          <code className="text-[0.7rem]">TWINT_PAYMENT_LINK</code> in
                           der Umgebung hinterlegen.
                         </p>
                       </div>

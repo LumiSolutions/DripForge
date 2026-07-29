@@ -34,6 +34,7 @@ export function resolvePaymentStatusLabel(order: StoredOrder): string {
     if (order.stripeSessionId) return "Bezahlt (Stripe)"
     return "Bezahlt / bestätigt"
   }
+  if (order.paymentMethod === "twint") return "Wartet auf TWINT-Zahlung"
   if (order.paymentMethod === "invoice") return "Rechnung — Zahlung ausstehend"
   return "Zahlung ausstehend"
 }
