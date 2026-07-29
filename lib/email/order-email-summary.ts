@@ -29,7 +29,11 @@ export function resolveShippingLabel(order: StoredOrder): string {
 
 export function resolvePaymentStatusLabel(order: StoredOrder): string {
   if (order.status === "storniert") return "Storniert"
-  if (order.paymentConfirmed) return "Bezahlt / bestätigt"
+  if (order.paymentConfirmed) {
+    // Stripe Checkout (Karte / TWINT) — gleiche Templates wie Rechnung, klarer Status
+    if (order.stripeSessionId) return "Bezahlt (Stripe)"
+    return "Bezahlt / bestätigt"
+  }
   if (order.paymentMethod === "invoice") return "Rechnung — Zahlung ausstehend"
   return "Zahlung ausstehend"
 }

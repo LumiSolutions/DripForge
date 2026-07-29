@@ -33,6 +33,7 @@ import { orderHasCustomerInbound } from "@/lib/admin/customer-inbound-order"
 import { applyInventoryReservationForOrder } from "@/lib/admin/order-inventory-hook"
 import { notifyOrderReceived } from "@/lib/email/order-notifications"
 import { notifyAdminNewOrder } from "@/lib/email/admin-inbound-notifications"
+import { resolvePaymentStatusLabel } from "@/lib/email/order-email-summary"
 import { isSmtpConfigured } from "@/lib/email/smtp"
 import {
   buildRewardPointsPublicSettings,
@@ -254,9 +255,10 @@ export async function sendInboundOrderEmailsSafe(
     orderId: order.orderId,
     customerEmail: order.billing.email,
     accountEmail: order.accountEmail ?? null,
+    paymentStatus: resolvePaymentStatusLabel(order),
     smtpConfigured: isSmtpConfigured(),
-    smtpHost: process.env.SMTP_HOST?.trim() || "(default mail.hostpoint.ch)",
-    smtpPort: process.env.SMTP_PORT?.trim() || "(default 465)",
+    smtpHost: process.env.SMTP_HOST?.trim() || "(unset)",
+    smtpPort: process.env.SMTP_PORT?.trim() || "(unset)",
   })
 
   try {
@@ -347,6 +349,10 @@ export async function fulfillPaidShopOrder(
     userId?: string | null
     totalChf?: number
     saveAddressToAccount?: boolean
+    /** Stripe customer_details.email — überschreibt billing.email für Bestätigung */
+    customerEmail?: string | null
+    /** Wenn true: Eingangsmails nicht hier senden (z. B. Webhook mit eigenem try/catch) */
+    skipInboundEmails?: boolean
   }
 ): Promise<{ fulfilled: boolean; aiCreditsGranted: number; loyaltyPointsGranted: number }> {
   const order = await getOrderById(orderId)
@@ -365,8 +371,15 @@ export async function fulfillPaidShopOrder(
     options.payrexxTransactionUuid?.trim() ||
     orderId
 
+  const stripeCustomerEmail = options.customerEmail?.trim().toLowerCase() || ""
+  const billing =
+    stripeCustomerEmail && stripeCustomerEmail !== order.billing.email.trim().toLowerCase()
+      ? { ...order.billing, email: stripeCustomerEmail }
+      : order.billing
+
   const updated: StoredOrder = {
     ...order,
+    billing,
     paymentConfirmed: true,
     ...(options.stripeSessionId
       ? { stripeSessionId: options.stripeSessionId }
@@ -512,7 +525,9 @@ export async function fulfillPaidShopOrder(
   }
 
   // Falls Eingangsmail beim Pending-Checkout noch fehlte
-  await sendInboundOrderEmailsSafe(orderWithCustomer, settings)
+  if (!options.skipInboundEmails) {
+    await sendInboundOrderEmailsSafe(orderWithCustomer, settings)
+  }
 
   return {
     fulfilled: true,
