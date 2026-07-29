@@ -48,6 +48,7 @@ export async function middleware(request: NextRequest) {
   }
 
   if (pathname.startsWith("/konto")) {
+    // Login, Registrierung, Passwort vergessen/zurücksetzen: öffentlich
     if (isKontoPublicPath(pathname)) {
       return NextResponse.next()
     }
