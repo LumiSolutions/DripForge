@@ -10,6 +10,13 @@ export class CosmosDatabaseError extends Error {
       this.cause = cause
     }
     logCosmosError(`cosmos-required:${operation}`, cause)
+    console.error("Fehler beim Speichern der Bestellung:", {
+      operation,
+      cause:
+        cause instanceof Error
+          ? { message: cause.message, name: cause.name, stack: cause.stack }
+          : cause,
+    })
   }
 }
 

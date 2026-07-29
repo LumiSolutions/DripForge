@@ -62,8 +62,10 @@ export type StoredOrder = {
   payrexxGatewayHash?: string | null
   /** @deprecated Legacy Payrexx — nur noch historische Bestellungen */
   payrexxTransactionUuid?: string | null
-  /** Zahlung bestätigt (false = wartet auf Stripe-Webhook) */
+  /** Zahlung bestätigt (false = wartet auf Stripe-Webhook / TWINT) */
   paymentConfirmed?: boolean
+  /** Abgeleitetes Zahlungsstatus-Label für Persistenz / Admin */
+  paymentStatus?: "pending" | "paid"
   /** Mindestens eine Position: Kunde sendet eigenes Produkt zur Laserbearbeitung ein */
   isCustomerInbound?: boolean
   /** Lager: reserviert / verbraucht / freigegeben */

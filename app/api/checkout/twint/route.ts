@@ -185,6 +185,7 @@ export async function POST(request: Request) {
       successPath: `/bestellung/erfolg?order_id=${encodeURIComponent(orderWithCustomer.orderId)}&method=twint&amount=${encodeURIComponent(formatTwintAmount(amountChf))}`,
     })
   } catch (error) {
+    console.error("Fehler beim Speichern der Bestellung:", error)
     console.error("TWINT-Checkout: Erstellung fehlgeschlagen.", error)
     const message =
       error instanceof CosmosDatabaseError

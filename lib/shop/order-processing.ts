@@ -45,10 +45,13 @@ import {
   bindOrderToCustomer,
   resolveLoyaltyAccountEmail,
 } from "@/lib/shop/bind-order-to-account"
+import {
+  normalizeOrderForPersistence,
+  sanitizeOrderItemForPersistence,
+} from "@/lib/admin/normalize-order"
 
 function stripLeitbildPayload(item: StoredOrderItem): StoredOrderItem {
-  const { leitbild: _removed, ...rest } = item
-  return rest
+  return sanitizeOrderItemForPersistence(item)
 }
 
 export type ProcessOrderResult = {
@@ -193,7 +196,7 @@ export async function processOrderPayload(
     })
   })
 
-  const order: StoredOrder = {
+  const order: StoredOrder = normalizeOrderForPersistence({
     orderId,
     createdAt: new Date().toISOString(),
     status: "ausstehend",
@@ -214,8 +217,9 @@ export async function processOrderPayload(
     ...(options?.sessionEmail?.trim()
       ? { accountEmail: resolveLoyaltyAccountEmail(options.sessionEmail, payload.billing.email) }
       : {}),
-  }
+  })
 
+  // DB zuerst — erst danach (außerhalb dieses Schritts) Mails
   await saveOrder(order)
   console.info(`Bestellung: Order-Record persistiert (${orderId}).`)
 

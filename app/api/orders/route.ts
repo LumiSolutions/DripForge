@@ -177,9 +177,12 @@ export async function POST(request: Request) {
       message: "Bestellung erfolgreich übermittelt.",
     })
   } catch (error) {
+    console.error("Fehler beim Speichern der Bestellung:", error)
     console.error(
       `Bestell-API: Verarbeitung fehlgeschlagen${orderId !== "pending" && orderId ? ` (${orderId})` : ""}.`,
-      error
+      error instanceof Error
+        ? { message: error.message, name: error.name, cause: error.cause }
+        : error
     )
     const message =
       error instanceof CosmosDatabaseError
