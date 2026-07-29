@@ -10,8 +10,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "E-Mail erforderlich." }, { status: 400 })
     }
 
-    const origin = new URL(request.url).origin
-    const result = await requestPasswordReset(email, origin)
+    // Base-URL für Reset-Link: resolveSiteOrigin() (ENV), nicht Request-Host
+    const result = await requestPasswordReset(email)
 
     if (!result.ok && result.blocked) {
       return NextResponse.json({ error: result.message }, { status: 403 })

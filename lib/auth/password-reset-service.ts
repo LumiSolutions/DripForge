@@ -5,6 +5,7 @@ import { getStaffById, saveStaff } from "@/lib/admin/staff-db"
 import { createPasswordResetToken } from "@/lib/auth/password-reset-token"
 import { sendPasswordResetEmail } from "@/lib/email/send-password-reset"
 import { getAccountByEmail, saveAccount, isActiveCustomerAccount } from "@/lib/konto/account-db"
+import { resolveSiteOrigin } from "@/lib/site/site-origin"
 
 const GENERIC_SUCCESS =
   "Falls ein Konto mit dieser E-Mail existiert, erhalten Sie in Kuerze einen Link zum Zurücksetzen."
@@ -12,8 +13,13 @@ const GENERIC_SUCCESS =
 const TESTER_BLOCKED =
   "Tester-Passwörter können aus Sicherheitsgruenden nicht per E-Mail zurückgesetzt werden. Bitte wenden Sie sich an einen Administrator."
 
-function buildResetUrl(origin: string, path: string, token: string): string {
-  const base = origin.replace(/\/$/, "")
+/** Kunden-Reset-Pfad (ASCII, wie App-Route). */
+const CUSTOMER_RESET_PATH = "/konto/passwort-zuruecksetzen"
+/** Admin-Reset-Pfad (ASCII, wie App-Route). */
+const ADMIN_RESET_PATH = adminPortalPath("/passwort-zuruecksetzen")
+
+function buildResetUrl(path: string, token: string): string {
+  const base = resolveSiteOrigin()
   return `${base}${path}?token=${encodeURIComponent(token)}`
 }
 
@@ -21,9 +27,13 @@ export type ForgotPasswordResult =
   | { ok: true; message: string }
   | { ok: false; message: string; blocked?: boolean }
 
+/**
+ * Startet Passwort-Reset und sendet E-Mail.
+ * Base-URL kommt aus NEXT_PUBLIC_SITE_URL / NEXTAUTH_URL (nie Request-Host).
+ */
 export async function requestPasswordReset(
   email: string,
-  origin: string
+  _originIgnored?: string
 ): Promise<ForgotPasswordResult> {
   const normalized = normalizeCustomerEmail(email)
   if (!normalized) {
@@ -54,11 +64,7 @@ export async function requestPasswordReset(
     })
 
     const adminEmail = getAdminResetEmail() ?? normalized
-    const resetUrl = buildResetUrl(
-      origin,
-      adminPortalPath("/passwort-zurücksetzen"),
-      token
-    )
+    const resetUrl = buildResetUrl(ADMIN_RESET_PATH, token)
     await sendPasswordResetEmail({
       to: adminEmail,
       resetUrl,
@@ -84,7 +90,7 @@ export async function requestPasswordReset(
     passwordResetExpiresAt: expiresAt,
   })
 
-  const resetUrl = buildResetUrl(origin, "/konto/passwort-zurücksetzen", token)
+  const resetUrl = buildResetUrl(CUSTOMER_RESET_PATH, token)
   await sendPasswordResetEmail({
     to: normalized,
     resetUrl,

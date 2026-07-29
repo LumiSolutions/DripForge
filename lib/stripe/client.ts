@@ -1,4 +1,5 @@
 import Stripe from "stripe"
+import { resolveSiteOrigin } from "@/lib/site/site-origin"
 
 let stripeClient: Stripe | null = null
 
@@ -21,11 +22,10 @@ export function getStripe(): Stripe {
   return stripeClient
 }
 
-export function getSiteOrigin(request: Request): string {
-  const fromEnv = process.env.NEXT_PUBLIC_SITE_URL?.trim()
-  if (fromEnv) return fromEnv.replace(/\/$/, "")
-  const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host")
-  const proto = request.headers.get("x-forwarded-proto") ?? "https"
-  if (host) return `${proto}://${host}`
-  return "http://localhost:3000"
+/**
+ * Öffentliche Origin für Redirects / E-Mail-Links.
+ * Nutzt NEXT_PUBLIC_SITE_URL / NEXTAUTH_URL — nie Request-Host (Docker).
+ */
+export function getSiteOrigin(_request?: Request): string {
+  return resolveSiteOrigin()
 }
