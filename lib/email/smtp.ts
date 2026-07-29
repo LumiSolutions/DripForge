@@ -26,12 +26,33 @@ function cleanEnv(value: string | undefined): string {
   return trimmed
 }
 
+/**
+ * SMTP: Hostpoint asmtp.mail.hostpoint.ch (Default),
+ * Credentials nur aus ENV (SMTP_USER / SMTP_PASS).
+ */
+function resolveSmtpSettings(): SmtpRuntimeConfig {
+  const user = cleanEnv(process.env.SMTP_USER)
+  const pass = cleanEnv(process.env.SMTP_PASS)
+  const host =
+    cleanEnv(process.env.SMTP_HOST) || "asmtp.mail.hostpoint.ch"
+  const portRaw = cleanEnv(process.env.SMTP_PORT)
+  const port = portRaw ? Number(portRaw) : 465
+  const secureEnv = cleanEnv(process.env.SMTP_SECURE).toLowerCase()
+  const secure =
+    secureEnv === "false" || secureEnv === "0"
+      ? false
+      : secureEnv === "true" || secureEnv === "1"
+        ? true
+        : port === 465
+  const fromEnv = cleanEnv(process.env.EMAIL_FROM)
+  const from = fromEnv || (user ? `DripForge <${user}>` : "")
+
+  return { host, port: Number.isFinite(port) ? port : 465, secure, user, pass, from }
+}
+
 export function isSmtpConfigured(): boolean {
-  return Boolean(
-    cleanEnv(process.env.SMTP_HOST) &&
-      cleanEnv(process.env.SMTP_USER) &&
-      cleanEnv(process.env.SMTP_PASS)
-  )
+  // HOST hat Hostpoint-Default — USER + PASS sind Pflicht
+  return Boolean(cleanEnv(process.env.SMTP_USER) && cleanEnv(process.env.SMTP_PASS))
 }
 
 /**
@@ -58,29 +79,6 @@ export function getSmtpDiagnostics(): {
     from: config.from,
     passConfigured: Boolean(config.pass),
   }
-}
-
-/**
- * SMTP nur aus ENV — keine hartkodierten Host-/User-Fallbacks.
- * Port 465 + SSL (secure: true) ist der übliche Produktionsmodus.
- */
-function resolveSmtpSettings(): SmtpRuntimeConfig {
-  const user = cleanEnv(process.env.SMTP_USER)
-  const pass = cleanEnv(process.env.SMTP_PASS)
-  const host = cleanEnv(process.env.SMTP_HOST)
-  const portRaw = cleanEnv(process.env.SMTP_PORT)
-  const port = portRaw ? Number(portRaw) : 465
-  const secureEnv = cleanEnv(process.env.SMTP_SECURE).toLowerCase()
-  const secure =
-    secureEnv === "false" || secureEnv === "0"
-      ? false
-      : secureEnv === "true" || secureEnv === "1"
-        ? true
-        : port === 465
-  const fromEnv = cleanEnv(process.env.EMAIL_FROM)
-  const from = fromEnv || (user ? `DripForge <${user}>` : "")
-
-  return { host, port: Number.isFinite(port) ? port : 465, secure, user, pass, from }
 }
 
 export function getSmtpRuntimeConfig(): SmtpRuntimeConfig | null {
