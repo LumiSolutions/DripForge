@@ -38,6 +38,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
+import { sanitizePdfText } from "@/lib/documents/sanitize-pdf-text"
 import "@/components/admin/document-preview-print.css"
 
 const DOCUMENT_TYPE_LABELS: Record<DocumentTemplateType, string> = {
@@ -97,7 +98,7 @@ function formatPreviewDate(date: Date): string {
 }
 
 function renderTemplateText(text: string, values: Record<string, string>): string {
-  return applyDocumentTemplatePlaceholders(text, values)
+  return sanitizePdfText(applyDocumentTemplatePlaceholders(text, values))
 }
 
 function previewNumberLabel(documentType: DocumentTemplateType): string {
@@ -155,7 +156,12 @@ function DocumentLivePreview({
     placeholderValues
   )
   const customFooter = renderTemplateText(documentText.centerFooterText, placeholderValues)
-  const footerLines = resolveDocumentFooterLines(template, customFooter)
+  const footerLinesRaw = resolveDocumentFooterLines(template, customFooter)
+  const footerLines = {
+    line1: sanitizePdfText(footerLinesRaw.line1),
+    line2: sanitizePdfText(footerLinesRaw.line2),
+    line3: sanitizePdfText(footerLinesRaw.line3),
+  }
   const logoAlignClass =
     template.logoAlignment === "left"
       ? "justify-start"
@@ -321,7 +327,8 @@ function DocumentLivePreview({
             <p className="mt-3 max-w-[90%] text-[0.85em] text-slate-500">{footerNote}</p>
           ) : null}
 
-          <div className="invoice-footer mt-8 border-t border-slate-200 pt-3 text-center text-[9px] leading-snug text-slate-500">
+          {/* Fixer Footer am unteren Seitenrand (CSS: .invoice-footer absolute) */}
+          <div className="invoice-footer">
             {footerLines.line1 ? (
               <p className="footer-line-1 font-bold">{footerLines.line1}</p>
             ) : null}

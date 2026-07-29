@@ -56,12 +56,14 @@ export function ensureDocumentPdfFonts(): void {
   })
 
   // Soft-Hyphens von react-pdf erzeugen oft kaputte Symbole (□) —
-  // Wörter nie trennen und unsichtbare Zeichen strippen.
+  // systemweit keine Silbentrennung; unsichtbare Zeichen strippen.
   Font.registerHyphenationCallback((word) => {
     const cleaned = String(word ?? "")
-      .replace(/[\u00AD\u200B\u200C\u200D\u2060\uFEFF]/g, "")
+      .replace(/[\u00AD\u200B\u200C\u200D]/g, "")
+      .replace(/[\u2060\uFEFF\u180E]/g, "")
       .replace(/\u00A0/g, " ")
-    return cleaned ? [cleaned] : [""]
+    // Ganzes Wort zurückgeben = keine Trennung / keine Soft-Hyphen-Einfügung
+    return cleaned.length > 0 ? [cleaned] : [""]
   })
 }
 

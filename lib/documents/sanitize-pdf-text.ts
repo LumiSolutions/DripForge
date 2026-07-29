@@ -1,6 +1,10 @@
 /**
  * Entfernt Soft-Hyphens und unsichtbare Steuerzeichen, die in PDF-Fonts
- * als kaputte Glyphen (□ / ) gerendert werden.
+ * als kaputte Glyphen (□ / ) gerendert werden — z. B. bei "Abwischen",
+ * "Abholung" oder Tabellenköpfen wie "EINZELPREIS (ANSATZ)".
+ *
+ * Primär laut Spec: /[\u00AD\u200B\u200C\u200D]/g
+ * Zusätzlich: Word-Joiner, BOM, Mongolian vowel separator, HTML-Entities.
  */
 const INVISIBLE_OR_SOFT_CHARS =
   /[\u00AD\u200B\u200C\u200D\u2060\uFEFF\u180E]/g
@@ -14,6 +18,8 @@ export function sanitizePdfText(input: unknown): string {
     .replace(/&nbsp;/gi, " ")
     .replace(/&#160;/gi, " ")
     .replace(/&#x0*a0;/gi, " ")
+    // Spec: Soft-Hyphen + Zero-Width-Zeichen vor dem Rendern entfernen
+    .replace(/[\u00AD\u200B\u200C\u200D]/g, "")
     .replace(INVISIBLE_OR_SOFT_CHARS, "")
     .replace(/\u00A0/g, " ")
     .replace(/[\u2028\u2029]/g, "\n")
