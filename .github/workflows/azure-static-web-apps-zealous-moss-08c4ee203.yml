@@ -1,9 +1,12 @@
 ﻿name: Azure Static Web Apps CI/CD
 
-# Verhindert parallele Uploads zum gleichen SWA-Environment (Race → "No matching environment").
+# Verhindert parallele Uploads zum gleichen SWA-Environment.
+# cancel-in-progress: false — sonst Race beim Merge:
+# Close-Job löscht Staging, während Upload noch pollt →
+# "Deployment Failure Reason: No matching static site build found."
 concurrency:
-  group: swa-zealous-moss-${{ github.event_name }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: swa-zealous-moss-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
 
 on:
   push:
@@ -31,16 +34,17 @@ jobs:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_ZEALOUS_MOSS_08C4EE203 }}
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           action: "upload"
-          ###### Next.js Hybrid + output: standalone (next.config.ts) ######
-          # Oryx fuehrt "npm run build" aus (inkl. prepare-standalone.mjs).
-          # output_location leer: Azure erkennt das Standalone-Paket unter .next/standalone.
-          # production_branch / skip_api_build: nicht im Action-Schema (Docker-Action);
-          # Produktion = Branch "main" via on.push; kein API-Build bei leerem api_location.
+          ###### Repository/Build Configurations ######
+          # Next.js Hybrid + output: standalone (next.config.ts)
+          # Oryx führt "npm run build" aus (inkl. prepare-standalone.mjs).
+          # output_location / app_artifact_location leer:
+          # Azure erkennt das Standalone-Paket unter .next/standalone.
           app_location: "/"
           api_location: ""
           output_location: ""
+          app_artifact_location: ""
           app_build_command: "npm run build"
-          ###### Ende Build-Konfiguration ######
+          ###### End of Repository/Build Configurations ######
         env:
           # Node-Version für Oryx-Build und Azure-Warm-up
           FORWARD_NODE_VERSION: "22"
