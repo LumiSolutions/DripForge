@@ -23,5 +23,8 @@ export function resolveAdminNotifyEmail(settings?: AdminSettings): string | null
   if (fromEnv) return fromEnv
 
   const fromSettings = settings?.company.kontaktEmail?.trim()
-  return fromSettings || null
+  if (fromSettings) return fromSettings
+
+  // Festes Fallback — Bestell-/Offerten-Benachrichtigungen sollen ankommen
+  return "shop@dripforge.ch"
 }

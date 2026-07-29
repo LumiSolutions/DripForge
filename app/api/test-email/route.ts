@@ -11,17 +11,18 @@ export const runtime = "nodejs"
 const TEST_TO = "shop@dripforge.ch"
 
 /**
- * Temporärer Diagnose-Endpoint für Hostpoint SMTP auf Azure.
- * GET /api/test-email
+ * Diagnose-Endpoint für Hostpoint SMTP.
+ * GET /api/test-email  und  POST /api/test-email
+ * Sendet eine Test-E-Mail an shop@dripforge.ch.
  */
-export async function GET() {
+async function handleTestEmail() {
   try {
     if (!isSmtpConfigured()) {
       return NextResponse.json(
         {
           success: false,
           error: "SMTP_PASS fehlt in der Umgebung.",
-          code: "SMTP_NOT_CONFIGURED",
+          stack: undefined,
         },
         { status: 500 }
       )
@@ -33,7 +34,7 @@ export async function GET() {
         {
           success: false,
           error: "SMTP-Konfiguration konnte nicht geladen werden.",
-          code: "SMTP_CONFIG_NULL",
+          stack: undefined,
         },
         { status: 500 }
       )
@@ -49,31 +50,46 @@ export async function GET() {
     })
 
     const transporter = buildSmtpTransporter()
-    await transporter.sendMail({
+    const info = await transporter.sendMail({
       from: config.from,
       to: TEST_TO,
       subject: "DripForge SMTP-Test",
-      text: `SMTP-Test erfolgreich.\n\nHost: ${config.host}\nPort: ${config.port}\nSecure: ${config.secure}\nZeit: ${new Date().toISOString()}`,
+      text: [
+        "SMTP-Test erfolgreich.",
+        "",
+        `Host: ${config.host}`,
+        `Port: ${config.port}`,
+        `Secure: ${config.secure}`,
+        `Zeit: ${new Date().toISOString()}`,
+      ].join("\n"),
       html: `<p><strong>SMTP-Test erfolgreich.</strong></p><p>Host: ${config.host}:${config.port} (secure=${config.secure})</p><p>Zeit: ${new Date().toISOString()}</p>`,
     })
 
     return NextResponse.json({
       success: true,
-      message: "E-Mail erfolgreich versendet!",
+      messageId: info.messageId,
     })
   } catch (error) {
-    const err = error as Error & { code?: string }
+    const err = error instanceof Error ? error : new Error(String(error))
     console.error("[test-email] Versand fehlgeschlagen:", {
-      message: err?.message,
-      code: err?.code,
+      message: err.message,
+      stack: err.stack,
     })
     return NextResponse.json(
       {
         success: false,
-        error: err?.message ?? String(error),
-        code: err?.code ?? "UNKNOWN",
+        error: err.message,
+        stack: err.stack,
       },
       { status: 500 }
     )
   }
+}
+
+export async function GET() {
+  return handleTestEmail()
+}
+
+export async function POST() {
+  return handleTestEmail()
 }
