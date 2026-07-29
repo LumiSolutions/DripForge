@@ -607,7 +607,7 @@ export function PageCheckout({
 
     setIsSubmitting(true)
 
-    // Offizieller TWINT-Zahlungslink: Bestellung pending + Erfolgsseite mit Link/QR
+    // Offizieller TWINT-Zahlungslink: Bestellung pending + Erfolgsseite mit Pay-Button/Redirect
     if (paymentMethod === "twint" && twintPaymentLinkConfigured) {
       const twintResult = await startTwintCheckout(orderPayload)
       setIsSubmitting(false)
@@ -1100,9 +1100,9 @@ export function PageCheckout({
                           </p>
                         </div>
                         <p className="text-xs leading-relaxed text-muted-foreground">
-                          Nach dem Absenden wird deine Bestellung gespeichert. Auf der
-                          nächsten Seite kannst du den Betrag direkt in der TWINT-App
-                          bezahlen (Link oder QR-Code). Bestellnummer und Betrag werden
+                          Nach dem Absenden wird deine Bestellung gespeichert. Anschliessend
+                          wirst du zur offiziellen TWINT-Zahlung weitergeleitet
+                          («Jetzt mit TWINT bezahlen»). Bestellnummer und Betrag werden
                           automatisch mitgegeben.
                         </p>
                       </div>

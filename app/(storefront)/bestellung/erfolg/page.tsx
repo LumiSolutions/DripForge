@@ -8,6 +8,11 @@ import { Button } from "@/components/ui/button"
 import { useCart } from "@/components/dripforge/cart-provider"
 import { clearClientCart } from "@/lib/dripforge/cart-storage"
 
+/**
+ * TWINT-Zahlung: kein selbst generierter QR-Code (wird von der TWINT-App
+ * nicht erkannt). Stattdessen klarer Button + Auto-Redirect auf den
+ * offiziellen go.twint.ch-Paylink.
+ */
 function TwintPayPanel({
   orderId,
   amount,
@@ -16,12 +21,14 @@ function TwintPayPanel({
   amount: string | null
 }) {
   const [twintUrl, setTwintUrl] = useState<string | null>(null)
-  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [redirecting, setRedirecting] = useState(false)
+  const hasRedirectedRef = useRef(false)
 
   useEffect(() => {
     let cancelled = false
+    let redirectTimer: number | undefined
 
     async function load() {
       setLoading(true)
@@ -62,25 +69,22 @@ function TwintPayPanel({
 
       if (cancelled || !url) return
       setTwintUrl(url)
+      setLoading(false)
 
-      try {
-        const QRCode = (await import("qrcode")).default
-        const dataUrl = await QRCode.toDataURL(url, {
-          width: 240,
-          margin: 2,
-          color: { dark: "#000000", light: "#ffffff" },
-        })
-        if (!cancelled) setQrDataUrl(dataUrl)
-      } catch {
-        /* QR optional */
+      // Direkt zur offiziellen TWINT-Paylink-Seite (kein QR)
+      if (!hasRedirectedRef.current) {
+        hasRedirectedRef.current = true
+        setRedirecting(true)
+        redirectTimer = window.setTimeout(() => {
+          window.location.href = url!
+        }, 1200)
       }
-
-      if (!cancelled) setLoading(false)
     }
 
     void load()
     return () => {
       cancelled = true
+      if (redirectTimer !== undefined) window.clearTimeout(redirectTimer)
     }
   }, [orderId])
 
@@ -110,21 +114,29 @@ function TwintPayPanel({
         <p className="mt-4 text-sm text-red-600">{error}</p>
       ) : (
         <div className="mt-5 flex flex-col items-center gap-4">
-          {qrDataUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={qrDataUrl}
-              alt="TWINT QR-Code"
-              className="h-52 w-52 rounded-xl border border-border/60 bg-white p-2"
-            />
+          {redirecting ? (
+            <p className="text-sm text-muted-foreground">
+              Weiterleitung zur TWINT-Zahlung…
+            </p>
           ) : null}
           <Button asChild className="w-full bg-black text-white hover:bg-black/90">
-            <a href={twintUrl ?? "#"} target="_blank" rel="noopener noreferrer">
+            <a
+              href={twintUrl ?? "#"}
+              rel="noopener noreferrer"
+              onClick={() => {
+                hasRedirectedRef.current = true
+              }}
+            >
               <ExternalLink className="mr-2 h-4 w-4" />
-              In TWINT-App öffnen
+              Jetzt mit TWINT bezahlen
             </a>
           </Button>
-          <p className="mt-4 text-sm text-muted-foreground">
+          {twintUrl ? (
+            <p className="break-all text-center text-xs text-muted-foreground">
+              {twintUrl}
+            </p>
+          ) : null}
+          <p className="mt-2 text-sm text-muted-foreground">
             Hinweis: Die Bearbeitung und der Versand deiner Bestellung erfolgen
             direkt nach Erhalt des Zahlungseingangs.
           </p>
@@ -222,7 +234,7 @@ function BestellungErfolgInner() {
       </h1>
       <p className="mt-4 text-muted-foreground">
         {isTwintPending
-          ? "Wir haben deine Bestellung gespeichert. Dies ist die Bestätigung deines Bestelleingangs — die Ausführung folgt nach Zahlungseingang. Schliesse die Zahlung jetzt mit TWINT ab."
+          ? "Wir haben deine Bestellung gespeichert. Dies ist die Bestätigung deines Bestelleingangs — die Ausführung folgt nach Zahlungseingang. Du wirst zur TWINT-Zahlung weitergeleitet."
           : "Wir haben Ihre Bestellung und Zahlung erhalten und mit der Verarbeitung begonnen. Eine Bestätigung folgt per E-Mail."}
       </p>
       {isTwintPending ? (
