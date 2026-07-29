@@ -62,7 +62,14 @@ export type StripeCheckoutResult =
   | { ok: false; error: string }
 
 export type TwintCheckoutResult =
-  | { ok: true; url: string; gatewayHash: string; orderId: string }
+  | {
+      ok: true
+      orderId: string
+      twintPaymentUrl: string
+      amountChf: number
+      amountFormatted: string
+      successPath: string
+    }
   | { ok: false; error: string }
 
 export async function startStripeCheckout(
@@ -109,19 +116,47 @@ export async function startStripeCheckout(
 export async function startTwintCheckout(
   payload: OrderPayload
 ): Promise<TwintCheckoutResult> {
-  // TWINT läuft über Stripe Checkout (gleiche Session-API)
-  const result = await startStripeCheckout({
-    ...payload,
-    paymentMethod: "twint",
-  })
-  if (!result.ok) {
-    return { ok: false, error: result.error }
-  }
-  return {
-    ok: true,
-    url: result.url,
-    gatewayHash: result.sessionId,
-    orderId: result.orderId,
+  try {
+    const response = await fetch("/api/checkout/twint", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ ...payload, paymentMethod: "twint" }),
+    })
+
+    const data = (await response.json()) as {
+      orderId?: string
+      twintPaymentUrl?: string
+      amountChf?: number
+      amountFormatted?: string
+      successPath?: string
+      error?: string
+    }
+
+    if (!response.ok || !data.orderId || !data.twintPaymentUrl) {
+      return {
+        ok: false,
+        error: data.error ?? "TWINT-Checkout konnte nicht gestartet werden.",
+      }
+    }
+
+    return {
+      ok: true,
+      orderId: data.orderId,
+      twintPaymentUrl: data.twintPaymentUrl,
+      amountChf: data.amountChf ?? payload.totals.total,
+      amountFormatted:
+        data.amountFormatted ?? payload.totals.total.toFixed(2),
+      successPath:
+        data.successPath ??
+        `/bestellung/erfolg?order_id=${encodeURIComponent(data.orderId)}&method=twint`,
+    }
+  } catch (error) {
+    console.error("TWINT-Checkout: Netzwerkfehler.", error)
+    return {
+      ok: false,
+      error: "Verbindungsfehler. Bitte später erneut versuchen.",
+    }
   }
 }
 

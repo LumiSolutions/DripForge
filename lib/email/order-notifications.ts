@@ -23,8 +23,12 @@ import {
 } from "@/lib/email/order-email-summary"
 import { resolveSmtpFrom, sendSmtpMail } from "@/lib/email/smtp"
 import { generateAndStoreOrderInvoice } from "@/lib/invoices/process-order-invoice"
-import { formatInvoiceDate } from "@/lib/invoices/invoice-format"
+import { formatChf, formatInvoiceDate } from "@/lib/invoices/invoice-format"
 import { swissPostTrackingUrl } from "@/lib/konto/customer-order-timeline"
+import {
+  buildTwintPaymentUrl,
+  isTwintPaymentLinkConfigured,
+} from "@/lib/twint/payment-link"
 
 async function markEmailSent(
   orderId: string,
@@ -66,6 +70,48 @@ function renderOrderDetailsHtml(order: StoredOrder): string {
   )
 }
 
+function buildTwintPaymentHint(order: StoredOrder): {
+  plain: string
+  html: string
+} | null {
+  if (order.paymentMethod !== "twint" || order.paymentConfirmed) return null
+  if (!isTwintPaymentLinkConfigured()) return null
+
+  let twintUrl: string
+  try {
+    twintUrl = buildTwintPaymentUrl({
+      orderId: order.orderId,
+      amountChf: order.totals.total,
+    })
+  } catch {
+    return null
+  }
+
+  const plain = [
+    "——— TWINT-Zahlung ———",
+    `Betrag: ${formatChf(order.totals.total)}`,
+    `Verwendungszweck / Bestellnummer: ${order.orderId}`,
+    `Zahlungslink: ${twintUrl}`,
+    "",
+    "Falls du die Zahlung im Browser abgebrochen hast, kannst du den Link jederzeit erneut öffnen und in der TWINT-App abschliessen.",
+  ].join("\n")
+
+  const html =
+    textToHtmlParagraphs(
+      [
+        "TWINT-Zahlung",
+        `Betrag: ${formatChf(order.totals.total)}`,
+        `Verwendungszweck / Bestellnummer: ${order.orderId}`,
+        "",
+        "Falls du die Zahlung im Browser abgebrochen hast, öffne den Link erneut und schliesse die Zahlung in der TWINT-App ab:",
+      ].join("\n")
+    ) +
+    `<p style="margin:16px 0;"><a href="${twintUrl}" style="display:inline-block;padding:12px 20px;background:#000000;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">Jetzt mit TWINT bezahlen</a></p>` +
+    `<p style="font-size:12px;word-break:break-all;"><a href="${twintUrl}">${twintUrl}</a></p>`
+
+  return { plain, html }
+}
+
 /** Kunden-Bestellbestätigung bei neuer Bestellung. */
 export async function notifyOrderReceived(
   order: StoredOrder,
@@ -78,6 +124,7 @@ export async function notifyOrderReceived(
     const branding = await resolveEmailBranding(adminSettings)
     const customerName = `${order.billing.firstName} ${order.billing.lastName}`.trim()
     const subject = `Bestellbestätigung — ${order.orderId}`
+    const twintHint = buildTwintPaymentHint(order)
 
     const plain = [
       `Guten Tag ${customerName},`,
@@ -86,6 +133,7 @@ export async function notifyOrderReceived(
       "",
       formatOrderSummaryPlain(order),
       "",
+      ...(twintHint ? [twintHint.plain, ""] : []),
       "Wir prüfen deine Angaben und halten dich über den weiteren Verlauf per E-Mail auf dem Laufenden.",
       "",
       "Freundliche Grüsse",
@@ -103,6 +151,7 @@ export async function notifyOrderReceived(
           ].join("\n")
         ) +
         renderOrderDetailsHtml(order) +
+        (twintHint?.html ?? "") +
         textToHtmlParagraphs(
           "Wir prüfen deine Angaben und halten dich über den weiteren Verlauf per E-Mail auf dem Laufenden."
         ),

@@ -204,9 +204,8 @@ export function getPaymentMethodLabel(
     case "invoice":
       return "Kauf auf Rechnung"
     case "twint":
-      return checkout.twintGatewayAktiv
-        ? "TWINT (Gateway)"
-        : "TWINT manuell"
+      // Offizieller TWINT-Zahlungslink (Checkout) — Gateway-Flag nur noch Label-Hinweis
+      return checkout.twintGatewayAktiv ? "TWINT (Gateway)" : "TWINT"
     default:
       return method
   }
