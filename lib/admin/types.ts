@@ -58,11 +58,11 @@ export type StoredOrder = {
   rechnungPdfPath?: string
   /** Stripe Checkout Session (Shop) */
   stripeSessionId?: string | null
-  /** Payrexx Gateway-Hash (TWINT) */
+  /** @deprecated Legacy Payrexx — nur noch historische Bestellungen */
   payrexxGatewayHash?: string | null
-  /** Payrexx Transaktions-UUID nach erfolgreicher Zahlung */
+  /** @deprecated Legacy Payrexx — nur noch historische Bestellungen */
   payrexxTransactionUuid?: string | null
-  /** Zahlung bestätigt (false = wartet auf Stripe-/Payrexx-Webhook) */
+  /** Zahlung bestätigt (false = wartet auf Stripe-Webhook) */
   paymentConfirmed?: boolean
   /** Mindestens eine Position: Kunde sendet eigenes Produkt zur Laserbearbeitung ein */
   isCustomerInbound?: boolean

@@ -19,7 +19,7 @@ const BYPASS_PREFIXES = [
   "/.swa",
 ]
 
-const LAUNCH_BYPASS_PREFIXES = ["/konto"]
+const LAUNCH_BYPASS_PREFIXES = ["/konto", "/bestellung"]
 
 type LaunchPayload = {
   shopLive?: boolean

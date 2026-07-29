@@ -94,9 +94,16 @@ export async function POST(request: Request) {
     const lineTotalCents = sumLineItemsCents(lineItems)
     const discounts = await buildCheckoutDiscounts(stripe, lineTotalCents, totalCents)
 
+    const paymentMethodTypes: Array<"card" | "twint"> =
+      payload.paymentMethod === "twint"
+        ? ["twint"]
+        : payload.paymentMethod === "card"
+          ? ["card"]
+          : ["card", "twint"]
+
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
-      payment_method_types: ["card", "twint"],
+      payment_method_types: paymentMethodTypes,
       customer_email: billingEmail,
       line_items: lineItems,
       ...(discounts ? { discounts } : {}),

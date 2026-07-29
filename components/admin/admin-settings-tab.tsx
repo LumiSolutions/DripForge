@@ -1094,7 +1094,7 @@ export function AdminSettingsTab() {
                   </Label>
                   <p className={cn("text-sm", adminUi.muted)}>
                     Bei Aktivierung wird die manuelle TWINT-Telefonnummer im Checkout
-                    ausgeblendet und das Gateway (Stripe/Payrexx API) vorbereitet.
+                    ausgeblendet und das Gateway (Stripe Checkout mit TWINT) vorbereitet.
                     Deaktiviert = manuelle TWINT-Anweisung mit Telefonnummer.
                   </p>
                 </div>

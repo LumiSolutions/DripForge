@@ -8,7 +8,6 @@ import {
   MapPin,
   Package,
   Phone,
-  QrCode,
   Smartphone,
   Tag,
   Truck,
@@ -49,7 +48,7 @@ import { useCustomerLoyaltyPoints } from "@/hooks/use-customer-loyalty-points"
 import { useRewardPointsEnabled } from "@/hooks/use-reward-points-enabled"
 import type { CartItem } from "@/lib/dripforge/types"
 import { cn } from "@/lib/utils"
-import { submitOrder, startStripeCheckout, startTwintCheckout, type OrderPayload } from "@/lib/dripforge/submit-order"
+import { submitOrder, startStripeCheckout, type OrderPayload } from "@/lib/dripforge/submit-order"
 import { CheckoutSuccessModal } from "@/components/dripforge/checkout-success-modal"
 import type { CompanySettings } from "@/lib/admin/types"
 import { DEFAULT_COMPANY_SETTINGS } from "@/lib/admin/types"
@@ -208,7 +207,6 @@ export function PageCheckout({
     discountValue: number
   } | null>(null)
   const [stripeConfigured, setStripeConfigured] = useState(false)
-  const [payrexxConfigured, setPayrexxConfigured] = useState(false)
   const [pointsToRedeem, setPointsToRedeem] = useState(0)
   const [pointsPurchasePackage, setPointsPurchasePackage] = useState<string | null>(
     null
@@ -252,13 +250,6 @@ export function PageCheckout({
         setStripeConfigured(Boolean(data?.configured))
       })
       .catch(() => setStripeConfigured(false))
-
-    void fetch("/api/checkout/twint")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        setPayrexxConfigured(Boolean(data?.configured))
-      })
-      .catch(() => setPayrexxConfigured(false))
   }, [])
 
   useEffect(() => {
@@ -619,21 +610,6 @@ export function PageCheckout({
       return
     }
 
-    if (
-      paymentMethod === "twint" &&
-      checkoutConfig.twintGatewayAktiv &&
-      payrexxConfigured
-    ) {
-      const twintResult = await startTwintCheckout(orderPayload)
-      setIsSubmitting(false)
-      if (!twintResult.ok) {
-        setSubmitError(twintResult.error)
-        return
-      }
-      window.location.href = twintResult.url
-      return
-    }
-
     if (paymentMethod === "card" && !stripeConfigured) {
       setIsSubmitting(false)
       setSubmitError(
@@ -645,12 +621,11 @@ export function PageCheckout({
     if (
       paymentMethod === "twint" &&
       !stripeConfigured &&
-      checkoutConfig.twintGatewayAktiv &&
-      !payrexxConfigured
+      checkoutConfig.twintGatewayAktiv
     ) {
       setIsSubmitting(false)
       setSubmitError(
-        "TWINT-Gateway ist derzeit nicht verfügbar (Stripe/Payrexx nicht konfiguriert)."
+        "TWINT-Gateway ist derzeit nicht verfügbar (Stripe nicht konfiguriert)."
       )
       return
     }
@@ -1104,19 +1079,15 @@ export function PageCheckout({
                         </p>
                       </div>
                     ) : checkoutConfig.twintGatewayAktiv ? (
-                      <div className="flex flex-col items-center gap-3 text-center sm:flex-row sm:text-left">
-                        <div className="flex h-28 w-28 shrink-0 items-center justify-center rounded-xl border border-dashed border-cyan-500/40 bg-background/80">
-                          <QrCode className="h-10 w-10 text-cyan-600 dark:text-cyan-400" />
-                        </div>
-                        <div className="space-y-1">
-                          <p className="text-sm font-semibold text-foreground">
-                            TWINT via Payrexx
-                          </p>
-                          <p className="text-xs leading-relaxed text-muted-foreground">
-                            Nach dem Bestellen wirst du zum offiziellen TWINT-QR-Code
-                            weitergeleitet. Die Zahlungsbestätigung erfolgt automatisch.
-                          </p>
-                        </div>
+                      <div className="space-y-1">
+                        <p className="text-sm font-semibold text-foreground">
+                          TWINT via Stripe
+                        </p>
+                        <p className="text-xs leading-relaxed text-muted-foreground">
+                          Stripe ist noch nicht konfiguriert. Bitte{" "}
+                          <code className="text-[0.7rem]">STRIPE_SECRET_KEY</code> in
+                          der Umgebung hinterlegen.
+                        </p>
                       </div>
                     ) : (
                       <div className="space-y-3">
