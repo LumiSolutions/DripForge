@@ -157,15 +157,26 @@ export async function POST(request: Request) {
       )
     }
 
-    // E-Mails fire-and-forget — blockieren weder Response noch DB
-    void sendInboundOrderEmailsSafe(orderWithCustomer, settings).catch(
-      (mailError) => {
-        console.error(
-          `Bestell-API: E-Mail-Versand fehlgeschlagen (${orderId}) — Bestellung bleibt erhalten.`,
-          mailError
-        )
-      }
-    )
+    // E-Mails NACH DB-Save — awaited (SWA killt sonst fire-and-forget).
+    // Fehler dürfen den Checkout-Erfolg nicht ungültig machen.
+    try {
+      console.log("[Bestell-API] Starte sendOrderConfirmation (await)…", {
+        orderId,
+      })
+      const emailResult = await sendInboundOrderEmailsSafe(
+        orderWithCustomer,
+        settings
+      )
+      console.log("[Bestell-API] sendOrderConfirmation Ergebnis", {
+        orderId,
+        ...emailResult,
+      })
+    } catch (mailError) {
+      console.error(
+        `Bestell-API: E-Mail-Versand fehlgeschlagen (${orderId}) — Bestellung bleibt erhalten.`,
+        mailError
+      )
+    }
 
     return NextResponse.json({
       success: true,

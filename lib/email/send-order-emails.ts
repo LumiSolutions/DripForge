@@ -9,7 +9,7 @@ import type { AdminSettings, StoredOrder } from "@/lib/admin/types"
 import { notifyAdminNewOrder } from "@/lib/email/admin-inbound-notifications"
 import { notifyOrderReceived } from "@/lib/email/order-notifications"
 import { resolvePaymentStatusLabel } from "@/lib/email/order-email-summary"
-import { isSmtpConfigured } from "@/lib/email/smtp"
+import { getSmtpDiagnostics, isSmtpConfigured } from "@/lib/email/smtp"
 
 export type SendOrderEmailsResult = {
   customerSent: boolean
@@ -19,20 +19,27 @@ export type SendOrderEmailsResult = {
 /**
  * Sendet Kundenbestätigung + Admin-Benachrichtigung per SMTP (Nodemailer/Hostpoint).
  * Fehler werden geloggt — die Bestellung bleibt trotzdem gespeichert.
+ *
+ * Alias: sendOrderConfirmation (für klare Aufrufe in API-Routen).
  */
 export async function sendOrderConfirmationEmails(
   order: StoredOrder,
   settings?: AdminSettings
 ): Promise<SendOrderEmailsResult> {
+  const smtpDiag = isSmtpConfigured() ? getSmtpDiagnostics() : null
+
   console.log("[OrderEmail] Starte einheitlichen Bestell-Mailversand", {
     orderId: order.orderId,
     paymentMethod: order.paymentMethod,
     paymentConfirmed: Boolean(order.paymentConfirmed),
     customerEmail: order.billing.email,
     paymentStatus: resolvePaymentStatusLabel(order),
-    smtpConfigured: isSmtpConfigured(),
-    smtpHost: process.env.SMTP_HOST?.trim() || "(default asmtp.mail.hostpoint.ch)",
-    smtpPort: process.env.SMTP_PORT?.trim() || "(default)",
+    smtpConfigured: Boolean(smtpDiag),
+    smtpHost: smtpDiag?.host ?? "(nicht konfiguriert)",
+    smtpPort: smtpDiag?.port ?? null,
+    smtpSecure: smtpDiag?.secure ?? null,
+    smtpFrom: smtpDiag?.from ?? null,
+    smtpUser: smtpDiag?.configuredUser ?? null,
   })
 
   if (!isSmtpConfigured()) {
@@ -41,6 +48,10 @@ export async function sendOrderConfirmationEmails(
     )
     return { customerSent: false, adminSent: false }
   }
+
+  console.log("[OrderEmail] Rufe Kunden- + Admin-Mail synchron (await) auf…", {
+    orderId: order.orderId,
+  })
 
   const results = await Promise.allSettled([
     notifyOrderReceived(order, settings),
@@ -67,5 +78,14 @@ export async function sendOrderConfirmationEmails(
     }
   })
 
+  console.log("[OrderEmail] Versand abgeschlossen", {
+    orderId: order.orderId,
+    customerSent: customer,
+    adminSent: admin,
+  })
+
   return { customerSent: customer, adminSent: admin }
 }
+
+/** Klarer Alias — nach erfolgreichem DB-Save awaited aufrufen. */
+export const sendOrderConfirmation = sendOrderConfirmationEmails

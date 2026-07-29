@@ -1,7 +1,7 @@
 import type Stripe from "stripe"
 import { getOrderById, getSettings } from "@/lib/admin/db"
 import type { StoredOrder } from "@/lib/admin/types"
-import { sendOrderConfirmationEmails } from "@/lib/email/send-order-emails"
+import { sendOrderConfirmation } from "@/lib/email/send-order-emails"
 import { fulfillPaidShopOrder } from "@/lib/shop/order-processing"
 
 export function resolveStripeCustomerEmail(
@@ -49,7 +49,7 @@ export async function sendShopOrderEmailsAfterStripe(
     },
   }
 
-  console.info("[Stripe] Rufe sendOrderConfirmationEmails auf", {
+  console.info("[Stripe] Rufe sendOrderConfirmation auf", {
     orderId,
     customerEmail: orderForEmail.billing.email,
     stripeSessionId: session.id,
@@ -57,9 +57,9 @@ export async function sendShopOrderEmailsAfterStripe(
   })
 
   try {
-    const result = await sendOrderConfirmationEmails(orderForEmail, settings)
+    const result = await sendOrderConfirmation(orderForEmail, settings)
     const sent = result.customerSent || result.adminSent
-    console.info("[Stripe] sendOrderConfirmationEmails Ergebnis", {
+    console.info("[Stripe] sendOrderConfirmation Ergebnis", {
       orderId,
       ...result,
     })

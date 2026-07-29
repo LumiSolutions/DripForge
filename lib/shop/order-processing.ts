@@ -32,7 +32,7 @@ import {
 import { orderHasCustomerInbound } from "@/lib/admin/customer-inbound-order"
 import { applyInventoryReservationForOrder } from "@/lib/admin/order-inventory-hook"
 import {
-  sendOrderConfirmationEmails,
+  sendOrderConfirmation,
   type SendOrderEmailsResult,
 } from "@/lib/email/send-order-emails"
 import {
@@ -225,12 +225,14 @@ export async function processOrderPayload(
 
   // E-Mails sind entkoppelt — Fehler hier dürfen die Bestellung nie ungültig machen.
   if (!options?.skipInboundEmails) {
-    void sendInboundOrderEmailsSafe(order, settings).catch((mailError) => {
+    try {
+      await sendOrderConfirmation(order, settings)
+    } catch (mailError) {
       console.error(
         `Bestellung: Eingangsmails fehlgeschlagen (${orderId}) — Bestellung bleibt gespeichert.`,
         mailError
       )
-    })
+    }
   }
 
   if (appliedCoupon && order.paymentConfirmed) {
@@ -269,7 +271,7 @@ export async function sendInboundOrderEmailsSafe(
   settings?: AdminSettings
 ): Promise<SendOrderEmailsResult> {
   try {
-    return await sendOrderConfirmationEmails(order, settings)
+    return await sendOrderConfirmation(order, settings)
   } catch (error) {
     console.error(
       `Bestellung: Eingangsmails fehlgeschlagen (${order.orderId}) — Bestellung bleibt gespeichert.`,

@@ -150,15 +150,25 @@ export async function POST(request: Request) {
       )
     }
 
-    // E-Mails fire-and-forget — blockieren weder Response noch DB
-    void sendInboundOrderEmailsSafe(orderWithCustomer, settings).catch(
-      (mailError) => {
-        console.error(
-          `TWINT-Checkout: E-Mail-Versand fehlgeschlagen (${order.orderId}) — Bestellung bleibt erhalten.`,
-          mailError
-        )
-      }
-    )
+    // E-Mails NACH DB-Save — awaited (SWA killt sonst fire-and-forget).
+    try {
+      console.log("[TWINT-Checkout] Starte sendOrderConfirmation (await)…", {
+        orderId: orderWithCustomer.orderId,
+      })
+      const emailResult = await sendInboundOrderEmailsSafe(
+        orderWithCustomer,
+        settings
+      )
+      console.log("[TWINT-Checkout] sendOrderConfirmation Ergebnis", {
+        orderId: orderWithCustomer.orderId,
+        ...emailResult,
+      })
+    } catch (mailError) {
+      console.error(
+        `TWINT-Checkout: E-Mail-Versand fehlgeschlagen (${order.orderId}) — Bestellung bleibt erhalten.`,
+        mailError
+      )
+    }
 
     const amountChf = orderWithCustomer.totals.total
     const twintPaymentUrl = buildTwintPaymentUrl({
