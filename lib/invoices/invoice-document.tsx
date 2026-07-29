@@ -21,7 +21,7 @@ import {
 import {
   resolveOrderBestellRef,
   resolveOrderInvoiceNumber,
-} from "@/lib/invoices/order-invoice-number"
+} from "@/lib/invoices/order-invoice-display"
 import {
   formatInvoiceItemDetails,
   getInvoiceLineTotal,

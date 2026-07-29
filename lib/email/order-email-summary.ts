@@ -5,7 +5,7 @@ import { formatChf, formatInvoiceDate } from "@/lib/invoices/invoice-format"
 import {
   resolveOrderBestellRef,
   resolveOrderInvoiceNumber,
-} from "@/lib/invoices/order-invoice-number"
+} from "@/lib/invoices/order-invoice-display"
 
 export function formatOrderAddressBlock(
   label: string,

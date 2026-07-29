@@ -21,11 +21,11 @@ import {
 import { resolveAdminNotifyEmail } from "@/lib/email/resolve-admin-notify-email"
 import { resolveSmtpFrom, sendSmtpMail } from "@/lib/email/smtp"
 import { formatChf, formatInvoiceDate } from "@/lib/invoices/invoice-format"
+import { ensureOrderInvoiceNumber } from "@/lib/invoices/order-invoice-number"
 import {
-  ensureOrderInvoiceNumber,
   resolveOrderBestellRef,
   resolveOrderInvoiceNumber,
-} from "@/lib/invoices/order-invoice-number"
+} from "@/lib/invoices/order-invoice-display"
 import { resolveSiteOrigin } from "@/lib/site/site-origin"
 
 function buildAdminPortalUrl(query: Record<string, string>): string {
