@@ -1,5 +1,6 @@
 import {
   buildCustomerFromOrder,
+  generateCustomerNumber,
   mergeOrderIntoCustomer,
   normalizeCustomerEmail,
 } from "@/lib/admin/customers"
@@ -37,9 +38,37 @@ function addressesMatch(
   )
 }
 
+function fallbackBindResult(
+  order: StoredOrder,
+  sessionEmail: string | null
+): {
+  customer: StoredCustomer
+  accountEmail: string
+  order: StoredOrder
+} {
+  const accountEmail =
+    sessionEmail || normalizeCustomerEmail(order.billing.email)
+  const kundennummer =
+    order.kundennummer?.trim() || generateCustomerNumber([])
+  const customer = buildCustomerFromOrder(
+    {
+      ...order,
+      ...(sessionEmail ? { accountEmail: sessionEmail } : {}),
+    },
+    kundennummer
+  )
+  return {
+    customer,
+    accountEmail,
+    order: sessionEmail ? { ...order, accountEmail: sessionEmail } : order,
+  }
+}
+
 /**
  * Verknüpft eine Bestellung mit dem eingeloggten Konto (CRM + Kundennummer).
  * Formular-E-Mail wird nur als Kontakt auf der Bestellung belassen — kein neuer CRM-Kunde.
+ *
+ * CRM-/Konto-Fehler dürfen den Checkout NIE abbrechen — die Bestellung ist bereits gespeichert.
  */
 export async function bindOrderToCustomer(
   order: StoredOrder,
@@ -55,102 +84,153 @@ export async function bindOrderToCustomer(
 }> {
   const sessionEmail = options?.sessionEmail?.trim().toLowerCase() || null
 
-  if (sessionEmail) {
-    let account =
-      (await ensureAccountHasCustomerNumber(sessionEmail)) ??
-      (await getAccountByEmail(sessionEmail))
+  try {
+    if (sessionEmail) {
+      let account =
+        (await ensureAccountHasCustomerNumber(sessionEmail)) ??
+        (await getAccountByEmail(sessionEmail))
 
-    if (account) {
-      account = await syncAccountToCrm(account)
-      const kundennummer = account.kundennummer
-
-      if (kundennummer) {
-        const existing = await getCustomerByNumber(kundennummer)
-        const orderForCrm: StoredOrder = {
-          ...order,
-          billing: { ...order.billing, email: account.email },
-          kundennummer,
-          accountEmail: sessionEmail,
+      if (account) {
+        try {
+          account = await syncAccountToCrm(account)
+        } catch (syncError) {
+          console.error(
+            `Bestellung: CRM-Sync fehlgeschlagen (${order.orderId}) — fahre mit Konto fort.`,
+            syncError
+          )
         }
+        const kundennummer = account.kundennummer
 
-        const customer: StoredCustomer = existing
-          ? {
-              ...mergeOrderIntoCustomer(existing, orderForCrm),
-              email: normalizeCustomerEmail(account.email),
-              kundennummer,
-            }
-          : buildCustomerFromOrder(orderForCrm, kundennummer)
-
-        await saveCustomer(customer)
-
-        const updatedOrder: StoredOrder = {
-          ...order,
-          kundennummer: customer.kundennummer,
-          accountEmail: sessionEmail,
-        }
-        await saveOrder(updatedOrder)
-
-        if (options?.saveAddressToAccount !== false) {
+        if (kundennummer) {
+          let existing: StoredCustomer | null = null
           try {
-            const deliverySame = addressesMatch(order.billing, order.delivery)
-            const delivery = order.delivery
-            const saved = await saveAccount({
-              ...account,
-              firstName: order.billing.firstName.trim(),
-              lastName: order.billing.lastName.trim(),
-              street: order.billing.street.trim(),
-              zip: order.billing.zip.trim(),
-              city: order.billing.city.trim(),
-              phone: order.billing.phone.trim(),
-              deliverySameAsBilling: deliverySame,
-              deliveryStreet: deliverySame
-                ? order.billing.street.trim()
-                : (delivery?.street ?? "").trim(),
-              deliveryZip: deliverySame
-                ? order.billing.zip.trim()
-                : (delivery?.zip ?? "").trim(),
-              deliveryCity: deliverySame
-                ? order.billing.city.trim()
-                : (delivery?.city ?? "").trim(),
-            })
-            await syncAccountToCrm(saved)
-          } catch (addressError) {
+            existing = await getCustomerByNumber(kundennummer)
+          } catch (readError) {
             console.error(
-              `Bestellung: Adresse konnte nicht im Konto gespeichert werden (${order.orderId}).`,
-              addressError
+              `Bestellung: Kunde ${kundennummer} nicht lesbar (${order.orderId}).`,
+              readError
             )
+          }
+
+          const orderForCrm: StoredOrder = {
+            ...order,
+            billing: { ...order.billing, email: account.email },
+            kundennummer,
+            accountEmail: sessionEmail,
+          }
+
+          const customer: StoredCustomer = existing
+            ? {
+                ...mergeOrderIntoCustomer(existing, orderForCrm),
+                email: normalizeCustomerEmail(account.email),
+                kundennummer,
+              }
+            : buildCustomerFromOrder(orderForCrm, kundennummer)
+
+          try {
+            await saveCustomer(customer)
+          } catch (crmError) {
+            console.error(
+              `Bestellung: CRM-Speichern fehlgeschlagen (${order.orderId}) — Bestellung bleibt erhalten.`,
+              crmError
+            )
+          }
+
+          const updatedOrder: StoredOrder = {
+            ...order,
+            kundennummer: customer.kundennummer,
+            accountEmail: sessionEmail,
+          }
+
+          try {
+            await saveOrder(updatedOrder)
+          } catch (saveError) {
+            console.error(
+              `Bestellung: Kundennummer konnte nicht nachgetragen werden (${order.orderId}).`,
+              saveError
+            )
+            return {
+              customer,
+              accountEmail: sessionEmail,
+              order: updatedOrder,
+            }
+          }
+
+          if (options?.saveAddressToAccount !== false) {
+            try {
+              const deliverySame = addressesMatch(order.billing, order.delivery)
+              const delivery = order.delivery
+              const saved = await saveAccount({
+                ...account,
+                firstName: order.billing.firstName.trim(),
+                lastName: order.billing.lastName.trim(),
+                street: order.billing.street.trim(),
+                zip: order.billing.zip.trim(),
+                city: order.billing.city.trim(),
+                phone: order.billing.phone.trim(),
+                deliverySameAsBilling: deliverySame,
+                deliveryStreet: deliverySame
+                  ? order.billing.street.trim()
+                  : (delivery?.street ?? "").trim(),
+                deliveryZip: deliverySame
+                  ? order.billing.zip.trim()
+                  : (delivery?.zip ?? "").trim(),
+                deliveryCity: deliverySame
+                  ? order.billing.city.trim()
+                  : (delivery?.city ?? "").trim(),
+              })
+              await syncAccountToCrm(saved)
+            } catch (addressError) {
+              console.error(
+                `Bestellung: Adresse konnte nicht im Konto gespeichert werden (${order.orderId}).`,
+                addressError
+              )
+            }
+          }
+
+          return {
+            customer,
+            accountEmail: sessionEmail,
+            order: updatedOrder,
           }
         }
 
-        return {
-          customer,
-          accountEmail: sessionEmail,
-          order: updatedOrder,
-        }
+        console.error(
+          `Bestellung: Konto ${sessionEmail} ohne Kundennummer — CRM-Fallback über Formular-E-Mail, accountEmail bleibt gesetzt.`
+        )
       }
-
-      console.error(
-        `Bestellung: Konto ${sessionEmail} ohne Kundennummer — CRM-Fallback über Formular-E-Mail, accountEmail bleibt gesetzt.`
-      )
     }
-  }
 
-  const customer = await upsertCustomerFromOrder(order)
-  const updatedOrder: StoredOrder = {
-    ...order,
-    kundennummer: customer.kundennummer,
-    ...(sessionEmail ? { accountEmail: sessionEmail } : {}),
-  }
-  if (
-    updatedOrder.kundennummer !== order.kundennummer ||
-    updatedOrder.accountEmail !== order.accountEmail
-  ) {
-    await saveOrder(updatedOrder)
-  }
+    const customer = await upsertCustomerFromOrder(order)
+    const updatedOrder: StoredOrder = {
+      ...order,
+      kundennummer: customer.kundennummer,
+      ...(sessionEmail ? { accountEmail: sessionEmail } : {}),
+    }
+    if (
+      updatedOrder.kundennummer !== order.kundennummer ||
+      updatedOrder.accountEmail !== order.accountEmail
+    ) {
+      try {
+        await saveOrder(updatedOrder)
+      } catch (saveError) {
+        console.error(
+          `Bestellung: CRM-Verknüpfung konnte nicht nachgetragen werden (${order.orderId}).`,
+          saveError
+        )
+      }
+    }
 
-  return {
-    customer,
-    accountEmail: sessionEmail || normalizeCustomerEmail(order.billing.email),
-    order: updatedOrder,
+    return {
+      customer,
+      accountEmail: sessionEmail || normalizeCustomerEmail(order.billing.email),
+      order: updatedOrder,
+    }
+  } catch (error) {
+    console.error(
+      `Bestellung: Kundenbindung fehlgeschlagen (${order.orderId}) — Checkout läuft weiter.`,
+      error
+    )
+    return fallbackBindResult(order, sessionEmail)
   }
 }

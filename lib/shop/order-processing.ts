@@ -219,12 +219,25 @@ export async function processOrderPayload(
   await saveOrder(order)
   console.info(`Bestellung: Order-Record persistiert (${orderId}).`)
 
+  // E-Mails sind entkoppelt — Fehler hier dürfen die Bestellung nie ungültig machen.
   if (!options?.skipInboundEmails) {
-    await sendInboundOrderEmailsSafe(order, settings)
+    void sendInboundOrderEmailsSafe(order, settings).catch((mailError) => {
+      console.error(
+        `Bestellung: Eingangsmails fehlgeschlagen (${orderId}) — Bestellung bleibt gespeichert.`,
+        mailError
+      )
+    })
   }
 
   if (appliedCoupon && order.paymentConfirmed) {
-    await incrementCouponRedemption(appliedCoupon.code)
+    try {
+      await incrementCouponRedemption(appliedCoupon.code)
+    } catch (couponError) {
+      console.error(
+        `Bestellung: Coupon-Einlösung fehlgeschlagen (${orderId}) — Bestellung bleibt gespeichert.`,
+        couponError
+      )
+    }
   }
 
   if (order.paymentConfirmed) {
@@ -251,7 +264,15 @@ export async function sendInboundOrderEmailsSafe(
   order: StoredOrder,
   settings?: AdminSettings
 ): Promise<SendOrderEmailsResult> {
-  return sendOrderConfirmationEmails(order, settings)
+  try {
+    return await sendOrderConfirmationEmails(order, settings)
+  } catch (error) {
+    console.error(
+      `Bestellung: Eingangsmails fehlgeschlagen (${order.orderId}) — Bestellung bleibt gespeichert.`,
+      error
+    )
+    return { customerSent: false, adminSent: false }
+  }
 }
 
 async function resolvePointsToRedeem(

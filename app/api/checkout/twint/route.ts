@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { getOrderById } from "@/lib/admin/db"
 import { applyInventoryReservationForOrder } from "@/lib/admin/order-inventory-hook"
+import { CosmosDatabaseError } from "@/lib/admin/storage-bridge"
 import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
 import type { OrderPayload } from "@/lib/dripforge/submit-order"
 import { getSessionEmailFromRequest } from "@/lib/konto/api-auth"
@@ -83,7 +84,14 @@ export async function POST(request: Request) {
   }
 
   try {
-    await warmCosmosInfrastructure()
+    try {
+      await warmCosmosInfrastructure()
+    } catch (warmError) {
+      console.warn(
+        "TWINT-Checkout: Cosmos-Warmup fehlgeschlagen — versuche Bestellung trotzdem.",
+        warmError
+      )
+    }
 
     const payload = (await request.json()) as OrderPayload
     if (!payload.items?.length || !payload.billing?.email) {
@@ -113,11 +121,25 @@ export async function POST(request: Request) {
       }
     )
 
-    const { customer, accountEmail, order: orderWithCustomer } =
-      await bindOrderToCustomer(order, {
+    let orderWithCustomer = order
+    let kundennummer: string | undefined
+    let accountEmail =
+      sessionEmail || order.billing.email.trim().toLowerCase()
+
+    try {
+      const bound = await bindOrderToCustomer(order, {
         sessionEmail,
         saveAddressToAccount: payload.saveAddressToAccount !== false,
       })
+      orderWithCustomer = bound.order
+      kundennummer = bound.customer.kundennummer
+      accountEmail = bound.accountEmail
+    } catch (bindError) {
+      console.error(
+        `TWINT-Checkout: Kundenbindung fehlgeschlagen (${order.orderId}) — Bestellung bleibt erhalten.`,
+        bindError
+      )
+    }
 
     try {
       await applyInventoryReservationForOrder(orderWithCustomer)
@@ -128,8 +150,15 @@ export async function POST(request: Request) {
       )
     }
 
-    // Eingangsmails analog «Auf Rechnung» (Kunde + Admin)
-    await sendInboundOrderEmailsSafe(orderWithCustomer, settings)
+    // E-Mails fire-and-forget — blockieren weder Response noch DB
+    void sendInboundOrderEmailsSafe(orderWithCustomer, settings).catch(
+      (mailError) => {
+        console.error(
+          `TWINT-Checkout: E-Mail-Versand fehlgeschlagen (${order.orderId}) — Bestellung bleibt erhalten.`,
+          mailError
+        )
+      }
+    )
 
     const amountChf = orderWithCustomer.totals.total
     const twintPaymentUrl = buildTwintPaymentUrl({
@@ -142,9 +171,10 @@ export async function POST(request: Request) {
     )
 
     return NextResponse.json({
+      success: true,
       configured: true,
       orderId: orderWithCustomer.orderId,
-      kundennummer: customer.kundennummer,
+      kundennummer,
       accountEmail,
       amountChf,
       amountFormatted: formatTwintAmount(amountChf),
@@ -157,9 +187,11 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("TWINT-Checkout: Erstellung fehlgeschlagen.", error)
     const message =
-      error instanceof Error
-        ? error.message
-        : "TWINT-Checkout konnte nicht gestartet werden."
-    return NextResponse.json({ error: message }, { status: 500 })
+      error instanceof CosmosDatabaseError
+        ? "Bestellung konnte nicht in der Datenbank gespeichert werden. Bitte erneut versuchen."
+        : error instanceof Error
+          ? error.message
+          : "TWINT-Checkout konnte nicht gestartet werden."
+    return NextResponse.json({ error: message, success: false }, { status: 500 })
   }
 }

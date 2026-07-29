@@ -19,11 +19,21 @@ import { applyInventoryReservationForOrder } from "@/lib/admin/order-inventory-h
 import { buildRewardPointsPublicSettings } from "@/lib/dripforge/reward-points-settings"
 import { getSessionEmailFromRequest } from "@/lib/konto/api-auth"
 import { CosmosDatabaseError } from "@/lib/admin/storage-bridge"
+import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
 
 export async function POST(request: Request) {
   let orderId = ""
 
   try {
+    try {
+      await warmCosmosInfrastructure()
+    } catch (warmError) {
+      console.warn(
+        "Bestell-API: Cosmos-Warmup fehlgeschlagen — versuche Bestellung trotzdem.",
+        warmError
+      )
+    }
+
     const payload = (await request.json()) as OrderPayload
     const sessionEmail = await getSessionEmailFromRequest()
 
@@ -44,24 +54,38 @@ export async function POST(request: Request) {
     orderId = order.orderId
     console.info(`Bestell-API: Bestellung gespeichert (${orderId}).`)
 
-    // 2) An eingeloggtes Konto / CRM binden
-    const { customer, accountEmail, order: orderWithCustomer } =
-      await bindOrderToCustomer(order, {
+    // Ab hier: Erfolg zurückgeben — Nebenpfade dürfen den Checkout nicht mehr killen.
+    let kundennummer: string | undefined
+    let orderWithCustomer = order
+    let accountEmail =
+      sessionEmail || order.billing.email.trim().toLowerCase()
+
+    try {
+      const bound = await bindOrderToCustomer(order, {
         sessionEmail,
         saveAddressToAccount: payload.saveAddressToAccount !== false,
       })
-    console.info(
-      `Bestell-API: Kunde verknüpft (${customer.kundennummer}, ${orderId}, Konto: ${accountEmail}).`
-    )
+      kundennummer = bound.customer.kundennummer
+      accountEmail = bound.accountEmail
+      orderWithCustomer = bound.order
+      console.info(
+        `Bestell-API: Kunde verknüpft (${kundennummer}, ${orderId}, Konto: ${accountEmail}).`
+      )
+    } catch (bindError) {
+      console.error(
+        `Bestell-API: Kundenbindung fehlgeschlagen (${orderId}) — Bestellung bleibt erhalten.`,
+        bindError
+      )
+    }
 
-    // 3) Treuepunkte / Credits
-    const portalAccount = await getAccountByEmail(accountEmail)
     let aiCreditsGranted = 0
     let loyaltyPointsGranted = 0
-    const rewardCfg = buildRewardPointsPublicSettings(settings)
-    const rewardPointsEnabled = rewardCfg.enableRewardPointsSystem
 
     try {
+      const portalAccount = await getAccountByEmail(accountEmail)
+      const rewardCfg = buildRewardPointsPublicSettings(settings)
+      const rewardPointsEnabled = rewardCfg.enableRewardPointsSystem
+
       const pointsRedeemed = normalizeLoyaltyPoints(
         order.totals.pointsRedeemed ?? 0
       )
@@ -133,12 +157,20 @@ export async function POST(request: Request) {
       )
     }
 
-    // 4) E-Mails zuletzt — dürfen Checkout nie abbrechen
-    await sendInboundOrderEmailsSafe(orderWithCustomer, settings)
+    // E-Mails fire-and-forget — blockieren weder Response noch DB
+    void sendInboundOrderEmailsSafe(orderWithCustomer, settings).catch(
+      (mailError) => {
+        console.error(
+          `Bestell-API: E-Mail-Versand fehlgeschlagen (${orderId}) — Bestellung bleibt erhalten.`,
+          mailError
+        )
+      }
+    )
 
     return NextResponse.json({
+      success: true,
       orderId,
-      kundennummer: customer.kundennummer,
+      kundennummer,
       aiCreditsGranted,
       loyaltyPointsGranted,
       items: itemResults,
@@ -155,6 +187,6 @@ export async function POST(request: Request) {
         : error instanceof Error
           ? error.message
           : "Interner Serverfehler bei der Bestellung."
-    return NextResponse.json({ error: message }, { status: 500 })
+    return NextResponse.json({ error: message, success: false }, { status: 500 })
   }
 }

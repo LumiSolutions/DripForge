@@ -39,9 +39,12 @@ import {
   normalizeLoyaltyExpiryMonths,
 } from "@/lib/konto/loyalty-points-config"
 import {
+  CosmosDatabaseError,
   withCosmosFallback,
   withCosmosRequired,
 } from "@/lib/admin/storage-bridge"
+import { resetCosmosCaches } from "@/lib/cosmos/client"
+import { resetOrdersContainerCache } from "@/lib/cosmos/orders-container"
 import { logCosmosError } from "@/lib/cosmos/log-error"
 import {
   isCosmosConfigured,
@@ -210,17 +213,35 @@ async function saveOrderToFile(order: StoredOrder): Promise<void> {
 }
 
 export async function saveOrder(order: StoredOrder): Promise<void> {
-  // Auf Azure darf ein Cosmos-Fehler NICHT still aufs Dateisystem fallen —
+  // Primär Cosmos wenn konfiguriert. Kein stiller Dateisystem-Fallback auf Azure —
   // sonst entstehen Treuepunkte ohne persistente Bestellung.
   if (!isCosmosConfigured()) {
     await saveOrderToFile(order)
+    console.info(`Bestellung gespeichert im Dateisystem (${order.orderId}).`)
     return
   }
 
-  await withCosmosRequired("saveOrder", async () => {
+  try {
     await cosmosSaveOrder(order)
-  })
-  console.info(`Bestellung gespeichert in Cosmos DB (${order.orderId}).`)
+    console.info(`Bestellung gespeichert in Cosmos DB (${order.orderId}).`)
+    return
+  } catch (firstError) {
+    logCosmosError("saveOrder:first-attempt", firstError)
+    console.warn(
+      `Bestellung: Cosmos-Schreibversuch 1 fehlgeschlagen (${order.orderId}) — Cache-Reset & Retry.`
+    )
+    resetCosmosCaches()
+    resetOrdersContainerCache()
+  }
+
+  try {
+    await cosmosSaveOrder(order)
+    console.info(
+      `Bestellung gespeichert in Cosmos DB nach Retry (${order.orderId}).`
+    )
+  } catch (retryError) {
+    throw new CosmosDatabaseError("saveOrder", retryError)
+  }
 }
 
 async function deleteOrderFromFile(orderId: string): Promise<boolean> {
@@ -244,9 +265,34 @@ export async function deleteOrder(orderId: string): Promise<boolean> {
 export async function upsertCustomerFromOrder(
   order: StoredOrder
 ): Promise<StoredCustomer> {
-  return withCosmosRequired("upsertCustomerFromOrder", () =>
-    cosmosUpsertCustomerFromOrder(order)
-  )
+  // Shop-Checkout: CRM ist sekundär. Bei Cosmos-Fehlern lokalen Kunden ableiten,
+  // statt den Checkout mit «Datenbank nicht erreichbar» abzubrechen.
+  if (!isCosmosConfigured()) {
+    const { buildCustomerFromOrder, generateCustomerNumber } = await import(
+      "@/lib/admin/customers"
+    )
+    return buildCustomerFromOrder(
+      order,
+      order.kundennummer?.trim() || generateCustomerNumber([])
+    )
+  }
+
+  try {
+    return await cosmosUpsertCustomerFromOrder(order)
+  } catch (error) {
+    logCosmosError("upsertCustomerFromOrder", error)
+    console.error(
+      `CRM: upsertCustomerFromOrder fehlgeschlagen (${order.orderId}) — Fallback ohne CRM-Persistenz.`,
+      error
+    )
+    const { buildCustomerFromOrder, generateCustomerNumber } = await import(
+      "@/lib/admin/customers"
+    )
+    return buildCustomerFromOrder(
+      order,
+      order.kundennummer?.trim() || generateCustomerNumber([])
+    )
+  }
 }
 
 export async function getCustomers(): Promise<StoredCustomer[]> {
