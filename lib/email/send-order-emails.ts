@@ -2,7 +2,8 @@
  * Zentraler Bestell-E-Mail-Versand für alle Zahlungsarten
  * (Stripe, TWINT, Kauf auf Rechnung).
  *
- * Alle Checkout-Pfade sollen nur `sendOrderEmails(order)` nutzen.
+ * PDF-Anhänge gehören NICHT hierher — Eingangsmails gehen ohne Anhang.
+ * Kunden- und Admin-Versand sind voneinander unabhängig.
  */
 import type { AdminSettings, StoredOrder } from "@/lib/admin/types"
 import { notifyAdminNewOrder } from "@/lib/email/admin-inbound-notifications"
@@ -10,101 +11,132 @@ import { notifyOrderReceived } from "@/lib/email/order-notifications"
 import { resolvePaymentStatusLabel } from "@/lib/email/order-email-summary"
 import { getSmtpDiagnostics, isSmtpConfigured } from "@/lib/email/smtp"
 
+export const ORDER_MAIL_FROM = "DripForge <shop@dripforge.ch>"
+
 export type SendOrderEmailsResult = {
   customerSent: boolean
   adminSent: boolean
 }
 
+/** Kunden-Empfänger: billing.email (StoredOrder) + optionale Aliase. */
+export function resolveOrderCustomerEmail(order: StoredOrder): string {
+  const extended = order as StoredOrder & {
+    customerEmail?: string
+    email?: string
+  }
+  return (
+    extended.customerEmail?.trim() ||
+    extended.email?.trim() ||
+    order.billing?.email?.trim() ||
+    order.accountEmail?.trim() ||
+    ""
+  )
+}
+
+/** Admin-Empfänger: ENV mit festem Fallback. */
+export function resolveOrderAdminEmail(): string {
+  const fromEnv =
+    process.env.ADMIN_NOTIFY_EMAIL?.trim().replace(/^["']|["']$/g, "") ||
+    process.env.ADMIN_EMAIL?.trim().replace(/^["']|["']$/g, "") ||
+    ""
+  return fromEnv || "shop@dripforge.ch"
+}
+
 /**
- * Sendet sofort zwei E-Mails per Hostpoint SMTP (parallel, getrennt fehlertolerant):
- * 1) Kundenmail
- * 2) Admin-Benachrichtigung
- *
- * Scheitert eine Mail (z. B. PDF/Anhang), wird die andere trotzdem versucht.
+ * Sendet sofort zwei E-Mails per Hostpoint SMTP (parallel, getrennt fehlertolerant).
+ * Scheitert eine Mail, wird die andere trotzdem versucht — ohne PDF-Abhängigkeit.
  */
 export async function sendOrderEmails(
   order: StoredOrder,
   settings?: AdminSettings
 ): Promise<SendOrderEmailsResult> {
+  const orderNumber = order.orderId
+  console.log("Sending order emails for order:", orderNumber)
+
+  const customerEmail = resolveOrderCustomerEmail(order)
+  const adminEmail = resolveOrderAdminEmail()
   const smtpDiag = isSmtpConfigured() ? getSmtpDiagnostics() : null
 
   console.log("[OrderEmail] Starte sendOrderEmails", {
-    orderId: order.orderId,
+    orderId: orderNumber,
     paymentMethod: order.paymentMethod,
     paymentConfirmed: Boolean(order.paymentConfirmed),
-    customerEmail: order.billing.email,
+    customerEmail,
+    adminEmail,
+    from: ORDER_MAIL_FROM,
     paymentStatus: resolvePaymentStatusLabel(order),
     smtpConfigured: Boolean(smtpDiag),
     smtpHost: smtpDiag?.host ?? "(nicht konfiguriert)",
     smtpPort: smtpDiag?.port ?? null,
     smtpSecure: smtpDiag?.secure ?? null,
-    smtpFrom: smtpDiag?.from ?? null,
-    smtpUser: smtpDiag?.configuredUser ?? null,
   })
 
   if (!isSmtpConfigured()) {
     console.error(
-      "SMTP Customer Mail Error:",
+      "Bestell-Mail Fehler:",
       new Error(
-        `SMTP nicht konfiguriert (SMTP_USER/SMTP_PASS) — Versand übersprungen (${order.orderId}).`
-      )
-    )
-    console.error(
-      "SMTP Admin Mail Error:",
-      new Error(
-        `SMTP nicht konfiguriert (SMTP_USER/SMTP_PASS) — Versand übersprungen (${order.orderId}).`
+        `SMTP nicht konfiguriert (SMTP_USER/SMTP_PASS) — Versand übersprungen (${orderNumber}).`
       )
     )
     return { customerSent: false, adminSent: false }
   }
 
+  const orderForMail: StoredOrder = {
+    ...order,
+    billing: {
+      ...order.billing,
+      email: customerEmail || order.billing.email,
+    },
+  }
+
   let customerSent = false
   let adminSent = false
 
-  // Parallel, aber jeweils eigener try/catch — eine Seite darf die andere nie blockieren
-  const [customerResult, adminResult] = await Promise.all([
-    (async (): Promise<boolean> => {
-      try {
-        const sent = await notifyOrderReceived(order, settings)
-        console.log("[OrderEmail] customer: ok", {
-          orderId: order.orderId,
-          sent,
-        })
-        return Boolean(sent)
-      } catch (err) {
-        console.error("SMTP Customer Mail Error:", err)
-        return false
-      }
-    })(),
-    (async (): Promise<boolean> => {
-      try {
-        const sent = await notifyAdminNewOrder(order, settings)
-        console.log("[OrderEmail] admin: ok", {
-          orderId: order.orderId,
-          sent,
-        })
-        return Boolean(sent)
-      } catch (err) {
-        console.error("SMTP Admin Mail Error:", err)
-        return false
-      }
-    })(),
-  ])
+  // Unabhängige try/catch — PDF/Anhang darf hier nie blockieren
+  try {
+    if (!customerEmail) {
+      console.error(
+        "SMTP Customer Mail Error:",
+        new Error(`Keine Kunden-E-Mail für Bestellung ${orderNumber}`)
+      )
+    } else {
+      customerSent = Boolean(await notifyOrderReceived(orderForMail, settings))
+      console.log("[OrderEmail] customer: ok", {
+        orderId: orderNumber,
+        sent: customerSent,
+        to: customerEmail,
+      })
+    }
+  } catch (err) {
+    console.error("SMTP Customer Mail Error:", err)
+    console.error("Bestell-Mail Fehler:", err)
+  }
 
-  customerSent = customerResult
-  adminSent = adminResult
+  try {
+    adminSent = Boolean(
+      await notifyAdminNewOrder(orderForMail, settings, { to: adminEmail })
+    )
+    console.log("[OrderEmail] admin: ok", {
+      orderId: orderNumber,
+      sent: adminSent,
+      to: adminEmail,
+    })
+  } catch (err) {
+    console.error("SMTP Admin Mail Error:", err)
+    console.error("Bestell-Mail Fehler:", err)
+  }
 
   if (!customerSent && !adminSent) {
     console.error(
-      "SMTP Mail Error:",
+      "Bestell-Mail Fehler:",
       new Error(
-        `Beide Bestell-Mails fehlgeschlagen oder übersprungen (${order.orderId}).`
+        `Beide Bestell-Mails fehlgeschlagen oder übersprungen (${orderNumber}).`
       )
     )
   }
 
   console.log("[OrderEmail] Versand abgeschlossen", {
-    orderId: order.orderId,
+    orderId: orderNumber,
     customerSent,
     adminSent,
   })

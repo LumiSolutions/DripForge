@@ -137,19 +137,33 @@ async function sendAdminInboundEmail(options: {
   plainBody: string
   dashboardUrl: string
   settings?: AdminSettings
+  /** Explizite Zieladresse (sonst ADMIN_NOTIFY_EMAIL / Fallback). */
+  to?: string
 }): Promise<boolean> {
   try {
     const adminSettings = options.settings ?? (await getSettings())
-    const to = resolveAdminNotifyEmail(adminSettings)
-    if (!to) {
-      console.info(
-        "E-Mail: Admin-Benachrichtigung übersprungen — keine Zieladresse.",
-        { referenceId: options.referenceId }
-      )
-      return false
+    const to =
+      options.to?.trim() ||
+      resolveAdminNotifyEmail(adminSettings) ||
+      "shop@dripforge.ch"
+
+    let branding
+    try {
+      branding = await resolveEmailBranding(adminSettings)
+    } catch (brandingError) {
+      console.error("SMTP Admin Mail Error:", brandingError)
+      branding = {
+        companyName: "DripForge",
+        contactEmail: "shop@dripforge.ch",
+        footerLines: {
+          line1: "DripForge",
+          line2: "shop@dripforge.ch",
+          line3: "",
+        },
+        logoUrl: null as string | null,
+      }
     }
 
-    const branding = await resolveEmailBranding(adminSettings)
     const plain = [
       options.plainBody,
       "",
@@ -201,7 +215,8 @@ async function sendAdminInboundEmail(options: {
 
 export async function notifyAdminNewOrder(
   order: StoredOrder,
-  settings?: AdminSettings
+  settings?: AdminSettings,
+  options?: { to?: string }
 ): Promise<boolean> {
   const dashboardUrl = buildAdminOrderDetailUrl(order.orderId)
   const delivery = order.delivery ?? order.billing
@@ -239,6 +254,7 @@ export async function notifyAdminNewOrder(
     plainBody,
     dashboardUrl,
     settings,
+    to: options?.to,
   })
 }
 

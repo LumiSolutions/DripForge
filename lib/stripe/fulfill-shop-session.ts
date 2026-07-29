@@ -57,6 +57,7 @@ export async function sendShopOrderEmailsAfterStripe(
   })
 
   try {
+    console.log("Sending order emails for order:", orderForEmail.orderId)
     const result = await sendOrderEmails(orderForEmail, settings)
     const sent = result.customerSent || result.adminSent
     console.info("[Stripe] sendOrderEmails Ergebnis", {
@@ -70,8 +71,7 @@ export async function sendShopOrderEmailsAfterStripe(
       adminSent: result.adminSent,
     }
   } catch (error) {
-    // Bestellung bleibt gespeichert — nur Mail-Fehler loggen
-    console.error("SMTP Mail Error:", error)
+    console.error("Bestell-Mail Fehler:", error)
     console.error(
       `[Stripe] SMTP-Versand fehlgeschlagen (${orderId}) — Bestellung bleibt erhalten.`,
       error

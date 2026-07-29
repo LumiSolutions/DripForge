@@ -160,31 +160,82 @@ export async function notifyOrderReceived(
   order: StoredOrder,
   settings?: AdminSettings
 ): Promise<boolean> {
-  if (order.emailNotifications?.receivedAt) return false
+  if (order.emailNotifications?.receivedAt) {
+    console.info(
+      `E-Mail: Bestelleingang bereits gesendet — überspringe (${order.orderId}).`
+    )
+    return false
+  }
 
   try {
-    const adminSettings = settings ?? (await getSettings())
-    const branding = await resolveEmailBranding(adminSettings)
-    const template = await getDocumentTemplateSettings()
+    let adminSettings = settings
+    if (!adminSettings) {
+      try {
+        adminSettings = await getSettings()
+      } catch (settingsError) {
+        console.error("SMTP Customer Mail Error:", settingsError)
+      }
+    }
+
+    let branding: {
+      companyName: string
+      contactEmail: string
+      footerLines: { line1: string; line2: string; line3: string }
+      logoUrl: string | null
+    }
+    try {
+      if (adminSettings) {
+        branding = await resolveEmailBranding(adminSettings)
+      } else {
+        throw new Error("AdminSettings fehlen")
+      }
+    } catch (brandingError) {
+      console.error("SMTP Customer Mail Error:", brandingError)
+      branding = {
+        companyName: "DripForge",
+        contactEmail: "shop@dripforge.ch",
+        footerLines: {
+          line1: "DripForge",
+          line2: "shop@dripforge.ch",
+          line3: "",
+        },
+        logoUrl: null,
+      }
+    }
+
+    // Template nur für Bankhinweis — Fehler dürfen Mail nicht blockieren
+    let invoiceHint: { plain: string; html: string } | null = null
+    try {
+      const template = await getDocumentTemplateSettings()
+      invoiceHint = buildInvoiceBankHint(order, {
+        iban: template.iban?.trim() || adminSettings?.company.iban?.trim() || "",
+        kontoinhaber:
+          resolveKontoinhaber(template) ||
+          adminSettings?.company.firmenname?.trim() ||
+          "",
+        bankname:
+          template.bankname?.trim() ||
+          adminSettings?.company.bankname?.trim() ||
+          "",
+      })
+    } catch (templateError) {
+      console.error(
+        "SMTP Customer Mail Error:",
+        templateError instanceof Error
+          ? `Dokumentenvorlage für Bankhinweis fehlgeschlagen (${order.orderId}) — sende ohne Bankdaten.`
+          : templateError
+      )
+    }
+
     const customerName = `${order.billing.firstName} ${order.billing.lastName}`.trim()
     const prepaid = isPrepaidOrderAwaitingPayment(order)
     const accountUrl = `${resolveSiteOrigin()}/konto/bestellungen`
 
-    // Einheitliche Betreffzeilen — Kundenmail
     const subject = prepaid
       ? `Deine Bestellung ${order.orderId} ist eingegangen (Wartet auf Zahlungseingang)`
       : `Deine Bestellung ${order.orderId} ist in Bearbeitung`
 
     const twintHint = buildTwintPaymentHint(order)
-    const invoiceHint = buildInvoiceBankHint(order, {
-      iban: template.iban?.trim() || adminSettings.company.iban?.trim() || "",
-      kontoinhaber:
-        resolveKontoinhaber(template) ||
-        adminSettings.company.firmenname?.trim() ||
-        "",
-      bankname:
-        template.bankname?.trim() || adminSettings.company.bankname?.trim() || "",
-    })
 
     const introPlain = prepaid
       ? [
@@ -236,6 +287,7 @@ export async function notifyOrderReceived(
       logoUrl: branding.logoUrl ?? undefined,
     })
 
+    // Eingangsmail NIEMALS mit PDF-Anhang — PDF nur in Status-Mails (notifyOrderConfirmed)
     const sent = await sendSmtpMail({
       from: resolveSmtpFrom("DripForge", "shop@dripforge.ch"),
       to: order.billing.email,
@@ -245,7 +297,12 @@ export async function notifyOrderReceived(
     })
 
     if (sent) {
-      await markEmailSent(order.orderId, "receivedAt")
+      try {
+        await markEmailSent(order.orderId, "receivedAt")
+      } catch (markError) {
+        // Mail ist raus — Markierung ist optional
+        console.error("Bestell-Mail Fehler:", markError)
+      }
       console.info(`E-Mail: Bestelleingang/Bestätigung gesendet (${order.orderId}).`)
     } else {
       console.error(
@@ -283,10 +340,13 @@ export async function notifyOrderConfirmed(
     try {
       pdfBuffer = await generateAndStoreOrderInvoice(order, adminSettings)
     } catch (error) {
+      // PDF darf den Mailversand NIEMALS blockieren — Mail geht ohne Anhang raus
+      console.error("Bestell-Mail Fehler:", error)
       console.error(
-        `E-Mail: Rechnung für Bestätigung ${order.orderId} konnte nicht erzeugt werden.`,
+        `E-Mail: Rechnung für Bestätigung ${order.orderId} konnte nicht erzeugt werden — sende ohne PDF.`,
         error
       )
+      pdfBuffer = undefined
     }
 
     const plain = [

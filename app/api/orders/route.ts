@@ -10,10 +10,8 @@ import {
   calculateLoyaltyEarnBaseChf,
 } from "@/lib/konto/loyalty-points"
 import type { OrderPayload } from "@/lib/dripforge/submit-order"
-import {
-  processOrderPayload,
-  sendInboundOrderEmailsSafe,
-} from "@/lib/shop/order-processing"
+import { processOrderPayload } from "@/lib/shop/order-processing"
+import { sendOrderEmails } from "@/lib/email/send-order-emails"
 import { bindOrderToCustomer } from "@/lib/shop/bind-order-to-account"
 import { applyInventoryReservationForOrder } from "@/lib/admin/order-inventory-hook"
 import { buildRewardPointsPublicSettings } from "@/lib/dripforge/reward-points-settings"
@@ -44,7 +42,7 @@ export async function POST(request: Request) {
       }, Session: ${sessionEmail ?? "Gast"}.`
     )
 
-    // 1) Bestellung zuerst persistent speichern (ohne Mails)
+    // 1) Bestellung zuerst persistent speichern (ohne Mails im processOrderPayload)
     const { order, itemResults, settings } = await processOrderPayload(payload, {
       paymentConfirmed: true,
       enforceGatewayMinForPoints: false,
@@ -53,6 +51,18 @@ export async function POST(request: Request) {
     })
     orderId = order.orderId
     console.info(`Bestell-API: Bestellung gespeichert (${orderId}).`)
+
+    // 2) E-Mails SOFORT nach DB-Save — vor Punkten/Lager (SWA-Timeout-Schutz)
+    try {
+      console.log("Sending order emails for order:", order.orderId)
+      const emailResult = await sendOrderEmails(order, settings)
+      console.log("[Bestell-API] sendOrderEmails Ergebnis", {
+        orderId,
+        ...emailResult,
+      })
+    } catch (error) {
+      console.error("Bestell-Mail Fehler:", error)
+    }
 
     // Ab hier: Erfolg zurückgeben — Nebenpfade dürfen den Checkout nicht mehr killen.
     let kundennummer: string | undefined
@@ -154,28 +164,6 @@ export async function POST(request: Request) {
       console.error(
         `Bestell-API: Lagerreservation fehlgeschlagen (${orderId}) — Bestellung bleibt erhalten.`,
         inventoryError
-      )
-    }
-
-    // E-Mails NACH DB-Save — awaited (SWA killt sonst fire-and-forget).
-    // Fehler dürfen den Checkout-Erfolg nicht ungültig machen.
-    try {
-      console.log("[Bestell-API] Starte sendOrderEmails (await)…", {
-        orderId,
-      })
-      const emailResult = await sendInboundOrderEmailsSafe(
-        orderWithCustomer,
-        settings
-      )
-      console.log("[Bestell-API] sendOrderEmails Ergebnis", {
-        orderId,
-        ...emailResult,
-      })
-    } catch (mailError) {
-      console.error("SMTP Mail Error:", mailError)
-      console.error(
-        `Bestell-API: E-Mail-Versand fehlgeschlagen (${orderId}) — Bestellung bleibt erhalten.`,
-        mailError
       )
     }
 

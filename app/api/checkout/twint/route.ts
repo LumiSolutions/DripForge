@@ -9,8 +9,8 @@ import { getSessionEmailFromRequest } from "@/lib/konto/api-auth"
 import { bindOrderToCustomer } from "@/lib/shop/bind-order-to-account"
 import {
   processOrderPayload,
-  sendInboundOrderEmailsSafe,
 } from "@/lib/shop/order-processing"
+import { sendOrderEmails } from "@/lib/email/send-order-emails"
 import {
   buildTwintPaymentUrl,
   formatTwintAmount,
@@ -121,6 +121,18 @@ export async function POST(request: Request) {
       }
     )
 
+    // E-Mails SOFORT nach DB-Save
+    try {
+      console.log("Sending order emails for order:", order.orderId)
+      const emailResult = await sendOrderEmails(order, settings)
+      console.log("[TWINT-Checkout] sendOrderEmails Ergebnis", {
+        orderId: order.orderId,
+        ...emailResult,
+      })
+    } catch (error) {
+      console.error("Bestell-Mail Fehler:", error)
+    }
+
     let orderWithCustomer = order
     let kundennummer: string | undefined
     let accountEmail =
@@ -147,27 +159,6 @@ export async function POST(request: Request) {
       console.error(
         `TWINT-Checkout: Lagerreservation fehlgeschlagen (${order.orderId}).`,
         inventoryError
-      )
-    }
-
-    // E-Mails NACH DB-Save — awaited (SWA killt sonst fire-and-forget).
-    try {
-      console.log("[TWINT-Checkout] Starte sendOrderEmails (await)…", {
-        orderId: orderWithCustomer.orderId,
-      })
-      const emailResult = await sendInboundOrderEmailsSafe(
-        orderWithCustomer,
-        settings
-      )
-      console.log("[TWINT-Checkout] sendOrderEmails Ergebnis", {
-        orderId: orderWithCustomer.orderId,
-        ...emailResult,
-      })
-    } catch (mailError) {
-      console.error("SMTP Mail Error:", mailError)
-      console.error(
-        `TWINT-Checkout: E-Mail-Versand fehlgeschlagen (${order.orderId}) — Bestellung bleibt erhalten.`,
-        mailError
       )
     }
 

@@ -226,13 +226,10 @@ export async function processOrderPayload(
   // E-Mails sind entkoppelt — Fehler hier dürfen die Bestellung nie ungültig machen.
   if (!options?.skipInboundEmails) {
     try {
+      console.log("Sending order emails for order:", order.orderId)
       await sendOrderEmails(order, settings)
     } catch (mailError) {
-      console.error("SMTP Mail Error:", mailError)
-      console.error(
-        `Bestellung: Eingangsmails fehlgeschlagen (${orderId}) — Bestellung bleibt gespeichert.`,
-        mailError
-      )
+      console.error("Bestell-Mail Fehler:", mailError)
     }
   }
 
@@ -272,13 +269,10 @@ export async function sendInboundOrderEmailsSafe(
   settings?: AdminSettings
 ): Promise<SendOrderEmailsResult> {
   try {
+    console.log("Sending order emails for order:", order.orderId)
     return await sendOrderEmails(order, settings)
   } catch (error) {
-    console.error("SMTP Mail Error:", error)
-    console.error(
-      `Bestellung: Eingangsmails fehlgeschlagen (${order.orderId}) — Bestellung bleibt gespeichert.`,
-      error
-    )
+    console.error("Bestell-Mail Fehler:", error)
     return { customerSent: false, adminSent: false }
   }
 }

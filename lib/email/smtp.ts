@@ -318,7 +318,7 @@ export async function sendSmtpMail(options: SendSmtpMailOptions): Promise<boolea
   // From IMMER an Hostpoint-konforme Config koppeln (nie freier Client-From)
   const mailOptions: SendSmtpMailOptions = {
     ...options,
-    from: config.from,
+    from: config.from || "DripForge <shop@dripforge.ch>",
   }
 
   console.log("[SMTP] sendSmtpMail gestartet", {
@@ -337,16 +337,24 @@ export async function sendSmtpMail(options: SendSmtpMailOptions): Promise<boolea
     console.log("[SMTP] buildSmtpTransporter()…")
     const transporter = buildSmtpTransporter()
 
-    console.log("[SMTP] transporter.verify() (SMTP-Handshake)…")
-    try {
-      await transporter.verify()
-      console.log(`[SMTP] verify OK — Handshake erfolgreich (${Date.now() - startedAt}ms)`)
-    } catch (verifyError) {
-      console.error("SMTP Mail Error:", verifyError)
-      console.error("[SMTP] verify FEHLGESCHLAGEN — sende trotzdem (Fallback).", {
-        ...formatSmtpError(verifyError),
-        elapsedMs: Date.now() - startedAt,
-      })
+    // verify() verdoppelt Latenz und killt SWA-Timeouts — nur auf expliziten Wunsch
+    if (cleanEnv(process.env.SMTP_VERIFY_BEFORE_SEND) === "true") {
+      console.log("[SMTP] transporter.verify() (SMTP-Handshake)…")
+      try {
+        await transporter.verify()
+        console.log(
+          `[SMTP] verify OK — Handshake erfolgreich (${Date.now() - startedAt}ms)`
+        )
+      } catch (verifyError) {
+        console.error("SMTP Mail Error:", verifyError)
+        console.error(
+          "[SMTP] verify FEHLGESCHLAGEN — sende trotzdem (Fallback).",
+          {
+            ...formatSmtpError(verifyError),
+            elapsedMs: Date.now() - startedAt,
+          }
+        )
+      }
     }
 
     console.log("[SMTP] transporter.sendMail() Aufruf…", {
