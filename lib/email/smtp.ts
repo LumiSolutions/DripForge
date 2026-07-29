@@ -27,8 +27,11 @@ function cleanEnv(value: string | undefined): string {
 }
 
 export function isSmtpConfigured(): boolean {
-  // HOST/USER können Defaults sein — PASS ist Pflicht
-  return Boolean(cleanEnv(process.env.SMTP_PASS))
+  return Boolean(
+    cleanEnv(process.env.SMTP_HOST) &&
+      cleanEnv(process.env.SMTP_USER) &&
+      cleanEnv(process.env.SMTP_PASS)
+  )
 }
 
 /**
@@ -58,19 +61,26 @@ export function getSmtpDiagnostics(): {
 }
 
 /**
- * Hostpoint: Port 465 + SSL (secure: true).
- * Port 587 STARTTLS wird von Hostpoint mit 535 abgelehnt.
+ * SMTP nur aus ENV — keine hartkodierten Host-/User-Fallbacks.
+ * Port 465 + SSL (secure: true) ist der übliche Produktionsmodus.
  */
 function resolveSmtpSettings(): SmtpRuntimeConfig {
-  const user = cleanEnv(process.env.SMTP_USER) || "shop@dripforge.ch"
+  const user = cleanEnv(process.env.SMTP_USER)
   const pass = cleanEnv(process.env.SMTP_PASS)
-  const host = cleanEnv(process.env.SMTP_HOST) || "mail.hostpoint.ch"
-  const port = Number(cleanEnv(process.env.SMTP_PORT)) || 465
-  // Port 465 erfordert explizites SSL; fest auf true (Hostpoint)
-  const secure = true
-  const from = `DripForge <${user}>`
+  const host = cleanEnv(process.env.SMTP_HOST)
+  const portRaw = cleanEnv(process.env.SMTP_PORT)
+  const port = portRaw ? Number(portRaw) : 465
+  const secureEnv = cleanEnv(process.env.SMTP_SECURE).toLowerCase()
+  const secure =
+    secureEnv === "false" || secureEnv === "0"
+      ? false
+      : secureEnv === "true" || secureEnv === "1"
+        ? true
+        : port === 465
+  const fromEnv = cleanEnv(process.env.EMAIL_FROM)
+  const from = fromEnv || (user ? `DripForge <${user}>` : "")
 
-  return { host, port, secure, user, pass, from }
+  return { host, port: Number.isFinite(port) ? port : 465, secure, user, pass, from }
 }
 
 export function getSmtpRuntimeConfig(): SmtpRuntimeConfig | null {
@@ -109,13 +119,12 @@ export function buildSmtpTransporter() {
     return cachedTransporter
   }
 
-  logSmtpConfig(config, "Transporter wird erstellt (Hostpoint 465/SSL)")
+  logSmtpConfig(config, "Transporter wird erstellt")
 
   const options: SMTPTransport.Options = {
     host: config.host,
     port: config.port,
-    // Port 465: secure true → SSL von Anfang an
-    secure: true,
+    secure: config.secure,
     auth: {
       user: config.user,
       pass: config.pass,
@@ -142,9 +151,12 @@ export function resolveSmtpFrom(
   _fallbackEmail?: string
 ): string {
   const config = getSmtpRuntimeConfig()
-  if (config) return config.from
-  const user = cleanEnv(process.env.SMTP_USER) || "shop@dripforge.ch"
-  return `DripForge <${user}>`
+  if (config?.from) return config.from
+  const user = cleanEnv(process.env.SMTP_USER)
+  const fromEnv = cleanEnv(process.env.EMAIL_FROM)
+  if (fromEnv) return fromEnv
+  if (user) return `DripForge <${user}>`
+  return "DripForge"
 }
 
 export type SendSmtpMailOptions = {
@@ -199,7 +211,7 @@ export async function sendSmtpMail(options: SendSmtpMailOptions): Promise<boolea
   const config = getSmtpRuntimeConfig()
   if (!config) return false
 
-  // From immer = authentifizierter User (Hostpoint 535 vermeiden)
+  // From an den konfigurierten SMTP-User / EMAIL_FROM koppeln
   const mailOptions: SendSmtpMailOptions = {
     ...options,
     from: config.from,
@@ -268,7 +280,7 @@ export async function verifySmtpConnection(): Promise<{
   const config = getSmtpRuntimeConfig()
   if (!config) {
     throw new Error(
-      "SMTP nicht konfiguriert. Bitte SMTP_PASS setzen (Default: mail.hostpoint.ch:465 SSL)."
+      "SMTP nicht konfiguriert. Bitte SMTP_HOST, SMTP_USER und SMTP_PASS setzen."
     )
   }
 

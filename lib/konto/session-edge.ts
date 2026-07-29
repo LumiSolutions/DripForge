@@ -1,4 +1,5 @@
 import type { CustomerSessionPayload } from "@/lib/konto/account-types"
+import { resolveCrossRuntimeSigningSecret } from "@/lib/security/env-secrets"
 
 export const CUSTOMER_SESSION_COOKIE = "dripforge_customer_session"
 
@@ -24,10 +25,10 @@ export function isKontoPublicPath(pathname: string): boolean {
 }
 
 function getSessionSecret(): string {
-  return (
-    process.env.CUSTOMER_SESSION_SECRET?.trim() ||
-    process.env.NEXT_PUBLIC_CUSTOMER_SESSION_SECRET?.trim() ||
-    "dripforge-dev-customer-session-change-me"
+  // Kein NEXT_PUBLIC_* — Session-Secrets dürfen nicht im Client landen.
+  return resolveCrossRuntimeSigningSecret(
+    "CUSTOMER_SESSION_SECRET",
+    "ADMIN_SESSION_SECRET"
   )
 }
 
