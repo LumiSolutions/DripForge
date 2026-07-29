@@ -123,9 +123,9 @@ function TwintPayPanel({
               In TWINT-App öffnen
             </a>
           </Button>
-          <p className="text-center text-xs text-muted-foreground">
-            Falls du abgebrochen hast, kannst du den Link jederzeit erneut öffnen.
-            Eine Bestätigung folgt per E-Mail.
+          <p className="mt-4 text-sm text-muted-foreground">
+            Hinweis: Die Bearbeitung und der Versand deiner Bestellung erfolgen
+            direkt nach Erhalt des Zahlungseingangs.
           </p>
         </div>
       )}
@@ -156,9 +156,15 @@ function BestellungErfolgInner() {
       </h1>
       <p className="mt-4 text-muted-foreground">
         {isTwintPending
-          ? "Wir haben deine Bestellung gespeichert. Schliesse die Zahlung jetzt mit TWINT ab — Betrag und Bestellnummer sind vorausgefüllt."
+          ? "Wir haben deine Bestellung gespeichert. Dies ist die Bestätigung deines Bestelleingangs — die Ausführung folgt nach Zahlungseingang. Schliesse die Zahlung jetzt mit TWINT ab."
           : "Wir haben Ihre Bestellung und Zahlung erhalten und mit der Verarbeitung begonnen. Eine Bestätigung folgt per E-Mail."}
       </p>
+      {isTwintPending ? (
+        <p className="mt-3 text-sm font-medium text-foreground">
+          Hinweis: Die Bearbeitung und der Versand deiner Bestellung erfolgen
+          direkt nach Erhalt des Zahlungseingangs.
+        </p>
+      ) : null}
       {orderId ? (
         <div className="mx-auto mt-6 max-w-sm rounded-xl border border-border/60 bg-muted/30 px-4 py-3">
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">

@@ -10,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import type { PaymentMethodId } from "@/lib/dripforge/checkout-config"
 
 type CheckoutSuccessModalProps = {
   open: boolean
@@ -17,6 +18,8 @@ type CheckoutSuccessModalProps = {
   onContinueShopping: () => void
   /** Wenn false, nur «Weiter einkaufen» (z. B. Gast ohne Konto-Link). */
   showOrdersLink?: boolean
+  /** Zahlungsart — steuert Vorkasse-Hinweis (Rechnung / TWINT). */
+  paymentMethod?: PaymentMethodId
 }
 
 export function CheckoutSuccessModal({
@@ -24,7 +27,11 @@ export function CheckoutSuccessModal({
   orderId,
   onContinueShopping,
   showOrdersLink = true,
+  paymentMethod,
 }: CheckoutSuccessModalProps) {
+  const isPrepaid =
+    paymentMethod === "invoice" || paymentMethod === "twint"
+
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onContinueShopping()}>
       <DialogContent className="z-[200] max-w-md border-border/60 sm:rounded-2xl">
@@ -33,10 +40,14 @@ export function CheckoutSuccessModal({
             <CheckCircle2 className="h-8 w-8" />
           </div>
           <DialogTitle className="text-2xl">
-            Vielen Dank für Ihre Bestellung!
+            {isPrepaid
+              ? "Bestellung erhalten — wartet auf Zahlung"
+              : "Vielen Dank für Ihre Bestellung!"}
           </DialogTitle>
           <DialogDescription className="text-base text-muted-foreground">
-            Wir haben Ihre Bestellung erhalten und mit der Verarbeitung begonnen.
+            {isPrepaid
+              ? "Dies ist die Bestätigung deines Bestelleingangs. Da es sich um Vorkasse handelt, wird die Bestellung erst nach Zahlungseingang bearbeitet und versendet."
+              : "Wir haben Ihre Bestellung erhalten und mit der Verarbeitung begonnen."}
           </DialogDescription>
         </DialogHeader>
 
@@ -48,6 +59,13 @@ export function CheckoutSuccessModal({
             {orderId}
           </p>
         </div>
+
+        {isPrepaid ? (
+          <p className="text-center text-sm font-medium text-foreground">
+            Hinweis: Die Bearbeitung und der Versand deiner Bestellung erfolgen
+            direkt nach Erhalt des Zahlungseingangs.
+          </p>
+        ) : null}
 
         <div className="flex flex-col gap-2 sm:flex-row">
           {showOrdersLink ? (

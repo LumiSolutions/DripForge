@@ -1,4 +1,5 @@
 import {
+  getDocumentTemplateSettings,
   getOrderById,
   getSettings,
   updateOrderEmailNotifications,
@@ -29,6 +30,10 @@ import {
   buildTwintPaymentUrl,
   isTwintPaymentLinkConfigured,
 } from "@/lib/twint/payment-link"
+import { resolveKontoinhaber } from "@/lib/documents/document-template-types"
+
+const VORKASSE_CORE_HINT =
+  "Vielen Dank für deine Bestellung! Bitte beachte: Da es sich um eine Vorkasse-Zahlung handelt, wird deine Bestellung erst nach vollständigem Erhalt der Zahlung bearbeitet und angefertigt/versendet."
 
 async function markEmailSent(
   orderId: string,
@@ -70,6 +75,12 @@ function renderOrderDetailsHtml(order: StoredOrder): string {
   )
 }
 
+function isPrepaidOrderAwaitingPayment(order: StoredOrder): boolean {
+  if (order.paymentMethod === "invoice") return true
+  if (order.paymentMethod === "twint" && !order.paymentConfirmed) return true
+  return false
+}
+
 function buildTwintPaymentHint(order: StoredOrder): {
   plain: string
   html: string
@@ -90,10 +101,9 @@ function buildTwintPaymentHint(order: StoredOrder): {
   const plain = [
     "——— TWINT-Zahlung ———",
     `Betrag: ${formatChf(order.totals.total)}`,
-    `Verwendungszweck / Bestellnummer: ${order.orderId}`,
-    `Zahlungslink: ${twintUrl}`,
+    `Bestell-ID: ${order.orderId}`,
     "",
-    "Falls du die Zahlung im Browser abgebrochen hast, kannst du den Link jederzeit erneut öffnen und in der TWINT-App abschliessen.",
+    `Falls du die Zahlung in der App noch nicht abgeschlossen hast, kannst du dies hier nachholen: ${twintUrl}`,
   ].join("\n")
 
   const html =
@@ -101,13 +111,44 @@ function buildTwintPaymentHint(order: StoredOrder): {
       [
         "TWINT-Zahlung",
         `Betrag: ${formatChf(order.totals.total)}`,
-        `Verwendungszweck / Bestellnummer: ${order.orderId}`,
+        `Bestell-ID: ${order.orderId}`,
         "",
-        "Falls du die Zahlung im Browser abgebrochen hast, öffne den Link erneut und schliesse die Zahlung in der TWINT-App ab:",
+        "Falls du die Zahlung in der App noch nicht abgeschlossen hast, kannst du dies hier nachholen:",
       ].join("\n")
     ) +
     `<p style="margin:16px 0;"><a href="${twintUrl}" style="display:inline-block;padding:12px 20px;background:#000000;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">Jetzt mit TWINT bezahlen</a></p>` +
     `<p style="font-size:12px;word-break:break-all;"><a href="${twintUrl}">${twintUrl}</a></p>`
+
+  return { plain, html }
+}
+
+function buildInvoiceBankHint(
+  order: StoredOrder,
+  bank: { iban: string; kontoinhaber: string; bankname: string }
+): { plain: string; html: string } | null {
+  if (order.paymentMethod !== "invoice") return null
+
+  const amount = formatChf(order.totals.total)
+  const lines = [
+    "——— Banküberweisung (Vorkasse) ———",
+    `Bitte überweise den Gesamtbetrag von ${amount} CHF unter Angabe der Bestell-ID ${order.orderId} als Verwendungszweck.`,
+  ]
+  if (bank.kontoinhaber) lines.push(`Kontoinhaber: ${bank.kontoinhaber}`)
+  if (bank.iban) lines.push(`IBAN: ${bank.iban}`)
+  if (bank.bankname) lines.push(`Bank: ${bank.bankname}`)
+
+  const plain = lines.join("\n")
+  const html = textToHtmlParagraphs(
+    [
+      "Banküberweisung (Vorkasse)",
+      `Bitte überweise den Gesamtbetrag von ${amount} CHF unter Angabe der Bestell-ID ${order.orderId} als Verwendungszweck.`,
+      bank.kontoinhaber ? `Kontoinhaber: ${bank.kontoinhaber}` : "",
+      bank.iban ? `IBAN: ${bank.iban}` : "",
+      bank.bankname ? `Bank: ${bank.bankname}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n")
+  )
 
   return { plain, html }
 }
@@ -122,39 +163,64 @@ export async function notifyOrderReceived(
   try {
     const adminSettings = settings ?? (await getSettings())
     const branding = await resolveEmailBranding(adminSettings)
+    const template = await getDocumentTemplateSettings()
     const customerName = `${order.billing.firstName} ${order.billing.lastName}`.trim()
-    const subject = `Bestellbestätigung — ${order.orderId}`
+    const prepaid = isPrepaidOrderAwaitingPayment(order)
+
+    const subject = prepaid
+      ? `Bestelleingang: Deine Bestellung ${order.orderId} bei DripForge (Wartet auf Zahlungseingang)`
+      : `Bestellbestätigung — ${order.orderId}`
+
     const twintHint = buildTwintPaymentHint(order)
+    const invoiceHint = buildInvoiceBankHint(order, {
+      iban: template.iban?.trim() || adminSettings.company.iban?.trim() || "",
+      kontoinhaber:
+        resolveKontoinhaber(template) ||
+        adminSettings.company.firmenname?.trim() ||
+        "",
+      bankname:
+        template.bankname?.trim() || adminSettings.company.bankname?.trim() || "",
+    })
+
+    const introPlain = prepaid
+      ? [
+          `Guten Tag ${customerName},`,
+          "",
+          "vielen Dank für deine Bestellung bei DripForge — dies ist die Bestätigung deines Bestelleingangs.",
+          "",
+          VORKASSE_CORE_HINT,
+        ]
+      : [
+          `Guten Tag ${customerName},`,
+          "",
+          "vielen Dank für deine Bestellung bei DripForge — wir haben sie erfolgreich erhalten.",
+        ]
+
+    const closingPlain = prepaid
+      ? "Sobald der Zahlungseingang bei uns verbucht ist, bearbeiten wir deine Bestellung und halten dich per E-Mail auf dem Laufenden."
+      : "Wir prüfen deine Angaben und halten dich über den weiteren Verlauf per E-Mail auf dem Laufenden."
 
     const plain = [
-      `Guten Tag ${customerName},`,
-      "",
-      "vielen Dank für deine Bestellung bei DripForge — wir haben sie erfolgreich erhalten.",
+      ...introPlain,
       "",
       formatOrderSummaryPlain(order),
       "",
       ...(twintHint ? [twintHint.plain, ""] : []),
-      "Wir prüfen deine Angaben und halten dich über den weiteren Verlauf per E-Mail auf dem Laufenden.",
+      ...(invoiceHint ? [invoiceHint.plain, ""] : []),
+      closingPlain,
       "",
       "Freundliche Grüsse",
       branding.companyName,
     ].join("\n")
 
     const html = renderDripForgeEmailHtml({
-      title: "Bestellbestätigung",
+      title: prepaid ? "Bestelleingang" : "Bestellbestätigung",
       bodyHtml:
-        textToHtmlParagraphs(
-          [
-            `Guten Tag ${customerName},`,
-            "",
-            "vielen Dank für deine Bestellung bei DripForge — wir haben sie erfolgreich erhalten.",
-          ].join("\n")
-        ) +
+        textToHtmlParagraphs(introPlain.join("\n")) +
         renderOrderDetailsHtml(order) +
         (twintHint?.html ?? "") +
-        textToHtmlParagraphs(
-          "Wir prüfen deine Angaben und halten dich über den weiteren Verlauf per E-Mail auf dem Laufenden."
-        ),
+        (invoiceHint?.html ?? "") +
+        textToHtmlParagraphs(closingPlain),
       footerLines: branding.footerLines,
       logoUrl: branding.logoUrl ?? undefined,
     })
@@ -169,13 +235,13 @@ export async function notifyOrderReceived(
 
     if (sent) {
       await markEmailSent(order.orderId, "receivedAt")
-      console.info(`E-Mail: Bestellbestätigung gesendet (${order.orderId}).`)
+      console.info(`E-Mail: Bestelleingang/Bestätigung gesendet (${order.orderId}).`)
     }
 
     return sent
   } catch (error) {
     console.error(
-      `E-Mail: Bestellbestätigung fehlgeschlagen (${order.orderId}).`,
+      `E-Mail: Bestelleingang/Bestätigung fehlgeschlagen (${order.orderId}).`,
       error
     )
     return false

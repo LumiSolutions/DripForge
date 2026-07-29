@@ -29,12 +29,17 @@ export function resolveShippingLabel(order: StoredOrder): string {
 
 export function resolvePaymentStatusLabel(order: StoredOrder): string {
   if (order.status === "storniert") return "Storniert"
+  // Vorkasse: Rechnung (neu) & pending TWINT — Status klar als wartend ausweisen
+  if (order.paymentMethod === "invoice" && order.status === "ausstehend") {
+    return "Wartet auf Zahlungseingang (Vorkasse)"
+  }
+  if (order.paymentMethod === "twint" && !order.paymentConfirmed) {
+    return "Wartet auf TWINT-Zahlung"
+  }
   if (order.paymentConfirmed) {
-    // Stripe Checkout (Karte / TWINT) — gleiche Templates wie Rechnung, klarer Status
     if (order.stripeSessionId) return "Bezahlt (Stripe)"
     return "Bezahlt / bestätigt"
   }
-  if (order.paymentMethod === "twint") return "Wartet auf TWINT-Zahlung"
   if (order.paymentMethod === "invoice") return "Rechnung — Zahlung ausstehend"
   return "Zahlung ausstehend"
 }
