@@ -121,7 +121,9 @@ STRIPE_WEBHOOK_SECRET=whsec_...
 NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...
 ```
 
-Webhook-URL (Live): `https://dripforge.ch/api/stripe/webhook` — Event: `checkout.session.completed`.
+Webhook-URL (Live): `https://dripforge.ch/api/webhooks/stripe` — Event: `checkout.session.completed`.
+
+Success/Cancel: `/bestellung/erfolg` bzw. `/bestellung/abgebrochen`.
 
 ---
 

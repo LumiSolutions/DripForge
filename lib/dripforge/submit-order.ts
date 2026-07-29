@@ -109,41 +109,19 @@ export async function startStripeCheckout(
 export async function startTwintCheckout(
   payload: OrderPayload
 ): Promise<TwintCheckoutResult> {
-  try {
-    const response = await fetch("/api/checkout/twint", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify(payload),
-    })
-
-    const data = (await response.json()) as {
-      url?: string
-      gatewayHash?: string
-      orderId?: string
-      pointsOnly?: boolean
-      error?: string
-    }
-
-    if (!response.ok || !data.url) {
-      return {
-        ok: false,
-        error: data.error ?? "TWINT-Checkout konnte nicht gestartet werden.",
-      }
-    }
-
-    return {
-      ok: true,
-      url: data.url,
-      gatewayHash: data.gatewayHash ?? "",
-      orderId: data.orderId ?? "",
-    }
-  } catch (error) {
-    console.error("TWINT Checkout: Netzwerkfehler.", error)
-    return {
-      ok: false,
-      error: "Verbindungsfehler. Bitte später erneut versuchen.",
-    }
+  // TWINT läuft über Stripe Checkout (gleiche Session-API)
+  const result = await startStripeCheckout({
+    ...payload,
+    paymentMethod: "twint",
+  })
+  if (!result.ok) {
+    return { ok: false, error: result.error }
+  }
+  return {
+    ok: true,
+    url: result.url,
+    gatewayHash: result.sessionId,
+    orderId: result.orderId,
   }
 }
 

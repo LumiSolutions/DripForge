@@ -11,6 +11,9 @@ import { getSiteOrigin, getStripe, isStripeConfigured } from "@/lib/stripe/clien
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 
+/**
+ * Treuepunkte-Kauf via Stripe Checkout (Karte und/oder TWINT).
+ */
 export async function POST(request: Request) {
   if (!isStripeConfigured()) {
     return NextResponse.json(
@@ -31,14 +34,12 @@ export async function POST(request: Request) {
     }
 
     const body = (await request.json()) as PointsPurchaseRequest
-    if (body.paymentMethod !== "card") {
-      return NextResponse.json(
-        { error: "Diese Route ist nur für Kartenzahlung vorgesehen." },
-        { status: 400 }
-      )
-    }
+    const method = body.paymentMethod === "twint" ? "twint" : "card"
 
-    const purchase = await resolvePointsPurchaseFromRequest(request, body)
+    const purchase = await resolvePointsPurchaseFromRequest(request, {
+      ...body,
+      paymentMethod: method,
+    })
     const totalCents = Math.round(purchase.amountChf * 100)
     if (totalCents < 50) {
       return NextResponse.json(
@@ -51,7 +52,7 @@ export async function POST(request: Request) {
     const stripe = getStripe()
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
-      payment_method_types: ["card"],
+      payment_method_types: method === "twint" ? ["twint"] : ["card", "twint"],
       customer_email: purchase.email,
       line_items: [
         {
@@ -72,6 +73,7 @@ export async function POST(request: Request) {
         userId: purchase.email,
         points: String(purchase.points),
         amountChf: purchase.amountChf.toFixed(2),
+        paymentMethod: method,
       },
       success_url: `${origin}/konto/punkte?purchase_success=1`,
       cancel_url: `${origin}/konto/punkte?canceled=1`,

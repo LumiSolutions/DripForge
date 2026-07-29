@@ -1,6 +1,6 @@
 import { resolveSiteOrigin } from "@/lib/site/site-origin"
 
-/** Stripe Checkout Redirect-URLs (Produktion: dripforge.ch / www). */
+/** Stripe Checkout Redirect-URLs nach erfolgreicher / abgebrochener Zahlung. */
 export function getStripeCheckoutUrls(): {
   successUrl: string
   cancelUrl: string
@@ -8,7 +8,7 @@ export function getStripeCheckoutUrls(): {
   const base = resolveSiteOrigin()
 
   return {
-    successUrl: `${base}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
-    cancelUrl: `${base}/checkout/cancelled`,
+    successUrl: `${base}/bestellung/erfolg?session_id={CHECKOUT_SESSION_ID}`,
+    cancelUrl: `${base}/bestellung/abgebrochen`,
   }
 }

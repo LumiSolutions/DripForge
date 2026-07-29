@@ -61,7 +61,7 @@ export function getTwintPaymentDescription(
     return "Sicher bezahlen per TWINT-App via Stripe Checkout"
   }
   return config.twintGatewayAktiv
-    ? "Sicher bezahlen via TWINT (Payrexx QR-Code)"
+    ? "TWINT via Stripe (Gateway noch nicht konfiguriert — bitte Stripe-Keys setzen)"
     : "Manuelle Überweisung an unsere TWINT-Nummer"
 }
 

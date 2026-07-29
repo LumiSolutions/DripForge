@@ -2,23 +2,20 @@ import { NextResponse } from "next/server"
 import { getSettings } from "@/lib/admin/db"
 import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
 import { normalizeEnableRewardPointsSystem } from "@/lib/dripforge/reward-points-settings"
-import { getAccountByEmail } from "@/lib/konto/account-db"
-import { createTwintGateway, isPayrexxConfigured } from "@/lib/payrexx/client"
 import {
   resolvePointsPurchaseFromRequest,
-  fulfillPointsPurchase,
   type PointsPurchaseRequest,
 } from "@/lib/shop/points-purchase"
-import { savePendingPointsPurchase } from "@/lib/shop/points-purchase-store"
-import { getSiteOrigin } from "@/lib/stripe/client"
+import { getSiteOrigin, getStripe, isStripeConfigured } from "@/lib/stripe/client"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 
+/** Treuepunkte via Stripe Checkout mit TWINT. */
 export async function POST(request: Request) {
-  if (!isPayrexxConfigured()) {
+  if (!isStripeConfigured()) {
     return NextResponse.json(
-      { error: "Payrexx/TWINT ist noch nicht konfiguriert." },
+      { error: "Stripe ist noch nicht konfiguriert." },
       { status: 503 }
     )
   }
@@ -35,65 +32,69 @@ export async function POST(request: Request) {
     }
 
     const body = (await request.json()) as PointsPurchaseRequest
-    if (body.paymentMethod !== "twint") {
-      return NextResponse.json(
-        { error: "Diese Route ist nur für TWINT vorgesehen." },
-        { status: 400 }
-      )
-    }
-
-    const purchase = await resolvePointsPurchaseFromRequest(request, body)
-    const account = await getAccountByEmail(purchase.email)
-    if (!account) {
-      return NextResponse.json({ error: "Konto nicht gefunden." }, { status: 404 })
-    }
+    const purchase = await resolvePointsPurchaseFromRequest(request, {
+      ...body,
+      paymentMethod: "twint",
+    })
 
     const totalCents = Math.round(purchase.amountChf * 100)
     if (totalCents < 50) {
       return NextResponse.json(
-        { error: "Mindestbetrag für TWINT ist 0.50 CHF." },
+        { error: "Mindestbetrag für Stripe Checkout ist 0.50 CHF." },
         { status: 400 }
       )
     }
 
     const origin = getSiteOrigin(request)
-    const gateway = await createTwintGateway({
-      amountCents: totalCents,
-      orderId: purchase.purchaseId,
-      purpose: `DripForge Punkte: ${purchase.label}`,
-      successRedirectUrl: `${origin}/konto/punkte?purchase_success=1`,
-      failedRedirectUrl: `${origin}/konto/punkte?payment_failed=1`,
-      cancelRedirectUrl: `${origin}/konto/punkte?canceled=1`,
-      customer: {
-        firstName: account.firstName,
-        lastName: account.lastName,
-        email: purchase.email,
-        phone: account.phone ?? "",
-        street: account.street ?? "",
-        zip: account.zip ?? "",
-        city: account.city ?? "",
-        country: "Schweiz",
+    const stripe = getStripe()
+    const session = await stripe.checkout.sessions.create({
+      mode: "payment",
+      payment_method_types: ["twint"],
+      customer_email: purchase.email,
+      line_items: [
+        {
+          quantity: 1,
+          price_data: {
+            currency: "chf",
+            unit_amount: totalCents,
+            product_data: {
+              name: "DripForge Treuepunkte",
+              description: purchase.label,
+            },
+          },
+        },
+      ],
+      metadata: {
+        purpose: "points-purchase",
+        purchaseId: purchase.purchaseId,
+        userId: purchase.email,
+        points: String(purchase.points),
+        amountChf: purchase.amountChf.toFixed(2),
+        paymentMethod: "twint",
       },
+      success_url: `${origin}/konto/punkte?purchase_success=1`,
+      cancel_url: `${origin}/konto/punkte?canceled=1`,
     })
 
-    await savePendingPointsPurchase({
-      purchaseId: purchase.purchaseId,
-      email: purchase.email,
-      points: purchase.points,
-      amountChf: purchase.amountChf,
-      createdAt: new Date().toISOString(),
-    })
+    if (!session.url) {
+      return NextResponse.json(
+        { error: "Stripe Checkout konnte nicht erstellt werden." },
+        { status: 500 }
+      )
+    }
 
     return NextResponse.json({
-      url: gateway.link,
-      gatewayHash: gateway.hash,
+      url: session.url,
+      sessionId: session.id,
       purchaseId: purchase.purchaseId,
       points: purchase.points,
     })
   } catch (error) {
-    console.error("Punkte-Checkout (TWINT): Fehler.", error)
+    console.error("Punkte-Checkout (TWINT/Stripe): Fehler.", error)
     const message =
-      error instanceof Error ? error.message : "TWINT-Checkout konnte nicht gestartet werden."
+      error instanceof Error
+        ? error.message
+        : "TWINT-Checkout konnte nicht gestartet werden."
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }
