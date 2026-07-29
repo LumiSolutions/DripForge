@@ -135,16 +135,66 @@ function TwintPayPanel({
 
 function BestellungErfolgInner() {
   const searchParams = useSearchParams()
-  const { setCart } = useCart()
+  const { clearCart } = useCart()
   const sessionId = searchParams.get("session_id")
   const orderId = searchParams.get("order_id")
   const method = searchParams.get("method")
   const amount = searchParams.get("amount")
   const isTwintPending = method === "twint" && Boolean(orderId)
 
+  // Warenkorb sofort leeren (localStorage + React-State + Konto-Sync)
   useEffect(() => {
-    setCart([])
-  }, [setCart])
+    void clearCart()
+  }, [clearCart])
+
+  // Fallback: Stripe-Session fulfill + E-Mails, falls Webhook verzögert/geblockt
+  useEffect(() => {
+    if (!sessionId || isTwintPending) return
+
+    const guardKey = `stripeConfirm:${sessionId}`
+    try {
+      if (sessionStorage.getItem(guardKey) === "done") return
+      sessionStorage.setItem(guardKey, "pending")
+    } catch {
+      /* ignore */
+    }
+
+    let cancelled = false
+    void (async () => {
+      try {
+        const res = await fetch("/api/checkout/confirm-session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionId }),
+        })
+        const data = (await res.json()) as {
+          ok?: boolean
+          orderId?: string
+          emails?: { sent?: boolean; skipped?: boolean }
+          error?: string
+        }
+        if (!cancelled) {
+          console.info("[Erfolg] Stripe confirm-session", data)
+          try {
+            sessionStorage.setItem(guardKey, "done")
+          } catch {
+            /* ignore */
+          }
+        }
+      } catch (error) {
+        console.error("[Erfolg] Stripe confirm-session fehlgeschlagen.", error)
+        try {
+          sessionStorage.removeItem(guardKey)
+        } catch {
+          /* ignore */
+        }
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [sessionId, isTwintPending])
 
   return (
     <div className="mx-auto max-w-lg px-4 py-20 text-center">

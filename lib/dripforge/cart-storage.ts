@@ -22,3 +22,21 @@ export function writeClientCart(items: CartItem[]): void {
     console.warn("Warenkorb: Speichern in localStorage fehlgeschlagen.")
   }
 }
+
+/** Sofort leeren (State + Storage) — z. B. nach Stripe-Erfolg. */
+export function clearClientCart(): void {
+  if (typeof window === "undefined") return
+  try {
+    localStorage.setItem(CART_STORAGE_KEY, "[]")
+    localStorage.removeItem(CART_STORAGE_KEY)
+    // Danach leeres Array setzen, damit Hydration/Persist konsistent bleibt
+    localStorage.setItem(CART_STORAGE_KEY, "[]")
+  } catch {
+    console.warn("Warenkorb: Leeren in localStorage fehlgeschlagen.")
+  }
+  try {
+    sessionStorage.removeItem(CART_STORAGE_KEY)
+  } catch {
+    /* optional */
+  }
+}

@@ -1,14 +1,9 @@
 import { NextResponse } from "next/server"
-import Stripe from "stripe"
-import { getOrderById, getSettings } from "@/lib/admin/db"
-import type { StoredOrder } from "@/lib/admin/types"
+import type Stripe from "stripe"
 import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
-import {
-  fulfillPaidShopOrder,
-  sendInboundOrderEmailsSafe,
-} from "@/lib/shop/order-processing"
 import { fulfillPointsPurchase } from "@/lib/shop/points-purchase"
 import { getStripe, isStripeConfigured } from "@/lib/stripe/client"
+import { fulfillShopOrderFromStripeSession } from "@/lib/stripe/fulfill-shop-session"
 import {
   cosmosGetProjectSupporterBySessionId,
   cosmosSaveProjectSupporter,
@@ -21,54 +16,6 @@ import {
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
-
-function resolveStripeCustomerEmail(
-  session: Stripe.Checkout.Session
-): string | null {
-  const raw =
-    session.customer_details?.email?.trim() ||
-    session.customer_email?.trim() ||
-    session.metadata?.customerEmail?.trim() ||
-    ""
-  return raw ? raw.toLowerCase() : null
-}
-
-/**
- * Dieselben Eingangsmails wie bei «Kauf auf Rechnung»:
- * Kunden-Bestätigung + Admin-Bestelleingang über SMTP (nicht Stripe).
- */
-async function sendShopOrderEmailsAfterStripe(
-  orderId: string,
-  session: Stripe.Checkout.Session,
-  customerEmail: string | null
-): Promise<void> {
-  const settings = await getSettings()
-  const order = await getOrderById(orderId)
-  if (!order) {
-    console.error(
-      `Stripe Webhook: Bestellung ${orderId} für E-Mail-Versand nicht gefunden.`
-    )
-    return
-  }
-
-  const orderForEmail: StoredOrder = {
-    ...order,
-    paymentConfirmed: true,
-    stripeSessionId: order.stripeSessionId || session.id,
-    billing: {
-      ...order.billing,
-      email: customerEmail || order.billing.email,
-    },
-  }
-
-  console.log("[Stripe Webhook] Starte SMTP-Eingangsmails (wie Auf Rechnung)", {
-    orderId,
-    customerEmail: orderForEmail.billing.email,
-    stripeSessionId: session.id,
-  })
-
-  await sendInboundOrderEmailsSafe(orderForEmail, settings)
-}
 
 async function persistCompletedCheckoutSession(
   session: Stripe.Checkout.Session
@@ -156,47 +103,38 @@ export async function POST(request: Request) {
   try {
     await warmCosmosInfrastructure()
 
-    if (event.type === "checkout.session.completed") {
+    if (
+      event.type === "checkout.session.completed" ||
+      event.type === "payment_intent.succeeded"
+    ) {
+      if (event.type === "payment_intent.succeeded") {
+        // Shop-Orders werden über checkout.session.completed abgewickelt.
+        // payment_intent.succeeded nur loggen — Session-Fulfillment hat metadata.purpose.
+        console.info("Stripe Webhook: payment_intent.succeeded empfangen.", {
+          paymentIntentId: (event.data.object as Stripe.PaymentIntent).id,
+        })
+        return NextResponse.json({ received: true })
+      }
+
       const session = event.data.object as Stripe.Checkout.Session
       const purpose = session.metadata?.purpose
 
       if (purpose === "support-journey") {
         await persistCompletedCheckoutSession(session)
       } else if (purpose === "shop-order") {
-        const orderId = session.metadata?.orderId?.trim()
-        if (orderId) {
-          const amountCents = session.amount_total ?? 0
-          const totalChf =
-            amountCents > 0
-              ? Math.round(amountCents) / 100
-              : Number(session.metadata?.totalChf ?? 0)
-          const customerEmail = resolveStripeCustomerEmail(session)
-
-          await fulfillPaidShopOrder(orderId, {
-            stripeSessionId: session.id,
-            userId:
-              session.metadata?.accountEmail?.trim() ||
-              session.metadata?.userId?.trim() ||
-              null,
-            totalChf,
-            customerEmail,
-            // Mails explizit im Webhook (try/catch), gleiche Funktionen wie Rechnung
-            skipInboundEmails: true,
+        const result = await fulfillShopOrderFromStripeSession(session)
+        if (!result.ok) {
+          console.error("Stripe Webhook: Shop-Fulfillment fehlgeschlagen.", {
+            sessionId: session.id,
+            error: result.error,
+            orderId: result.orderId,
           })
-
-          try {
-            await sendShopOrderEmailsAfterStripe(orderId, session, customerEmail)
-          } catch (emailError) {
-            console.error(
-              "Stripe Webhook: SMTP-Versand fehlgeschlagen.",
-              emailError
-            )
-          }
         } else {
-          console.error(
-            "Stripe Webhook: shop-order ohne metadata.orderId — keine E-Mails.",
-            { sessionId: session.id }
-          )
+          console.info("Stripe Webhook: Shop-Order verarbeitet.", {
+            orderId: result.orderId,
+            fulfilled: result.fulfilled,
+            emails: result.emails,
+          })
         }
       } else if (purpose === "points-purchase") {
         const purchaseId = session.metadata?.purchaseId?.trim()

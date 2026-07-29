@@ -177,7 +177,7 @@ export function PageCheckout({
   cart: CartItem[]
   onOrderComplete?: (orderId: string) => void
 }) {
-  const { applyMergedCart } = useCart()
+  const { applyMergedCart, clearCart } = useCart()
   const [checkoutConfig, setCheckoutConfig] = useState<CheckoutRuntimeConfig>(
     DEFAULT_CHECKOUT_RUNTIME_CONFIG
   )
@@ -635,6 +635,8 @@ export function PageCheckout({
         setSubmitError(stripeResult.error)
         return
       }
+      // Warenkorb vor Stripe-Redirect leeren (Erfolgsseite als Fallback zusätzlich)
+      await clearCart()
       window.location.href = stripeResult.url
       return
     }
