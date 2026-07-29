@@ -29,15 +29,37 @@ type CartContextValue = {
 
 const CartContext = createContext<CartContextValue | null>(null)
 
+async function putAccountCart(items: CartItem[]): Promise<void> {
+  try {
+    const meRes = await fetch("/api/konto/me", { cache: "no-store" })
+    if (!meRes.ok) return
+    await fetch("/api/konto/cart", {
+      method: "PUT",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items }),
+    })
+  } catch {
+    console.warn("Warenkorb: Server-Sync fehlgeschlagen.")
+  }
+}
+
 export function CartProvider({ children }: { children: ReactNode }) {
   const [cart, setCart] = useState<CartItem[]>([])
   const [hydrated, setHydrated] = useState(false)
   const syncTimerRef = useRef<number | null>(null)
+  const cartRef = useRef<CartItem[]>([])
 
   useEffect(() => {
-    setCart(readClientCart())
+    const initial = readClientCart()
+    cartRef.current = initial
+    setCart(initial)
     setHydrated(true)
   }, [])
+
+  useEffect(() => {
+    cartRef.current = cart
+  }, [cart])
 
   useEffect(() => {
     if (!hydrated) return
@@ -52,36 +74,22 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setCart(items)
   }, [])
 
+  /** Stabil — kein Dependency auf `cart`, sonst Re-Render-Loops. */
   const syncCartToAccount = useCallback(async (items?: CartItem[]) => {
-    const payload = items ?? cart
-    try {
-      await fetch("/api/konto/cart", {
-        method: "PUT",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items: payload }),
-      })
-    } catch {
-      console.warn("Warenkorb: Server-Sync fehlgeschlagen.")
-    }
-  }, [cart])
+    await putAccountCart(items ?? cartRef.current)
+  }, [])
 
+  /** Stabil — darf in useEffect([]) ohne Loop aufgerufen werden. */
   const clearCart = useCallback(async () => {
     if (syncTimerRef.current) {
       window.clearTimeout(syncTimerRef.current)
       syncTimerRef.current = null
     }
     clearClientCart()
+    cartRef.current = []
     setCart([])
-    try {
-      const meRes = await fetch("/api/konto/me", { cache: "no-store" })
-      if (meRes.ok) {
-        await syncCartToAccount([])
-      }
-    } catch {
-      /* Gast oder offline */
-    }
-  }, [syncCartToAccount])
+    await putAccountCart([])
+  }, [])
 
   useEffect(() => {
     if (!hydrated || cart.length === 0) return
@@ -91,15 +99,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
 
     syncTimerRef.current = window.setTimeout(() => {
-      void (async () => {
-        try {
-          const meRes = await fetch("/api/konto/me", { cache: "no-store" })
-          if (!meRes.ok) return
-          await syncCartToAccount(cart)
-        } catch {
-          /* Gast oder offline */
-        }
-      })()
+      void syncCartToAccount(cart)
     }, 1200)
 
     return () => {
