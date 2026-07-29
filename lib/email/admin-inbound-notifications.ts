@@ -168,7 +168,7 @@ async function sendAdminInboundEmail(options: {
     })
 
     const sent = await sendSmtpMail({
-      from: resolveSmtpFrom(branding.companyName, branding.contactEmail),
+      from: resolveSmtpFrom("DripForge", "shop@dripforge.ch"),
       to,
       subject: options.subject,
       text: plain,
@@ -179,11 +179,18 @@ async function sendAdminInboundEmail(options: {
       console.info(
         `E-Mail: Admin-Benachrichtigung gesendet (${options.referenceId} → ${to}).`
       )
+    } else {
+      console.error(
+        "SMTP Admin Mail Error:",
+        new Error(
+          `sendSmtpMail returned false (${options.referenceId} → ${to})`
+        )
+      )
     }
 
     return sent
   } catch (error) {
-    console.error("SMTP Mail Error:", error)
+    console.error("SMTP Admin Mail Error:", error)
     console.error(
       `E-Mail: Admin-Benachrichtigung fehlgeschlagen (${options.referenceId}).`,
       error
@@ -228,7 +235,7 @@ export async function notifyAdminNewOrder(
   return sendAdminInboundEmail({
     referenceId: order.orderId,
     title: "Neue Bestellung",
-    subject: "Neue Bestellung eingegangen",
+    subject: `🚨 Neue Anfrage/Bestellung eingegangen! #${order.orderId}`,
     plainBody,
     dashboardUrl,
     settings,

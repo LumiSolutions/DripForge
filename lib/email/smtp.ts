@@ -89,25 +89,43 @@ function resolveFromHeader(user: string, fromEnv: string): string {
 /**
  * SMTP: Hostpoint asmtp.mail.hostpoint.ch (Default),
  * Credentials nur aus ENV (SMTP_USER / SMTP_PASS).
- * Port 465 → secure:true | Port 587 → STARTTLS (secure:false).
+ * Port 465 → secure:true (zwingend bei Hostpoint SSL).
+ * Port 587 nur wenn explizit gesetzt → STARTTLS (secure:false).
  */
 function resolveSmtpSettings(): SmtpRuntimeConfig {
   const user = cleanEnv(process.env.SMTP_USER)
   const pass = cleanEnv(process.env.SMTP_PASS)
-  const host = normalizeSmtpHost(cleanEnv(process.env.SMTP_HOST) || DEFAULT_SMTP_HOST)
+  const host = normalizeSmtpHost(
+    cleanEnv(process.env.SMTP_HOST) || DEFAULT_SMTP_HOST
+  )
   const portRaw = cleanEnv(process.env.SMTP_PORT)
-  const port = portRaw ? Number(portRaw) : 465
+  let resolvedPort = portRaw ? Number(portRaw) : 465
+  if (!Number.isFinite(resolvedPort) || resolvedPort <= 0) {
+    resolvedPort = 465
+  }
+
+  // Port 587 in Azure ist ein häufiger Fehlkonfig — Hostpoint SSL = 465
+  if (resolvedPort === 587 && cleanEnv(process.env.SMTP_FORCE_587) !== "true") {
+    console.warn(
+      "[SMTP] Port 587 erkannt → erzwinge 465/SSL (Hostpoint). Setze SMTP_FORCE_587=true um 587 zu behalten."
+    )
+    resolvedPort = 465
+  }
+
   const secureEnv = cleanEnv(process.env.SMTP_SECURE).toLowerCase()
-  const resolvedPort = Number.isFinite(port) ? port : 465
-  // 465 → SSL (secure:true) | 587 → STARTTLS (secure:false, requireTLS)
+  // Port 465: secure immer true. Sonst ENV, Default true für Hostpoint.
   const secure =
-    secureEnv === "false" || secureEnv === "0"
-      ? false
-      : secureEnv === "true" || secureEnv === "1"
-        ? true
-        : resolvedPort === 465
+    resolvedPort === 465
+      ? true
+      : secureEnv === "false" || secureEnv === "0"
+        ? false
+        : secureEnv === "true" || secureEnv === "1"
+          ? true
+          : true
+
+  // Absender fest an Hostpoint-Mailbox koppeln
   const fromEnv = cleanEnv(process.env.EMAIL_FROM)
-  const from = resolveFromHeader(user, fromEnv)
+  const from = resolveFromHeader(user || DEFAULT_HOSTPOINT_FROM_EMAIL, fromEnv)
 
   return {
     host,
@@ -203,8 +221,8 @@ export function buildSmtpTransporter() {
       user: config.user,
       pass: config.pass,
     },
-    connectionTimeout: 15_000,
-    greetingTimeout: 15_000,
+    connectionTimeout: 10_000,
+    greetingTimeout: 10_000,
     socketTimeout: 30_000,
     tls: {
       // Hostpoint manchmal mit Zwischenzertifikaten — Versand priorisieren

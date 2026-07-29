@@ -170,10 +170,10 @@ export async function notifyOrderReceived(
     const prepaid = isPrepaidOrderAwaitingPayment(order)
     const accountUrl = `${resolveSiteOrigin()}/konto/bestellungen`
 
-    // Einheitliche Betreffzeilen (Stripe / bezahlt) — Vorkasse behält Klarstellung
+    // Einheitliche Betreffzeilen — Kundenmail
     const subject = prepaid
-      ? `Bestelleingang: Deine Bestellung ${order.orderId} bei DripForge (Wartet auf Zahlungseingang)`
-      : "Vielen Dank für Ihre Bestellung bei DripForge"
+      ? `Deine Bestellung ${order.orderId} ist eingegangen (Wartet auf Zahlungseingang)`
+      : `Deine Bestellung ${order.orderId} ist in Bearbeitung`
 
     const twintHint = buildTwintPaymentHint(order)
     const invoiceHint = buildInvoiceBankHint(order, {
@@ -237,7 +237,7 @@ export async function notifyOrderReceived(
     })
 
     const sent = await sendSmtpMail({
-      from: resolveSmtpFrom(branding.companyName, branding.contactEmail),
+      from: resolveSmtpFrom("DripForge", "shop@dripforge.ch"),
       to: order.billing.email,
       subject,
       text: plain,
@@ -247,11 +247,16 @@ export async function notifyOrderReceived(
     if (sent) {
       await markEmailSent(order.orderId, "receivedAt")
       console.info(`E-Mail: Bestelleingang/Bestätigung gesendet (${order.orderId}).`)
+    } else {
+      console.error(
+        "SMTP Customer Mail Error:",
+        new Error(`sendSmtpMail returned false (${order.orderId} → ${order.billing.email})`)
+      )
     }
 
     return sent
   } catch (error) {
-    console.error("SMTP Mail Error:", error)
+    console.error("SMTP Customer Mail Error:", error)
     console.error(
       `E-Mail: Bestelleingang/Bestätigung fehlgeschlagen (${order.orderId}).`,
       error

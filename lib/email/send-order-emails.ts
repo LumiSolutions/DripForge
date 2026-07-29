@@ -16,89 +16,100 @@ export type SendOrderEmailsResult = {
 }
 
 /**
- * Sendet sofort zwei E-Mails per Hostpoint SMTP:
- * 1) Kundenmail (Bestelleingang / Vorkasse-Hinweis)
- * 2) Admin-Benachrichtigung an shop@dripforge.ch
+ * Sendet sofort zwei E-Mails per Hostpoint SMTP (parallel, getrennt fehlertolerant):
+ * 1) Kundenmail
+ * 2) Admin-Benachrichtigung
  *
- * Fehler werden geloggt — die Bestellung bleibt trotzdem gespeichert.
+ * Scheitert eine Mail (z. B. PDF/Anhang), wird die andere trotzdem versucht.
  */
 export async function sendOrderEmails(
   order: StoredOrder,
   settings?: AdminSettings
 ): Promise<SendOrderEmailsResult> {
-  try {
-    const smtpDiag = isSmtpConfigured() ? getSmtpDiagnostics() : null
+  const smtpDiag = isSmtpConfigured() ? getSmtpDiagnostics() : null
 
-    console.log("[OrderEmail] Starte sendOrderEmails", {
-      orderId: order.orderId,
-      paymentMethod: order.paymentMethod,
-      paymentConfirmed: Boolean(order.paymentConfirmed),
-      customerEmail: order.billing.email,
-      paymentStatus: resolvePaymentStatusLabel(order),
-      smtpConfigured: Boolean(smtpDiag),
-      smtpHost: smtpDiag?.host ?? "(nicht konfiguriert)",
-      smtpPort: smtpDiag?.port ?? null,
-      smtpSecure: smtpDiag?.secure ?? null,
-      smtpFrom: smtpDiag?.from ?? null,
-      smtpUser: smtpDiag?.configuredUser ?? null,
-    })
+  console.log("[OrderEmail] Starte sendOrderEmails", {
+    orderId: order.orderId,
+    paymentMethod: order.paymentMethod,
+    paymentConfirmed: Boolean(order.paymentConfirmed),
+    customerEmail: order.billing.email,
+    paymentStatus: resolvePaymentStatusLabel(order),
+    smtpConfigured: Boolean(smtpDiag),
+    smtpHost: smtpDiag?.host ?? "(nicht konfiguriert)",
+    smtpPort: smtpDiag?.port ?? null,
+    smtpSecure: smtpDiag?.secure ?? null,
+    smtpFrom: smtpDiag?.from ?? null,
+    smtpUser: smtpDiag?.configuredUser ?? null,
+  })
 
-    if (!isSmtpConfigured()) {
-      console.error(
-        "SMTP Mail Error:",
-        new Error(
-          `SMTP nicht konfiguriert (SMTP_USER/SMTP_PASS) — Versand übersprungen (${order.orderId}).`
-        )
+  if (!isSmtpConfigured()) {
+    console.error(
+      "SMTP Customer Mail Error:",
+      new Error(
+        `SMTP nicht konfiguriert (SMTP_USER/SMTP_PASS) — Versand übersprungen (${order.orderId}).`
       )
-      return { customerSent: false, adminSent: false }
-    }
-
-    const results = await Promise.allSettled([
-      notifyOrderReceived(order, settings),
-      notifyAdminNewOrder(order, settings),
-    ])
-
-    const customer =
-      results[0].status === "fulfilled" ? Boolean(results[0].value) : false
-    const admin =
-      results[1].status === "fulfilled" ? Boolean(results[1].value) : false
-
-    results.forEach((result, index) => {
-      const label = index === 0 ? "customer" : "admin"
-      if (result.status === "fulfilled") {
-        console.log(`[OrderEmail] ${label}: ok`, {
-          orderId: order.orderId,
-          sent: result.value,
-        })
-      } else {
-        console.error("SMTP Mail Error:", result.reason)
-        console.error(`[OrderEmail] ${label}: fehlgeschlagen`, {
-          orderId: order.orderId,
-          reason: result.reason,
-        })
-      }
-    })
-
-    if (!customer && !admin) {
-      console.error(
-        "SMTP Mail Error:",
-        new Error(
-          `Beide Bestell-Mails fehlgeschlagen oder übersprungen (${order.orderId}).`
-        )
+    )
+    console.error(
+      "SMTP Admin Mail Error:",
+      new Error(
+        `SMTP nicht konfiguriert (SMTP_USER/SMTP_PASS) — Versand übersprungen (${order.orderId}).`
       )
-    }
-
-    console.log("[OrderEmail] Versand abgeschlossen", {
-      orderId: order.orderId,
-      customerSent: customer,
-      adminSent: admin,
-    })
-
-    return { customerSent: customer, adminSent: admin }
-  } catch (error) {
-    console.error("SMTP Mail Error:", error)
+    )
     return { customerSent: false, adminSent: false }
   }
+
+  let customerSent = false
+  let adminSent = false
+
+  // Parallel, aber jeweils eigener try/catch — eine Seite darf die andere nie blockieren
+  const [customerResult, adminResult] = await Promise.all([
+    (async (): Promise<boolean> => {
+      try {
+        const sent = await notifyOrderReceived(order, settings)
+        console.log("[OrderEmail] customer: ok", {
+          orderId: order.orderId,
+          sent,
+        })
+        return Boolean(sent)
+      } catch (err) {
+        console.error("SMTP Customer Mail Error:", err)
+        return false
+      }
+    })(),
+    (async (): Promise<boolean> => {
+      try {
+        const sent = await notifyAdminNewOrder(order, settings)
+        console.log("[OrderEmail] admin: ok", {
+          orderId: order.orderId,
+          sent,
+        })
+        return Boolean(sent)
+      } catch (err) {
+        console.error("SMTP Admin Mail Error:", err)
+        return false
+      }
+    })(),
+  ])
+
+  customerSent = customerResult
+  adminSent = adminResult
+
+  if (!customerSent && !adminSent) {
+    console.error(
+      "SMTP Mail Error:",
+      new Error(
+        `Beide Bestell-Mails fehlgeschlagen oder übersprungen (${order.orderId}).`
+      )
+    )
+  }
+
+  console.log("[OrderEmail] Versand abgeschlossen", {
+    orderId: order.orderId,
+    customerSent,
+    adminSent,
+  })
+
+  return { customerSent, adminSent }
 }
 
 /** @deprecated Alias — bitte `sendOrderEmails` verwenden. */
