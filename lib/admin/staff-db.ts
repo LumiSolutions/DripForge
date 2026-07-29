@@ -6,7 +6,10 @@ import {
   withCosmosFallback,
   withCosmosRequired,
 } from "@/lib/admin/storage-bridge"
-import { getStaffPasswordFromEnv } from "@/lib/admin/staff-passwords"
+import {
+  getStaffPasswordFromEnv,
+  hasStaffPasswordInEnv,
+} from "@/lib/admin/staff-passwords"
 import {
   cosmosGetStaffById,
   cosmosUpsertStaff,
@@ -83,11 +86,18 @@ export async function ensureStaffAccount(role: StaffRole): Promise<StaffAccount>
   const existing = await getStaffById(role)
   if (existing) return existing
 
+  const envPassword = getStaffPasswordFromEnv(role)
+  if (!envPassword) {
+    throw new Error(
+      `Kein ${role}-Passwort in der Umgebung gesetzt. Setze ADMIN_PASSWORD bzw. TESTER_PASSWORD.`
+    )
+  }
+
   const now = new Date().toISOString()
   const account: StaffAccount = {
     id: role,
     role,
-    passwordHash: hashPassword(getStaffPasswordFromEnv(role)),
+    passwordHash: hashPassword(envPassword),
     totpSecretEncrypted: null,
     totpEnabled: false,
     createdAt: now,
@@ -101,10 +111,21 @@ export async function verifyStaffPassword(
   role: StaffRole,
   password: string
 ): Promise<StaffAccount | null> {
-  const account = await ensureStaffAccount(role)
+  if (!password) return null
+
+  const account = await getStaffById(role)
+  if (!account) {
+    if (!hasStaffPasswordInEnv(role)) return null
+    // Erstes Setup: Account aus ENV anlegen, dann erneut prüfen
+    const created = await ensureStaffAccount(role)
+    if (!verifyPassword(password, created.passwordHash)) return null
+    return created
+  }
+
   if (!verifyPassword(password, account.passwordHash)) {
     const envPassword = getStaffPasswordFromEnv(role)
-    if (password !== envPassword) return null
+    // ENV-Sync nur mit nicht-leerem Passwort (kein Empty-String-Login)
+    if (!envPassword || password !== envPassword) return null
 
     const updated = await saveStaff({
       ...account,

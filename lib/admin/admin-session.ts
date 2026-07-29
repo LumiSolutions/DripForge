@@ -5,6 +5,7 @@ import type {
   StaffAuthIntent,
   StaffRole,
 } from "@/lib/admin/staff-types"
+import { resolveSigningSecret } from "@/lib/security/env-secrets"
 
 export const ADMIN_SESSION_COOKIE = "dripforge_admin_session"
 export const ADMIN_PENDING_COOKIE = "dripforge_admin_pending"
@@ -12,10 +13,10 @@ export const ADMIN_SESSION_MAX_AGE_SEC = 60 * 60 * 8
 export const ADMIN_PENDING_MAX_AGE_SEC = 60 * 10
 
 function getSessionSecret(): string {
-  return (
-    process.env.ADMIN_SESSION_SECRET?.trim() ||
-    process.env.CUSTOMER_SESSION_SECRET?.trim() ||
-    "dripforge-dev-admin-session-change-me"
+  return resolveSigningSecret(
+    "Admin-Session-Secret",
+    "ADMIN_SESSION_SECRET",
+    "CUSTOMER_SESSION_SECRET"
   )
 }
 
