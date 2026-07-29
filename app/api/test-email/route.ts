@@ -11,19 +11,21 @@ export const runtime = "nodejs"
 
 const TEST_TO = "shop@dripforge.ch"
 
+/** Diagnose ohne Klartext-Passwort: host, port, secure, Längen. */
 function diagnosticPayload() {
   const d = getSmtpDiagnostics()
   return {
+    host: d.host,
+    port: d.port,
+    secure: d.secure,
     configuredUser: d.configuredUser,
     userLength: d.userLength,
     passLength: d.passLength,
-    host: d.host,
-    port: d.port,
   }
 }
 
 /**
- * Diagnose-Endpoint für Hostpoint SMTP.
+ * Diagnose-Endpoint für Hostpoint SMTP (Port 465 / SSL).
  * GET /api/test-email  und  POST /api/test-email
  * Sendet eine Test-E-Mail an shop@dripforge.ch.
  */
@@ -56,14 +58,9 @@ async function handleTestEmail() {
       )
     }
 
-    console.log("[test-email] Sende Test-Mail…", {
-      host: config.host,
-      port: config.port,
-      secure: config.secure,
-      user: config.user,
+    console.log("[test-email] Sende Test-Mail (465/SSL)…", {
+      ...diagnostics,
       from: config.from,
-      userLength: config.user.length,
-      passLength: config.pass.length,
       to: TEST_TO,
     })
 
@@ -88,6 +85,7 @@ async function handleTestEmail() {
     return NextResponse.json({
       success: true,
       messageId: info.messageId,
+      ...diagnostics,
     })
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error))

@@ -39,11 +39,6 @@ function loadEnvFile(filename) {
 loadEnvFile(".env.local")
 loadEnvFile(".env")
 
-function parseSecure() {
-  const raw = (process.env.SMTP_SECURE || "").trim().toLowerCase()
-  return raw === "true" || raw === "1" || raw === "yes"
-}
-
 function getConfig() {
   const host = (process.env.SMTP_HOST || "mail.hostpoint.ch").trim()
   const user = (process.env.SMTP_USER || "shop@dripforge.ch").trim()
@@ -53,9 +48,9 @@ function getConfig() {
       "SMTP nicht konfiguriert. Bitte SMTP_PASS in .env.local setzen."
     )
   }
-  const port = Number(process.env.SMTP_PORT) || 587
-  const secure = parseSecure()
-  // From muss dem SMTP-User entsprechen (Hostpoint 535)
+  // Hostpoint: Port 465 + SSL (secure: true) — 587 liefert 535
+  const port = Number(process.env.SMTP_PORT) || 465
+  const secure = true
   const from = `DripForge <${user}>`
   const admin =
     process.env.ADMIN_EMAIL?.trim() ||

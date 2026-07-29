@@ -256,7 +256,7 @@ export async function sendInboundOrderEmailsSafe(
     accountEmail: order.accountEmail ?? null,
     smtpConfigured: isSmtpConfigured(),
     smtpHost: process.env.SMTP_HOST?.trim() || "(default mail.hostpoint.ch)",
-    smtpPort: process.env.SMTP_PORT?.trim() || "(default 587)",
+    smtpPort: process.env.SMTP_PORT?.trim() || "(default 465)",
   })
 
   try {

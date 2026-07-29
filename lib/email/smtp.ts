@@ -13,7 +13,7 @@ export type SmtpRuntimeConfig = {
 
 /**
  * Trim + entferne versehentliche Anführungszeichen aus Azure-/ENV-Werten
- * (z. B. "shop@…" oder 'passwort' aus Portal-Copy/Paste).
+ * (z. B. "shop@…" oder 'passwort' / Newlines aus Portal-Copy/Paste).
  */
 function cleanEnv(value: string | undefined): string {
   const trimmed = (value || "").trim()
@@ -32,14 +32,6 @@ export function isSmtpConfigured(): boolean {
 }
 
 /**
- * Hostpoint-Standard: Port 587 + STARTTLS (secure: false).
- * Nur bei explizitem SMTP_SECURE=true (typisch Port 465) wird SSL erzwungen.
- */
-function parseSecureFlag(): boolean {
-  return cleanEnv(process.env.SMTP_SECURE) === "true"
-}
-
-/**
  * Sichere Diagnose-Infos (ohne Klartext-Passwort) — für /api/test-email.
  */
 export function getSmtpDiagnostics(): {
@@ -48,47 +40,42 @@ export function getSmtpDiagnostics(): {
   passLength: number
   host: string
   port: number
-  from: string
   secure: boolean
+  from: string
   passConfigured: boolean
 } {
+  const config = resolveSmtpSettings()
+  return {
+    configuredUser: config.user,
+    userLength: config.user.length,
+    passLength: config.pass.length,
+    host: config.host,
+    port: config.port,
+    secure: config.secure,
+    from: config.from,
+    passConfigured: Boolean(config.pass),
+  }
+}
+
+/**
+ * Hostpoint: Port 465 + SSL (secure: true).
+ * Port 587 STARTTLS wird von Hostpoint mit 535 abgelehnt.
+ */
+function resolveSmtpSettings(): SmtpRuntimeConfig {
   const user = cleanEnv(process.env.SMTP_USER) || "shop@dripforge.ch"
   const pass = cleanEnv(process.env.SMTP_PASS)
   const host = cleanEnv(process.env.SMTP_HOST) || "mail.hostpoint.ch"
-  const port = Number(cleanEnv(process.env.SMTP_PORT)) || 587
-  return {
-    configuredUser: user,
-    userLength: user.length,
-    passLength: pass.length,
-    host,
-    port,
-    from: `DripForge <${user}>`,
-    secure: parseSecureFlag(),
-    passConfigured: Boolean(pass),
-  }
+  const port = Number(cleanEnv(process.env.SMTP_PORT)) || 465
+  // Port 465 erfordert explizites SSL; fest auf true (Hostpoint)
+  const secure = true
+  const from = `DripForge <${user}>`
+
+  return { host, port, secure, user, pass, from }
 }
 
 export function getSmtpRuntimeConfig(): SmtpRuntimeConfig | null {
   if (!isSmtpConfigured()) return null
-
-  // Spec: trim aller ENV-Werte — verhindert 535 durch Leerzeichen / Quotes
-  const user = cleanEnv(process.env.SMTP_USER) || "shop@dripforge.ch"
-  const pass = cleanEnv(process.env.SMTP_PASS)
-  const host = cleanEnv(process.env.SMTP_HOST) || "mail.hostpoint.ch"
-  const port = Number(cleanEnv(process.env.SMTP_PORT)) || 587
-  const secure = parseSecureFlag()
-
-  // Hostpoint verlangt: From-Adresse = authentifizierter SMTP-User
-  const from = `DripForge <${user}>`
-
-  return {
-    host,
-    port,
-    secure,
-    user,
-    pass,
-    from,
-  }
+  return resolveSmtpSettings()
 }
 
 function logSmtpConfig(config: SmtpRuntimeConfig, phase: string) {
@@ -96,9 +83,10 @@ function logSmtpConfig(config: SmtpRuntimeConfig, phase: string) {
     host: config.host,
     port: config.port,
     secure: config.secure,
-    starttls: !config.secure && config.port === 587,
+    ssl: config.secure && config.port === 465,
     user: config.user,
     from: config.from,
+    userLength: config.user.length,
     passConfigured: Boolean(config.pass),
     passLength: config.pass.length,
     passEndsWithDollar: config.pass.endsWith("$"),
@@ -121,32 +109,23 @@ export function buildSmtpTransporter() {
     return cachedTransporter
   }
 
-  logSmtpConfig(config, "Transporter wird erstellt (Hostpoint 587/STARTTLS)")
+  logSmtpConfig(config, "Transporter wird erstellt (Hostpoint 465/SSL)")
 
   const options: SMTPTransport.Options = {
     host: config.host,
     port: config.port,
-    // Port 587: secure false → STARTTLS; Port 465: SMTP_SECURE=true
-    secure: config.secure,
+    // Port 465: secure true → SSL von Anfang an
+    secure: true,
     auth: {
       user: config.user,
       pass: config.pass,
     },
-    // Timeouts: Requests hängen im Fehlerfall nicht endlos
     connectionTimeout: 10_000,
     greetingTimeout: 10_000,
     socketTimeout: 20_000,
     tls: {
-      // Für Port 587 (STARTTLS) und Azure/Hostpoint Zertifikate
       rejectUnauthorized: false,
-      servername: config.host,
-      minVersion: "TLSv1.2",
     },
-  }
-
-  if (!config.secure) {
-    options.requireTLS = true
-    console.log("[SMTP] STARTTLS aktiv (secure=false, requireTLS=true).")
   }
 
   cachedTransporter = nodemailer.createTransport(options)
@@ -289,7 +268,7 @@ export async function verifySmtpConnection(): Promise<{
   const config = getSmtpRuntimeConfig()
   if (!config) {
     throw new Error(
-      "SMTP nicht konfiguriert. Bitte SMTP_PASS setzen (Default: mail.hostpoint.ch:587 STARTTLS)."
+      "SMTP nicht konfiguriert. Bitte SMTP_PASS setzen (Default: mail.hostpoint.ch:465 SSL)."
     )
   }
 
