@@ -40,7 +40,17 @@ loadEnvFile(".env.local")
 loadEnvFile(".env")
 
 function getConfig() {
-  const host = (process.env.SMTP_HOST || "mail.hostpoint.ch").trim()
+  // Hostpoint Submission: asmtp.mail.hostpoint.ch (nicht mail.hostpoint.ch)
+  let host = (process.env.SMTP_HOST || "asmtp.mail.hostpoint.ch").trim()
+  const hostLower = host.toLowerCase()
+  if (
+    hostLower === "mail.hostpoint.ch" ||
+    hostLower === "smtp.hostpoint.ch" ||
+    hostLower === "smtp.mail.hostpoint.ch"
+  ) {
+    console.warn(`Host "${host}" → asmtp.mail.hostpoint.ch`)
+    host = "asmtp.mail.hostpoint.ch"
+  }
   const user = (process.env.SMTP_USER || "shop@dripforge.ch").trim()
   const pass = (process.env.SMTP_PASS || "").trim()
   if (!pass) {
@@ -48,10 +58,19 @@ function getConfig() {
       "SMTP nicht konfiguriert. Bitte SMTP_PASS in .env.local setzen."
     )
   }
-  // Hostpoint: Port 465 + SSL (secure: true) — 587 liefert 535
+  // Hostpoint: Port 465 + SSL (secure: true) — alternativ 587 + STARTTLS
   const port = Number(process.env.SMTP_PORT) || 465
-  const secure = true
-  const from = `DripForge <${user}>`
+  const secureEnv = (process.env.SMTP_SECURE || "").trim().toLowerCase()
+  const secure =
+    secureEnv === "false" || secureEnv === "0"
+      ? false
+      : secureEnv === "true" || secureEnv === "1"
+        ? true
+        : port === 465
+  const fromEnv = (process.env.EMAIL_FROM || "").trim()
+  const from =
+    fromEnv ||
+    `DripForge <${user}>`
   const admin =
     process.env.ADMIN_EMAIL?.trim() ||
     process.env.ADMIN_NOTIFY_EMAIL?.trim() ||

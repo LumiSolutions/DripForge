@@ -160,18 +160,19 @@ export async function POST(request: Request) {
     // E-Mails NACH DB-Save — awaited (SWA killt sonst fire-and-forget).
     // Fehler dürfen den Checkout-Erfolg nicht ungültig machen.
     try {
-      console.log("[Bestell-API] Starte sendOrderConfirmation (await)…", {
+      console.log("[Bestell-API] Starte sendOrderEmails (await)…", {
         orderId,
       })
       const emailResult = await sendInboundOrderEmailsSafe(
         orderWithCustomer,
         settings
       )
-      console.log("[Bestell-API] sendOrderConfirmation Ergebnis", {
+      console.log("[Bestell-API] sendOrderEmails Ergebnis", {
         orderId,
         ...emailResult,
       })
     } catch (mailError) {
+      console.error("SMTP Mail Error:", mailError)
       console.error(
         `Bestell-API: E-Mail-Versand fehlgeschlagen (${orderId}) — Bestellung bleibt erhalten.`,
         mailError

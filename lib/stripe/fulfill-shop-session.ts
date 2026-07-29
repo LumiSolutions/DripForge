@@ -1,7 +1,7 @@
 import type Stripe from "stripe"
 import { getOrderById, getSettings } from "@/lib/admin/db"
 import type { StoredOrder } from "@/lib/admin/types"
-import { sendOrderConfirmation } from "@/lib/email/send-order-emails"
+import { sendOrderEmails } from "@/lib/email/send-order-emails"
 import { fulfillPaidShopOrder } from "@/lib/shop/order-processing"
 
 export function resolveStripeCustomerEmail(
@@ -49,7 +49,7 @@ export async function sendShopOrderEmailsAfterStripe(
     },
   }
 
-  console.info("[Stripe] Rufe sendOrderConfirmation auf", {
+  console.info("[Stripe] Rufe sendOrderEmails auf", {
     orderId,
     customerEmail: orderForEmail.billing.email,
     stripeSessionId: session.id,
@@ -57,9 +57,9 @@ export async function sendShopOrderEmailsAfterStripe(
   })
 
   try {
-    const result = await sendOrderConfirmation(orderForEmail, settings)
+    const result = await sendOrderEmails(orderForEmail, settings)
     const sent = result.customerSent || result.adminSent
-    console.info("[Stripe] sendOrderConfirmation Ergebnis", {
+    console.info("[Stripe] sendOrderEmails Ergebnis", {
       orderId,
       ...result,
     })
@@ -71,6 +71,7 @@ export async function sendShopOrderEmailsAfterStripe(
     }
   } catch (error) {
     // Bestellung bleibt gespeichert — nur Mail-Fehler loggen
+    console.error("SMTP Mail Error:", error)
     console.error(
       `[Stripe] SMTP-Versand fehlgeschlagen (${orderId}) — Bestellung bleibt erhalten.`,
       error

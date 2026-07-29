@@ -251,6 +251,7 @@ export async function notifyOrderReceived(
 
     return sent
   } catch (error) {
+    console.error("SMTP Mail Error:", error)
     console.error(
       `E-Mail: Bestelleingang/Bestätigung fehlgeschlagen (${order.orderId}).`,
       error

@@ -183,6 +183,7 @@ async function sendAdminInboundEmail(options: {
 
     return sent
   } catch (error) {
+    console.error("SMTP Mail Error:", error)
     console.error(
       `E-Mail: Admin-Benachrichtigung fehlgeschlagen (${options.referenceId}).`,
       error

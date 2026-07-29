@@ -13,6 +13,7 @@ export type SmtpRuntimeConfig = {
 
 /** Hostpoint-taugliche Absender-Mailbox (Fallback). */
 const DEFAULT_HOSTPOINT_FROM_EMAIL = "shop@dripforge.ch"
+/** Hostpoint Submission-Server (nicht mail.hostpoint.ch — der ist nur für IMAP/POP). */
 const DEFAULT_SMTP_HOST = "asmtp.mail.hostpoint.ch"
 
 /**
@@ -28,6 +29,28 @@ function cleanEnv(value: string | undefined): string {
     return trimmed.slice(1, -1).trim()
   }
   return trimmed
+}
+
+/**
+ * Alte/falsche Hostpoint-Hosts auf den Submission-Server umbiegen.
+ * mail.hostpoint.ch ist Empfang — Versand darüber scheitert oft still.
+ */
+function normalizeSmtpHost(host: string): string {
+  const normalized = host.toLowerCase().replace(/\.$/, "")
+  if (
+    !normalized ||
+    normalized === "mail.hostpoint.ch" ||
+    normalized === "smtp.hostpoint.ch" ||
+    normalized === "smtp.mail.hostpoint.ch"
+  ) {
+    if (host && normalized !== DEFAULT_SMTP_HOST) {
+      console.warn(
+        `[SMTP] Host "${host}" → ${DEFAULT_SMTP_HOST} (Hostpoint Submission)`
+      )
+    }
+    return DEFAULT_SMTP_HOST
+  }
+  return host
 }
 
 function extractEmailAddress(value: string): string | null {
@@ -71,11 +94,12 @@ function resolveFromHeader(user: string, fromEnv: string): string {
 function resolveSmtpSettings(): SmtpRuntimeConfig {
   const user = cleanEnv(process.env.SMTP_USER)
   const pass = cleanEnv(process.env.SMTP_PASS)
-  const host = cleanEnv(process.env.SMTP_HOST) || DEFAULT_SMTP_HOST
+  const host = normalizeSmtpHost(cleanEnv(process.env.SMTP_HOST) || DEFAULT_SMTP_HOST)
   const portRaw = cleanEnv(process.env.SMTP_PORT)
   const port = portRaw ? Number(portRaw) : 465
   const secureEnv = cleanEnv(process.env.SMTP_SECURE).toLowerCase()
   const resolvedPort = Number.isFinite(port) ? port : 465
+  // 465 → SSL (secure:true) | 587 → STARTTLS (secure:false, requireTLS)
   const secure =
     secureEnv === "false" || secureEnv === "0"
       ? false
@@ -300,6 +324,7 @@ export async function sendSmtpMail(options: SendSmtpMailOptions): Promise<boolea
       await transporter.verify()
       console.log(`[SMTP] verify OK — Handshake erfolgreich (${Date.now() - startedAt}ms)`)
     } catch (verifyError) {
+      console.error("SMTP Mail Error:", verifyError)
       console.error("[SMTP] verify FEHLGESCHLAGEN — sende trotzdem (Fallback).", {
         ...formatSmtpError(verifyError),
         elapsedMs: Date.now() - startedAt,
@@ -325,6 +350,7 @@ export async function sendSmtpMail(options: SendSmtpMailOptions): Promise<boolea
     })
     return true
   } catch (error) {
+    console.error("SMTP Mail Error:", error)
     console.error("[SMTP] transporter.sendMail() FEHLGESCHLAGEN", {
       to: mailOptions.to,
       subject: mailOptions.subject,

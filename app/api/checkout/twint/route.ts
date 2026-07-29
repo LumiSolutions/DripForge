@@ -152,18 +152,19 @@ export async function POST(request: Request) {
 
     // E-Mails NACH DB-Save — awaited (SWA killt sonst fire-and-forget).
     try {
-      console.log("[TWINT-Checkout] Starte sendOrderConfirmation (await)…", {
+      console.log("[TWINT-Checkout] Starte sendOrderEmails (await)…", {
         orderId: orderWithCustomer.orderId,
       })
       const emailResult = await sendInboundOrderEmailsSafe(
         orderWithCustomer,
         settings
       )
-      console.log("[TWINT-Checkout] sendOrderConfirmation Ergebnis", {
+      console.log("[TWINT-Checkout] sendOrderEmails Ergebnis", {
         orderId: orderWithCustomer.orderId,
         ...emailResult,
       })
     } catch (mailError) {
+      console.error("SMTP Mail Error:", mailError)
       console.error(
         `TWINT-Checkout: E-Mail-Versand fehlgeschlagen (${order.orderId}) — Bestellung bleibt erhalten.`,
         mailError
