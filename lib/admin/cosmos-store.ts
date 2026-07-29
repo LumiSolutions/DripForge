@@ -40,6 +40,7 @@ import {
   normalizeLoyaltyEarnPercent,
   normalizeLoyaltyExpiryMonths,
 } from "@/lib/konto/loyalty-points-config"
+import { normalizeOrderEmailTemplates } from "@/lib/email/order-email-templates"
 import {
   buildCustomerFromOrder,
   mergeOrderIntoCustomer,
@@ -427,6 +428,9 @@ export async function cosmosGetSettings(): Promise<AdminSettings> {
         loyaltyPointsExpiryMonths: normalizeLoyaltyExpiryMonths(
           resource.loyaltyPointsExpiryMonths ?? DEFAULT_LOYALTY_EXPIRY_MONTHS
         ),
+        orderEmailTemplates: normalizeOrderEmailTemplates(
+          resource.orderEmailTemplates
+        ),
         updatedAt: resource.updatedAt,
       }
     }
@@ -452,6 +456,7 @@ export async function cosmosGetSettings(): Promise<AdminSettings> {
     enableRewardPointsSystem: true,
     loyaltyEarnPercent: DEFAULT_LOYALTY_EARN_PERCENT,
     loyaltyPointsExpiryMonths: DEFAULT_LOYALTY_EXPIRY_MONTHS,
+    orderEmailTemplates: normalizeOrderEmailTemplates(undefined),
     updatedAt: new Date().toISOString(),
   }
   try {

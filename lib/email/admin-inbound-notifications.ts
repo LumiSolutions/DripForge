@@ -7,6 +7,7 @@ import { adminPortalPath } from "@/lib/admin/admin-portal-path"
 import { customerDisplayName } from "@/lib/admin/customers"
 import { getSettings } from "@/lib/admin/db"
 import type { AdminSettings, StoredOrder, StoredOrderItem } from "@/lib/admin/types"
+import { collectOrderFileDownloadLines } from "@/lib/admin/item-downloads"
 import {
   renderDripForgeEmailHtml,
   renderEmailCtaButton,
@@ -139,6 +140,8 @@ async function sendAdminInboundEmail(options: {
   settings?: AdminSettings
   /** Explizite Zieladresse (sonst ADMIN_NOTIFY_EMAIL / Fallback). */
   to?: string
+  /** Zusätzlicher HTML-Block (z. B. Download-Links). */
+  extraHtml?: string
 }): Promise<boolean> {
   try {
     const adminSettings = options.settings ?? (await getSettings())
@@ -172,6 +175,7 @@ async function sendAdminInboundEmail(options: {
 
     const bodyHtml =
       textToHtmlParagraphs(options.plainBody) +
+      (options.extraHtml ?? "") +
       renderEmailCtaButton(options.dashboardUrl, "Im Admin-Dashboard öffnen")
 
     const html = renderDripForgeEmailHtml({
@@ -225,6 +229,8 @@ export async function notifyAdminNewOrder(
       `- ${item.quantity}x ${item.name} (${formatChf(item.price * item.quantity)})`
   )
 
+  const fileDownloads = collectOrderFileDownloadLines(order)
+
   const plainBody = [
     "Neue Bestellung eingegangen.",
     "",
@@ -242,6 +248,11 @@ export async function notifyAdminNewOrder(
     "Artikel:",
     ...itemLines,
     "",
+    formatOrderOptionsSummary(order),
+    "",
+    ...(fileDownloads.plainLines.length > 0
+      ? [...fileDownloads.plainLines, ""]
+      : []),
     formatOrderAddressBlock("Lieferadresse:", delivery),
   ]
     .filter((line) => line !== null)
@@ -255,6 +266,7 @@ export async function notifyAdminNewOrder(
     dashboardUrl,
     settings,
     to: options?.to,
+    extraHtml: fileDownloads.htmlBlock || undefined,
   })
 }
 

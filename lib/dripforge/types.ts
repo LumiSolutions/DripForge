@@ -107,6 +107,9 @@ export interface CartItem {
   leitbild?: string
   customDetails?: {
     fileName?: string
+    /** Azure-/CDN-URL zur hochgeladenen 3D-Datei (falls vorhanden) */
+    fileUrl?: string | null
+    modelUrl?: string | null
     filament?: string
     color?: string
     dimensions?: string

@@ -12,6 +12,7 @@ import {
   DEFAULT_LOYALTY_EARN_PERCENT,
   DEFAULT_LOYALTY_EXPIRY_MONTHS,
 } from "@/lib/konto/loyalty-points-config"
+import { DEFAULT_ORDER_EMAIL_TEMPLATES } from "@/lib/email/order-email-templates"
 
 /** Sichere Standard-Einstellungen wenn Cosmos/Datei nicht erreichbar sind. */
 export function buildDefaultAdminSettings(): AdminSettings {
@@ -29,6 +30,7 @@ export function buildDefaultAdminSettings(): AdminSettings {
     enableRewardPointsSystem: true,
     loyaltyEarnPercent: DEFAULT_LOYALTY_EARN_PERCENT,
     loyaltyPointsExpiryMonths: DEFAULT_LOYALTY_EXPIRY_MONTHS,
+    orderEmailTemplates: { ...DEFAULT_ORDER_EMAIL_TEMPLATES },
     updatedAt: new Date().toISOString(),
   }
 }

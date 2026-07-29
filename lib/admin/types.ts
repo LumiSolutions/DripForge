@@ -188,6 +188,11 @@ export type AdminSettings = {
   loyaltyEarnPercent: number
   /** Ablaufdauer der Punkte ab Gutschrift (Monate). */
   loyaltyPointsExpiryMonths: number
+  /** Bearbeitbare Texte für Bestell-Bestätigungsmails */
+  orderEmailTemplates?: {
+    receivedIntro: string
+    receivedFooter: string
+  }
   updatedAt: string
 }
 

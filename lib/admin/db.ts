@@ -38,6 +38,7 @@ import {
   normalizeLoyaltyEarnPercent,
   normalizeLoyaltyExpiryMonths,
 } from "@/lib/konto/loyalty-points-config"
+import { normalizeOrderEmailTemplates } from "@/lib/email/order-email-templates"
 import {
   CosmosDatabaseError,
   withCosmosFallback,
@@ -536,6 +537,9 @@ async function getSettingsFromFile(): Promise<AdminSettings> {
       loyaltyPointsExpiryMonths: normalizeLoyaltyExpiryMonths(
         stored.loyaltyPointsExpiryMonths ?? DEFAULT_LOYALTY_EXPIRY_MONTHS
       ),
+      orderEmailTemplates: normalizeOrderEmailTemplates(
+        stored.orderEmailTemplates
+      ),
       updatedAt: stored.updatedAt,
     }
   }
@@ -553,6 +557,7 @@ async function getSettingsFromFile(): Promise<AdminSettings> {
     enableRewardPointsSystem: true,
     loyaltyEarnPercent: DEFAULT_LOYALTY_EARN_PERCENT,
     loyaltyPointsExpiryMonths: DEFAULT_LOYALTY_EXPIRY_MONTHS,
+    orderEmailTemplates: normalizeOrderEmailTemplates(undefined),
     updatedAt: new Date().toISOString(),
   }
   try {
@@ -589,6 +594,10 @@ export async function saveSettings(input: {
   enableRewardPointsSystem?: boolean
   loyaltyEarnPercent?: number
   loyaltyPointsExpiryMonths?: number
+  orderEmailTemplates?: {
+    receivedIntro?: string
+    receivedFooter?: string
+  }
 }): Promise<AdminSettings> {
   const current = await getSettings()
   const services = normalizeServiceVisibility({
@@ -646,6 +655,13 @@ export async function saveSettings(input: {
         : normalizeLoyaltyExpiryMonths(
             current.loyaltyPointsExpiryMonths ?? DEFAULT_LOYALTY_EXPIRY_MONTHS
           ),
+    orderEmailTemplates:
+      input.orderEmailTemplates !== undefined
+        ? normalizeOrderEmailTemplates({
+            ...current.orderEmailTemplates,
+            ...input.orderEmailTemplates,
+          })
+        : normalizeOrderEmailTemplates(current.orderEmailTemplates),
     updatedAt: new Date().toISOString(),
   }
   await withCosmosFallback(

@@ -1,5 +1,6 @@
-import type { StoredOrderItem } from "@/lib/admin/types"
+import type { StoredOrder, StoredOrderItem } from "@/lib/admin/types"
 import { sanitizeFilename } from "@/lib/admin/sanitize-filename"
+import { resolveSiteOrigin } from "@/lib/site/site-origin"
 
 export type ItemDownloadLink = {
   id: string
@@ -23,7 +24,12 @@ export function getItemDownloadLinks(
   item: StoredOrderItem
 ): ItemDownloadLink[] {
   const links: ItemDownloadLink[] = []
-  const details = item.customDetails
+  const details = item.customDetails as
+    | (NonNullable<StoredOrderItem["customDetails"]> & {
+        fileUrl?: string | null
+        modelUrl?: string | null
+      })
+    | undefined
 
   const leitbildSrc = item.leitbildUrl ?? item.leitbild
   if (leitbildSrc) {
@@ -90,5 +96,125 @@ export function getItemDownloadLinks(
     }
   }
 
+  const modelSrc = details?.fileUrl || details?.modelUrl
+  if (modelSrc && typeof modelSrc === "string" && isHttpUrl(modelSrc)) {
+    const fileName =
+      details?.fileName ||
+      sanitizeFilename(`${orderId}-${item.id}-modell.stl`)
+    links.push({
+      id: `${item.id}-modell`,
+      label: `3D-Modell (${fileName})`,
+      filename: sanitizeFilename(fileName),
+      href: `/api/admin/download-blob?url=${encodeURIComponent(modelSrc)}`,
+      kind: "proxy",
+    })
+  }
+
   return links
+}
+
+type EmailFileRef = {
+  itemName: string
+  label: string
+  href: string
+  fileNameNote?: string
+}
+
+function collectDirectHttpAssets(
+  orderId: string,
+  item: StoredOrderItem
+): EmailFileRef[] {
+  const refs: EmailFileRef[] = []
+  const details = item.customDetails as
+    | (NonNullable<StoredOrderItem["customDetails"]> & {
+        fileUrl?: string | null
+        modelUrl?: string | null
+      })
+    | undefined
+
+  const push = (label: string, src: string | null | undefined) => {
+    if (src && isHttpUrl(src)) {
+      refs.push({ itemName: item.name, label, href: src })
+    }
+  }
+
+  push("Leitbild", item.leitbildUrl ?? undefined)
+  push("Logo / Grafik", details?.uploadedImage)
+  push("Farb-Skizze", details?.colorReferenceImage)
+  const modelSrc = details?.fileUrl || details?.modelUrl
+  if (modelSrc && isHttpUrl(modelSrc)) {
+    refs.push({
+      itemName: item.name,
+      label: `3D-Modell${details?.fileName ? ` (${details.fileName})` : ""}`,
+      href: modelSrc,
+    })
+  } else if (details?.fileName?.trim()) {
+    refs.push({
+      itemName: item.name,
+      label: "3D-Datei",
+      href: "",
+      fileNameNote: details.fileName.trim(),
+    })
+  }
+
+  // Fallback: Admin-Proxy-Links wenn keine direkten URLs
+  if (refs.length === 0) {
+    const origin = resolveSiteOrigin()
+    for (const link of getItemDownloadLinks(orderId, item)) {
+      if (link.kind === "proxy") {
+        refs.push({
+          itemName: item.name,
+          label: link.label,
+          href: `${origin}${link.href}`,
+        })
+      }
+    }
+  }
+
+  return refs
+}
+
+/** Absolute Download-URLs für Admin-Mails (ohne Data-URLs). */
+export function collectOrderFileDownloadLines(order: StoredOrder): {
+  plainLines: string[]
+  htmlBlock: string
+} {
+  const plainLines: string[] = []
+  const htmlItems: string[] = []
+
+  for (const item of order.items) {
+    const refs = collectDirectHttpAssets(order.orderId, item)
+    for (const ref of refs) {
+      if (ref.fileNameNote && !ref.href) {
+        plainLines.push(
+          `- ${ref.itemName}: Dateiname „${ref.fileNameNote}“ (kein Download-Link hinterlegt)`
+        )
+        htmlItems.push(
+          `<li><strong>${escapeHtml(ref.itemName)}</strong>: Dateiname „${escapeHtml(ref.fileNameNote)}“ (kein Download-Link hinterlegt)</li>`
+        )
+        continue
+      }
+      plainLines.push(`- ${ref.itemName} — ${ref.label}: ${ref.href}`)
+      htmlItems.push(
+        `<li><strong>${escapeHtml(ref.itemName)}</strong> — ${escapeHtml(ref.label)}: <a href="${escapeHtml(ref.href)}">${escapeHtml(ref.href)}</a></li>`
+      )
+    }
+  }
+
+  if (plainLines.length === 0) {
+    return { plainLines: [], htmlBlock: "" }
+  }
+
+  return {
+    plainLines: ["Angehängte Kundendateien / Downloads:", ...plainLines],
+    htmlBlock: `<p><strong>Angehängte Kundendateien / Downloads:</strong></p><ul>${htmlItems.join("")}</ul>`,
+  }
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
 }

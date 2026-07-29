@@ -49,6 +49,10 @@ export async function PUT(request: Request) {
       enableRewardPointsSystem?: boolean
       loyaltyEarnPercent?: number
       loyaltyPointsExpiryMonths?: number
+      orderEmailTemplates?: {
+        receivedIntro?: string
+        receivedFooter?: string
+      }
       launch?: Partial<LaunchSettings>
     }
 
@@ -94,6 +98,7 @@ export async function PUT(request: Request) {
       enableRewardPointsSystem: body.enableRewardPointsSystem,
       loyaltyEarnPercent: body.loyaltyEarnPercent,
       loyaltyPointsExpiryMonths: body.loyaltyPointsExpiryMonths,
+      orderEmailTemplates: body.orderEmailTemplates,
       launch: body.launch,
     })
     return NextResponse.json(settings)

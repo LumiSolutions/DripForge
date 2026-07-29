@@ -24,6 +24,11 @@ import {
   resolveShippingLabel,
 } from "@/lib/email/order-email-summary"
 import { resolveSmtpFrom, sendSmtpMail } from "@/lib/email/smtp"
+import {
+  buildOrderEmailPlaceholders,
+  resolveOrderEmailFooter,
+  resolveOrderEmailIntro,
+} from "@/lib/email/order-email-templates"
 import { generateAndStoreOrderInvoice } from "@/lib/invoices/process-order-invoice"
 import { formatChf, formatInvoiceDate } from "@/lib/invoices/invoice-format"
 import { swissPostTrackingUrl } from "@/lib/konto/customer-order-timeline"
@@ -227,9 +232,9 @@ export async function notifyOrderReceived(
       )
     }
 
-    const customerName = `${order.billing.firstName} ${order.billing.lastName}`.trim()
     const prepaid = isPrepaidOrderAwaitingPayment(order)
     const accountUrl = `${resolveSiteOrigin()}/konto/bestellungen`
+    const placeholders = buildOrderEmailPlaceholders(order)
 
     const subject = prepaid
       ? `Deine Bestellung ${order.orderId} ist eingegangen (Wartet auf Zahlungseingang)`
@@ -237,36 +242,48 @@ export async function notifyOrderReceived(
 
     const twintHint = buildTwintPaymentHint(order)
 
-    const introPlain = prepaid
-      ? [
-          `Guten Tag ${customerName},`,
-          "",
-          "vielen Dank für Ihre Bestellung bei DripForge — dies ist die Bestätigung Ihres Bestelleingangs.",
-          "",
-          VORKASSE_CORE_HINT,
-        ]
-      : [
-          `Guten Tag ${customerName},`,
-          "",
-          "vielen Dank für Ihre Bestellung bei DripForge — wir haben Ihre Zahlung erhalten und die Bestellung aufgenommen.",
-        ]
-
-    const closingPlain = prepaid
-      ? "Sobald der Zahlungseingang bei uns verbucht ist, bearbeiten wir Ihre Bestellung und halten Sie per E-Mail auf dem Laufenden."
-      : "Wir prüfen Ihre Angaben und halten Sie über den weiteren Verlauf per E-Mail auf dem Laufenden."
+    const introText = resolveOrderEmailIntro(adminSettings, placeholders, {
+      prepaid,
+      vorkasseHint: prepaid ? VORKASSE_CORE_HINT : undefined,
+    })
+    const closingPlain = resolveOrderEmailFooter(adminSettings, placeholders, {
+      prepaid,
+      prepaidFallback:
+        "Sobald der Zahlungseingang bei uns verbucht ist, bearbeiten wir Ihre Bestellung und halten Sie per E-Mail auf dem Laufenden.",
+    })
 
     const accountPlain = [
       "",
       `Bestellungen im Kundenkonto ansehen: ${accountUrl}`,
     ].join("\n")
 
+    // PDF optional — Fehler dürfen den Mailversand nicht blockieren
+    let pdfBuffer: Buffer | undefined
+    try {
+      pdfBuffer = await generateAndStoreOrderInvoice(
+        order,
+        adminSettings
+      )
+    } catch (pdfError) {
+      console.error("Bestell-Mail Fehler:", pdfError)
+      console.error(
+        `E-Mail: PDF-Rechnung für ${order.orderId} fehlgeschlagen — sende ohne Anhang.`
+      )
+      pdfBuffer = undefined
+    }
+
+    const pdfPlainHint = pdfBuffer
+      ? "Im Anhang findest du die Rechnung als PDF."
+      : ""
+
     const plain = [
-      ...introPlain,
+      introText,
       "",
       formatOrderSummaryPlain(order),
       "",
       ...(twintHint ? [twintHint.plain, ""] : []),
       ...(invoiceHint ? [invoiceHint.plain, ""] : []),
+      ...(pdfPlainHint ? [pdfPlainHint, ""] : []),
       closingPlain,
       accountPlain,
       "",
@@ -277,23 +294,32 @@ export async function notifyOrderReceived(
     const html = renderDripForgeEmailHtml({
       title: prepaid ? "Bestelleingang" : "Bestellbestätigung",
       bodyHtml:
-        textToHtmlParagraphs(introPlain.join("\n")) +
+        textToHtmlParagraphs(introText) +
         renderOrderDetailsHtml(order) +
         (twintHint?.html ?? "") +
         (invoiceHint?.html ?? "") +
+        (pdfPlainHint ? textToHtmlParagraphs(pdfPlainHint) : "") +
         textToHtmlParagraphs(closingPlain) +
         renderEmailCtaButton(accountUrl, "Zu meinen Bestellungen"),
       footerLines: branding.footerLines,
       logoUrl: branding.logoUrl ?? undefined,
     })
 
-    // Eingangsmail NIEMALS mit PDF-Anhang — PDF nur in Status-Mails (notifyOrderConfirmed)
     const sent = await sendSmtpMail({
       from: resolveSmtpFrom("DripForge", "shop@dripforge.ch"),
       to: order.billing.email,
       subject,
       text: plain,
       html,
+      attachments: pdfBuffer
+        ? [
+            {
+              filename: `Rechnung-${order.orderId}.pdf`,
+              content: pdfBuffer,
+              contentType: "application/pdf",
+            },
+          ]
+        : undefined,
     })
 
     if (sent) {
