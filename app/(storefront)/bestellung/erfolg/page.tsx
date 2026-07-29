@@ -1,11 +1,12 @@
 "use client"
 
-import { Suspense, useEffect, useState } from "react"
+import { Suspense, useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { CheckCircle2, ExternalLink, Package, ShoppingBag, Smartphone } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useCart } from "@/components/dripforge/cart-provider"
+import { clearClientCart } from "@/lib/dripforge/cart-storage"
 
 function TwintPayPanel({
   orderId,
@@ -137,56 +138,69 @@ function BestellungErfolgInner() {
   const searchParams = useSearchParams()
   const { clearCart } = useCart()
   const sessionId = searchParams.get("session_id")
-  const orderId = searchParams.get("order_id")
+  const orderIdParam = searchParams.get("order_id")
   const method = searchParams.get("method")
   const amount = searchParams.get("amount")
-  const isTwintPending = method === "twint" && Boolean(orderId)
+  const isTwintPending = method === "twint" && Boolean(orderIdParam)
 
-  // Warenkorb sofort leeren (localStorage + React-State + Konto-Sync)
+  const [resolvedOrderId, setResolvedOrderId] = useState<string | null>(
+    orderIdParam
+  )
+  const [emailStatus, setEmailStatus] = useState<
+    "idle" | "pending" | "sent" | "skipped" | "error"
+  >("idle")
+
+  const hasClearedRef = useRef(false)
+  const hasConfirmedRef = useRef(false)
+
+  // 1) Warenkorb genau einmal beim Mount leeren — kein Dependency auf clearCart
   useEffect(() => {
+    if (hasClearedRef.current) return
+    hasClearedRef.current = true
+    // Synchron localStorage zuerst (verhindert Hydration-Race)
+    clearClientCart()
     void clearCart()
-  }, [clearCart])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only by design
+  }, [])
 
-  // Fallback: Stripe-Session fulfill + E-Mails, falls Webhook verzögert/geblockt
+  // 2) Stripe: einmalig Session bestätigen + E-Mails auslösen
   useEffect(() => {
     if (!sessionId || isTwintPending) return
+    if (hasConfirmedRef.current) return
+    hasConfirmedRef.current = true
 
-    const guardKey = `stripeConfirm:${sessionId}`
-    try {
-      if (sessionStorage.getItem(guardKey) === "done") return
-      sessionStorage.setItem(guardKey, "pending")
-    } catch {
-      /* ignore */
-    }
+    setEmailStatus("pending")
 
     let cancelled = false
     void (async () => {
       try {
-        const res = await fetch("/api/checkout/confirm-session", {
+        const res = await fetch("/api/orders/confirm-stripe", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ sessionId }),
         })
         const data = (await res.json()) as {
           ok?: boolean
-          orderId?: string
+          orderId?: string | null
           emails?: { sent?: boolean; skipped?: boolean }
           error?: string
         }
-        if (!cancelled) {
-          console.info("[Erfolg] Stripe confirm-session", data)
-          try {
-            sessionStorage.setItem(guardKey, "done")
-          } catch {
-            /* ignore */
-          }
-        }
+
+        if (cancelled) return
+
+        if (data.orderId) setResolvedOrderId(data.orderId)
+
+        if (data.emails?.sent) setEmailStatus("sent")
+        else if (data.emails?.skipped || data.ok) setEmailStatus("skipped")
+        else setEmailStatus("error")
+
+        console.info("[Erfolg] confirm-stripe", data)
       } catch (error) {
-        console.error("[Erfolg] Stripe confirm-session fehlgeschlagen.", error)
-        try {
-          sessionStorage.removeItem(guardKey)
-        } catch {
-          /* ignore */
+        if (!cancelled) {
+          setEmailStatus("error")
+          console.error("[Erfolg] confirm-stripe fehlgeschlagen.", error)
+          // Erlaubt einen manuellen Retry beim nächsten Besuch derselben Session
+          hasConfirmedRef.current = false
         }
       }
     })()
@@ -195,6 +209,8 @@ function BestellungErfolgInner() {
       cancelled = true
     }
   }, [sessionId, isTwintPending])
+
+  const displayOrderId = resolvedOrderId || orderIdParam
 
   return (
     <div className="mx-auto max-w-lg px-4 py-20 text-center">
@@ -215,12 +231,12 @@ function BestellungErfolgInner() {
           direkt nach Erhalt des Zahlungseingangs.
         </p>
       ) : null}
-      {orderId ? (
+      {displayOrderId ? (
         <div className="mx-auto mt-6 max-w-sm rounded-xl border border-border/60 bg-muted/30 px-4 py-3">
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Bestell-ID
           </p>
-          <p className="mt-1 font-mono text-sm font-semibold">{orderId}</p>
+          <p className="mt-1 font-mono text-sm font-semibold">{displayOrderId}</p>
         </div>
       ) : sessionId ? (
         <p className="mt-2 text-xs text-muted-foreground">
@@ -228,19 +244,26 @@ function BestellungErfolgInner() {
         </p>
       ) : null}
 
-      {isTwintPending && orderId ? (
-        <TwintPayPanel orderId={orderId} amount={amount} />
+      {!isTwintPending && sessionId && emailStatus === "error" ? (
+        <p className="mt-3 text-xs text-amber-700 dark:text-amber-300">
+          Die Bestätigungs-E-Mail konnte noch nicht ausgelöst werden. Bitte die
+          Seite kurz neu laden oder den Support kontaktieren.
+        </p>
+      ) : null}
+
+      {isTwintPending && displayOrderId ? (
+        <TwintPayPanel orderId={displayOrderId} amount={amount} />
       ) : null}
 
       <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
         <Button asChild className="bg-primary hover:bg-primary/90">
-          <Link href="/konto/bestellungen">
+          <Link href="/konto/bestellungen" prefetch={false}>
             <Package className="mr-2 h-4 w-4" />
             Zu meinen Bestellungen
           </Link>
         </Button>
         <Button asChild variant="outline">
-          <Link href="/shop">
+          <Link href="/shop" prefetch={false}>
             <ShoppingBag className="mr-2 h-4 w-4" />
             Weiter einkaufen
           </Link>
