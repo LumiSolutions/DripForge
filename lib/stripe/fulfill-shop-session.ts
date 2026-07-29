@@ -1,7 +1,7 @@
 import type Stripe from "stripe"
 import { getOrderById, getSettings } from "@/lib/admin/db"
 import type { StoredOrder } from "@/lib/admin/types"
-import { sendOrderEmails } from "@/lib/email/send-order-emails"
+import { queueOrderEmails } from "@/lib/email/send-order-emails"
 import { fulfillPaidShopOrder } from "@/lib/shop/order-processing"
 
 export function resolveStripeCustomerEmail(
@@ -49,7 +49,7 @@ export async function sendShopOrderEmailsAfterStripe(
     },
   }
 
-  console.info("[Stripe] Rufe sendOrderEmails auf", {
+  console.info("[Stripe] Rufe queueOrderEmails auf (non-blocking)", {
     orderId,
     customerEmail: orderForEmail.billing.email,
     stripeSessionId: session.id,
@@ -58,20 +58,17 @@ export async function sendShopOrderEmailsAfterStripe(
 
   try {
     console.log("Sending order emails for order:", orderForEmail.orderId)
-    const result = await sendOrderEmails(orderForEmail, settings)
-    const sent = result.customerSent || result.adminSent
-    console.info("[Stripe] sendOrderEmails Ergebnis", {
-      orderId,
-      ...result,
-    })
+    // Nicht blockieren — Stripe-Webhook/Success soll schnell 200 zurückgeben
+    queueOrderEmails(orderForEmail, settings)
     return {
-      sent,
+      sent: true,
       skipped: false,
-      customerSent: result.customerSent,
-      adminSent: result.adminSent,
+      customerSent: false,
+      adminSent: false,
     }
   } catch (error) {
     console.error("Bestell-Mail Fehler:", error)
+    console.error("CRITICAL_SMTP_ERROR:", error)
     console.error(
       `[Stripe] SMTP-Versand fehlgeschlagen (${orderId}) — Bestellung bleibt erhalten.`,
       error

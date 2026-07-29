@@ -11,7 +11,7 @@ import {
 } from "@/lib/konto/loyalty-points"
 import type { OrderPayload } from "@/lib/dripforge/submit-order"
 import { processOrderPayload } from "@/lib/shop/order-processing"
-import { sendOrderEmails } from "@/lib/email/send-order-emails"
+import { queueOrderEmails } from "@/lib/email/send-order-emails"
 import { bindOrderToCustomer } from "@/lib/shop/bind-order-to-account"
 import { applyInventoryReservationForOrder } from "@/lib/admin/order-inventory-hook"
 import { buildRewardPointsPublicSettings } from "@/lib/dripforge/reward-points-settings"
@@ -52,16 +52,13 @@ export async function POST(request: Request) {
     orderId = order.orderId
     console.info(`Bestell-API: Bestellung gespeichert (${orderId}).`)
 
-    // 2) E-Mails SOFORT nach DB-Save — vor Punkten/Lager (SWA-Timeout-Schutz)
+    // 2) E-Mails nicht-blockierend — Response sofort, SMTP im Hintergrund (Azure SWA)
     try {
       console.log("Sending order emails for order:", order.orderId)
-      const emailResult = await sendOrderEmails(order, settings)
-      console.log("[Bestell-API] sendOrderEmails Ergebnis", {
-        orderId,
-        ...emailResult,
-      })
+      queueOrderEmails(order, settings)
     } catch (error) {
       console.error("Bestell-Mail Fehler:", error)
+      console.error("CRITICAL_SMTP_ERROR:", error)
     }
 
     // Ab hier: Erfolg zurückgeben — Nebenpfade dürfen den Checkout nicht mehr killen.

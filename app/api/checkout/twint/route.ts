@@ -7,10 +7,8 @@ import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
 import type { OrderPayload } from "@/lib/dripforge/submit-order"
 import { getSessionEmailFromRequest } from "@/lib/konto/api-auth"
 import { bindOrderToCustomer } from "@/lib/shop/bind-order-to-account"
-import {
-  processOrderPayload,
-} from "@/lib/shop/order-processing"
-import { sendOrderEmails } from "@/lib/email/send-order-emails"
+import { processOrderPayload } from "@/lib/shop/order-processing"
+import { queueOrderEmails } from "@/lib/email/send-order-emails"
 import {
   buildTwintPaymentUrl,
   formatTwintAmount,
@@ -121,16 +119,13 @@ export async function POST(request: Request) {
       }
     )
 
-    // E-Mails SOFORT nach DB-Save
+    // E-Mails nicht-blockierend — Response sofort (Azure SWA Timeout-Schutz)
     try {
       console.log("Sending order emails for order:", order.orderId)
-      const emailResult = await sendOrderEmails(order, settings)
-      console.log("[TWINT-Checkout] sendOrderEmails Ergebnis", {
-        orderId: order.orderId,
-        ...emailResult,
-      })
+      queueOrderEmails(order, settings)
     } catch (error) {
       console.error("Bestell-Mail Fehler:", error)
+      console.error("CRITICAL_SMTP_ERROR:", error)
     }
 
     let orderWithCustomer = order

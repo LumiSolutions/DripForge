@@ -32,6 +32,7 @@ import {
 import { orderHasCustomerInbound } from "@/lib/admin/customer-inbound-order"
 import { applyInventoryReservationForOrder } from "@/lib/admin/order-inventory-hook"
 import {
+  queueOrderEmails,
   sendOrderEmails,
   type SendOrderEmailsResult,
 } from "@/lib/email/send-order-emails"
@@ -227,9 +228,10 @@ export async function processOrderPayload(
   if (!options?.skipInboundEmails) {
     try {
       console.log("Sending order emails for order:", order.orderId)
-      await sendOrderEmails(order, settings)
+      queueOrderEmails(order, settings)
     } catch (mailError) {
       console.error("Bestell-Mail Fehler:", mailError)
+      console.error("CRITICAL_SMTP_ERROR:", mailError)
     }
   }
 

@@ -16,6 +16,8 @@ const DEFAULT_HOSTPOINT_FROM_EMAIL = "shop@dripforge.ch"
 /** Hostpoint Submission-Server (nicht mail.hostpoint.ch — der ist nur für IMAP/POP). */
 const DEFAULT_SMTP_HOST = "asmtp.mail.hostpoint.ch"
 
+const SMTP_TIMEOUT_MS = 15_000
+
 /**
  * Trim + entferne versehentliche Anführungszeichen aus Azure-/ENV-Werten
  * (z. B. "shop@…" oder 'passwort' / Newlines aus Portal-Copy/Paste).
@@ -66,6 +68,21 @@ function isPlaceholderValue(value: string): boolean {
   )
 }
 
+function isSmtpConnectionError(error: unknown): boolean {
+  const code =
+    error && typeof error === "object" && "code" in error
+      ? String((error as { code?: string }).code || "")
+      : ""
+  const message =
+    error instanceof Error ? error.message : String(error ?? "")
+  return (
+    /ETIMEDOUT|ECONNREFUSED|ESOCKET|ECONNRESET|ENOTFOUND|EHOSTUNREACH|ETIMEDOUT/i.test(
+      code
+    ) ||
+    /ETIMEDOUT|ECONNREFUSED|ESOCKET|timeout|timed out|connect/i.test(message)
+  )
+}
+
 /**
  * From MUSS eine gültige Hostpoint-Adresse sein (z. B. shop@dripforge.ch).
  * Platzhalter / ungültige EMAIL_FROM-Werte werden verworfen.
@@ -87,43 +104,47 @@ function resolveFromHeader(user: string, fromEnv: string): string {
 }
 
 /**
- * SMTP: Hostpoint asmtp.mail.hostpoint.ch (Default),
- * Credentials nur aus ENV (SMTP_USER / SMTP_PASS).
- * Port 465 → secure:true (zwingend bei Hostpoint SSL).
- * Port 587 nur wenn explizit gesetzt → STARTTLS (secure:false).
+ * SMTP: Hostpoint asmtp.mail.hostpoint.ch (Default).
+ * - Port 465 + secure:true (SSL)
+ * - Port 587 + secure:false + requireTLS (STARTTLS) — oft besser auf Azure SWA
+ * ENV: SMTP_PORT, SMTP_SECURE, SMTP_PREFER_STARTTLS=true
  */
-function resolveSmtpSettings(): SmtpRuntimeConfig {
+function resolveSmtpSettings(overrides?: {
+  port?: number
+  secure?: boolean
+}): SmtpRuntimeConfig {
   const user = cleanEnv(process.env.SMTP_USER)
   const pass = cleanEnv(process.env.SMTP_PASS)
   const host = normalizeSmtpHost(
     cleanEnv(process.env.SMTP_HOST) || DEFAULT_SMTP_HOST
   )
-  const portRaw = cleanEnv(process.env.SMTP_PORT)
-  let resolvedPort = portRaw ? Number(portRaw) : 465
-  if (!Number.isFinite(resolvedPort) || resolvedPort <= 0) {
-    resolvedPort = 465
-  }
+  const preferStartTls =
+    cleanEnv(process.env.SMTP_PREFER_STARTTLS).toLowerCase() === "true"
 
-  // Port 587 in Azure ist ein häufiger Fehlkonfig — Hostpoint SSL = 465
-  if (resolvedPort === 587 && cleanEnv(process.env.SMTP_FORCE_587) !== "true") {
-    console.warn(
-      "[SMTP] Port 587 erkannt → erzwinge 465/SSL (Hostpoint). Setze SMTP_FORCE_587=true um 587 zu behalten."
-    )
-    resolvedPort = 465
+  const portRaw = cleanEnv(process.env.SMTP_PORT)
+  let resolvedPort =
+    overrides?.port ??
+    (portRaw ? Number(portRaw) : preferStartTls ? 587 : 465)
+  if (!Number.isFinite(resolvedPort) || resolvedPort <= 0) {
+    resolvedPort = preferStartTls ? 587 : 465
   }
 
   const secureEnv = cleanEnv(process.env.SMTP_SECURE).toLowerCase()
-  // Port 465: secure immer true. Sonst ENV, Default true für Hostpoint.
-  const secure =
-    resolvedPort === 465
-      ? true
-      : secureEnv === "false" || secureEnv === "0"
-        ? false
-        : secureEnv === "true" || secureEnv === "1"
-          ? true
-          : true
+  let secure: boolean
+  if (overrides?.secure !== undefined) {
+    secure = overrides.secure
+  } else if (resolvedPort === 465) {
+    secure = true
+  } else if (resolvedPort === 587) {
+    secure = false
+  } else if (secureEnv === "false" || secureEnv === "0") {
+    secure = false
+  } else if (secureEnv === "true" || secureEnv === "1") {
+    secure = true
+  } else {
+    secure = resolvedPort === 465
+  }
 
-  // Absender fest an Hostpoint-Mailbox koppeln
   const fromEnv = cleanEnv(process.env.EMAIL_FROM)
   const from = resolveFromHeader(user || DEFAULT_HOSTPOINT_FROM_EMAIL, fromEnv)
 
@@ -138,7 +159,6 @@ function resolveSmtpSettings(): SmtpRuntimeConfig {
 }
 
 export function isSmtpConfigured(): boolean {
-  // HOST hat Hostpoint-Default — USER + PASS sind Pflicht
   const user = cleanEnv(process.env.SMTP_USER)
   const pass = cleanEnv(process.env.SMTP_PASS)
   if (!user || !pass) return false
@@ -189,8 +209,45 @@ function logSmtpConfig(config: SmtpRuntimeConfig, phase: string) {
     userLength: config.user.length,
     passConfigured: Boolean(config.pass),
     passLength: config.pass.length,
-    passEndsWithDollar: config.pass.endsWith("$"),
+    connectionTimeout: SMTP_TIMEOUT_MS,
+    greetingTimeout: SMTP_TIMEOUT_MS,
+    socketTimeout: SMTP_TIMEOUT_MS,
   })
+}
+
+function buildTransporterForConfig(config: SmtpRuntimeConfig) {
+  const options: SMTPTransport.Options = {
+    host: config.host,
+    port: config.port,
+    secure: config.secure,
+    ...(config.port === 587 && !config.secure ? { requireTLS: true } : {}),
+    auth: {
+      user: config.user,
+      pass: config.pass,
+    },
+    connectionTimeout: SMTP_TIMEOUT_MS,
+    greetingTimeout: SMTP_TIMEOUT_MS,
+    socketTimeout: SMTP_TIMEOUT_MS,
+    tls: {
+      rejectUnauthorized: false,
+      minVersion: "TLSv1.2",
+    },
+    logger: false,
+    debug: false,
+  }
+
+  console.log("[SMTP] createTransport Optionen", {
+    host: options.host,
+    port: options.port,
+    secure: options.secure,
+    requireTLS: Boolean(
+      (options as SMTPTransport.Options & { requireTLS?: boolean }).requireTLS
+    ),
+    authUser: config.user,
+    connectionTimeout: SMTP_TIMEOUT_MS,
+  })
+
+  return nodemailer.createTransport(options)
 }
 
 let cachedTransporter: ReturnType<typeof nodemailer.createTransport> | null =
@@ -210,40 +267,7 @@ export function buildSmtpTransporter() {
   }
 
   logSmtpConfig(config, "Transporter wird erstellt")
-
-  const options: SMTPTransport.Options = {
-    host: config.host,
-    port: config.port,
-    secure: config.secure,
-    // Port 587: STARTTLS erzwingen
-    ...(config.port === 587 && !config.secure ? { requireTLS: true } : {}),
-    auth: {
-      user: config.user,
-      pass: config.pass,
-    },
-    connectionTimeout: 10_000,
-    greetingTimeout: 10_000,
-    socketTimeout: 30_000,
-    tls: {
-      // Hostpoint manchmal mit Zwischenzertifikaten — Versand priorisieren
-      rejectUnauthorized: false,
-      minVersion: "TLSv1.2",
-    },
-    logger: false,
-    debug: false,
-  }
-
-  console.log("[SMTP] createTransport Optionen", {
-    host: options.host,
-    port: options.port,
-    secure: options.secure,
-    requireTLS: Boolean(
-      (options as SMTPTransport.Options & { requireTLS?: boolean }).requireTLS
-    ),
-    authUser: config.user,
-  })
-
-  cachedTransporter = nodemailer.createTransport(options)
+  cachedTransporter = buildTransporterForConfig(config)
   cachedConfigKey = configKey
   return cachedTransporter
 }
@@ -301,6 +325,48 @@ function formatSmtpError(error: unknown): Record<string, unknown> {
   }
 }
 
+async function sendWithConfig(
+  config: SmtpRuntimeConfig,
+  mailOptions: SendSmtpMailOptions,
+  startedAt: number
+): Promise<boolean> {
+  logSmtpConfig(config, "Vor dem Versand")
+  const transporter = buildTransporterForConfig(config)
+
+  if (cleanEnv(process.env.SMTP_VERIFY_BEFORE_SEND) === "true") {
+    try {
+      await transporter.verify()
+      console.log(
+        `[SMTP] verify OK (${Date.now() - startedAt}ms) port=${config.port}`
+      )
+    } catch (verifyError) {
+      console.error("SMTP Connection Failed:", formatSmtpError(verifyError))
+      // weiter versuchen
+    }
+  }
+
+  console.log("[SMTP] transporter.sendMail() Aufruf…", {
+    from: mailOptions.from,
+    to: mailOptions.to,
+    subject: mailOptions.subject,
+    port: config.port,
+    secure: config.secure,
+  })
+
+  const info = await transporter.sendMail(mailOptions)
+  console.log("[SMTP] transporter.sendMail() ERFOLGREICH", {
+    to: mailOptions.to,
+    subject: mailOptions.subject,
+    messageId: info.messageId,
+    accepted: info.accepted,
+    rejected: info.rejected,
+    response: info.response,
+    port: config.port,
+    elapsedMs: Date.now() - startedAt,
+  })
+  return true
+}
+
 export async function sendSmtpMail(options: SendSmtpMailOptions): Promise<boolean> {
   const startedAt = Date.now()
 
@@ -312,13 +378,10 @@ export async function sendSmtpMail(options: SendSmtpMailOptions): Promise<boolea
     return false
   }
 
-  const config = getSmtpRuntimeConfig()
-  if (!config) return false
-
-  // From IMMER an Hostpoint-konforme Config koppeln (nie freier Client-From)
+  const primary = resolveSmtpSettings()
   const mailOptions: SendSmtpMailOptions = {
     ...options,
-    from: config.from || "DripForge <shop@dripforge.ch>",
+    from: primary.from || "DripForge <shop@dripforge.ch>",
   }
 
   console.log("[SMTP] sendSmtpMail gestartet", {
@@ -328,64 +391,68 @@ export async function sendSmtpMail(options: SendSmtpMailOptions): Promise<boolea
     hasHtml: Boolean(mailOptions.html),
     hasText: Boolean(mailOptions.text),
     attachmentCount: mailOptions.attachments?.length ?? 0,
-    configured: true,
+    primaryPort: primary.port,
+    primarySecure: primary.secure,
   })
 
-  logSmtpConfig(config, "Vor dem Versand")
-
   try {
-    console.log("[SMTP] buildSmtpTransporter()…")
-    const transporter = buildSmtpTransporter()
-
-    // verify() verdoppelt Latenz und killt SWA-Timeouts — nur auf expliziten Wunsch
-    if (cleanEnv(process.env.SMTP_VERIFY_BEFORE_SEND) === "true") {
-      console.log("[SMTP] transporter.verify() (SMTP-Handshake)…")
-      try {
-        await transporter.verify()
-        console.log(
-          `[SMTP] verify OK — Handshake erfolgreich (${Date.now() - startedAt}ms)`
-        )
-      } catch (verifyError) {
-        console.error("SMTP Mail Error:", verifyError)
-        console.error(
-          "[SMTP] verify FEHLGESCHLAGEN — sende trotzdem (Fallback).",
-          {
-            ...formatSmtpError(verifyError),
-            elapsedMs: Date.now() - startedAt,
-          }
-        )
-      }
-    }
-
-    console.log("[SMTP] transporter.sendMail() Aufruf…", {
-      from: mailOptions.from,
-      to: mailOptions.to,
-      subject: mailOptions.subject,
-    })
-    const info = await transporter.sendMail(mailOptions)
-    console.log("[SMTP] transporter.sendMail() ERFOLGREICH", {
-      to: mailOptions.to,
-      subject: mailOptions.subject,
-      messageId: info.messageId,
-      accepted: info.accepted,
-      rejected: info.rejected,
-      pending: info.pending,
-      response: info.response,
-      envelope: info.envelope,
-      elapsedMs: Date.now() - startedAt,
-    })
-    return true
+    const ok = await sendWithConfig(primary, mailOptions, startedAt)
+    // Cache primary transporter for reuse
+    cachedTransporter = buildTransporterForConfig(primary)
+    cachedConfigKey = `${primary.host}|${primary.port}|${primary.secure}|${primary.user}|${primary.pass.length}|${primary.from}`
+    return ok
   } catch (error) {
-    console.error("SMTP Mail Error:", error)
+    const details = formatSmtpError(error)
+    if (isSmtpConnectionError(error)) {
+      console.error(
+        "SMTP Connection Failed:",
+        details.code,
+        details.message
+      )
+    } else {
+      console.error("SMTP Mail Error:", error)
+    }
     console.error("[SMTP] transporter.sendMail() FEHLGESCHLAGEN", {
       to: mailOptions.to,
       subject: mailOptions.subject,
       from: mailOptions.from,
       elapsedMs: Date.now() - startedAt,
-      ...formatSmtpError(error),
+      ...details,
     })
+
     cachedTransporter = null
     cachedConfigKey = null
+
+    // Azure blockiert oft Port 465 — Fallback auf 587 STARTTLS
+    const alreadyOn587 = primary.port === 587 && !primary.secure
+    const allowFallback =
+      cleanEnv(process.env.SMTP_DISABLE_587_FALLBACK).toLowerCase() !== "true"
+
+    if (allowFallback && !alreadyOn587 && isSmtpConnectionError(error)) {
+      const fallback = resolveSmtpSettings({ port: 587, secure: false })
+      console.warn(
+        "[SMTP] Retry mit Port 587 STARTTLS (Azure-Fallback)…",
+        { host: fallback.host, port: fallback.port, secure: fallback.secure }
+      )
+      try {
+        const ok = await sendWithConfig(fallback, mailOptions, startedAt)
+        cachedTransporter = buildTransporterForConfig(fallback)
+        cachedConfigKey = `${fallback.host}|${fallback.port}|${fallback.secure}|${fallback.user}|${fallback.pass.length}|${fallback.from}`
+        return ok
+      } catch (fallbackError) {
+        const fb = formatSmtpError(fallbackError)
+        console.error("SMTP Connection Failed:", fb.code, fb.message)
+        console.error("CRITICAL_SMTP_ERROR:", fallbackError)
+        console.error("[SMTP] 587-Fallback ebenfalls fehlgeschlagen", {
+          to: mailOptions.to,
+          ...fb,
+          elapsedMs: Date.now() - startedAt,
+        })
+        return false
+      }
+    }
+
+    console.error("CRITICAL_SMTP_ERROR:", error)
     return false
   }
 }
