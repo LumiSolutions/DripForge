@@ -45,6 +45,14 @@ import {
   normalizeEnableRewardPointsSystem,
 } from "@/lib/dripforge/reward-points-settings"
 import {
+  DEFAULT_SHOW_TOP_PRODUCTS_ON_HOMEPAGE,
+  DEFAULT_TOP_PRODUCTS_COUNT,
+  MAX_TOP_PRODUCTS_COUNT,
+  MIN_TOP_PRODUCTS_COUNT,
+  normalizeShowTopProductsOnHomepage,
+  normalizeTopProductsCount,
+} from "@/lib/dripforge/top-products-settings"
+import {
   DEFAULT_ORDER_EMAIL_TEMPLATES,
   ORDER_EMAIL_PLACEHOLDER_HINT,
   normalizeOrderEmailTemplates,
@@ -98,6 +106,12 @@ export function AdminSettingsTab() {
   const [enableRewardPointsSystem, setEnableRewardPointsSystem] = useState(true)
   const [loyaltyEarnPercent, setLoyaltyEarnPercent] = useState("10")
   const [loyaltyPointsExpiryMonths, setLoyaltyPointsExpiryMonths] = useState("6")
+  const [showTopProductsOnHomepage, setShowTopProductsOnHomepage] = useState(
+    DEFAULT_SHOW_TOP_PRODUCTS_ON_HOMEPAGE
+  )
+  const [topProductsCount, setTopProductsCount] = useState(
+    String(DEFAULT_TOP_PRODUCTS_COUNT)
+  )
   const [orderEmailTemplates, setOrderEmailTemplates] =
     useState<OrderEmailTemplates>({ ...DEFAULT_ORDER_EMAIL_TEMPLATES })
   const [themeInboundTourImageUrl, setThemeInboundTourImageUrl] = useState<string | null>(
@@ -155,6 +169,12 @@ export function AdminSettingsTab() {
             : 6
         )
       )
+      setShowTopProductsOnHomepage(
+        normalizeShowTopProductsOnHomepage(data.showTopProductsOnHomepage)
+      )
+      setTopProductsCount(
+        String(normalizeTopProductsCount(data.topProductsCount))
+      )
       setOrderEmailTemplates(
         normalizeOrderEmailTemplates(data.orderEmailTemplates)
       )
@@ -209,6 +229,8 @@ export function AdminSettingsTab() {
           enableRewardPointsSystem,
           loyaltyEarnPercent: Number(loyaltyEarnPercent),
           loyaltyPointsExpiryMonths: Number(loyaltyPointsExpiryMonths),
+          showTopProductsOnHomepage,
+          topProductsCount: normalizeTopProductsCount(topProductsCount),
           orderEmailTemplates,
           launch,
         }),
@@ -258,6 +280,12 @@ export function AdminSettingsTab() {
             ? data.loyaltyPointsExpiryMonths
             : 6
         )
+      )
+      setShowTopProductsOnHomepage(
+        normalizeShowTopProductsOnHomepage(data.showTopProductsOnHomepage)
+      )
+      setTopProductsCount(
+        String(normalizeTopProductsCount(data.topProductsCount))
       )
       setOrderEmailTemplates(
         normalizeOrderEmailTemplates(data.orderEmailTemplates)
@@ -977,6 +1005,64 @@ export function AdminSettingsTab() {
                     />
                   </div>
                 ))}
+              </div>
+
+              <div className="space-y-3 border-t pt-6">
+                <div>
+                  <h4 className={cn("text-sm font-semibold", adminUi.heading)}>
+                    Top Produkte auf der Startseite
+                  </h4>
+                  <p className={cn("mt-1 text-xs", adminUi.muted)}>
+                    Zeigt die meistverkauften Produkte unter «Unsere Top Produkte». Bei zu
+                    wenigen Verkäufen werden manuell markierte Top-Produkte und danach die
+                    neuesten Artikel ergänzt.
+                  </p>
+                </div>
+                <div
+                  className={cn(
+                    "flex items-start justify-between gap-4 rounded-xl border p-4",
+                    adminUi.section
+                  )}
+                >
+                  <div className="space-y-1 pr-2">
+                    <Label className={cn("text-sm font-semibold", adminUi.heading)}>
+                      Top Produkte auf Startseite anzeigen
+                    </Label>
+                    <p className={cn("text-xs", adminUi.muted)}>
+                      Schaltet die gesamte Sektion auf der Homepage ein oder aus.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={showTopProductsOnHomepage}
+                    onCheckedChange={setShowTopProductsOnHomepage}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className={adminUi.label}>Anzahl angezeigter Top-Produkte</Label>
+                  <Select
+                    value={String(normalizeTopProductsCount(topProductsCount))}
+                    onValueChange={(value) => setTopProductsCount(value)}
+                    disabled={!showTopProductsOnHomepage}
+                  >
+                    <SelectTrigger className={cn("w-full max-w-xs", adminUi.input)}>
+                      <SelectValue placeholder="Anzahl wählen" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from(
+                        { length: MAX_TOP_PRODUCTS_COUNT - MIN_TOP_PRODUCTS_COUNT + 1 },
+                        (_, i) => MIN_TOP_PRODUCTS_COUNT + i
+                      ).map((n) => (
+                        <SelectItem key={n} value={String(n)}>
+                          {n}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className={cn("text-xs", adminUi.muted)}>
+                    Standard: {DEFAULT_TOP_PRODUCTS_COUNT}. Die Liste wird nach Verkaufsrang
+                    gefüllt (meistverkauft zuerst).
+                  </p>
+                </div>
               </div>
 
               <details className={cn("rounded-xl border p-4", adminUi.section)}>

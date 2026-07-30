@@ -42,6 +42,12 @@ import {
 } from "@/lib/konto/loyalty-points-config"
 import { normalizeOrderEmailTemplates } from "@/lib/email/order-email-templates"
 import {
+  DEFAULT_SHOW_TOP_PRODUCTS_ON_HOMEPAGE,
+  DEFAULT_TOP_PRODUCTS_COUNT,
+  normalizeShowTopProductsOnHomepage,
+  normalizeTopProductsCount,
+} from "@/lib/dripforge/top-products-settings"
+import {
   buildCustomerFromOrder,
   mergeOrderIntoCustomer,
   normalizeCustomerEmail,
@@ -431,6 +437,12 @@ export async function cosmosGetSettings(): Promise<AdminSettings> {
         loyaltyPointsExpiryMonths: normalizeLoyaltyExpiryMonths(
           resource.loyaltyPointsExpiryMonths ?? DEFAULT_LOYALTY_EXPIRY_MONTHS
         ),
+        showTopProductsOnHomepage: normalizeShowTopProductsOnHomepage(
+          resource.showTopProductsOnHomepage
+        ),
+        topProductsCount: normalizeTopProductsCount(
+          resource.topProductsCount ?? DEFAULT_TOP_PRODUCTS_COUNT
+        ),
         orderEmailTemplates: normalizeOrderEmailTemplates(
           resource.orderEmailTemplates
         ),
@@ -459,6 +471,8 @@ export async function cosmosGetSettings(): Promise<AdminSettings> {
     enableRewardPointsSystem: true,
     loyaltyEarnPercent: DEFAULT_LOYALTY_EARN_PERCENT,
     loyaltyPointsExpiryMonths: DEFAULT_LOYALTY_EXPIRY_MONTHS,
+    showTopProductsOnHomepage: DEFAULT_SHOW_TOP_PRODUCTS_ON_HOMEPAGE,
+    topProductsCount: DEFAULT_TOP_PRODUCTS_COUNT,
     orderEmailTemplates: normalizeOrderEmailTemplates(undefined),
     updatedAt: new Date().toISOString(),
   }

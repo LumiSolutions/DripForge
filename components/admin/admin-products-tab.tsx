@@ -613,11 +613,12 @@ export function AdminProductsTab() {
                     />
                     <div className="space-y-1">
                       <Label htmlFor="isTopProduct" className={adminUi.label}>
-                        Als Top-Produkt auf Startseite anzeigen
+                        Als Top-Produkt-Fallback markieren
                       </Label>
                       <p className={cn("text-xs", adminUi.muted)}>
-                        Zeigt dieses Produkt auf der Homepage im Abschnitt &apos;Unsere Top
-                        Produkte&apos; an.
+                        Wird auf der Startseite unter «Unsere Top Produkte» angezeigt,
+                        wenn noch nicht genug Verkäufe für die Bestseller-Liste vorliegen
+                        (Admin: Homepage-Einstellungen).
                       </p>
                     </div>
                   </div>

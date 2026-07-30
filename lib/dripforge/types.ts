@@ -58,7 +58,7 @@ export type Product = {
   materialLinks?: import("@/lib/admin/material-types").ProductMaterialLink[]
   /** Sichtbarkeit im Shop (false = ausgeblendet) */
   istAktiv?: boolean
-  /** Auf der Startseite unter «Unsere Top Produkte» anzeigen */
+  /** Fallback für Startseite «Unsere Top Produkte» bei zu wenigen Verkäufen */
   isTopProduct?: boolean
   /** Produkt-Galerie (Admin) */
   galerieBilder?: string[]

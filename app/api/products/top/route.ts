@@ -1,34 +1,51 @@
 import { NextResponse } from "next/server"
-import { getProducts, getSettings } from "@/lib/admin/db"
+import { getOrders, getProducts, getSettings } from "@/lib/admin/db"
 import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
 import { formatCosmosError } from "@/lib/cosmos/log-error"
-import { isProductActive } from "@/lib/admin/normalize-product"
 import { getSafeServiceVisibility } from "@/lib/admin/safe-defaults"
 import { normalizeShopProducts } from "@/lib/dripforge/normalize-shop-product"
+import { resolveTopProducts } from "@/lib/dripforge/resolve-top-products"
+import { buildTopProductsHomepageSettings } from "@/lib/dripforge/top-products-settings"
 
 export const dynamic = "force-dynamic"
-
-const MAX_TOP_PRODUCTS = 10
 
 export async function GET() {
   try {
     await warmCosmosInfrastructure()
-    const [products, settings] = await Promise.all([getProducts(), getSettings()])
+    const [products, settings, orders] = await Promise.all([
+      getProducts(),
+      getSettings(),
+      getOrders(),
+    ])
+    const topSettings = buildTopProductsHomepageSettings(settings)
     const services = getSafeServiceVisibility(settings.services)
 
-    const topProducts = products
-      .filter((product) => {
-        if (!isProductActive(product)) return false
-        if (!product.isTopProduct) return false
-        if (product.type === "3d" && !services.druck3d) return false
-        if (product.type === "laser" && !services.lasergravur) return false
-        return true
-      })
-      .sort((a, b) => a.name.localeCompare(b.name, "de-CH"))
-      .slice(0, MAX_TOP_PRODUCTS)
+    if (!topSettings.showTopProductsOnHomepage) {
+      return NextResponse.json(
+        {
+          enabled: false,
+          limit: topSettings.topProductsCount,
+          products: [],
+        },
+        {
+          headers: {
+            "Cache-Control": "no-store, max-age=0",
+          },
+        }
+      )
+    }
+
+    const topProducts = resolveTopProducts({
+      products,
+      orders,
+      services,
+      limit: topSettings.topProductsCount,
+    })
 
     return NextResponse.json(
       {
+        enabled: true,
+        limit: topSettings.topProductsCount,
         products: normalizeShopProducts(topProducts),
       },
       {
@@ -39,6 +56,10 @@ export async function GET() {
     )
   } catch (error) {
     console.error("Top-Products API: Laden fehlgeschlagen.", formatCosmosError(error))
-    return NextResponse.json({ products: [] })
+    return NextResponse.json({
+      enabled: true,
+      limit: 4,
+      products: [],
+    })
   }
 }

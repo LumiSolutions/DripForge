@@ -190,6 +190,10 @@ export type AdminSettings = {
   loyaltyEarnPercent: number
   /** Ablaufdauer der Punkte ab Gutschrift (Monate). */
   loyaltyPointsExpiryMonths: number
+  /** Sektion «Unsere Top Produkte» auf der Startseite anzeigen */
+  showTopProductsOnHomepage: boolean
+  /** Anzahl angezeigter Top-Produkte auf der Startseite (1–10) */
+  topProductsCount: number
   /** Bearbeitbare Texte für Bestell-Bestätigungsmails */
   orderEmailTemplates?: {
     receivedIntro: string
