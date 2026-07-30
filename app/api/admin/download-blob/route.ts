@@ -30,13 +30,22 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Datei nicht gefunden." }, { status: 404 })
     }
 
+    const requestedName = url.searchParams.get("filename")?.trim()
     const filename = sanitizeFilename(
-      parsed.blobName.split("/").pop() ?? "download.bin"
+      requestedName ||
+        parsed.blobName.split("/").pop() ||
+        "download.bin"
     )
+
+    const lower = filename.toLowerCase()
+    let contentType = file.contentType
+    if (lower.endsWith(".stl")) contentType = "model/stl"
+    else if (lower.endsWith(".3mf")) contentType = "model/3mf"
+    else if (lower.endsWith(".gcode")) contentType = "text/plain"
 
     return new NextResponse(new Uint8Array(file.buffer), {
       headers: {
-        "Content-Type": file.contentType,
+        "Content-Type": contentType,
         "Content-Disposition": `attachment; filename="${filename}"`,
         "Cache-Control": "private, no-store",
       },

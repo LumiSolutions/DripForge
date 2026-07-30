@@ -149,25 +149,40 @@ function ItemAttachmentBlock({
   const placements = getLaserPlacementLines(item)
   const stlDownload = downloads.find((d) => d.role === "stl")
   const leitbildDownload = downloads.find((d) => d.role === "leitbild")
-  const logoDownload = downloads.find((d) => d.role === "logo")
   const mockupDownload = downloads.find((d) => d.role === "mockup")
+  const assetDownloads = downloads.filter(
+    (d) => d.role === "logo" || d.role === "text" || d.role === "skizze"
+  )
 
   return (
-    <div className={cn("space-y-2 rounded-lg border p-3 text-sm", adminUi.section)}>
-      <div className="flex flex-wrap items-center gap-2">
-        <p className={cn("min-w-0 flex-1 font-medium", adminUi.heading)}>
+    <div
+      className={cn(
+        "w-full max-w-full space-y-2 overflow-hidden rounded-lg border p-3 text-sm",
+        adminUi.section
+      )}
+    >
+      <div className="flex w-full max-w-full flex-wrap items-center gap-2">
+        <p
+          className={cn(
+            "min-w-0 flex-1 break-words font-medium",
+            adminUi.heading
+          )}
+        >
           {item.name}{" "}
           <span className={cn("font-normal", adminUi.muted)}>×{item.quantity}</span>
         </p>
-        <Badge variant="outline" className={cn("shrink-0 text-[10px]", adminUi.badgeOutline)}>
+        <Badge
+          variant="outline"
+          className={cn("shrink-0 text-[10px]", adminUi.badgeOutline)}
+        >
           {item.type === "3d" ? "3D-Druck" : "Laser"}
         </Badge>
       </div>
 
       {lines.length > 0 ? (
-        <ul className={cn("space-y-0.5 text-xs", adminUi.bodyText)}>
+        <ul className={cn("w-full max-w-full space-y-0.5 break-words text-xs", adminUi.bodyText)}>
           {lines.map((line) => (
-            <li key={`${line.label}-${line.value}`}>
+            <li key={`${line.label}-${line.value}`} className="break-words">
               <span className={adminUi.muted}>{line.label}:</span> {line.value}
             </li>
           ))}
@@ -177,7 +192,7 @@ function ItemAttachmentBlock({
       )}
 
       {item.type === "laser" && (mockupSrc || logoSrc || placements.length > 0) && (
-        <div className="flex flex-wrap items-start gap-3 pt-1">
+        <div className="flex w-full max-w-full flex-wrap items-start gap-3 pt-1">
           {mockupSrc && (
             <div className={cn("overflow-hidden rounded-md border", adminUi.thumbnail)}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -198,9 +213,9 @@ function ItemAttachmentBlock({
               />
             </div>
           )}
-          <div className={cn("min-w-0 flex-1 space-y-1 text-xs", adminUi.bodyText)}>
+          <div className={cn("min-w-0 flex-1 space-y-1 break-words text-xs", adminUi.bodyText)}>
             {placements.map((p) => (
-              <p key={`${p.label}-${p.value}`}>
+              <p key={`${p.label}-${p.value}`} className="break-words">
                 <span className="font-medium">Position:</span>{" "}
                 <span className={adminUi.muted}>{p.label} — </span>
                 {p.value}
@@ -224,7 +239,7 @@ function ItemAttachmentBlock({
         </div>
       )}
 
-      <div className="flex w-full flex-wrap gap-1.5 pt-1">
+      <div className="flex w-full max-w-full flex-wrap gap-1.5 pt-1">
         {item.type === "3d" && stlDownload && (
           <Button
             type="button"
@@ -270,20 +285,6 @@ function ItemAttachmentBlock({
             Leitbild anzeigen
           </Button>
         )}
-        {item.type === "laser" && logoDownload && (
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className={cn("h-7 max-w-full text-xs", adminUi.outlineBtn)}
-            onClick={() =>
-              triggerFileDownload(logoDownload.filename, logoDownload.href)
-            }
-          >
-            <Download className="mr-1 h-3 w-3 shrink-0" />
-            <span className="truncate">Original Logo/Grafik</span>
-          </Button>
-        )}
         {item.type === "laser" && mockupDownload && (
           <Button
             type="button"
@@ -298,29 +299,19 @@ function ItemAttachmentBlock({
             <span className="truncate">Vorschau-Mockup</span>
           </Button>
         )}
-        {downloads
-          .filter(
-            (d) =>
-              d.role === "skizze" ||
-              (!d.role &&
-                !d.id.endsWith("-modell") &&
-                !d.id.endsWith("-leitbild") &&
-                !d.id.endsWith("-logo") &&
-                !d.id.endsWith("-mockup"))
-          )
-          .map((file) => (
-            <Button
-              key={file.id}
-              type="button"
-              size="sm"
-              variant="outline"
-              className={cn("h-7 text-xs", adminUi.outlineBtn)}
-              onClick={() => triggerFileDownload(file.filename, file.href)}
-            >
-              <Download className="mr-1 h-3 w-3" />
-              {file.label}
-            </Button>
-          ))}
+        {assetDownloads.map((file) => (
+          <Button
+            key={file.id}
+            type="button"
+            size="sm"
+            variant="outline"
+            className={cn("h-7 max-w-full text-xs", adminUi.outlineBtn)}
+            onClick={() => triggerFileDownload(file.filename, file.href)}
+          >
+            <Download className="mr-1 h-3 w-3 shrink-0" />
+            <span className="truncate">{file.label}</span>
+          </Button>
+        ))}
       </div>
     </div>
   )
@@ -460,7 +451,7 @@ function ProductionOrderCard({
       }}
       onDragEnd={onDragEnd}
       className={cn(
-        "cursor-grab overflow-hidden active:cursor-grabbing",
+        "w-full max-w-full cursor-grab overflow-hidden active:cursor-grabbing",
         customerInbound
           ? "border-l-4 border-l-amber-500 bg-amber-500/5 ring-1 ring-amber-500/25"
           : "border-l-4 border-l-orange-500",
@@ -469,28 +460,76 @@ function ProductionOrderCard({
         isDragging && "scale-[1.02] opacity-40 shadow-2xl ring-2 ring-orange-500/40"
       )}
     >
-      <CardHeader className="space-y-2 p-3 pb-2">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <p className={cn("font-mono text-xs", adminUi.accentTitle)}>
+      <CardHeader className="w-full max-w-full space-y-2 overflow-hidden p-3 pb-2">
+        <div className="flex w-full max-w-full items-start justify-between gap-2">
+          <div className="min-w-0 flex-1 overflow-hidden">
+            <p
+              className={cn(
+                "w-full max-w-full break-all font-mono text-xs",
+                adminUi.accentTitle
+              )}
+            >
               {order.orderId}
             </p>
             <p className={cn("text-[11px]", adminUi.muted)}>
               {formatDate(order.createdAt)}
             </p>
-            <p className={cn("mt-0.5 truncate text-sm font-semibold", adminUi.heading)}>
+            <p
+              className={cn(
+                "mt-0.5 w-full max-w-full overflow-hidden text-ellipsis break-words text-sm font-semibold",
+                adminUi.heading
+              )}
+            >
               {customerName(order)}
             </p>
-            <p className={cn("truncate text-xs", adminUi.muted)}>
+            <p
+              className={cn(
+                "w-full max-w-full overflow-hidden text-ellipsis break-all text-xs",
+                adminUi.muted
+              )}
+            >
               {order.billing.email}
               {order.billing.phone ? ` · ${order.billing.phone}` : ""}
             </p>
           </div>
           <GripVertical className={cn("mt-0.5 h-4 w-4 shrink-0", adminUi.muted)} />
         </div>
-        <div className="flex flex-wrap items-center gap-1.5">
+        {(() => {
+          const thumbs = order.items
+            .map((item) => ({
+              id: item.id,
+              src: getItemMockupSrc(item),
+              type: item.type,
+            }))
+            .filter((t): t is { id: string; src: string; type: StoredOrderItem["type"] } =>
+              Boolean(t.src)
+            )
+            .slice(0, 3)
+          if (thumbs.length === 0) return null
+          return (
+            <div className="flex w-full max-w-full gap-1.5 overflow-hidden">
+              {thumbs.map((thumb) => (
+                <div
+                  key={thumb.id}
+                  className={cn(
+                    "h-12 w-16 shrink overflow-hidden rounded border bg-black/20",
+                    adminUi.thumbnail
+                  )}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={thumb.src}
+                    alt={thumb.type === "laser" ? "Mockup" : "Leitbild"}
+                    className="h-full w-full object-cover"
+                  />
+                </div>
+              ))}
+            </div>
+          )
+        })()}
+        <div className="flex w-full max-w-full flex-wrap items-center gap-1.5 overflow-hidden">
           {customerInbound && (
-            <Badge className="border-amber-500/40 bg-amber-500/15 text-[10px] text-amber-800 dark:text-amber-200">
+            <Badge className="max-w-full break-words border-amber-500/40 bg-amber-500/15 text-[10px] text-amber-800 dark:text-amber-200">
               {CUSTOMER_INBOUND_PRODUCTION_LABEL}
             </Badge>
           )}
@@ -777,7 +816,7 @@ export function AdminProductionTab() {
       <div
         key={column.id}
         className={cn(
-          "relative flex min-h-[320px] flex-col rounded-xl border transition-colors md:min-h-[420px]",
+          "relative flex min-h-[320px] min-w-0 w-full max-w-full flex-col overflow-hidden rounded-xl border transition-colors md:min-h-[420px]",
           adminUi.sidebarBorder,
           adminUi.cardMuted,
           isDropTarget &&
@@ -813,7 +852,7 @@ export function AdminProductionTab() {
             {columnOrders.length}
           </Badge>
         </div>
-        <div className="flex flex-1 flex-col gap-2 overflow-y-auto p-2 md:gap-3 md:p-3">
+        <div className="flex min-w-0 w-full max-w-full flex-1 flex-col gap-2 overflow-y-auto overflow-x-hidden p-2 md:gap-3 md:p-3">
           {columnOrders.length === 0 ? (
             <p
               className={cn(

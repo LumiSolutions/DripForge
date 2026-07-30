@@ -1,7 +1,13 @@
 import type { StoredOrder, StoredOrderItem } from "@/lib/admin/types"
 import { sanitizeFilename } from "@/lib/admin/sanitize-filename"
 import { resolveSiteOrigin } from "@/lib/site/site-origin"
-import { filenameFromAssetUrl } from "@/lib/dripforge/product-print-file"
+import {
+  forceStlDownloadFilename,
+  isPrintProductionFile,
+  isViewerOnlyFile,
+  guessStlSiblingUrl,
+  filenameFromAssetUrl,
+} from "@/lib/dripforge/product-print-file"
 
 export type ItemDownloadLink = {
   id: string
@@ -10,7 +16,7 @@ export type ItemDownloadLink = {
   /** Direkt-URL, Data-URL oder Admin-Proxy-Pfad */
   href: string
   kind: "blob" | "data" | "proxy"
-  role?: "stl" | "leitbild" | "logo" | "mockup" | "skizze"
+  role?: "stl" | "leitbild" | "logo" | "mockup" | "skizze" | "text"
 }
 
 function isHttpUrl(value: string): boolean {
@@ -21,8 +27,10 @@ function isDataUrl(value: string): boolean {
   return value.startsWith("data:")
 }
 
-function proxyHref(url: string): string {
-  return `/api/admin/download-blob?url=${encodeURIComponent(url)}`
+function proxyHref(url: string, filename?: string): string {
+  const params = new URLSearchParams({ url })
+  if (filename) params.set("filename", filename)
+  return `/api/admin/download-blob?${params.toString()}`
 }
 
 export function getItemMockupSrc(item: StoredOrderItem): string | null {
@@ -33,6 +41,62 @@ export function getItemMockupSrc(item: StoredOrderItem): string | null {
     item.leitbild ??
     null
   return typeof src === "string" && src.trim() ? src : null
+}
+
+function resolvePrintModelSrc(
+  details:
+    | (NonNullable<StoredOrderItem["customDetails"]> & {
+        fileUrl?: string | null
+        modelUrl?: string | null
+      })
+    | undefined
+): { url: string; fileName: string } | null {
+  if (!details) return null
+  const candidates = [details.fileUrl, details.modelUrl]
+    .map((u) => (typeof u === "string" ? u.trim() : ""))
+    .filter(Boolean)
+
+  for (const url of candidates) {
+    if (isPrintProductionFile(url) && isHttpUrl(url)) {
+      return {
+        url,
+        fileName:
+          details.fileName && isPrintProductionFile(details.fileName)
+            ? details.fileName
+            : filenameFromAssetUrl(url, details.fileName || "modell.stl"),
+      }
+    }
+  }
+
+  for (const url of candidates) {
+    if (isViewerOnlyFile(url) && isHttpUrl(url)) {
+      const sibling = guessStlSiblingUrl(url)
+      if (sibling && isPrintProductionFile(sibling)) {
+        return {
+          url: sibling,
+          fileName: forceStlDownloadFilename(
+            "order",
+            "item",
+            details.fileName || filenameFromAssetUrl(sibling, "modell.stl")
+          ),
+        }
+      }
+    }
+  }
+
+  // Expliziter Dateiname mit Druck-Endung, URL kann trotzdem Viewer sein → Sibling
+  if (details.fileName && isPrintProductionFile(details.fileName)) {
+    for (const url of candidates) {
+      if (!isHttpUrl(url)) continue
+      if (isPrintProductionFile(url)) {
+        return { url, fileName: details.fileName }
+      }
+      const sibling = guessStlSiblingUrl(url)
+      if (sibling) return { url: sibling, fileName: details.fileName }
+    }
+  }
+
+  return null
 }
 
 export function getItemDownloadLinks(
@@ -48,16 +112,16 @@ export function getItemDownloadLinks(
     | undefined
 
   const mockupSrc = getItemMockupSrc(item)
-  const leitbildOnly =
-    item.leitbildUrl ?? item.leitbild ?? null
+  const leitbildOnly = item.leitbildUrl ?? item.leitbild ?? null
 
   if (item.type === "laser" && mockupSrc) {
+    const filename = sanitizeFilename(`${orderId}-${item.id}-mockup.png`)
     if (isHttpUrl(mockupSrc)) {
       links.push({
         id: `${item.id}-mockup`,
         label: "Vorschau-Mockup",
-        filename: sanitizeFilename(`${orderId}-${item.id}-mockup.png`),
-        href: proxyHref(mockupSrc),
+        filename,
+        href: proxyHref(mockupSrc, filename),
         kind: "proxy",
         role: "mockup",
       })
@@ -65,19 +129,20 @@ export function getItemDownloadLinks(
       links.push({
         id: `${item.id}-mockup`,
         label: "Vorschau-Mockup",
-        filename: sanitizeFilename(`${orderId}-${item.id}-mockup.png`),
+        filename,
         href: mockupSrc,
         kind: "data",
         role: "mockup",
       })
     }
   } else if (item.type === "3d" && leitbildOnly) {
+    const filename = sanitizeFilename(`${orderId}-${item.id}-leitbild.png`)
     if (isHttpUrl(leitbildOnly)) {
       links.push({
         id: `${item.id}-leitbild`,
         label: "Leitbild anzeigen",
-        filename: sanitizeFilename(`${orderId}-${item.id}-leitbild.png`),
-        href: proxyHref(leitbildOnly),
+        filename,
+        href: proxyHref(leitbildOnly, filename),
         kind: "proxy",
         role: "leitbild",
       })
@@ -85,76 +150,96 @@ export function getItemDownloadLinks(
       links.push({
         id: `${item.id}-leitbild`,
         label: "Leitbild anzeigen",
-        filename: sanitizeFilename(`${orderId}-${item.id}-leitbild.png`),
+        filename,
         href: leitbildOnly,
         kind: "data",
         role: "leitbild",
       })
     }
   } else if (mockupSrc && item.type !== "3d") {
-    // Fallback for mixed/legacy
+    const filename = sanitizeFilename(`${orderId}-${item.id}-leitbild.png`)
     if (isHttpUrl(mockupSrc)) {
       links.push({
         id: `${item.id}-leitbild`,
         label: "Leitbild anzeigen",
-        filename: sanitizeFilename(`${orderId}-${item.id}-leitbild.png`),
-        href: proxyHref(mockupSrc),
+        filename,
+        href: proxyHref(mockupSrc, filename),
         kind: "proxy",
         role: "leitbild",
       })
     }
   }
 
-  if (details?.uploadedImage) {
-    const img = details.uploadedImage
+  // Alle Bild-Assets: uploadedImages + Layer-srcs (ohne Duplikate)
+  const imageAssets: string[] = []
+  const pushUnique = (src: string | null | undefined) => {
+    if (!src || typeof src !== "string" || !src.trim()) return
+    if (imageAssets.includes(src)) return
+    imageAssets.push(src)
+  }
+
+  pushUnique(details?.uploadedImage)
+  if (Array.isArray(details?.uploadedImages)) {
+    for (const img of details.uploadedImages) pushUnique(img)
+  }
+  const layers = details?.layoutCoordinates?.layers ?? []
+  for (const layer of layers) {
+    if (layer.kind === "image") pushUnique(layer.src)
+  }
+
+  imageAssets.forEach((img, index) => {
+    const n = index + 1
+    const label = imageAssets.length === 1 ? "Bild 1" : `Bild ${n}`
+    const filename = sanitizeFilename(`${orderId}-${item.id}-bild-${n}.png`)
     if (isHttpUrl(img)) {
       links.push({
-        id: `${item.id}-logo`,
-        label: "Original Logo/Grafik",
-        filename: sanitizeFilename(`${orderId}-${item.id}-logo.png`),
-        href: proxyHref(img),
+        id: `${item.id}-logo-${n}`,
+        label,
+        filename,
+        href: proxyHref(img, filename),
         kind: "proxy",
         role: "logo",
       })
     } else if (isDataUrl(img)) {
       links.push({
-        id: `${item.id}-logo`,
-        label: "Original Logo/Grafik",
-        filename: sanitizeFilename(`${orderId}-${item.id}-logo.png`),
+        id: `${item.id}-logo-${n}`,
+        label,
+        filename,
         href: img,
         kind: "data",
         role: "logo",
       })
     }
-  }
+  })
 
-  const extraImages = Array.isArray(details?.uploadedImages)
-    ? details.uploadedImages
-    : []
-  extraImages.forEach((img, index) => {
-    if (!img || img === details?.uploadedImage) return
-    if (isHttpUrl(img)) {
-      links.push({
-        id: `${item.id}-logo-${index + 1}`,
-        label: `Original Logo/Grafik ${index + 1}`,
-        filename: sanitizeFilename(`${orderId}-${item.id}-logo-${index + 1}.png`),
-        href: proxyHref(img),
-        kind: "proxy",
-        role: "logo",
-      })
-    }
+  // Text-Layer als Infos (kein Binary) — Label für UI-Liste
+  const textLayers = layers.filter(
+    (l) => l.kind === "text" && typeof l.text === "string" && l.text.trim()
+  )
+  textLayers.forEach((layer, index) => {
+    const n = index + 1
+    const text = (layer.text ?? "").trim()
+    links.push({
+      id: `${item.id}-text-${n}`,
+      label: `Text ${n}`,
+      filename: sanitizeFilename(`${orderId}-${item.id}-text-${n}.txt`),
+      href: `data:text/plain;charset=utf-8,${encodeURIComponent(text)}`,
+      kind: "data",
+      role: "text",
+    })
   })
 
   if (details?.colorReferenceImage) {
     const img = details.colorReferenceImage
     const name =
       details.colorReferenceImageName ?? `${item.id}-farb-skizze.png`
+    const filename = sanitizeFilename(name)
     if (isHttpUrl(img)) {
       links.push({
         id: `${item.id}-skizze`,
         label: "Farb-Skizze",
-        filename: sanitizeFilename(name),
-        href: proxyHref(img),
+        filename,
+        href: proxyHref(img, filename),
         kind: "proxy",
         role: "skizze",
       })
@@ -162,7 +247,7 @@ export function getItemDownloadLinks(
       links.push({
         id: `${item.id}-skizze`,
         label: "Farb-Skizze",
-        filename: sanitizeFilename(name),
+        filename,
         href: img,
         kind: "data",
         role: "skizze",
@@ -170,16 +255,16 @@ export function getItemDownloadLinks(
     }
   }
 
-  const modelSrc = details?.fileUrl || details?.modelUrl
-  if (modelSrc && typeof modelSrc === "string" && isHttpUrl(modelSrc)) {
-    const fileName =
-      details?.fileName ||
-      filenameFromAssetUrl(modelSrc, `${orderId}-${item.id}-modell.stl`)
+  const printModel = resolvePrintModelSrc(details)
+  if (printModel) {
+    const filename = sanitizeFilename(
+      forceStlDownloadFilename(orderId, item.id, printModel.fileName)
+    )
     links.push({
       id: `${item.id}-modell`,
       label: "STL-Datei herunterladen",
-      filename: sanitizeFilename(fileName),
-      href: proxyHref(modelSrc),
+      filename,
+      href: proxyHref(printModel.url, filename),
       kind: "proxy",
       role: "stl",
     })
@@ -217,14 +302,15 @@ function collectDirectHttpAssets(
   push("Leitbild", item.leitbildUrl ?? undefined)
   push("Original Logo/Grafik", details?.uploadedImage)
   push("Farb-Skizze", details?.colorReferenceImage)
-  const modelSrc = details?.fileUrl || details?.modelUrl
-  if (modelSrc && /^https?:\/\//i.test(modelSrc)) {
+
+  const printModel = resolvePrintModelSrc(details)
+  if (printModel) {
     refs.push({
       itemName: item.name,
-      label: `STL-Datei${details?.fileName ? ` (${details.fileName})` : ""}`,
-      href: modelSrc,
+      label: `STL-Datei (${printModel.fileName})`,
+      href: printModel.url,
     })
-  } else if (details?.fileName?.trim()) {
+  } else if (details?.fileName?.trim() && isPrintProductionFile(details.fileName)) {
     refs.push({
       itemName: item.name,
       label: "3D-Datei",
