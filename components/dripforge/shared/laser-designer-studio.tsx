@@ -2245,6 +2245,7 @@ function LaserDesignerPreview({
               onClick={() => {
                 deactivateImageTools("lasso")
                 lassoPointsRef.current = []
+                setLassoPreviewPoints([])
                 setLassoActive((v) => !v)
               }}
             >
@@ -2287,6 +2288,7 @@ function LaserDesignerPreview({
               disabled={!activeLayer}
               onClick={() => {
                 if (!activeLayer) return
+                pushHistorySnapshot()
                 patchLayerLayout(activeLayer.id, { x: 50, y: 50 })
                 onStateChange({ activeLayerId: activeLayer.id })
               }}
