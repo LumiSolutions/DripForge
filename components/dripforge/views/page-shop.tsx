@@ -45,12 +45,13 @@ import { resolveProductModelUrl } from "@/lib/dripforge/product-model-defaults"
 import { resolveProductPrintFile } from "@/lib/dripforge/product-print-file"
 import {
   capture3dPreviewLeitbild,
-  captureLaserPreviewMockup,
 } from "@/lib/dripforge/capture-leitbild"
 import {
   buildLaserCartCustomDetails,
   laserDesignHasContent,
 } from "@/lib/dripforge/build-laser-cart-details"
+import { buildLaserCombinedMockup } from "@/lib/dripforge/ensure-laser-mockup"
+import { ensureLaserLayers } from "@/lib/dripforge/laser-layers"
 import { resolveProductImages } from "@/lib/dripforge/product-images-defaults"
 import {
   formatProductDimensionsText,
@@ -337,8 +338,19 @@ export function PageShop({
         await new Promise<void>((resolve) =>
           requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
         )
-        const mockupUrl = await captureLaserPreviewMockup(laserPreviewRef.current)
-        previewMockup = mockupUrl ?? undefined
+        const bgUrl =
+          selectedProduct.individualisierungsBild?.trim() ||
+          resolveProductImages(
+            selectedProduct.id,
+            selectedProduct.images,
+            selectedProduct.galerieBilder
+          )[0] ||
+          null
+        previewMockup = await buildLaserCombinedMockup({
+          layers: ensureLaserLayers(laserDesign),
+          backgroundUrl: bgUrl,
+          previewRoot: laserPreviewRef.current,
+        })
       } catch {
         console.warn("Mockup: Shop-Laser-Snapshot konnte nicht erstellt werden.")
       }
@@ -354,6 +366,14 @@ export function PageShop({
         customDetails: buildLaserCartCustomDetails(laserDesign, {
           material: selectedProduct.name,
           variant: selectedVariant,
+          productBackgroundUrl:
+            selectedProduct.individualisierungsBild?.trim() ||
+            resolveProductImages(
+              selectedProduct.id,
+              selectedProduct.images,
+              selectedProduct.galerieBilder
+            )[0] ||
+            null,
         }),
       }
 
