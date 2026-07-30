@@ -12,7 +12,12 @@ export function getCustomerItemDownloadLinks(
   item: StoredOrderItem
 ): CustomerItemDownload[] {
   const links: CustomerItemDownload[] = []
-  const details = item.customDetails
+  const details = item.customDetails as
+    | (NonNullable<StoredOrderItem["customDetails"]> & {
+        fileUrl?: string | null
+        modelUrl?: string | null
+      })
+    | undefined
   const base = `/api/customer/orders/${encodeURIComponent(orderId)}/items/${encodeURIComponent(item.id)}/asset`
 
   if (item.leitbildUrl || item.leitbild) {
@@ -39,6 +44,18 @@ export function getCustomerItemDownloadLinks(
       label: "Farb-Skizze",
       filename: details.colorReferenceImageName ?? `farb-skizze-${item.id}.png`,
       href: `${base}?type=skizze`,
+    })
+  }
+
+  const modelSrc = details?.fileUrl || details?.modelUrl
+  if (modelSrc) {
+    links.push({
+      id: `${item.id}-modell`,
+      label: details?.fileName?.trim()
+        ? `3D-Datei (${details.fileName.trim()})`
+        : "3D-Datei (STL)",
+      filename: details?.fileName?.trim() || `modell-${item.id}.stl`,
+      href: `${base}?type=modell`,
     })
   }
 

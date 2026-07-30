@@ -42,6 +42,11 @@ import {
   downloadTextFile,
   sanitizeFilename,
 } from "@/lib/admin/download-helpers"
+import { getItemDownloadLinks } from "@/lib/admin/item-downloads"
+import {
+  getItemLogoPreviewSrc,
+  getLaserPlacementLines,
+} from "@/lib/admin/layout-placement"
 import {
   ORDER_STATUS_OPTIONS,
   type OrderStatus,
@@ -66,6 +71,21 @@ function customerName(order: StoredOrder) {
 function fontLabel(fontId?: string) {
   if (!fontId) return "—"
   return LASER_FONT_OPTIONS.find((f) => f.id === fontId)?.label ?? fontId
+}
+
+function triggerAdminFileDownload(filename: string, href: string) {
+  if (href.startsWith("data:")) {
+    downloadDataUrl(filename, href)
+    return
+  }
+  const link = document.createElement("a")
+  link.href = href
+  link.download = filename
+  link.rel = "noopener"
+  if (href.startsWith("/api/")) link.target = "_blank"
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
 }
 
 function OrderDetailPanel({ order }: { order: StoredOrder }) {
@@ -234,24 +254,58 @@ function OrderDetailPanel({ order }: { order: StoredOrder }) {
                       {fontLabel(item.customDetails.userFont)}
                     </li>
                   )}
-                  {item.customDetails?.layoutCoordinates?.textPosition && (
-                    <li>
-                      <span className={adminUi.muted}>Text-Position:</span>{" "}
-                      {Math.round(
-                        item.customDetails.layoutCoordinates.textPosition.x
-                      )}
-                      % /{" "}
-                      {Math.round(
-                        item.customDetails.layoutCoordinates.textPosition.y
-                      )}
-                      %
+                  {getLaserPlacementLines(item).map((line) => (
+                    <li key={`${line.label}-${line.value}`}>
+                      <span className={adminUi.muted}>{line.label}:</span>{" "}
+                      {line.value}
                     </li>
-                  )}
+                  ))}
                 </ul>
               )}
 
+              {item.type === "laser" && getItemLogoPreviewSrc(item) && (
+                <div className="flex items-start gap-3 pt-2">
+                  <div className={cn("overflow-hidden rounded-lg border", adminUi.thumbnail)}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={getItemLogoPreviewSrc(item)!}
+                      alt="Logo-Vorschau"
+                      className="h-20 w-20 object-contain bg-black/20"
+                    />
+                  </div>
+                  <div className={cn("space-y-1 text-xs", adminUi.bodyText)}>
+                    <p className="font-medium">Hochgeladene Grafik</p>
+                    {getLaserPlacementLines(item)
+                      .filter((l) => l.label.startsWith("Logo"))
+                      .map((line) => (
+                        <p key={line.value}>
+                          <span className="font-medium">Position:</span> {line.value}
+                        </p>
+                      ))}
+                  </div>
+                </div>
+              )}
+
               <div className="flex flex-wrap gap-2 pt-2">
-                {item.customDetails?.fileName && (
+                {getItemDownloadLinks(order.orderId, item).map((file) => (
+                  <Button
+                    key={file.id}
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className={adminUi.outlineBtn}
+                    onClick={() =>
+                      triggerAdminFileDownload(file.filename, file.href)
+                    }
+                  >
+                    <Download className="mr-2 h-3.5 w-3.5" />
+                    {file.label}
+                  </Button>
+                ))}
+                {item.customDetails?.fileName &&
+                  !getItemDownloadLinks(order.orderId, item).some((f) =>
+                    f.id.endsWith("-modell")
+                  ) && (
                   <Button
                     type="button"
                     size="sm"
@@ -266,43 +320,6 @@ function OrderDetailPanel({ order }: { order: StoredOrder }) {
                   >
                     <Download className="mr-2 h-3.5 w-3.5" />
                     {item.customDetails.fileName}
-                  </Button>
-                )}
-                {item.customDetails?.uploadedImage && (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className={adminUi.outlineBtn}
-                    onClick={() =>
-                      downloadDataUrl(
-                        sanitizeFilename(`${item.id}-logo.png`),
-                        item.customDetails!.uploadedImage!
-                      )
-                    }
-                  >
-                    <Download className="mr-2 h-3.5 w-3.5" />
-                    Logo herunterladen
-                  </Button>
-                )}
-                {item.customDetails?.colorReferenceImage && (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className={adminUi.outlineBtn}
-                    onClick={() =>
-                      downloadDataUrl(
-                        sanitizeFilename(
-                          item.customDetails!.colorReferenceImageName ??
-                            `${item.id}-skizze.png`
-                        ),
-                        item.customDetails!.colorReferenceImage!
-                      )
-                    }
-                  >
-                    <Download className="mr-2 h-3.5 w-3.5" />
-                    Farb-Skizze
                   </Button>
                 )}
               </div>

@@ -16,7 +16,7 @@ type RouteContext = {
   params: Promise<{ orderId: string; itemId: string }>
 }
 
-type AssetType = "leitbild" | "logo" | "skizze"
+type AssetType = "leitbild" | "logo" | "skizze" | "modell"
 
 function resolveAssetSource(
   orderId: string,
@@ -27,7 +27,12 @@ function resolveAssetSource(
   const item = order.items.find((entry) => entry.id === itemId)
   if (!item) return null
 
-  const details = item.customDetails
+  const details = item.customDetails as
+    | (NonNullable<(typeof item)["customDetails"]> & {
+        fileUrl?: string | null
+        modelUrl?: string | null
+      })
+    | undefined
 
   if (type === "leitbild") {
     const src = item.leitbildUrl ?? item.leitbild
@@ -54,6 +59,17 @@ function resolveAssetSource(
     }
   }
 
+  if (type === "modell") {
+    const src = details?.fileUrl || details?.modelUrl
+    if (!src) return null
+    return {
+      src,
+      filename: sanitizeFilename(
+        details?.fileName ?? `${orderId}-${itemId}-modell.stl`
+      ),
+    }
+  }
+
   return null
 }
 
@@ -64,7 +80,7 @@ export async function GET(request: Request, context: RouteContext) {
   const { orderId, itemId } = await context.params
   const type = new URL(request.url).searchParams.get("type") as AssetType | null
 
-  if (!type || !["leitbild", "logo", "skizze"].includes(type)) {
+  if (!type || !["leitbild", "logo", "skizze", "modell"].includes(type)) {
     return NextResponse.json({ error: "Ungültiger Asset-Typ." }, { status: 400 })
   }
 

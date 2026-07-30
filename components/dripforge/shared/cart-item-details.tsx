@@ -101,6 +101,13 @@ export function CartItemDetails({
               {Math.round(d.layoutCoordinates.textPosition.y)}%
             </li>
           )}
+          {d.layoutCoordinates?.imagePosition && (d.uploadedImage || d.hasImage) && (
+            <li className="opacity-80">
+              Logo-Position:{" "}
+              {Math.round(d.layoutCoordinates.imagePosition.x)}% /{" "}
+              {Math.round(d.layoutCoordinates.imagePosition.y)}%
+            </li>
+          )}
         </ul>
       )}
     </div>

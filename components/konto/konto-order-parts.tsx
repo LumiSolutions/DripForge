@@ -133,6 +133,25 @@ export function OrderItemList({ order }: { order: CustomerOrderSummary }) {
                 <span className="font-mono text-muted-foreground">{item.fileName}</span>
               </p>
             ) : null}
+            {item.placementSummary ? (
+              <p className="mt-1 text-xs">
+                <span className="font-medium text-foreground">Position:</span>{" "}
+                <span className="text-muted-foreground">{item.placementSummary}</span>
+              </p>
+            ) : null}
+            {item.type === "laser" && item.logoPreviewUrl ? (
+              <div className="mt-2 flex items-center gap-2">
+                <div className="h-12 w-12 overflow-hidden rounded border border-border/50 bg-muted/40">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={item.logoPreviewUrl}
+                    alt="Logo"
+                    className="h-full w-full object-contain"
+                  />
+                </div>
+                <span className="text-[11px] text-muted-foreground">Logo / Grafik</span>
+              </div>
+            ) : null}
             {item.options.length > 0 && (
               <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground">
                 {item.options.map((option) => (

@@ -2,17 +2,25 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import {
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Download,
+  Eye,
+  Factory,
   GripVertical,
   Loader2,
   RefreshCw,
-  Factory,
+  Search,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader } from "@/components/ui/card"
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible"
 import {
   Dialog,
   DialogContent,
@@ -23,10 +31,23 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
   downloadDataUrl,
   downloadTextFile,
 } from "@/lib/admin/download-helpers"
 import { getItemDownloadLinks } from "@/lib/admin/item-downloads"
+import {
+  getItemLogoPreviewSrc,
+  getItemModelFile,
+  getLaserPlacementLines,
+  orderMatchesJobType,
+} from "@/lib/admin/layout-placement"
 import { getItemPersonalizationLines } from "@/lib/admin/order-personalization"
 import {
   isOrderVisibleInProductionCockpit,
@@ -42,15 +63,37 @@ import {
   isCustomerInboundOrder,
 } from "@/lib/admin/customer-inbound-order"
 import { formatChf } from "@/lib/admin/format-chf"
-import type { ProductionStatus, StoredOrder } from "@/lib/admin/types"
+import type { ProductionStatus, StoredOrder, StoredOrderItem } from "@/lib/admin/types"
+import { ORDER_STATUS_OPTIONS } from "@/lib/admin/types"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
 import { cn } from "@/lib/utils"
+
+type SortKey = "newest" | "oldest" | "value" | "customer"
+type JobTypeFilter = "all" | "3d" | "laser"
 
 function formatDate(iso: string) {
   return new Intl.DateTimeFormat("de-CH", {
     dateStyle: "short",
     timeStyle: "short",
   }).format(new Date(iso))
+}
+
+function customerName(order: StoredOrder) {
+  return `${order.billing.firstName} ${order.billing.lastName}`.trim()
+}
+
+function paymentLabel(order: StoredOrder) {
+  if (order.paymentConfirmed === true || order.paymentStatus === "paid") {
+    return "Bezahlt"
+  }
+  if (order.paymentConfirmed === false || order.paymentStatus === "pending") {
+    return "Ausstehend"
+  }
+  return order.paymentMethodLabel
+}
+
+function shopStatusLabel(status: StoredOrder["status"]) {
+  return ORDER_STATUS_OPTIONS.find((o) => o.value === status)?.label ?? status
 }
 
 function triggerFileDownload(filename: string, href: string) {
@@ -70,25 +113,270 @@ function triggerFileDownload(filename: string, href: string) {
   document.body.removeChild(link)
 }
 
+function sortOrders(orders: StoredOrder[], sort: SortKey): StoredOrder[] {
+  const next = [...orders]
+  next.sort((a, b) => {
+    switch (sort) {
+      case "oldest":
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      case "value":
+        return b.totals.total - a.totals.total
+      case "customer":
+        return customerName(a).localeCompare(customerName(b), "de-CH")
+      case "newest":
+      default:
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    }
+  })
+  return next
+}
+
+function ItemAttachmentBlock({
+  orderId,
+  item,
+}: {
+  orderId: string
+  item: StoredOrderItem
+}) {
+  const lines = getItemPersonalizationLines(item)
+  const downloads = getItemDownloadLinks(orderId, item)
+  const model = getItemModelFile(item)
+  const logoSrc = getItemLogoPreviewSrc(item)
+  const placements = getLaserPlacementLines(item)
+  const modelDownload = downloads.find((d) => d.id.endsWith("-modell"))
+
+  return (
+    <div className={cn("space-y-2 rounded-lg border p-3 text-sm", adminUi.section)}>
+      <div className="flex flex-wrap items-center gap-2">
+        <p className={cn("min-w-0 flex-1 font-medium", adminUi.heading)}>
+          {item.name}{" "}
+          <span className={cn("font-normal", adminUi.muted)}>×{item.quantity}</span>
+        </p>
+        <Badge variant="outline" className={cn("shrink-0 text-[10px]", adminUi.badgeOutline)}>
+          {item.type === "3d" ? "3D-Druck" : "Laser"}
+        </Badge>
+      </div>
+
+      {lines.length > 0 ? (
+        <ul className={cn("space-y-0.5 text-xs", adminUi.bodyText)}>
+          {lines.map((line) => (
+            <li key={`${line.label}-${line.value}`}>
+              <span className={adminUi.muted}>{line.label}:</span> {line.value}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className={cn("text-xs", adminUi.muted)}>Keine Zusatzdetails</p>
+      )}
+
+      {item.type === "laser" && (logoSrc || placements.length > 0) && (
+        <div className="flex flex-wrap items-start gap-3 pt-1">
+          {logoSrc && (
+            <div className={cn("overflow-hidden rounded-md border", adminUi.thumbnail)}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={logoSrc}
+                alt="Logo-Vorschau"
+                className="h-16 w-16 object-contain bg-black/20"
+              />
+            </div>
+          )}
+          <div className={cn("min-w-0 flex-1 space-y-1 text-xs", adminUi.bodyText)}>
+            {placements.map((p) => (
+              <p key={`${p.label}-${p.value}`}>
+                <span className="font-medium">Position:</span>{" "}
+                <span className={adminUi.muted}>{p.label} — </span>
+                {p.value}
+              </p>
+            ))}
+            {!placements.length && logoSrc && (
+              <p className={adminUi.muted}>Logo hochgeladen</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {item.type === "3d" && model && (
+        <div className="pt-1">
+          {modelDownload ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className={cn("h-7 max-w-full text-xs", adminUi.outlineBtn)}
+              onClick={() =>
+                triggerFileDownload(modelDownload.filename, modelDownload.href)
+              }
+            >
+              <Download className="mr-1 h-3 w-3 shrink-0" />
+              <span className="truncate">STL: {model.fileName}</span>
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className={cn("h-7 max-w-full text-xs", adminUi.outlineBtn)}
+              onClick={() =>
+                downloadTextFile(
+                  model.fileName,
+                  `3D-Modell: ${model.fileName}\n(Bitte Originaldatei aus Kundenkommunikation.)`
+                )
+              }
+            >
+              <Download className="mr-1 h-3 w-3 shrink-0" />
+              <span className="truncate">{model.fileName}</span>
+            </Button>
+          )}
+        </div>
+      )}
+
+      {downloads.filter((d) => !d.id.endsWith("-modell")).length > 0 && (
+        <div className="flex flex-wrap gap-1.5 pt-1">
+          {downloads
+            .filter((d) => !d.id.endsWith("-modell"))
+            .map((file) => (
+              <Button
+                key={file.id}
+                type="button"
+                size="sm"
+                variant="outline"
+                className={cn("h-7 text-xs", adminUi.outlineBtn)}
+                onClick={() => triggerFileDownload(file.filename, file.href)}
+              >
+                <Download className="mr-1 h-3 w-3" />
+                {file.label}
+              </Button>
+            ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ProductionOrderDetailDialog({
+  order,
+  open,
+  onOpenChange,
+}: {
+  order: StoredOrder | null
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}) {
+  if (!order) return null
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle className="font-mono">{order.orderId}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-6 text-sm">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <h4 className={cn("font-semibold", adminUi.accentTitle)}>Kunde</h4>
+              <p className={adminUi.heading}>{customerName(order)}</p>
+              <p className={adminUi.muted}>{order.billing.email}</p>
+              <p className={adminUi.muted}>{order.billing.phone || "—"}</p>
+              {order.kundennummer && (
+                <p className={cn("font-mono text-xs", adminUi.accentTitle)}>
+                  {order.kundennummer}
+                </p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <h4 className={cn("font-semibold", adminUi.accentTitle)}>Zahlung & Status</h4>
+              <p>{order.paymentMethodLabel}</p>
+              <p className={adminUi.muted}>Zahlungsstatus: {paymentLabel(order)}</p>
+              <p className={adminUi.muted}>
+                Shop-Status: {shopStatusLabel(order.status)}
+              </p>
+              <p className={cn("font-semibold tabular-nums", adminUi.heading)}>
+                {formatChf(order.totals.total)}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1">
+              <h4 className={cn("font-semibold", adminUi.accentTitle)}>Rechnungsadresse</h4>
+              <p>
+                {order.billing.firstName} {order.billing.lastName}
+              </p>
+              <p>{order.billing.street}</p>
+              <p>
+                {order.billing.zip} {order.billing.city}
+              </p>
+              <p>{order.billing.country}</p>
+            </div>
+            <div className="space-y-1">
+              <h4 className={cn("font-semibold", adminUi.accentTitle)}>Lieferadresse</h4>
+              {order.delivery ? (
+                <>
+                  <p>
+                    {order.delivery.firstName} {order.delivery.lastName}
+                  </p>
+                  <p>{order.delivery.street}</p>
+                  <p>
+                    {order.delivery.zip} {order.delivery.city}
+                  </p>
+                  <p>{order.delivery.country}</p>
+                </>
+              ) : (
+                <p className={adminUi.muted}>Entspricht der Rechnungsadresse</p>
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <h4 className={cn("font-semibold", adminUi.accentTitle)}>
+              Positionen ({order.items.length})
+            </h4>
+            {order.items.map((item) => (
+              <ItemAttachmentBlock
+                key={item.id}
+                orderId={order.orderId}
+                item={item}
+              />
+            ))}
+          </div>
+
+          {order.trackingNumber && (
+            <p className={cn("font-mono text-xs", adminUi.muted)}>
+              Tracking: {order.trackingNumber}
+            </p>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 function ProductionOrderCard({
   order,
   columnStatus,
   onMove,
   onRequestShipment,
+  onShowDetails,
   updating,
+  isDragging,
+  onDragBegin,
+  onDragEnd,
 }: {
   order: StoredOrder
   columnStatus: ProductionStatus
   onMove: (orderId: string, status: ProductionStatus) => void
   onRequestShipment: (order: StoredOrder) => void
+  onShowDetails: (order: StoredOrder) => void
   updating: boolean
+  isDragging: boolean
+  onDragBegin: (orderId: string) => void
+  onDragEnd: () => void
 }) {
+  const [expanded, setExpanded] = useState(false)
   const prev = prevProductionStatus(columnStatus)
   const next = nextProductionStatus(columnStatus)
   const customerInbound = isCustomerInboundOrder(order)
-  const previewSrc =
-    order.items.find((i) => i.leitbildUrl ?? i.leitbild)?.leitbildUrl ??
-    order.items.find((i) => i.leitbild)?.leitbild
 
   return (
     <Card
@@ -96,162 +384,154 @@ function ProductionOrderCard({
       onDragStart={(e) => {
         e.dataTransfer.setData("text/order-id", order.orderId)
         e.dataTransfer.effectAllowed = "move"
+        onDragBegin(order.orderId)
       }}
+      onDragEnd={onDragEnd}
       className={cn(
-        "cursor-grab active:cursor-grabbing",
+        "cursor-grab overflow-hidden active:cursor-grabbing",
         customerInbound
           ? "border-l-4 border-l-amber-500 bg-amber-500/5 ring-1 ring-amber-500/25"
           : "border-l-4 border-l-orange-500",
         adminUi.card,
-        updating && "opacity-60"
+        updating && "opacity-60",
+        isDragging && "scale-[1.02] opacity-40 shadow-2xl ring-2 ring-orange-500/40"
       )}
     >
-      <CardHeader className="space-y-2 p-4 pb-2">
+      <CardHeader className="space-y-2 p-3 pb-2">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <p className={cn("font-mono text-xs", adminUi.accentTitle)}>
               {order.orderId}
             </p>
-            <p className={cn("truncate text-sm font-semibold", adminUi.heading)}>
-              {order.billing.firstName} {order.billing.lastName}
+            <p className={cn("text-[11px]", adminUi.muted)}>
+              {formatDate(order.createdAt)}
             </p>
-            <p className={cn("text-xs", adminUi.muted)}>{formatDate(order.createdAt)}</p>
+            <p className={cn("mt-0.5 truncate text-sm font-semibold", adminUi.heading)}>
+              {customerName(order)}
+            </p>
+            <p className={cn("truncate text-xs", adminUi.muted)}>
+              {order.billing.email}
+              {order.billing.phone ? ` · ${order.billing.phone}` : ""}
+            </p>
           </div>
-          <GripVertical className={cn("h-4 w-4 shrink-0", adminUi.muted)} />
+          <GripVertical className={cn("mt-0.5 h-4 w-4 shrink-0", adminUi.muted)} />
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-1.5">
           {customerInbound && (
-            <Badge className="border-amber-500/40 bg-amber-500/15 text-amber-800 dark:text-amber-200">
+            <Badge className="border-amber-500/40 bg-amber-500/15 text-[10px] text-amber-800 dark:text-amber-200">
               {CUSTOMER_INBOUND_PRODUCTION_LABEL}
             </Badge>
           )}
-          <Badge variant="outline" className={adminUi.badgeOutline}>
+          <Badge variant="outline" className={cn("text-[10px]", adminUi.badgeOutline)}>
             {formatChf(order.totals.total)}
           </Badge>
-          <Badge variant="outline" className={adminUi.badgeOutline}>
+          <Badge variant="outline" className={cn("text-[10px]", adminUi.badgeOutline)}>
             {order.items.length} Pos.
           </Badge>
         </div>
       </CardHeader>
-      <CardContent className="space-y-3 p-4 pt-0">
-        {previewSrc && (
-          <div className={cn("overflow-hidden rounded-lg border", adminUi.thumbnail)}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={previewSrc}
-              alt="Vorschau"
-              className="max-h-28 w-full object-contain bg-black/30"
-            />
-          </div>
-        )}
 
-        {order.items.map((item) => {
-          const lines = getItemPersonalizationLines(item)
-          const downloads = getItemDownloadLinks(order.orderId, item)
-          return (
-            <div
-              key={item.id}
-              className={cn("space-y-2 rounded-lg border p-3 text-sm", adminUi.section)}
+      <CardContent className="space-y-2 p-3 pt-0">
+        <Collapsible open={expanded} onOpenChange={setExpanded}>
+          <CollapsibleTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className={cn(
+                "h-7 w-full justify-between px-2 text-xs",
+                adminUi.muted
+              )}
             >
-              <p className={cn("font-medium", adminUi.heading)}>
-                {item.name}{" "}
-                <span className={cn("font-normal", adminUi.muted)}>×{item.quantity}</span>
-              </p>
-              {lines.length > 0 ? (
-                <ul className={cn("space-y-0.5 text-xs", adminUi.bodyText)}>
-                  {lines.map((line) => (
-                    <li key={`${line.label}-${line.value}`}>
-                      <span className={adminUi.muted}>{line.label}:</span> {line.value}
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className={cn("text-xs", adminUi.muted)}>Keine Zusatzdetails</p>
-              )}
-              {downloads.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  {downloads.map((file) => (
-                    <Button
-                      key={file.id}
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className={cn("h-7 text-xs", adminUi.outlineBtn)}
-                      onClick={() =>
-                        triggerFileDownload(file.filename, file.href)
-                      }
-                    >
-                      <Download className="mr-1 h-3 w-3" />
-                      {file.label}
-                    </Button>
-                  ))}
-                </div>
-              )}
-              {item.customDetails?.fileName && downloads.length === 0 && (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className={cn("h-7 text-xs", adminUi.outlineBtn)}
-                  onClick={() =>
-                    downloadTextFile(
-                      item.customDetails!.fileName!,
-                      `3D-Modell: ${item.customDetails!.fileName}\n(Bitte Originaldatei aus Kundenkommunikation.)`
-                    )
-                  }
-                >
-                  <Download className="mr-1 h-3 w-3" />
-                  {item.customDetails.fileName}
-                </Button>
+              {expanded ? "Details einklappen" : "Details ausklappen"}
+              <ChevronDown
+                className={cn(
+                  "h-3.5 w-3.5 transition-transform duration-200",
+                  expanded && "rotate-180"
+                )}
+              />
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down">
+            <div className="space-y-2 pb-1 pt-2">
+              {order.items.map((item) => (
+                <ItemAttachmentBlock
+                  key={item.id}
+                  orderId={order.orderId}
+                  item={item}
+                />
+              ))}
+              {order.trackingNumber && columnStatus === "versendet" && (
+                <p className={cn("font-mono text-xs", adminUi.muted)}>
+                  Tracking: {order.trackingNumber}
+                </p>
               )}
             </div>
-          )
-        })}
+          </CollapsibleContent>
+        </Collapsible>
 
-        {order.trackingNumber && columnStatus === "versendet" && (
-          <p className={cn("font-mono text-xs", adminUi.muted)}>
-            Tracking: {order.trackingNumber}
-          </p>
-        )}
-
-        <div className="flex gap-2 pt-1">
-          {prev && columnStatus !== "versendet" && (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={updating}
-              className={adminUi.outlineBtn}
-              onClick={() => onMove(order.orderId, prev)}
-            >
-              <ChevronLeft className="mr-1 h-3.5 w-3.5" />
-              Zurück
-            </Button>
-          )}
-          {next && (
-            <Button
-              type="button"
-              size="sm"
-              disabled={updating}
-              className={cn("flex-1", adminUi.primaryBtn)}
-              onClick={() => {
-                if (
-                  requiresShipmentModal(columnStatus, next)
-                ) {
-                  onRequestShipment(order)
-                } else {
-                  onMove(order.orderId, next)
-                }
-              }}
-            >
-              {next === "versendet" ? "Versenden" : "Weiter"}
-              <ChevronRight className="ml-1 h-3.5 w-3.5" />
-            </Button>
-          )}
+        <div className="w-full space-y-2 border-t border-slate-200/80 pt-2 dark:border-zinc-800">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className={cn("h-8 w-full text-xs", adminUi.outlineBtn)}
+            onClick={() => onShowDetails(order)}
+          >
+            <Eye className="mr-1.5 h-3.5 w-3.5" />
+            Bestellung anzeigen
+          </Button>
+          <div className="flex w-full gap-2">
+            {prev && columnStatus !== "versendet" && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={updating}
+                className={cn("h-8 min-w-0 flex-1 px-2 text-xs", adminUi.outlineBtn)}
+                onClick={() => onMove(order.orderId, prev)}
+              >
+                <ChevronLeft className="mr-0.5 h-3.5 w-3.5 shrink-0" />
+                <span className="truncate">Zurück</span>
+              </Button>
+            )}
+            {next && (
+              <Button
+                type="button"
+                size="sm"
+                disabled={updating}
+                className={cn(
+                  "h-8 min-w-0 flex-1 px-2 text-xs",
+                  adminUi.primaryBtn
+                )}
+                onClick={() => {
+                  if (requiresShipmentModal(columnStatus, next)) {
+                    onRequestShipment(order)
+                  } else {
+                    onMove(order.orderId, next)
+                  }
+                }}
+              >
+                <span className="truncate">
+                  {next === "versendet" ? "Versenden" : "Weiter"}
+                </span>
+                <ChevronRight className="ml-0.5 h-3.5 w-3.5 shrink-0" />
+              </Button>
+            )}
+          </div>
         </div>
       </CardContent>
     </Card>
   )
+}
+
+function shortColumnLabel(label: string) {
+  if (label.startsWith("Bereit für Produktion")) return "Bereit"
+  if (label === "In Produktion") return "Produktion"
+  if (label === "Qualitätskontrolle") return "QS"
+  if (label === "Bereit für Versand") return "Versand"
+  if (label === "Versendet") return "Versendet"
+  return label
 }
 
 export function AdminProductionTab() {
@@ -263,6 +543,17 @@ export function AdminProductionTab() {
   const [trackingNumber, setTrackingNumber] = useState("")
   const [shipBusy, setShipBusy] = useState(false)
   const [shipNotice, setShipNotice] = useState<string | null>(null)
+  const [detailOrder, setDetailOrder] = useState<StoredOrder | null>(null)
+  const [sortKey, setSortKey] = useState<SortKey>("newest")
+  const [jobType, setJobType] = useState<JobTypeFilter>("all")
+  const [search, setSearch] = useState("")
+  const [mobileColumn, setMobileColumn] = useState<ProductionStatus>(
+    "bereit_fuer_produktion"
+  )
+  const [draggingId, setDraggingId] = useState<string | null>(null)
+  const [dragOverColumn, setDragOverColumn] = useState<ProductionStatus | null>(
+    null
+  )
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -286,22 +577,35 @@ export function AdminProductionTab() {
     void load()
   }, [load])
 
-  const productionOrders = useMemo(
-    () => orders.filter(isOrderVisibleInProductionCockpit),
-    [orders]
-  )
+  const filteredOrders = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    const base = orders.filter(isOrderVisibleInProductionCockpit).filter((order) => {
+      if (!orderMatchesJobType(order.items, jobType)) return false
+      if (!q) return true
+      const haystack = [
+        order.orderId,
+        customerName(order),
+        order.billing.email,
+        order.kundennummer ?? "",
+      ]
+        .join(" ")
+        .toLowerCase()
+      return haystack.includes(q)
+    })
+    return sortOrders(base, sortKey)
+  }, [orders, jobType, search, sortKey])
 
   const byColumn = useMemo(() => {
     const map = new Map<ProductionStatus, StoredOrder[]>()
     for (const col of PRODUCTION_COLUMNS) {
       map.set(col.id, [])
     }
-    for (const order of productionOrders) {
+    for (const order of filteredOrders) {
       const status = resolveProductionStatus(order)
       map.get(status)?.push(order)
     }
     return map
-  }, [productionOrders])
+  }, [filteredOrders])
 
   const moveOrder = async (orderId: string, productionStatus: ProductionStatus) => {
     if (productionStatus === "versendet") return
@@ -379,7 +683,9 @@ export function AdminProductionTab() {
   }
 
   const handleDrop = (status: ProductionStatus, orderId: string) => {
-    const order = productionOrders.find((o) => o.orderId === orderId)
+    setDragOverColumn(null)
+    setDraggingId(null)
+    const order = filteredOrders.find((o) => o.orderId === orderId)
     if (!order) return
     const from = resolveProductionStatus(order)
     if (from === status) return
@@ -389,6 +695,84 @@ export function AdminProductionTab() {
     }
     if (status === "versendet") return
     void moveOrder(orderId, status)
+  }
+
+  const renderColumn = (column: (typeof PRODUCTION_COLUMNS)[number]) => {
+    const columnOrders = byColumn.get(column.id) ?? []
+    const isDropTarget = dragOverColumn === column.id && draggingId != null
+
+    return (
+      <div
+        key={column.id}
+        className={cn(
+          "relative flex min-h-[320px] flex-col rounded-xl border transition-colors md:min-h-[420px]",
+          adminUi.sidebarBorder,
+          adminUi.cardMuted,
+          isDropTarget &&
+            "border-2 border-dashed border-orange-500 bg-orange-500/10 ring-2 ring-orange-500/20"
+        )}
+        onDragOver={(e) => {
+          e.preventDefault()
+          e.dataTransfer.dropEffect = "move"
+          if (dragOverColumn !== column.id) setDragOverColumn(column.id)
+        }}
+        onDragLeave={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+            setDragOverColumn((prev) => (prev === column.id ? null : prev))
+          }
+        }}
+        onDrop={(e) => {
+          e.preventDefault()
+          const orderId = e.dataTransfer.getData("text/order-id")
+          if (orderId) handleDrop(column.id, orderId)
+        }}
+      >
+        {isDropTarget && (
+          <div className="pointer-events-none absolute inset-x-3 top-16 z-10 flex justify-center">
+            <span className="rounded-full border border-dashed border-orange-500 bg-orange-500/15 px-3 py-1 text-xs font-medium text-orange-700 dark:text-orange-300">
+              Hierhin verschieben
+            </span>
+          </div>
+        )}
+        <div className={cn("border-b p-3 md:p-4", adminUi.sidebarBorder)}>
+          <p className={cn("text-sm font-bold", adminUi.heading)}>{column.label}</p>
+          <p className={cn("mt-0.5 text-xs", adminUi.muted)}>{column.hint}</p>
+          <Badge className="mt-2" variant="outline">
+            {columnOrders.length}
+          </Badge>
+        </div>
+        <div className="flex flex-1 flex-col gap-2 overflow-y-auto p-2 md:gap-3 md:p-3">
+          {columnOrders.length === 0 ? (
+            <p
+              className={cn(
+                "rounded-lg border border-dashed py-8 text-center text-xs",
+                adminUi.empty
+              )}
+            >
+              {isDropTarget ? "Hierhin verschieben" : "Keine Aufträge"}
+            </p>
+          ) : (
+            columnOrders.map((order) => (
+              <ProductionOrderCard
+                key={order.orderId}
+                order={order}
+                columnStatus={column.id}
+                onMove={moveOrder}
+                onRequestShipment={openShipmentModal}
+                onShowDetails={setDetailOrder}
+                updating={updatingId === order.orderId}
+                isDragging={draggingId === order.orderId}
+                onDragBegin={setDraggingId}
+                onDragEnd={() => {
+                  setDraggingId(null)
+                  setDragOverColumn(null)
+                }}
+              />
+            ))
+          )}
+        </div>
+      </div>
+    )
   }
 
   if (loading && orders.length === 0) {
@@ -401,27 +785,79 @@ export function AdminProductionTab() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h2 className={cn("flex items-center gap-2 text-xl font-bold", adminUi.heading)}>
-            <Factory className="h-5 w-5 text-orange-500" />
-            Produktions-Cockpit
-          </h2>
-          <p className={cn("text-sm", adminUi.muted)}>
-            {productionOrders.length} aktive Aufträge · Drag & Drop oder «Weiter»/«Zurück»
-          </p>
+    <div className="space-y-4">
+      <div
+        className={cn(
+          "sticky top-0 z-10 -mx-4 space-y-3 border-b px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-10 lg:px-10",
+          "border-slate-200/80 bg-slate-50/95 dark:border-zinc-800/80 dark:bg-zinc-950/95"
+        )}
+      >
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className={cn("flex items-center gap-2 text-xl font-bold", adminUi.heading)}>
+              <Factory className="h-5 w-5 text-orange-500" />
+              Produktionscockpit
+            </h2>
+            <p className={cn("text-sm", adminUi.muted)}>
+              {filteredOrders.length} Aufträge · Drag & Drop oder «Weiter»/«Zurück»
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => void load()}
+            disabled={loading}
+            className={adminUi.outlineBtn}
+          >
+            <RefreshCw className={cn("mr-2 h-4 w-4", loading && "animate-spin")} />
+            Aktualisieren
+          </Button>
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => void load()}
-          disabled={loading}
-          className={adminUi.outlineBtn}
-        >
-          <RefreshCw className={cn("mr-2 h-4 w-4", loading && "animate-spin")} />
-          Aktualisieren
-        </Button>
+
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="space-y-1">
+            <Label className={cn("text-xs", adminUi.labelMuted)}>Sortierung</Label>
+            <Select value={sortKey} onValueChange={(v) => setSortKey(v as SortKey)}>
+              <SelectTrigger className={adminUi.select}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="newest">Bestelleingang · Neueste zuerst</SelectItem>
+                <SelectItem value="oldest">Bestelleingang · Älteste zuerst</SelectItem>
+                <SelectItem value="value">Bestellwert</SelectItem>
+                <SelectItem value="customer">Kundenname</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label className={cn("text-xs", adminUi.labelMuted)}>Auftragstyp</Label>
+            <Select
+              value={jobType}
+              onValueChange={(v) => setJobType(v as JobTypeFilter)}
+            >
+              <SelectTrigger className={adminUi.select}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Alle</SelectItem>
+                <SelectItem value="3d">3D-Druck</SelectItem>
+                <SelectItem value="laser">Laser-Gravur</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1 sm:col-span-2">
+            <Label className={cn("text-xs", adminUi.labelMuted)}>Suche</Label>
+            <div className="relative">
+              <Search className={cn("absolute left-2.5 top-2.5 h-4 w-4", adminUi.muted)} />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Bestellnummer oder Kundenname…"
+                className={cn("pl-9", adminUi.input)}
+              />
+            </div>
+          </div>
+        </div>
       </div>
 
       {shipNotice && (
@@ -432,63 +868,65 @@ export function AdminProductionTab() {
 
       {error && <p className={adminUi.errorLg}>{error}</p>}
 
-      <div className="grid gap-4 xl:grid-cols-5">
-        {PRODUCTION_COLUMNS.map((column) => {
-          const columnOrders = byColumn.get(column.id) ?? []
-          return (
-            <div
-              key={column.id}
-              className={cn(
-                "flex min-h-[420px] flex-col rounded-xl border",
-                adminUi.sidebarBorder,
-                adminUi.cardMuted
-              )}
-              onDragOver={(e) => {
-                e.preventDefault()
-                e.dataTransfer.dropEffect = "move"
-              }}
-              onDrop={(e) => {
-                e.preventDefault()
-                const orderId = e.dataTransfer.getData("text/order-id")
-                if (orderId) handleDrop(column.id, orderId)
-              }}
-            >
-              <div className={cn("border-b p-4", adminUi.sidebarBorder)}>
-                <CardTitle className={cn("text-sm font-bold", adminUi.heading)}>
-                  {column.label}
-                </CardTitle>
-                <p className={cn("mt-0.5 text-xs", adminUi.muted)}>{column.hint}</p>
-                <Badge className="mt-2" variant="outline">
-                  {columnOrders.length}
-                </Badge>
-              </div>
-              <div className="flex flex-1 flex-col gap-3 overflow-y-auto p-3">
-                {columnOrders.length === 0 ? (
-                  <p
-                    className={cn(
-                      "rounded-lg border border-dashed py-8 text-center text-xs",
-                      adminUi.empty
-                    )}
-                  >
-                    Keine Aufträge
-                  </p>
-                ) : (
-                  columnOrders.map((order) => (
-                    <ProductionOrderCard
-                      key={order.orderId}
-                      order={order}
-                      columnStatus={column.id}
-                      onMove={moveOrder}
-                      onRequestShipment={openShipmentModal}
-                      updating={updatingId === order.orderId}
-                    />
-                  ))
+      {/* Mobile: Spalten-Tabs / Dropdown */}
+      <div className="space-y-3 md:hidden">
+        <div className="flex gap-1.5 overflow-x-auto pb-1">
+          {PRODUCTION_COLUMNS.map((column) => {
+            const count = byColumn.get(column.id)?.length ?? 0
+            const active = mobileColumn === column.id
+            return (
+              <button
+                key={column.id}
+                type="button"
+                onClick={() => setMobileColumn(column.id)}
+                className={cn(
+                  "shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+                  active
+                    ? "border-orange-500/50 bg-orange-500/15 text-orange-700 dark:text-orange-300"
+                    : cn(adminUi.outlineBtn, "text-slate-600 dark:text-zinc-300")
                 )}
-              </div>
-            </div>
-          )
-        })}
+              >
+                {shortColumnLabel(column.label)}{" "}
+                <span className="tabular-nums opacity-80">({count})</span>
+              </button>
+            )
+          })}
+        </div>
+        <div className="space-y-1">
+          <Label className={cn("text-xs md:hidden", adminUi.labelMuted)}>
+            Oder Spalte wählen
+          </Label>
+          <Select
+            value={mobileColumn}
+            onValueChange={(v) => setMobileColumn(v as ProductionStatus)}
+          >
+            <SelectTrigger className={cn("md:hidden", adminUi.select)}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PRODUCTION_COLUMNS.map((column) => (
+                <SelectItem key={column.id} value={column.id}>
+                  {column.label} ({byColumn.get(column.id)?.length ?? 0})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        {PRODUCTION_COLUMNS.filter((c) => c.id === mobileColumn).map(renderColumn)}
       </div>
+
+      {/* Desktop: 5 Spalten */}
+      <div className="hidden gap-4 md:grid xl:grid-cols-5 lg:grid-cols-3 md:grid-cols-2">
+        {PRODUCTION_COLUMNS.map(renderColumn)}
+      </div>
+
+      <ProductionOrderDetailDialog
+        order={detailOrder}
+        open={detailOrder != null}
+        onOpenChange={(open) => {
+          if (!open) setDetailOrder(null)
+        }}
+      />
 
       <Dialog
         open={shipModalOrder != null}
@@ -510,7 +948,7 @@ export function AdminProductionTab() {
                 <span className="font-mono font-medium text-foreground">
                   {shipModalOrder.orderId}
                 </span>{" "}
-                — {shipModalOrder.billing.firstName} {shipModalOrder.billing.lastName}
+                — {customerName(shipModalOrder)}
               </p>
               <div className="space-y-2">
                 <Label htmlFor="trackingNumber">
