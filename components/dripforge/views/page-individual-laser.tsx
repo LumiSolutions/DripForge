@@ -40,6 +40,10 @@ import {
 } from "@/components/dripforge/shared/laser-designer-studio"
 import { IndividualProcessBar } from "@/components/dripforge/shared/individual-process-bar"
 import { captureLaserPreviewMockup } from "@/lib/dripforge/capture-leitbild"
+import {
+  buildLaserCartCustomDetails,
+  laserDesignHasContent,
+} from "@/lib/dripforge/build-laser-cart-details"
 import type { CartItem } from "@/lib/dripforge/types"
 
 export function PageIndividualLaser({
@@ -163,8 +167,7 @@ export function PageIndividualLaser({
     return calculateLaserPrice(basePrice, area, quantity, pricingConfig)
   }, [basePrice, engravingMetrics, quantity, pricingConfig])
 
-  const hasDesign =
-    gravurText.trim().length > 0 || Boolean(uploadedImageSrc)
+  const hasDesign = laserDesignHasContent(laserDesign)
 
   const handleAddToCart = async () => {
     if (!hasDesign) return
@@ -188,32 +191,17 @@ export function PageIndividualLaser({
       type: "laser",
       leitbild: previewMockup,
       previewMockup,
-      customDetails: {
+      customDetails: buildLaserCartCustomDetails(laserDesign, {
         material: isCustomerInbound
           ? CUSTOMER_INBOUND_MATERIAL_LABEL
           : material.name,
         materialVariant: laserDesign.selectedVariant,
         size: sizePreset.dimensionsLabel,
-        engravingText: gravurText.trim(),
-        userText: gravurText.trim(),
-        userFont: selectedFont,
-        uploadedImage: uploadedImageSrc,
-        layoutCoordinates: {
-          textPosition: { ...textLayout },
-          imagePosition: {
-            x: imageLayout.x,
-            y: imageLayout.y,
-            scale: imageLayout.scale,
-            rotation: imageLayout.rotation,
-          },
-        },
-        hasText: gravurText.trim().length > 0,
-        hasImage: Boolean(uploadedImageSrc),
         isCustomerInbound,
         dimensions: gravurSize
           ? `${gravurSize.widthMm.toFixed(1)} x ${gravurSize.heightMm.toFixed(1)} mm`
           : sizePreset.dimensionsLabel,
-      },
+      }),
     })
 
     setCurrentView("shop")

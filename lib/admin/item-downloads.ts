@@ -128,6 +128,23 @@ export function getItemDownloadLinks(
     }
   }
 
+  const extraImages = Array.isArray(details?.uploadedImages)
+    ? details.uploadedImages
+    : []
+  extraImages.forEach((img, index) => {
+    if (!img || img === details?.uploadedImage) return
+    if (isHttpUrl(img)) {
+      links.push({
+        id: `${item.id}-logo-${index + 1}`,
+        label: `Original Logo/Grafik ${index + 1}`,
+        filename: sanitizeFilename(`${orderId}-${item.id}-logo-${index + 1}.png`),
+        href: proxyHref(img),
+        kind: "proxy",
+        role: "logo",
+      })
+    }
+  })
+
   if (details?.colorReferenceImage) {
     const img = details.colorReferenceImage
     const name =

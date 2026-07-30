@@ -70,6 +70,7 @@ import {
   removeLayerById,
   updateLayerById,
   type LaserDesignLayer,
+  type LaserDesignerState,
 } from "@/lib/dripforge/laser-layers"
 import { removeLightImageBackground } from "@/lib/dripforge/remove-image-background"
 import {
@@ -79,15 +80,7 @@ import {
 import type { LaserMaterial } from "@/lib/dripforge/types"
 import { LEITBILD_LASER_PREVIEW_ATTR } from "@/lib/dripforge/capture-leitbild"
 
-export type LaserDesignerState = {
-  selectedVariant: string
-  selectedFont: LaserFontId
-  engravingText: string
-  textLayout: ElementLayout
-  imageLayout: ImageLayout
-  layers: LaserDesignLayer[]
-  activeLayerId: string | null
-}
+export type { LaserDesignerState } from "@/lib/dripforge/laser-layers"
 
 type LaserDesignerBaseProps = {
   material: LaserMaterial

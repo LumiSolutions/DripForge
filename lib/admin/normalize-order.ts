@@ -53,6 +53,29 @@ export function sanitizeOrderItemForPersistence(
     ) {
       details.colorReferenceImage = null
     }
+    if (Array.isArray(details.uploadedImages)) {
+      details.uploadedImages = details.uploadedImages.filter(
+        (url) => typeof url === "string" && !url.startsWith("data:")
+      )
+      if (details.uploadedImages.length === 0) delete details.uploadedImages
+    }
+    if (details.layoutCoordinates?.layers) {
+      details.layoutCoordinates = {
+        ...details.layoutCoordinates,
+        layers: details.layoutCoordinates.layers.map((layer) => {
+          if (layer.kind !== "image") return layer
+          const src =
+            typeof layer.src === "string" && layer.src.startsWith("data:")
+              ? null
+              : layer.src ?? null
+          return {
+            ...layer,
+            src,
+            hasImage: Boolean(src || layer.hasImage),
+          }
+        }),
+      }
+    }
     next.customDetails = details
   }
 

@@ -23,10 +23,9 @@ export type LaserDesignLayer = {
   src?: string | null
 }
 
-export type LaserDesignerLayersState = {
+export type LaserDesignerState = {
   selectedVariant: string
   selectedFont: LaserFontId
-  /** Kompatibilität: primärer Text (erstes Text-Layer) */
   engravingText: string
   textLayout: ElementLayout
   imageLayout: ImageLayout
