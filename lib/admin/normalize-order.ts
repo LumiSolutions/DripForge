@@ -157,7 +157,8 @@ export function normalizeOrderForPersistence(
   order: StoredOrder
 ): StoredOrder & { id: string; paymentStatus: OrderPaymentStatus } {
   const orderId =
-    order.orderId?.trim() || `df-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    order.orderId?.trim() ||
+    `DF-${new Date().getFullYear()}-${String(Date.now()).slice(-4)}`
   const paymentConfirmed = Boolean(order.paymentConfirmed)
   const paymentMethod = normalizePaymentMethod(order.paymentMethod)
   const paymentStatus: OrderPaymentStatus = paymentConfirmed ? "paid" : "pending"

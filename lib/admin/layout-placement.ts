@@ -1,5 +1,10 @@
 import type { LayoutPosition } from "@/lib/dripforge/types"
 import type { StoredOrderItem } from "@/lib/admin/types"
+import {
+  guessStlSiblingUrl,
+  isPrintProductionFile,
+  isViewerOnlyFile,
+} from "@/lib/dripforge/product-print-file"
 
 function axisLabel(
   value: number,
@@ -49,6 +54,36 @@ export function getLaserPlacementLines(item: StoredOrderItem): {
   if (!coords) return []
 
   const lines: { label: string; value: string }[] = []
+  const layers = Array.isArray(coords.layers) ? coords.layers : []
+
+  if (layers.length > 0) {
+    let imageIndex = 0
+    let textIndex = 0
+    for (const layer of layers) {
+      const pos = {
+        x: Number(layer.x) || 50,
+        y: Number(layer.y) || 50,
+        scale: layer.scale,
+        rotation: layer.rotation,
+      }
+      if (layer.kind === "image") {
+        imageIndex += 1
+        lines.push({
+          label: `Bild ${imageIndex}-Position`,
+          value: formatLayoutPositionDetails(pos),
+        })
+      } else if (layer.kind === "text") {
+        textIndex += 1
+        const snippet = (layer.text ?? "").trim().slice(0, 40)
+        lines.push({
+          label: `Text ${textIndex}-Position`,
+          value: `${formatLayoutPositionDetails(pos)}${snippet ? ` · „${snippet}${snippet.length >= 40 ? "…" : ""}“` : ""}`,
+        })
+      }
+    }
+    return lines
+  }
+
   const hasText = Boolean(
     (item.customDetails?.userText ?? item.customDetails?.engravingText)?.trim()
   )
@@ -103,7 +138,34 @@ export function getItemModelFile(
     (typeof details?.fileUrl === "string" && details.fileUrl) ||
     (typeof details?.modelUrl === "string" && details.modelUrl) ||
     null
+
+  // Viewer-only (GLB) ohne Druckdatei: keinen STL-Download vortäuschen
+  if (fileUrl) {
+    if (isPrintProductionFile(fileUrl)) {
+      return {
+        fileName: fileName || "modell.stl",
+        fileUrl,
+      }
+    }
+    if (isViewerOnlyFile(fileUrl)) {
+      const sibling = guessStlSiblingUrl(fileUrl)
+      if (sibling) {
+        return {
+          fileName:
+            fileName && /\.(stl|3mf|gcode)$/i.test(fileName)
+              ? fileName
+              : "modell.stl",
+          fileUrl: sibling,
+        }
+      }
+      return null
+    }
+  }
+
   if (!fileName && !fileUrl) return null
+  if (fileName && !/\.(stl|3mf|gcode)$/i.test(fileName) && /\.(glb|gltf|obj)$/i.test(fileName)) {
+    return null
+  }
   return {
     fileName: fileName || "modell.stl",
     fileUrl,

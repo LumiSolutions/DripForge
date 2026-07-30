@@ -69,8 +69,22 @@ export type ProcessOrderResult = {
   settings: AdminSettings
 }
 
+import { allocateOrderId } from "@/lib/admin/cosmos-order-counter"
+import { createFallbackOrderId } from "@/lib/admin/order-id"
+
+/** @deprecated Synchroner Fallback — bitte allocateFriendlyOrderId() nutzen. */
 export function createOrderId(): string {
-  return `df-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+  return createFallbackOrderId()
+}
+
+/** Vergibt eine kurze Bestell-ID (DF-10042). */
+export async function allocateFriendlyOrderId(): Promise<string> {
+  try {
+    return await allocateOrderId()
+  } catch (error) {
+    console.warn("Bestell-ID: Allokation fehlgeschlagen — Fallback.", error)
+    return createFallbackOrderId()
+  }
 }
 
 /** Bestellung validieren, Leitbilder hochladen und speichern. */
@@ -100,7 +114,7 @@ export async function processOrderPayload(
     payload.billing.email
   )
 
-  const orderId = options?.orderId ?? createOrderId()
+  const orderId = options?.orderId ?? (await allocateFriendlyOrderId())
   const settings = await getSettings()
   const rewardCfg = buildRewardPointsPublicSettings(settings)
   const rewardPointsEnabled = rewardCfg.enableRewardPointsSystem

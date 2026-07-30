@@ -3,7 +3,11 @@ import { normalizeCustomerEmail } from "@/lib/admin/customers"
 import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
 import type { OrderPayload } from "@/lib/dripforge/submit-order"
 import { getSessionEmailFromRequest } from "@/lib/konto/api-auth"
-import { createOrderId, fulfillPaidShopOrder, processOrderPayload } from "@/lib/shop/order-processing"
+import {
+  allocateFriendlyOrderId,
+  fulfillPaidShopOrder,
+  processOrderPayload,
+} from "@/lib/shop/order-processing"
 import {
   buildCheckoutDiscounts,
   buildCheckoutLineItems,
@@ -65,7 +69,7 @@ export async function POST(request: Request) {
     // Eingeloggtes Konto hat Vorrang — unabhängig von der Formular-E-Mail
     const userId = sessionEmail || billingEmail
 
-    const orderId = createOrderId()
+    const orderId = await allocateFriendlyOrderId()
     const { order } = await processOrderPayload(payload, {
       orderId,
       paymentConfirmed: false,

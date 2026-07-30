@@ -48,10 +48,14 @@ export function getItemPersonalizationLines(
       })
     }
     const layerCount = d.layoutCoordinates?.layers?.length ?? 0
-    if (layerCount > 2) {
+    if (layerCount > 0) {
+      const imgCount =
+        d.layoutCoordinates?.layers?.filter((l) => l.kind === "image").length ?? 0
+      const textCount =
+        d.layoutCoordinates?.layers?.filter((l) => l.kind === "text").length ?? 0
       lines.push({
         label: "Elemente",
-        value: `${layerCount} Layer`,
+        value: `${layerCount} Layer${imgCount || textCount ? ` (${imgCount} Bild${imgCount === 1 ? "" : "er"}, ${textCount} Text${textCount === 1 ? "" : "e"})` : ""}`,
       })
     }
     for (const placement of getLaserPlacementLines(item)) {
