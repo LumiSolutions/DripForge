@@ -17,6 +17,7 @@ export type CustomerOrderItemView = {
   type: "3d" | "laser"
   imageUrl: string | null
   logoPreviewUrl: string | null
+  mockupPreviewUrl: string | null
   fileName: string | null
   engravingText: string | null
   placementSummary: string | null
@@ -64,6 +65,7 @@ export function mapOrderItemToCustomerView(
   }
 
   const imageUrl =
+    item.previewMockupUrl ??
     item.leitbildUrl ??
     details?.uploadedImage ??
     details?.colorReferenceImage ??
@@ -78,6 +80,8 @@ export function mapOrderItemToCustomerView(
     type: item.type,
     imageUrl,
     logoPreviewUrl: getItemLogoPreviewSrc(item),
+    mockupPreviewUrl:
+      item.previewMockupUrl ?? item.leitbildUrl ?? item.previewMockup ?? null,
     fileName: details?.fileName?.trim() || null,
     engravingText: (details?.engravingText ?? details?.userText)?.trim() || null,
     placementSummary,

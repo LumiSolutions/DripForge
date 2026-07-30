@@ -77,6 +77,17 @@ export function getItemLogoPreviewSrc(item: StoredOrderItem): string | null {
   return null
 }
 
+/** Primäre Vorschau: Laser-Mockup (Composite) oder Leitbild. */
+export function getItemCompositePreviewSrc(item: StoredOrderItem): string | null {
+  const src =
+    item.previewMockupUrl ??
+    item.previewMockup ??
+    item.leitbildUrl ??
+    item.leitbild ??
+    null
+  return typeof src === "string" && src.trim() ? src : null
+}
+
 export function getItemModelFile(
   item: StoredOrderItem
 ): { fileName: string; fileUrl: string | null } | null {

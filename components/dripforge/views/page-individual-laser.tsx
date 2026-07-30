@@ -38,7 +38,7 @@ import {
   type LaserEngravingMetrics,
 } from "@/components/dripforge/shared/laser-designer-studio"
 import { IndividualProcessBar } from "@/components/dripforge/shared/individual-process-bar"
-import { captureLaserPreviewLeitbild } from "@/lib/dripforge/capture-leitbild"
+import { captureLaserPreviewMockup } from "@/lib/dripforge/capture-leitbild"
 import type { CartItem } from "@/lib/dripforge/types"
 
 export function PageIndividualLaser({
@@ -160,12 +160,12 @@ export function PageIndividualLaser({
   const handleAddToCart = async () => {
     if (!hasDesign) return
 
-    let leitbild: string | undefined
+    let previewMockup: string | undefined
     try {
-      const leitbildUrl = await captureLaserPreviewLeitbild(laserPreviewRef.current)
-      leitbild = leitbildUrl ?? undefined
+      const mockupUrl = await captureLaserPreviewMockup(laserPreviewRef.current)
+      previewMockup = mockupUrl ?? undefined
     } catch {
-      console.warn("Leitbild: Laser-Snapshot konnte nicht erstellt werden.")
+      console.warn("Mockup: Laser-Snapshot konnte nicht erstellt werden.")
     }
 
     const gravurSize = engravingMetrics?.active
@@ -177,7 +177,8 @@ export function PageIndividualLaser({
       price: priceBreakdown.unitPrice,
       quantity,
       type: "laser",
-      leitbild,
+      leitbild: previewMockup,
+      previewMockup,
       customDetails: {
         material: isCustomerInbound
           ? CUSTOMER_INBOUND_MATERIAL_LABEL

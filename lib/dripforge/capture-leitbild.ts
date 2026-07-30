@@ -85,6 +85,16 @@ export async function captureLaserPreviewLeitbild(
   }
 }
 
+/**
+ * Kombiniertes Laser-Mockup (Hintergrund + Logo/Text) als PNG-Data-URL.
+ * Alias auf den html2canvas-/Canvas-Snapshot der Live-Vorschau.
+ */
+export async function captureLaserPreviewMockup(
+  previewRoot: HTMLElement | null | undefined
+): Promise<string | null> {
+  return captureLaserPreviewLeitbild(previewRoot)
+}
+
 export async function capture3dPreviewLeitbild(
   canvasOrRoot: HTMLCanvasElement | HTMLElement | null | undefined
 ): Promise<string | null> {

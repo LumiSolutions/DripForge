@@ -1,6 +1,6 @@
 import { BlobServiceClient } from "@azure/storage-blob"
 
-const ALLOWED_CONTAINERS = new Set(["order-leitbilder"])
+const ALLOWED_CONTAINERS = new Set(["order-leitbilder", "product-media"])
 
 export function parseAllowedBlobUrl(
   rawUrl: string

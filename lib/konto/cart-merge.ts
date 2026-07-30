@@ -48,6 +48,9 @@ export function normalizeCartItem(raw: unknown): CartItem | null {
   if (typeof raw.leitbild === "string" && raw.leitbild.length > 0) {
     item.leitbild = raw.leitbild
   }
+  if (typeof raw.previewMockup === "string" && raw.previewMockup.length > 0) {
+    item.previewMockup = raw.previewMockup
+  }
 
   if (isRecord(raw.customDetails)) {
     item.customDetails = raw.customDetails as CartItem["customDetails"]
@@ -57,7 +60,13 @@ export function normalizeCartItem(raw: unknown): CartItem | null {
 }
 
 function cartItemSignature(item: CartItem): string {
-  const { id: _id, quantity: _quantity, leitbild: _leitbild, ...rest } = item
+  const {
+    id: _id,
+    quantity: _quantity,
+    leitbild: _leitbild,
+    previewMockup: _previewMockup,
+    ...rest
+  } = item
   return JSON.stringify(rest)
 }
 
@@ -79,6 +88,9 @@ export function mergeCartItems(
       )
       if (!existing.leitbild && guestItem.leitbild) {
         existing.leitbild = guestItem.leitbild
+      }
+      if (!existing.previewMockup && guestItem.previewMockup) {
+        existing.previewMockup = guestItem.previewMockup
       }
     } else {
       merged.push({

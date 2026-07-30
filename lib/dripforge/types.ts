@@ -106,6 +106,11 @@ export interface CartItem {
   type: "3d" | "laser"
   /** Visueller Snapshot der Live-Vorschau (PNG Base64) für die Admin-Bestellübersicht */
   leitbild?: string
+  /**
+   * Kombiniertes Mockup (Laser: Produkt-Hintergrund + Overlay) als PNG Base64.
+   * Wird beim Bestellen als previewMockupUrl persistiert.
+   */
+  previewMockup?: string
   customDetails?: {
     fileName?: string
     /** Azure-/CDN-URL zur hochgeladenen 3D-Datei (falls vorhanden) */

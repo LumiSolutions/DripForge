@@ -42,6 +42,11 @@ import { useAiPublicSettings } from "@/hooks/use-ai-public-settings"
 import { getLaserMaterialForProduct } from "@/lib/dripforge/laser"
 import { resolveProductVarianten } from "@/lib/dripforge/product-varianten"
 import { resolveProductModelUrl } from "@/lib/dripforge/product-model-defaults"
+import { resolveProductPrintFile } from "@/lib/dripforge/product-print-file"
+import {
+  capture3dPreviewLeitbild,
+  captureLaserPreviewMockup,
+} from "@/lib/dripforge/capture-leitbild"
 import { resolveProductImages } from "@/lib/dripforge/product-images-defaults"
 import {
   formatProductDimensionsText,
@@ -70,10 +75,6 @@ import { SHOP_ROUTES } from "@/lib/dripforge/shop-routes"
 import { ProductDetailErrorBoundary } from "@/components/dripforge/product-detail-error-boundary"
 import { SiteText } from "@/components/dripforge/editable-site-text"
 import { SiteTextPhrase } from "@/components/dripforge/site-text-phrase"
-import {
-  capture3dPreviewLeitbild,
-  captureLaserPreviewLeitbild,
-} from "@/lib/dripforge/capture-leitbild"
 
 const Product3DPreview = dynamic(
   () =>
@@ -288,6 +289,8 @@ export function PageShop({
         console.warn("Leitbild: Shop-3D-Snapshot konnte nicht erstellt werden.")
       }
 
+      const printFile = resolveProductPrintFile(selectedProduct)
+
       addToCart({
         id: `${selectedProduct.id}-${Date.now()}`,
         name: selectedProduct.name,
@@ -301,6 +304,13 @@ export function PageShop({
           dimensions: selectedProduct.dimensionsMm
             ? formatProductDimensionsText(selectedProduct.dimensionsMm)
             : undefined,
+          ...(printFile
+            ? {
+                fileName: printFile.fileName,
+                fileUrl: printFile.fileUrl,
+                modelUrl: printFile.fileUrl,
+              }
+            : {}),
         },
       })
     } else {
@@ -313,12 +323,12 @@ export function PageShop({
         engravingText.trim().length > 0 || Boolean(imageLayout.src)
       if (!hasContent || (needsVariant && !selectedVariant)) return
 
-      let leitbild: string | undefined
+      let previewMockup: string | undefined
       try {
-        const leitbildUrl = await captureLaserPreviewLeitbild(laserPreviewRef.current)
-        leitbild = leitbildUrl ?? undefined
+        const mockupUrl = await captureLaserPreviewMockup(laserPreviewRef.current)
+        previewMockup = mockupUrl ?? undefined
       } catch {
-        console.warn("Leitbild: Shop-Laser-Snapshot konnte nicht erstellt werden.")
+        console.warn("Mockup: Shop-Laser-Snapshot konnte nicht erstellt werden.")
       }
 
       const newItem: CartItem = {
@@ -327,7 +337,8 @@ export function PageShop({
         price: selectedProduct.price,
         quantity,
         type: "laser",
-        leitbild,
+        leitbild: previewMockup,
+        previewMockup,
         customDetails: {
           material: selectedProduct.name,
           variant: selectedVariant,
