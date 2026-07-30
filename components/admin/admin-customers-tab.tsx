@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react"
 import {
   ArrowRight,
+  Coins,
   ExternalLink,
   Loader2,
   RefreshCw,
@@ -12,6 +13,8 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -38,8 +41,17 @@ import {
 } from "@/lib/admin/types"
 import type { CustomerAccountStatus } from "@/lib/konto/account-status"
 import { normalizeAccountStatus } from "@/lib/konto/account-status"
+import type { LoyaltyPointTransaction } from "@/lib/konto/loyalty-points-config"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
 import { cn } from "@/lib/utils"
+
+type CustomerLoyaltyInfo = {
+  points: number
+  history: LoyaltyPointTransaction[]
+  hasPortalAccount: boolean
+  pointValueChf: number
+  enabled: boolean
+}
 
 function normalizeDetailStatus(status: unknown): CustomerAccountStatus {
   return normalizeAccountStatus(status)
@@ -83,12 +95,18 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [detail, setDetail] = useState<CustomerDetail | null>(null)
   const [orders, setOrders] = useState<StoredOrder[]>([])
+  const [loyalty, setLoyalty] = useState<CustomerLoyaltyInfo | null>(null)
   const [loading, setLoading] = useState(true)
   const [detailLoading, setDetailLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [pointsDelta, setPointsDelta] = useState("")
+  const [pointsNote, setPointsNote] = useState("")
+  const [pointsDialogOpen, setPointsDialogOpen] = useState(false)
+  const [pointsSaving, setPointsSaving] = useState(false)
+  const [pointsError, setPointsError] = useState<string | null>(null)
 
   const loadCustomers = useCallback(async () => {
     setLoading(true)
@@ -119,6 +137,22 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
       if (!res.ok) throw new Error(data.error ?? "Laden fehlgeschlagen")
       setDetail(data.customer ?? null)
       setOrders(data.orders ?? [])
+      setLoyalty(
+        data.loyalty
+          ? {
+              points: Number(data.loyalty.points) || 0,
+              history: Array.isArray(data.loyalty.history)
+                ? data.loyalty.history
+                : [],
+              hasPortalAccount: data.loyalty.hasPortalAccount === true,
+              pointValueChf: Number(data.loyalty.pointValueChf) || 1,
+              enabled: data.loyalty.enabled !== false,
+            }
+          : null
+      )
+      setPointsDelta("")
+      setPointsNote("")
+      setPointsError(null)
     } catch (err) {
       console.warn("Admin: Kundendetails konnten nicht geladen werden.", err)
       setError(
@@ -141,12 +175,67 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
     } else {
       setDetail(null)
       setOrders([])
+      setLoyalty(null)
+      setPointsDelta("")
+      setPointsNote("")
+      setPointsError(null)
     }
   }, [selectedId, loadCustomerDetail])
 
   const selectCustomer = (kundennummer: string) => {
     setDeleteError(null)
+    setPointsError(null)
     setSelectedId((prev) => (prev === kundennummer ? null : kundennummer))
+  }
+
+  const parsedPointsDelta = (() => {
+    const n = Math.trunc(Number(pointsDelta))
+    return Number.isFinite(n) && n !== 0 ? n : null
+  })()
+
+  const canSubmitPointsAdjust =
+    Boolean(detail) &&
+    loyalty?.hasPortalAccount === true &&
+    parsedPointsDelta != null &&
+    pointsNote.trim().length > 0 &&
+    !pointsSaving
+
+  const handleAdjustPoints = async () => {
+    if (!detail || parsedPointsDelta == null || !pointsNote.trim()) return
+
+    setPointsSaving(true)
+    setPointsError(null)
+    try {
+      const res = await fetch(
+        `/api/admin/customers/${encodeURIComponent(detail.kundennummer)}/loyalty-points`,
+        {
+          method: "POST",
+          credentials: "include",
+          cache: "no-store",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            delta: parsedPointsDelta,
+            note: pointsNote.trim(),
+          }),
+        }
+      )
+      const data = (await res.json()) as { error?: string; points?: number }
+      if (!res.ok) {
+        throw new Error(data.error ?? "Punkte konnten nicht angepasst werden.")
+      }
+      setPointsDialogOpen(false)
+      setPointsDelta("")
+      setPointsNote("")
+      await loadCustomerDetail(detail.kundennummer)
+    } catch (err) {
+      setPointsError(
+        err instanceof Error
+          ? err.message
+          : "Punkte konnten nicht angepasst werden."
+      )
+    } finally {
+      setPointsSaving(false)
+    }
   }
 
   const handleHardDelete = async () => {
@@ -178,6 +267,7 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
       setSelectedId(null)
       setDetail(null)
       setOrders([])
+      setLoyalty(null)
       await loadCustomers()
     } catch (err) {
       setDeleteError(
@@ -351,6 +441,185 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
                     </p>
                   )}
                 </div>
+              </div>
+
+              <div className={cn("space-y-4 rounded-xl border p-4", adminUi.section)}>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h4
+                      className={cn(
+                        "flex items-center gap-2 text-sm font-semibold",
+                        adminUi.accentTitle
+                      )}
+                    >
+                      <Coins className="h-4 w-4" />
+                      Treuepunkte
+                    </h4>
+                    {loyalty ? (
+                      <p className={cn("mt-1 text-2xl font-bold tabular-nums", adminUi.heading)}>
+                        {loyalty.points}{" "}
+                        <span className={cn("text-sm font-medium", adminUi.muted)}>
+                          Punkte
+                          {loyalty.enabled
+                            ? ` · CHF ${(loyalty.points * loyalty.pointValueChf).toFixed(2)}`
+                            : " · System deaktiviert"}
+                        </span>
+                      </p>
+                    ) : (
+                      <p className={cn("mt-1 text-sm", adminUi.muted)}>Keine Punkte-Daten</p>
+                    )}
+                  </div>
+                </div>
+
+                {!loyalty?.hasPortalAccount ? (
+                  <p className={cn("text-sm", adminUi.muted)}>
+                    Kein Portal-Konto verknüpft — manuelle Punkteanpassung nicht möglich.
+                  </p>
+                ) : (
+                  <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
+                    <div className="space-y-2">
+                      <Label className={adminUi.label}>Änderung (+/− Punkte)</Label>
+                      <Input
+                        type="number"
+                        step={1}
+                        value={pointsDelta}
+                        onChange={(e) => {
+                          setPointsDelta(e.target.value)
+                          setPointsError(null)
+                        }}
+                        placeholder="z. B. 50 oder -20"
+                        className={adminUi.input}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className={adminUi.label}>Grund / Notiz</Label>
+                      <Input
+                        value={pointsNote}
+                        onChange={(e) => {
+                          setPointsNote(e.target.value)
+                          setPointsError(null)
+                        }}
+                        placeholder="z. B. Kulanz, Korrektur…"
+                        maxLength={500}
+                        className={adminUi.input}
+                      />
+                    </div>
+                    <div className="flex items-end">
+                      <AlertDialog
+                        open={pointsDialogOpen}
+                        onOpenChange={(open) => {
+                          if (pointsSaving) return
+                          setPointsDialogOpen(open)
+                        }}
+                      >
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            type="button"
+                            className={adminUi.primaryBtn}
+                            disabled={!canSubmitPointsAdjust}
+                            onClick={(e) => {
+                              if (!canSubmitPointsAdjust) {
+                                e.preventDefault()
+                                return
+                              }
+                              setPointsDialogOpen(true)
+                            }}
+                          >
+                            Anpassen
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Punkte wirklich anpassen?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              {parsedPointsDelta != null && detail ? (
+                                <>
+                                  Möchtest du dem Kunden{" "}
+                                  <strong>{detail.name}</strong> wirklich{" "}
+                                  <strong>
+                                    {Math.abs(parsedPointsDelta)} Punkte{" "}
+                                    {parsedPointsDelta > 0 ? "gutschreiben" : "abziehen"}
+                                  </strong>
+                                  ?
+                                  <br />
+                                  Notiz: {pointsNote.trim()}
+                                </>
+                              ) : (
+                                "Bitte Betrag und Notiz prüfen."
+                              )}
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          {pointsError && (
+                            <p className="text-sm text-red-500" role="alert">
+                              {pointsError}
+                            </p>
+                          )}
+                          <AlertDialogFooter>
+                            <AlertDialogCancel disabled={pointsSaving}>
+                              Abbrechen
+                            </AlertDialogCancel>
+                            <Button
+                              type="button"
+                              disabled={pointsSaving || !canSubmitPointsAdjust}
+                              className={adminUi.primaryBtn}
+                              onClick={() => void handleAdjustPoints()}
+                            >
+                              {pointsSaving ? (
+                                <>
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  Speichern…
+                                </>
+                              ) : (
+                                "Ja, speichern"
+                              )}
+                            </Button>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  </div>
+                )}
+
+                {pointsError && !pointsDialogOpen && (
+                  <p className={adminUi.error} role="alert">
+                    {pointsError}
+                  </p>
+                )}
+
+                {loyalty && loyalty.history.length > 0 && (
+                  <div className="space-y-2">
+                    <p className={cn("text-xs font-medium", adminUi.muted)}>
+                      Letzte Punktebewegungen
+                    </p>
+                    <ul className="max-h-48 space-y-1 overflow-y-auto text-sm">
+                      {loyalty.history.map((tx) => (
+                        <li
+                          key={tx.id}
+                          className={cn(
+                            "flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2",
+                            adminUi.detailPanel
+                          )}
+                        >
+                          <span className={adminUi.bodyText}>
+                            <span
+                              className={cn(
+                                "font-mono tabular-nums",
+                                tx.points >= 0 ? "text-emerald-600" : "text-red-600"
+                              )}
+                            >
+                              {tx.points > 0 ? "+" : ""}
+                              {tx.points}
+                            </span>{" "}
+                            {tx.note?.trim() || tx.type}
+                          </span>
+                          <span className={cn("text-xs", adminUi.muted)}>
+                            {formatDate(tx.createdAt)}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-3">

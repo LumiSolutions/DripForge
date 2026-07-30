@@ -45,7 +45,10 @@ import {
   maxRedeemablePoints,
 } from "@/lib/konto/loyalty-points-config"
 import { useCustomerLoyaltyPoints } from "@/hooks/use-customer-loyalty-points"
-import { useRewardPointsEnabled } from "@/hooks/use-reward-points-enabled"
+import {
+  useRewardPointsEnabled,
+  useRewardPointsSettings,
+} from "@/hooks/use-reward-points-enabled"
 import type { CartItem } from "@/lib/dripforge/types"
 import { cn } from "@/lib/utils"
 import { useCompanySettings } from "@/components/dripforge/company-settings-provider"
@@ -223,6 +226,8 @@ export function PageCheckout({
   const { loggedIn, loyaltyPoints, loading: loyaltyLoading, refresh: refreshLoyalty } =
     useCustomerLoyaltyPoints()
   const rewardPointsEnabled = useRewardPointsEnabled()
+  const rewardSettings = useRewardPointsSettings()
+  const pointValueChf = rewardSettings?.loyaltyPointValueChf ?? 1
 
   useEffect(() => {
     void fetch("/api/settings/checkout")
@@ -312,7 +317,12 @@ export function PageCheckout({
     calculateCheckoutTotalsWithCoupon(subtotal, shippingCost, checkoutConfig, null)
   const maxPoints =
     rewardPointsEnabled && loggedIn
-      ? maxRedeemablePoints(loyaltyPoints, baseTotals.total)
+      ? maxRedeemablePoints(
+          loyaltyPoints,
+          baseTotals.total,
+          undefined,
+          pointValueChf
+        )
       : 0
   const effectivePoints = Math.min(pointsToRedeem, maxPoints)
   const pointsPurchaseSelection =
@@ -330,6 +340,7 @@ export function PageCheckout({
       {
         coupon: appliedCouponMeta,
         pointsToRedeem: effectivePoints,
+        pointValueChf,
         pointsPurchase: pointsPurchaseSelection
           ? {
               amountChf: pointsPurchaseSelection.amountChf,
@@ -345,6 +356,7 @@ export function PageCheckout({
     checkoutConfig,
     appliedCouponMeta,
     pointsPurchaseSelection,
+    pointValueChf,
   ])
 
   useEffect(() => {

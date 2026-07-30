@@ -105,7 +105,8 @@ export function AdminSettingsTab() {
   const [enableOnboardingTour, setEnableOnboardingTour] = useState(true)
   const [onboardingTourText, setOnboardingTourText] = useState("")
   const [enableRewardPointsSystem, setEnableRewardPointsSystem] = useState(true)
-  const [loyaltyEarnPercent, setLoyaltyEarnPercent] = useState("10")
+  const [loyaltyEarnPercent, setLoyaltyEarnPercent] = useState("100")
+  const [loyaltyPointValueChf, setLoyaltyPointValueChf] = useState("1")
   const [loyaltyPointsExpiryMonths, setLoyaltyPointsExpiryMonths] = useState("6")
   const [showTopProductsOnHomepage, setShowTopProductsOnHomepage] = useState(
     DEFAULT_SHOW_TOP_PRODUCTS_ON_HOMEPAGE
@@ -160,7 +161,15 @@ export function AdminSettingsTab() {
         String(
           Number.isFinite(Number(data.loyaltyEarnPercent))
             ? data.loyaltyEarnPercent
-            : 10
+            : 100
+        )
+      )
+      setLoyaltyPointValueChf(
+        String(
+          Number.isFinite(Number(data.loyaltyPointValueChf)) &&
+            Number(data.loyaltyPointValueChf) > 0
+            ? data.loyaltyPointValueChf
+            : 1
         )
       )
       setLoyaltyPointsExpiryMonths(
@@ -229,6 +238,7 @@ export function AdminSettingsTab() {
           themeInboundTourImageUrl,
           enableRewardPointsSystem,
           loyaltyEarnPercent: Number(loyaltyEarnPercent),
+          loyaltyPointValueChf: Number(loyaltyPointValueChf),
           loyaltyPointsExpiryMonths: Number(loyaltyPointsExpiryMonths),
           showTopProductsOnHomepage,
           topProductsCount: normalizeTopProductsCount(topProductsCount),
@@ -272,7 +282,15 @@ export function AdminSettingsTab() {
         String(
           Number.isFinite(Number(data.loyaltyEarnPercent))
             ? data.loyaltyEarnPercent
-            : 10
+            : 100
+        )
+      )
+      setLoyaltyPointValueChf(
+        String(
+          Number.isFinite(Number(data.loyaltyPointValueChf)) &&
+            Number(data.loyaltyPointValueChf) > 0
+            ? data.loyaltyPointValueChf
+            : 1
         )
       )
       setLoyaltyPointsExpiryMonths(
@@ -1157,7 +1175,7 @@ export function AdminSettingsTab() {
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label className={adminUi.label}>
-                    Punkte-Gutschrift in % vom Einkaufswert
+                    Sammelrate: Gutschrift in % vom Einkaufswert
                   </Label>
                   <Input
                     type="number"
@@ -1170,11 +1188,30 @@ export function AdminSettingsTab() {
                     disabled={!enableRewardPointsSystem}
                   />
                   <p className={cn("text-xs", adminUi.muted)}>
-                    Beispiel bei 10&nbsp;%: Einkauf CHF 100 → 10 Punkte (= CHF 10.00).
-                    1 Punkt = immer CHF 1.00.
+                    Standard 100&nbsp;%: Einkauf CHF 100 → 100 Punkte (1 CHF = 1 Punkt).
+                    Bei 10&nbsp;%: CHF 100 → 10 Punkte.
                   </p>
                 </div>
                 <div className="space-y-2">
+                  <Label className={adminUi.label}>
+                    Einlösewert: CHF pro Punkt (Rabatt)
+                  </Label>
+                  <Input
+                    type="number"
+                    min={0.01}
+                    max={100}
+                    step={0.01}
+                    value={loyaltyPointValueChf}
+                    onChange={(e) => setLoyaltyPointValueChf(e.target.value)}
+                    className={adminUi.input}
+                    disabled={!enableRewardPointsSystem}
+                  />
+                  <p className={cn("text-xs", adminUi.muted)}>
+                    Gegenwert beim Einlösen. Beispiel: 1.00 = 10 Punkte → CHF 10.00
+                    Rabatt; 0.10 = 10 Punkte → CHF 1.00 Rabatt.
+                  </p>
+                </div>
+                <div className="space-y-2 sm:col-span-2">
                   <Label className={adminUi.label}>
                     Ablaufdauer der Punkte (Monate)
                   </Label>

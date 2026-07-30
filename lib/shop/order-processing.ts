@@ -38,7 +38,6 @@ import {
 } from "@/lib/email/send-order-emails"
 import {
   buildRewardPointsPublicSettings,
-  normalizeEnableRewardPointsSystem,
 } from "@/lib/dripforge/reward-points-settings"
 import { resolveCheckoutPointsPurchase } from "@/lib/shop/points-purchase"
 import { recordOrderPaymentJournalEntry } from "@/lib/accounting/order-journal"
@@ -95,9 +94,8 @@ export async function processOrderPayload(
 
   const orderId = options?.orderId ?? createOrderId()
   const settings = await getSettings()
-  const rewardPointsEnabled = normalizeEnableRewardPointsSystem(
-    settings.enableRewardPointsSystem
-  )
+  const rewardCfg = buildRewardPointsPublicSettings(settings)
+  const rewardPointsEnabled = rewardCfg.enableRewardPointsSystem
 
   const subtotal = payload.items.reduce(
     (sum, item) => sum + item.price * item.quantity,
@@ -165,9 +163,11 @@ export async function processOrderPayload(
             shippingCost,
             settings.checkout,
             options,
-            accountEmail
+            accountEmail,
+            rewardCfg
           )
         : 0,
+      pointValueChf: rewardCfg.loyaltyPointValueChf,
       pointsPurchase,
     }
   )
@@ -290,7 +290,8 @@ async function resolvePointsToRedeem(
   shippingCost: number,
   checkoutConfig: AdminSettings["checkout"],
   options?: { enforceGatewayMinForPoints?: boolean },
-  accountEmail?: string
+  accountEmail?: string,
+  rewardCfg?: ReturnType<typeof buildRewardPointsPublicSettings>
 ): Promise<number> {
   const requested = normalizeLoyaltyPoints(payload.pointsToRedeem ?? 0)
   if (requested <= 0) return 0
@@ -309,11 +310,12 @@ async function resolvePointsToRedeem(
     appliedCoupon
   )
   const enforceMin = options?.enforceGatewayMinForPoints !== false
-  const rewardCfg = buildRewardPointsPublicSettings(await getSettings())
+  const cfg = rewardCfg ?? buildRewardPointsPublicSettings(await getSettings())
   const maxPoints = maxRedeemablePoints(
-    getEffectiveLoyaltyPoints(account, rewardCfg.loyaltyPointsExpiryMonths),
+    getEffectiveLoyaltyPoints(account, cfg.loyaltyPointsExpiryMonths),
     beforePoints.total,
-    enforceMin ? LOYALTY_MIN_GATEWAY_PAYMENT_CHF : 0
+    enforceMin ? LOYALTY_MIN_GATEWAY_PAYMENT_CHF : 0,
+    cfg.loyaltyPointValueChf
   )
 
   if (requested > maxPoints) {
@@ -439,6 +441,7 @@ export async function fulfillPaidShopOrder(
 
   const rewardCfg = buildRewardPointsPublicSettings(settings)
   const rewardPointsEnabled = rewardCfg.enableRewardPointsSystem
+  // ... need to find where rewardCfg is built earlier in processOrder
   let loyaltyPointsGranted = 0
   let aiCreditsGranted = 0
 

@@ -10,8 +10,7 @@ import { Label } from "@/components/ui/label"
 import { KontoShell } from "@/components/konto/konto-shell"
 import {
   LOYALTY_POINT_PACKAGES,
-  LOYALTY_POINT_VALUE_CHF,
-  chfToLoyaltyPoints,
+  chfToPurchasedLoyaltyPoints,
   loyaltyPointsToChf,
   type LoyaltyPointTransaction,
 } from "@/lib/konto/loyalty-points-config"
@@ -31,8 +30,9 @@ export function KontoPointsPage() {
   const searchParams = useSearchParams()
   const rewardPointsEnabled = useRewardPointsEnabled()
   const rewardSettings = useRewardPointsSettings()
-  const earnPercent = rewardSettings?.loyaltyEarnPercent ?? 10
+  const earnPercent = rewardSettings?.loyaltyEarnPercent ?? 100
   const expiryMonths = rewardSettings?.loyaltyPointsExpiryMonths ?? 6
+  const pointValueChf = rewardSettings?.loyaltyPointValueChf ?? 1
   const [profile, setProfile] = useState<CustomerProfileResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [customAmount, setCustomAmount] = useState("100")
@@ -150,8 +150,9 @@ export function KontoPointsPage() {
         <div>
           <h1 className="text-2xl font-bold">Treuepunkte</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            1 Punkt = CHF {LOYALTY_POINT_VALUE_CHF.toFixed(2)} Guthaben. Sammle{" "}
-            {earnPercent}&nbsp;% deines Einkaufs als Punkte.
+            Einlösen: 1 Punkt = CHF {pointValueChf.toFixed(2)} Rabatt. Sammeln:{" "}
+            {earnPercent}&nbsp;% vom Einkaufswert als Punkte
+            {earnPercent === 100 ? " (1 CHF = 1 Punkt)" : ""}.
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
             Punkte sind ab Gutschrift {expiryMonths} Monate gültig.
@@ -260,10 +261,11 @@ export function KontoPointsPage() {
                 onChange={(e) => setCustomAmount(e.target.value)}
               />
               <p className="text-xs text-muted-foreground">
-                Ergibt {chfToLoyaltyPoints(Number(customAmount || 0))} Punkte
-                (CHF{" "}
+                Ergibt {chfToPurchasedLoyaltyPoints(Number(customAmount || 0))} Punkte
+                (Einlösewert ca. CHF{" "}
                 {loyaltyPointsToChf(
-                  chfToLoyaltyPoints(Number(customAmount || 0))
+                  chfToPurchasedLoyaltyPoints(Number(customAmount || 0)),
+                  pointValueChf
                 ).toFixed(2)}
                 )
               </p>

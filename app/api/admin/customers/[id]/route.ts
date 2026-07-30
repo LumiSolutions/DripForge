@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { getCustomerByNumber, getOrderById } from "@/lib/admin/db"
+import { getCustomerByNumber, getOrderById, getSettings } from "@/lib/admin/db"
 import { customerDisplayName, normalizeCustomerEmail } from "@/lib/admin/customers"
 import {
   isAuthError,
@@ -7,6 +7,12 @@ import {
 } from "@/lib/admin/require-admin-session"
 import { listAllAccounts } from "@/lib/konto/account-db"
 import { normalizeAccountStatus } from "@/lib/konto/account-status"
+import { buildRewardPointsPublicSettings } from "@/lib/dripforge/reward-points-settings"
+import {
+  getEffectiveLoyaltyPoints,
+  syncLoyaltyAccountBalance,
+} from "@/lib/konto/loyalty-points"
+import type { LoyaltyPointTransaction } from "@/lib/konto/loyalty-points-config"
 
 type RouteContext = { params: Promise<{ id: string }> }
 
@@ -48,6 +54,30 @@ export async function GET(request: Request, context: RouteContext) {
           new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       )
 
+    const rewardCfg = buildRewardPointsPublicSettings(await getSettings())
+    let loyaltyPoints = 0
+    let loyaltyHistory: LoyaltyPointTransaction[] = []
+    let hasPortalAccount = false
+
+    if (portalAccount) {
+      hasPortalAccount = true
+      const synced =
+        (await syncLoyaltyAccountBalance(
+          portalAccount.email,
+          rewardCfg.loyaltyPointsExpiryMonths
+        )) ?? portalAccount
+      loyaltyPoints = getEffectiveLoyaltyPoints(
+        synced,
+        rewardCfg.loyaltyPointsExpiryMonths
+      )
+      loyaltyHistory = [...(synced.loyaltyPointTransactions ?? [])]
+        .sort(
+          (a, b) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        )
+        .slice(0, 30)
+    }
+
     return NextResponse.json({
       customer: {
         ...customer,
@@ -55,6 +85,13 @@ export async function GET(request: Request, context: RouteContext) {
         status,
       },
       orders,
+      loyalty: {
+        points: loyaltyPoints,
+        history: loyaltyHistory,
+        hasPortalAccount,
+        pointValueChf: rewardCfg.loyaltyPointValueChf,
+        enabled: rewardCfg.enableRewardPointsSystem,
+      },
     })
   } catch (error) {
     console.warn("Admin-API: Kunde konnte nicht geladen werden.", error)

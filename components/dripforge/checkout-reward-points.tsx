@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
   LOYALTY_POINT_PACKAGES,
-  chfToLoyaltyPoints,
+  chfToPurchasedLoyaltyPoints,
   loyaltyPointsToChf,
 } from "@/lib/konto/loyalty-points-config"
 
@@ -44,7 +44,7 @@ export function resolveCheckoutPointsPurchaseSelection(
     if (!Number.isFinite(amountChf) || amountChf < 1 || amountChf > 500) {
       return null
     }
-    const points = chfToLoyaltyPoints(amountChf)
+    const points = chfToPurchasedLoyaltyPoints(amountChf)
     if (points <= 0) return null
     return { customAmountChf: amountChf, amountChf, points }
   }

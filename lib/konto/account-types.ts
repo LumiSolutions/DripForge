@@ -22,7 +22,7 @@ export type CustomerAccount = {
   /** KI-Generierungs-Credits (Loyalty / KI) */
   aiCredits?: number
   aiCreditGrants?: Record<string, number>
-  /** Treuepunkte (1 Punkt = CHF 1.00) */
+  /** Treuepunkte (Einlösewert konfigurierbar im Admin) */
   loyaltyPoints?: number
   /** Idempotente Gutschriften/Abbuchungen (Ref → Punkte) */
   loyaltyPointGrants?: Record<string, number>

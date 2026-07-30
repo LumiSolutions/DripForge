@@ -52,6 +52,7 @@ export async function PUT(request: Request) {
       themeInboundTourImageUrl?: string | null
       enableRewardPointsSystem?: boolean
       loyaltyEarnPercent?: number
+      loyaltyPointValueChf?: number
       loyaltyPointsExpiryMonths?: number
       showTopProductsOnHomepage?: boolean
       topProductsCount?: number
@@ -104,6 +105,7 @@ export async function PUT(request: Request) {
       themeInboundTourImageUrl: body.themeInboundTourImageUrl,
       enableRewardPointsSystem: body.enableRewardPointsSystem,
       loyaltyEarnPercent: body.loyaltyEarnPercent,
+      loyaltyPointValueChf: body.loyaltyPointValueChf,
       loyaltyPointsExpiryMonths: body.loyaltyPointsExpiryMonths,
       showTopProductsOnHomepage:
         body.showTopProductsOnHomepage !== undefined

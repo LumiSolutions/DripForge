@@ -35,8 +35,10 @@ import { normalizeCompanySettings } from "@/lib/dripforge/company-settings"
 import {
   DEFAULT_LOYALTY_EARN_PERCENT,
   DEFAULT_LOYALTY_EXPIRY_MONTHS,
+  DEFAULT_LOYALTY_POINT_VALUE_CHF,
   normalizeLoyaltyEarnPercent,
   normalizeLoyaltyExpiryMonths,
+  normalizeLoyaltyPointValueChf,
 } from "@/lib/konto/loyalty-points-config"
 import { normalizeOrderEmailTemplates } from "@/lib/email/order-email-templates"
 import {
@@ -546,6 +548,9 @@ async function getSettingsFromFile(): Promise<AdminSettings> {
       loyaltyEarnPercent: normalizeLoyaltyEarnPercent(
         stored.loyaltyEarnPercent ?? DEFAULT_LOYALTY_EARN_PERCENT
       ),
+      loyaltyPointValueChf: normalizeLoyaltyPointValueChf(
+        stored.loyaltyPointValueChf ?? DEFAULT_LOYALTY_POINT_VALUE_CHF
+      ),
       loyaltyPointsExpiryMonths: normalizeLoyaltyExpiryMonths(
         stored.loyaltyPointsExpiryMonths ?? DEFAULT_LOYALTY_EXPIRY_MONTHS
       ),
@@ -574,6 +579,7 @@ async function getSettingsFromFile(): Promise<AdminSettings> {
     themeInboundTourImageUrl: null,
     enableRewardPointsSystem: true,
     loyaltyEarnPercent: DEFAULT_LOYALTY_EARN_PERCENT,
+    loyaltyPointValueChf: DEFAULT_LOYALTY_POINT_VALUE_CHF,
     loyaltyPointsExpiryMonths: DEFAULT_LOYALTY_EXPIRY_MONTHS,
     showTopProductsOnHomepage: DEFAULT_SHOW_TOP_PRODUCTS_ON_HOMEPAGE,
     topProductsCount: DEFAULT_TOP_PRODUCTS_COUNT,
@@ -613,6 +619,7 @@ export async function saveSettings(input: {
   themeInboundTourImageUrl?: string | null
   enableRewardPointsSystem?: boolean
   loyaltyEarnPercent?: number
+  loyaltyPointValueChf?: number
   loyaltyPointsExpiryMonths?: number
   showTopProductsOnHomepage?: boolean
   topProductsCount?: number
@@ -670,6 +677,12 @@ export async function saveSettings(input: {
         ? normalizeLoyaltyEarnPercent(input.loyaltyEarnPercent)
         : normalizeLoyaltyEarnPercent(
             current.loyaltyEarnPercent ?? DEFAULT_LOYALTY_EARN_PERCENT
+          ),
+    loyaltyPointValueChf:
+      input.loyaltyPointValueChf !== undefined
+        ? normalizeLoyaltyPointValueChf(input.loyaltyPointValueChf)
+        : normalizeLoyaltyPointValueChf(
+            current.loyaltyPointValueChf ?? DEFAULT_LOYALTY_POINT_VALUE_CHF
           ),
     loyaltyPointsExpiryMonths:
       input.loyaltyPointsExpiryMonths !== undefined

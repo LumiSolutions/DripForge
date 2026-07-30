@@ -11,6 +11,7 @@ import { normalizeCompanySettings } from "@/lib/dripforge/company-settings"
 import {
   DEFAULT_LOYALTY_EARN_PERCENT,
   DEFAULT_LOYALTY_EXPIRY_MONTHS,
+  DEFAULT_LOYALTY_POINT_VALUE_CHF,
 } from "@/lib/konto/loyalty-points-config"
 import { DEFAULT_ORDER_EMAIL_TEMPLATES } from "@/lib/email/order-email-templates"
 import {
@@ -33,6 +34,7 @@ export function buildDefaultAdminSettings(): AdminSettings {
     themeInboundTourImageUrl: null,
     enableRewardPointsSystem: true,
     loyaltyEarnPercent: DEFAULT_LOYALTY_EARN_PERCENT,
+    loyaltyPointValueChf: DEFAULT_LOYALTY_POINT_VALUE_CHF,
     loyaltyPointsExpiryMonths: DEFAULT_LOYALTY_EXPIRY_MONTHS,
     showTopProductsOnHomepage: DEFAULT_SHOW_TOP_PRODUCTS_ON_HOMEPAGE,
     topProductsCount: DEFAULT_TOP_PRODUCTS_COUNT,
