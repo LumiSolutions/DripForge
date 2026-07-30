@@ -21,6 +21,7 @@ import {
   Type,
   Undo2,
   Redo2,
+  UserRound,
   Wand2,
   ArrowUp,
   ArrowDown,
@@ -87,7 +88,11 @@ import {
   sampleImageColorAt,
   type RgbColor,
 } from "@/lib/dripforge/remove-image-background"
-import { smartRemoveBackground } from "@/lib/dripforge/smart-remove-background"
+import {
+  smartKeepSubjectRemoveBackground,
+  smartRemoveFromSeeds,
+  type SmartSeed,
+} from "@/lib/dripforge/smart-remove-background"
 import {
   cropImageToRelRect,
   eraseImageBrushStroke,
@@ -344,6 +349,7 @@ function InteractiveCanvasElement({
   eraserActive,
   lassoActive,
   cropActive,
+  smartSelectActive,
   proportionalScale,
   onEyedropperSample,
   onEraserPaint,
@@ -351,6 +357,7 @@ function InteractiveCanvasElement({
   onLassoComplete,
   onCropDrag,
   onCropComplete,
+  onSmartSelectSample,
   onDelete,
   onRotateStep,
   onScaleStep,
@@ -377,6 +384,7 @@ function InteractiveCanvasElement({
   eraserActive?: boolean
   lassoActive?: boolean
   cropActive?: boolean
+  smartSelectActive?: boolean
   proportionalScale?: boolean
   onEyedropperSample?: (relX: number, relY: number, layerId: string) => void
   onEraserPaint?: (relX: number, relY: number) => void
@@ -390,6 +398,7 @@ function InteractiveCanvasElement({
     start: { relX: number; relY: number },
     end: { relX: number; relY: number }
   ) => void
+  onSmartSelectSample?: (relX: number, relY: number, layerId: string) => void
   onDelete?: () => void
   onRotateStep?: () => void
   onScaleStep?: (delta: number) => void
@@ -496,7 +505,8 @@ function InteractiveCanvasElement({
     Boolean(eyedropperActive) ||
     Boolean(eraserActive) ||
     Boolean(lassoActive) ||
-    Boolean(cropActive)
+    Boolean(cropActive) ||
+    Boolean(smartSelectActive)
 
   const zIndex = 10 + stackIndex + (isActive ? 1 : 0)
   const toolCursor =
@@ -508,9 +518,11 @@ function InteractiveCanvasElement({
           ? "cursor-crosshair"
           : cropActive && kind === "image" && isActive
             ? "cursor-crosshair"
-            : isMoving
-              ? "cursor-grabbing"
-              : "cursor-grab"
+            : smartSelectActive && kind === "image" && isActive
+              ? "cursor-crosshair"
+              : isMoving
+                ? "cursor-grabbing"
+                : "cursor-grab"
 
   const showChrome = isActive && !toolModeActive && !isMoving
 
@@ -553,6 +565,14 @@ function InteractiveCanvasElement({
             onSelect()
             const rel = relFromEvent(e.currentTarget, e.clientX, e.clientY)
             if (rel) onEyedropperSample?.(rel.relX, rel.relY, layerId)
+            return
+          }
+          if (smartSelectActive && kind === "image") {
+            e.preventDefault()
+            e.stopPropagation()
+            onSelect()
+            const rel = relFromEvent(e.currentTarget, e.clientX, e.clientY)
+            if (rel) onSmartSelectSample?.(rel.relX, rel.relY, layerId)
             return
           }
           if (eraserActive && kind === "image") {
@@ -769,7 +789,7 @@ function InteractiveCanvasElement({
                   data-resize-handle={handle}
                   aria-label={`Grösse ändern (${handle})`}
                   className={cn(
-                    "pointer-events-auto absolute z-40 h-3 w-3 rounded-[2px] border border-cyan-400 bg-cyan-400 shadow-sm hover:scale-110",
+                    "pointer-events-auto absolute z-40 h-2 w-2 rounded-[1px] border border-cyan-400/90 bg-cyan-400/80 shadow-none hover:scale-150",
                     resizeHandleClass(handle),
                     CANVAS_TOUCH_LOCK_CLASS
                   )}
@@ -1488,6 +1508,11 @@ function LaserDesignerPreview({
   const [smartRemoveLayerId, setSmartRemoveLayerId] = useState<string | null>(
     null
   )
+  /** Additive Multi-Click Seeds (rel 0–1) */
+  const [smartRemoveSeeds, setSmartRemoveSeeds] = useState<SmartSeed[]>([])
+  /** auto = Personen beibehalten / Rand-Flood; manual = Klick-Auswahl */
+  const [smartRemoveAutoMode, setSmartRemoveAutoMode] = useState(false)
+  const smartRemoveGenRef = useRef(0)
   const eraserBusyRef = useRef(false)
   const eraserSrcRef = useRef<string | null>(null)
   const lastBrushPointRef = useRef<{ relX: number; relY: number } | null>(null)
@@ -1891,11 +1916,21 @@ function LaserDesignerPreview({
   }, [])
 
   const deactivateImageTools = useCallback(
-    (except?: "eyedropper" | "eraser" | "lasso" | "crop") => {
+    (except?: "eyedropper" | "eraser" | "lasso" | "crop" | "smart") => {
       if (except !== "eyedropper") setEyedropperActive(false)
       if (except !== "eraser") setEraserActive(false)
       if (except !== "lasso") setLassoActive(false)
       if (except !== "crop") setCropActive(false)
+      if (except !== "smart") {
+        setSmartRemoveOpen(false)
+        setSmartRemovePreview(null)
+        setSmartRemoveResult(null)
+        setSmartRemoveBaseSrc(null)
+        setSmartRemoveLayerId(null)
+        setSmartRemoveSeeds([])
+        setSmartRemoveAutoMode(false)
+        smartRemoveGenRef.current += 1
+      }
     },
     []
   )
@@ -1980,17 +2015,46 @@ function LaserDesignerPreview({
     }
   }
 
+  const resetSmartRemoveState = useCallback(() => {
+    setSmartRemoveOpen(false)
+    setSmartRemovePreview(null)
+    setSmartRemoveResult(null)
+    setSmartRemoveBaseSrc(null)
+    setSmartRemoveLayerId(null)
+    setSmartRemoveSeeds([])
+    setSmartRemoveAutoMode(false)
+    smartRemoveGenRef.current += 1
+  }, [])
+
   const runSmartRemovePreview = useCallback(
-    async (src: string, tolerance: number) => {
+    async (
+      src: string,
+      tolerance: number,
+      seeds: SmartSeed[],
+      autoMode: boolean
+    ) => {
+      const gen = ++smartRemoveGenRef.current
       setSmartRemoveBusy(true)
       try {
-        const out = await smartRemoveBackground(src, tolerance)
+        let out
+        if (autoMode) {
+          out = await smartKeepSubjectRemoveBackground(src, tolerance)
+        } else if (seeds.length > 0) {
+          out = await smartRemoveFromSeeds(src, seeds, tolerance)
+        } else {
+          if (gen === smartRemoveGenRef.current) {
+            setSmartRemovePreview(null)
+            setSmartRemoveResult(null)
+          }
+          return
+        }
+        if (gen !== smartRemoveGenRef.current) return
         setSmartRemovePreview(out.previewHighlight)
         setSmartRemoveResult(out.result)
       } catch (err) {
         console.warn("Smart-Remove Vorschau fehlgeschlagen:", err)
       } finally {
-        setSmartRemoveBusy(false)
+        if (gen === smartRemoveGenRef.current) setSmartRemoveBusy(false)
       }
     },
     []
@@ -1998,12 +2062,40 @@ function LaserDesignerPreview({
 
   const openSmartRemove = () => {
     if (!activeImageLayer?.src) return
-    deactivateImageTools()
+    deactivateImageTools("smart")
     setSmartRemoveLayerId(activeImageLayer.id)
     setSmartRemoveBaseSrc(activeImageLayer.src)
+    setSmartRemoveSeeds([])
+    setSmartRemoveAutoMode(false)
+    setSmartRemovePreview(null)
+    setSmartRemoveResult(null)
     setSmartRemoveOpen(true)
     setSmartRemoveTolerance(45)
-    void runSmartRemovePreview(activeImageLayer.src, 45)
+  }
+
+  const handleSmartSelectSample = useCallback(
+    (relX: number, relY: number, layerId: string) => {
+      if (!smartRemoveOpen || !smartRemoveBaseSrc) return
+      if (smartRemoveLayerId && layerId !== smartRemoveLayerId) return
+      setSmartRemoveAutoMode(false)
+      setSmartRemoveSeeds((prev) => [...prev, { relX, relY }])
+    },
+    [smartRemoveOpen, smartRemoveBaseSrc, smartRemoveLayerId]
+  )
+
+  const handleSmartKeepSubject = () => {
+    if (!smartRemoveBaseSrc) return
+    setSmartRemoveAutoMode(true)
+    setSmartRemoveSeeds([])
+  }
+
+  const clearSmartSeeds = () => {
+    setSmartRemoveAutoMode(false)
+    setSmartRemoveSeeds([])
+    setSmartRemovePreview(null)
+    setSmartRemoveResult(null)
+    smartRemoveGenRef.current += 1
+    setSmartRemoveBusy(false)
   }
 
   const applySmartRemove = () => {
@@ -2014,31 +2106,31 @@ function LaserDesignerPreview({
     })
     emitLayers(next, smartRemoveLayerId)
     clearPipetteLiveChain()
-    setSmartRemoveOpen(false)
-    setSmartRemovePreview(null)
-    setSmartRemoveResult(null)
-    setSmartRemoveBaseSrc(null)
-    setSmartRemoveLayerId(null)
+    resetSmartRemoveState()
   }
 
   const cancelSmartRemove = () => {
-    setSmartRemoveOpen(false)
-    setSmartRemovePreview(null)
-    setSmartRemoveResult(null)
-    setSmartRemoveBaseSrc(null)
-    setSmartRemoveLayerId(null)
+    resetSmartRemoveState()
   }
 
   useEffect(() => {
     if (!smartRemoveOpen || !smartRemoveBaseSrc) return
+    if (!smartRemoveAutoMode && smartRemoveSeeds.length === 0) return
     const t = window.setTimeout(() => {
-      void runSmartRemovePreview(smartRemoveBaseSrc, smartRemoveTolerance)
+      void runSmartRemovePreview(
+        smartRemoveBaseSrc,
+        smartRemoveTolerance,
+        smartRemoveSeeds,
+        smartRemoveAutoMode
+      )
     }, 80)
     return () => window.clearTimeout(t)
   }, [
     smartRemoveOpen,
     smartRemoveBaseSrc,
     smartRemoveTolerance,
+    smartRemoveSeeds,
+    smartRemoveAutoMode,
     runSmartRemovePreview,
   ])
 
@@ -2418,10 +2510,16 @@ function LaserDesignerPreview({
             </ToolIconButton>
             <ToolIconButton
               label="Intelligent freistellen"
-              description="Erkennt den Hintergrund vom Bildrand (Magic-Wand) und zeigt eine Live-Vorschau mit Toleranz-Slider, bevor du übernimmst."
+              description="Mehrfach-Klick auf Hintergrundbereiche (additiv). Kanten-Stop schützt Motive. Optional: Personen beibehalten."
               active={smartRemoveOpen}
               disabled={removingBg || !activeImageLayer || smartRemoveBusy}
-              onClick={openSmartRemove}
+              onClick={() => {
+                if (smartRemoveOpen) {
+                  cancelSmartRemove()
+                  return
+                }
+                openSmartRemove()
+              }}
             >
               <Wand2 className="h-4 w-4" />
             </ToolIconButton>
@@ -2551,6 +2649,9 @@ function LaserDesignerPreview({
                   eraserActive={eraserActive}
                   lassoActive={lassoActive}
                   cropActive={cropActive}
+                  smartSelectActive={
+                    smartRemoveOpen && smartRemoveLayerId === layer.id
+                  }
                   proportionalScale={proportionalScale}
                   brushRadiusRel={eraserRadius}
                   lassoPoints={
@@ -2559,6 +2660,7 @@ function LaserDesignerPreview({
                   onEyedropperSample={(relX, relY, id) => {
                     void handleEyedropperSample(relX, relY, id)
                   }}
+                  onSmartSelectSample={handleSmartSelectSample}
                   onEraserPaint={handleEraserPaintSafe}
                   onLassoPoint={handleLassoPoint}
                   onLassoComplete={() => {
@@ -2752,7 +2854,7 @@ function LaserDesignerPreview({
           <div className="relative z-0 mt-4 space-y-3 rounded-lg border border-violet-500/30 bg-violet-500/5 p-4">
             <div className="flex items-center justify-between gap-2">
               <p className="text-sm font-semibold text-violet-400">
-                Intelligent freistellen — Live-Vorschau
+                Intelligent freistellen — Mehrfach-Auswahl
               </p>
               <Button
                 type="button"
@@ -2764,6 +2866,15 @@ function LaserDesignerPreview({
                 Abbrechen
               </Button>
             </div>
+            <p className="text-xs text-muted-foreground">
+              Klicke auf dem Bild in der Vorschau auf Hintergrundbereiche (z.&nbsp;B.
+              Himmel, dann Wolken). Jeder Klick wird additiv hinzugefügt.
+              Scharfe Kanten stoppen die Auswahl.
+              {smartRemoveSeeds.length > 0
+                ? ` · ${smartRemoveSeeds.length} Bereich${smartRemoveSeeds.length === 1 ? "" : "e"}`
+                : null}
+              {smartRemoveAutoMode ? " · Auto: Personen beibehalten" : null}
+            </p>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
@@ -2778,11 +2889,19 @@ function LaserDesignerPreview({
               </div>
               <div className="space-y-1">
                 <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                  {smartRemoveBusy ? "Berechne…" : "Maske / Nachher"}
+                  {smartRemoveBusy
+                    ? "Berechne…"
+                    : smartRemoveResult
+                      ? "Maske / Nachher"
+                      : "Klicke aufs Bild…"}
                 </p>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={smartRemovePreview ?? smartRemoveResult ?? smartRemoveBaseSrc}
+                  src={
+                    smartRemovePreview ??
+                    smartRemoveResult ??
+                    smartRemoveBaseSrc
+                  }
                   alt="Vorschau Freistellen"
                   className="max-h-36 w-full rounded-md border border-border/50 object-contain bg-[linear-gradient(45deg,#ccc_25%,transparent_25%,transparent_75%,#ccc_75%),linear-gradient(45deg,#ccc_25%,transparent_25%,transparent_75%,#ccc_75%)] bg-[length:12px_12px] bg-[position:0_0,6px_6px]"
                 />
@@ -2806,6 +2925,30 @@ function LaserDesignerPreview({
               />
             </div>
             <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="gap-1.5 border-violet-500/40 text-violet-300 hover:bg-violet-500/10"
+                disabled={smartRemoveBusy || !smartRemoveBaseSrc}
+                onClick={handleSmartKeepSubject}
+              >
+                <UserRound className="h-3.5 w-3.5" />
+                Personen beibehalten
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="text-xs"
+                disabled={
+                  smartRemoveBusy ||
+                  (smartRemoveSeeds.length === 0 && !smartRemoveAutoMode)
+                }
+                onClick={clearSmartSeeds}
+              >
+                Auswahl zurücksetzen
+              </Button>
               <Button
                 type="button"
                 size="sm"

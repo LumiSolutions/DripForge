@@ -113,6 +113,144 @@ export function getLaserFontFamily(fontId: LaserFontId): string {
   return getLaserFontOption(fontId).fontFamily
 }
 
+/**
+ * Canvas/2D-Context kann CSS-Variablen (`var(--…)`) nicht auflösen.
+ * Liefert die vom Browser berechnete font-family (inkl. next/font-Hash)
+ * bzw. konkrete Fallback-Namen.
+ */
+export function getLaserFontFamilyForCanvas(fontId: LaserFontId): string {
+  const opt = getLaserFontOption(fontId)
+  if (typeof document !== "undefined" && document.body) {
+    try {
+      const el = document.createElement("span")
+      el.setAttribute("aria-hidden", "true")
+      el.style.cssText =
+        "position:fixed;left:-99999px;top:0;visibility:hidden;pointer-events:none;font-size:16px;"
+      el.style.fontFamily = opt.fontFamily
+      document.body.appendChild(el)
+      const computed = getComputedStyle(el).fontFamily
+      document.body.removeChild(el)
+      if (
+        computed &&
+        computed.trim().length > 0 &&
+        computed !== "serif" &&
+        computed !== "sans-serif" &&
+        computed !== "monospace" &&
+        computed !== "cursive"
+      ) {
+        return computed
+      }
+    } catch {
+      /* Fallbacks unten */
+    }
+  }
+
+  switch (fontId) {
+    case "modern":
+      return "'Inter', Arial, sans-serif"
+    case "minimalistisch":
+      return "'Helvetica Neue', Helvetica, Arial, sans-serif"
+    case "klassisch":
+      return "'Playfair Display', Georgia, serif"
+    case "rustikal":
+      return "'Montserrat', Impact, sans-serif"
+    case "futuristisch":
+      return "'JetBrains Mono', 'Courier New', monospace"
+    case "vintage":
+      return "'Rockwell', 'Rockwell Extra Bold', Georgia, serif"
+    case "schwungvoll":
+      return "'Caveat', 'Comic Sans MS', cursive"
+    case "kalligrafie":
+      return "'Edwardian Script ITC', 'Great Vibes', 'Brush Script MT', cursive"
+    default:
+      return "'Inter', Arial, sans-serif"
+  }
+}
+
+/** Basis-Fontgrösse (px) in der Live-Vorschau bei ~420px Preview-Breite. */
+export function getLaserPreviewBaseFontPx(fontId: LaserFontId): number {
+  switch (fontId) {
+    case "schwungvoll":
+      return 24
+    case "kalligrafie":
+      return 28
+    case "rustikal":
+      return 22
+    case "futuristisch":
+      return 20
+    default:
+      return 20
+  }
+}
+
+/** Wartet auf Webfonts und lädt Laser-Fonts explizit. */
+export async function ensureLaserFontsReady(
+  fontIds?: LaserFontId[]
+): Promise<void> {
+  if (typeof document === "undefined" || !document.fonts) return
+  try {
+    await document.fonts.ready
+  } catch {
+    /* ignore */
+  }
+  const ids = fontIds?.length
+    ? fontIds
+    : LASER_FONT_OPTIONS.map((f) => f.id)
+
+  /** Konkrete Familien zum expliziten document.fonts.load (ohne Fallbacks). */
+  const primaryFamilies = (id: LaserFontId): string[] => {
+    // Zuerst berechnete Familie (next/font-Hash), dann lesbare Namen
+    const resolved = getLaserFontFamilyForCanvas(id)
+    const quoted =
+      resolved.match(/"([^"]+)"/g)?.map((s) => s.slice(1, -1)) ??
+      resolved.match(/'([^']+)'/g)?.map((s) => s.slice(1, -1)) ??
+      []
+    const bare = resolved
+      .split(",")
+      .map((p) => p.trim().replace(/^["']|["']$/g, ""))
+      .filter((p) => p && !/^(serif|sans-serif|monospace|cursive|fantasy)$/i.test(p))
+    const extras: string[] = (() => {
+      switch (id) {
+        case "modern":
+          return ["Inter"]
+        case "klassisch":
+          return ["Playfair Display"]
+        case "rustikal":
+          return ["Montserrat"]
+        case "futuristisch":
+          return ["JetBrains Mono"]
+        case "schwungvoll":
+          return ["Caveat"]
+        case "kalligrafie":
+          return ["Great Vibes", "Edwardian Script ITC"]
+        default:
+          return []
+      }
+    })()
+    return Array.from(new Set([...quoted, ...bare, ...extras]))
+  }
+
+  await Promise.all(
+    ids.flatMap((id) => {
+      const size = getLaserPreviewBaseFontPx(id)
+      const families = primaryFamilies(id)
+      return families.flatMap((family) => [
+        document.fonts
+          .load(`600 ${size}px "${family}"`)
+          .catch(() => document.fonts.load(`${size}px "${family}"`).catch(() => undefined)),
+        document.fonts
+          .load(`400 ${Math.round(size * 1.5)}px "${family}"`)
+          .catch(() => undefined),
+      ])
+    })
+  )
+  try {
+    await document.fonts.ready
+  } catch {
+    /* ignore */
+  }
+}
+
 export function getLaserFontStyle(
   fontId: LaserFontId,
   context: "tile" | "canvas" = "canvas"
