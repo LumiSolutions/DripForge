@@ -13,7 +13,7 @@ import { resolveProductImages } from "@/lib/dripforge/product-images-defaults"
 import type { Product } from "@/lib/dripforge/types"
 import { cn } from "@/lib/utils"
 
-const SLIDER_PAGE_INSET_PX = 16
+const SCROLL_EDGE_EPS_PX = 2
 
 type TopProductsResponse = {
   enabled?: boolean
@@ -23,6 +23,8 @@ type TopProductsResponse = {
 export function HomeTopProductsSection() {
   const [products, setProducts] = useState<Product[] | null>(null)
   const [enabled, setEnabled] = useState(true)
+  const [canScrollLeft, setCanScrollLeft] = useState(false)
+  const [canScrollRight, setCanScrollRight] = useState(false)
   const sliderRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -49,24 +51,55 @@ export function HomeTopProductsSection() {
     }
   }, [])
 
-  const getScrollAmount = () => {
+  useEffect(() => {
     const slider = sliderRef.current
-    if (!slider) return 200
-    // Eine Seite = genau 2 sichtbare Karten (Viewport abzüglich Gap)
-    return Math.max(slider.clientWidth - SLIDER_PAGE_INSET_PX, 200)
+    if (!slider || !products?.length) return
+
+    const updateScrollState = () => {
+      const maxScroll = slider.scrollWidth - slider.clientWidth
+      const hasOverflow = maxScroll > SCROLL_EDGE_EPS_PX
+      setCanScrollLeft(hasOverflow && slider.scrollLeft > SCROLL_EDGE_EPS_PX)
+      setCanScrollRight(
+        hasOverflow && slider.scrollLeft < maxScroll - SCROLL_EDGE_EPS_PX
+      )
+    }
+
+    updateScrollState()
+
+    const onScroll = () => updateScrollState()
+    slider.addEventListener("scroll", onScroll, { passive: true })
+
+    const resizeObserver = new ResizeObserver(() => updateScrollState())
+    resizeObserver.observe(slider)
+
+    return () => {
+      slider.removeEventListener("scroll", onScroll)
+      resizeObserver.disconnect()
+    }
+  }, [products])
+
+  const getCardScrollAmount = () => {
+    const slider = sliderRef.current
+    if (!slider) return 240
+
+    const card = slider.querySelector<HTMLElement>("[data-top-product-card]")
+    if (!card) return Math.max(slider.clientWidth * 0.5, 200)
+
+    const styles = getComputedStyle(slider)
+    const gap =
+      Number.parseFloat(styles.columnGap || styles.gap || "0") || 16
+
+    return card.getBoundingClientRect().width + gap
   }
 
-  const scrollByPage = (direction: -1 | 1) => {
+  const scrollByCard = (direction: -1 | 1) => {
     sliderRef.current?.scrollBy({
-      left: direction * getScrollAmount(),
+      left: direction * getCardScrollAmount(),
       behavior: "smooth",
     })
   }
 
   if (!enabled || !products || products.length === 0) return null
-
-  const desktopCols =
-    products.length >= 4 ? "md:grid-cols-4" : products.length === 3 ? "md:grid-cols-3" : "md:grid-cols-2"
 
   return (
     <section className="py-10 md:py-16">
@@ -93,8 +126,15 @@ export function HomeTopProductsSection() {
           <button
             type="button"
             aria-label="Vorheriges Produkt"
-            className="absolute left-1 top-1/2 z-10 -translate-y-1/2 rounded-full border border-border/60 bg-background/90 p-2 shadow-md backdrop-blur-sm transition-colors hover:bg-background md:hidden"
-            onClick={() => scrollByPage(-1)}
+            disabled={!canScrollLeft}
+            aria-disabled={!canScrollLeft}
+            className={cn(
+              "absolute left-1 top-1/2 z-10 -translate-y-1/2 rounded-full border border-border/60 bg-background/90 p-2 shadow-md backdrop-blur-sm transition-all hover:bg-background md:left-0",
+              canScrollLeft
+                ? "opacity-100"
+                : "pointer-events-none opacity-0"
+            )}
+            onClick={() => scrollByCard(-1)}
           >
             <ChevronLeft className="h-5 w-5 text-foreground" />
           </button>
@@ -102,9 +142,9 @@ export function HomeTopProductsSection() {
           <div
             ref={sliderRef}
             className={cn(
-              "flex gap-4 overflow-x-auto px-4 pb-4 scrollbar-none snap-x snap-mandatory",
-              "md:grid md:gap-6 md:overflow-x-visible md:px-0 md:pb-0 md:snap-none",
-              desktopCols
+              "flex flex-nowrap gap-4 overflow-x-auto overscroll-x-contain px-4 pb-2 scroll-smooth scrollbar-none",
+              "snap-x snap-mandatory touch-pan-x",
+              "md:gap-6 md:px-10"
             )}
           >
             {products.map((product) => {
@@ -121,8 +161,10 @@ export function HomeTopProductsSection() {
                   key={product.id}
                   data-top-product-card
                   className={cn(
+                    // Mobile: ~2 sichtbar · md: ~3 · lg: ~4 — nie umbrechen
                     "w-[calc(50%-8px)] min-w-[calc(50%-8px)] shrink-0 snap-start overflow-hidden border-border/50 bg-card/50 transition-colors hover:border-primary/50 hover:shadow-md",
-                    "md:w-full md:min-w-0 md:shrink",
+                    "md:w-[calc((100%-3rem)/3)] md:min-w-[calc((100%-3rem)/3)]",
+                    "lg:w-[calc((100%-4.5rem)/4)] lg:min-w-[calc((100%-4.5rem)/4)]",
                     product.sale && "border-red-500/30 hover:border-red-500/60"
                   )}
                 >
@@ -137,7 +179,7 @@ export function HomeTopProductsSection() {
                         src={imageSrc}
                         alt={product.name}
                         fill
-                        sizes="(max-width: 768px) 50vw, 25vw"
+                        sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
                         className="object-contain p-4"
                       />
                     </div>
@@ -176,8 +218,15 @@ export function HomeTopProductsSection() {
           <button
             type="button"
             aria-label="Nächstes Produkt"
-            className="absolute right-1 top-1/2 z-10 -translate-y-1/2 rounded-full border border-border/60 bg-background/90 p-2 shadow-md backdrop-blur-sm transition-colors hover:bg-background md:hidden"
-            onClick={() => scrollByPage(1)}
+            disabled={!canScrollRight}
+            aria-disabled={!canScrollRight}
+            className={cn(
+              "absolute right-1 top-1/2 z-10 -translate-y-1/2 rounded-full border border-border/60 bg-background/90 p-2 shadow-md backdrop-blur-sm transition-all hover:bg-background md:right-0",
+              canScrollRight
+                ? "opacity-100"
+                : "pointer-events-none opacity-0"
+            )}
+            onClick={() => scrollByCard(1)}
           >
             <ChevronRight className="h-5 w-5 text-foreground" />
           </button>
