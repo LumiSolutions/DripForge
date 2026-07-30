@@ -15,6 +15,10 @@ import type {
 import { normalizeServiceVisibility } from "@/lib/dripforge/service-visibility"
 import { normalizeShopConfigurators } from "@/lib/dripforge/shop-configurators"
 import { buildDefaultAdminSettings } from "@/lib/admin/safe-defaults"
+import {
+  normalizeShowTopProductsOnHomepage,
+  normalizeTopProductsCount,
+} from "@/lib/dripforge/top-products-settings"
 
 export async function GET(request: Request) {
   const auth = requireAdminSession(request)
@@ -49,6 +53,8 @@ export async function PUT(request: Request) {
       enableRewardPointsSystem?: boolean
       loyaltyEarnPercent?: number
       loyaltyPointsExpiryMonths?: number
+      showTopProductsOnHomepage?: boolean
+      topProductsCount?: number
       orderEmailTemplates?: {
         receivedIntro?: string
         receivedFooter?: string
@@ -98,6 +104,14 @@ export async function PUT(request: Request) {
       enableRewardPointsSystem: body.enableRewardPointsSystem,
       loyaltyEarnPercent: body.loyaltyEarnPercent,
       loyaltyPointsExpiryMonths: body.loyaltyPointsExpiryMonths,
+      showTopProductsOnHomepage:
+        body.showTopProductsOnHomepage !== undefined
+          ? normalizeShowTopProductsOnHomepage(body.showTopProductsOnHomepage)
+          : undefined,
+      topProductsCount:
+        body.topProductsCount !== undefined
+          ? normalizeTopProductsCount(body.topProductsCount)
+          : undefined,
       orderEmailTemplates: body.orderEmailTemplates,
       launch: body.launch,
     })

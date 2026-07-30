@@ -40,6 +40,12 @@ import {
 } from "@/lib/konto/loyalty-points-config"
 import { normalizeOrderEmailTemplates } from "@/lib/email/order-email-templates"
 import {
+  DEFAULT_SHOW_TOP_PRODUCTS_ON_HOMEPAGE,
+  DEFAULT_TOP_PRODUCTS_COUNT,
+  normalizeShowTopProductsOnHomepage,
+  normalizeTopProductsCount,
+} from "@/lib/dripforge/top-products-settings"
+import {
   CosmosDatabaseError,
   withCosmosFallback,
   withCosmosRequired,
@@ -543,6 +549,12 @@ async function getSettingsFromFile(): Promise<AdminSettings> {
       loyaltyPointsExpiryMonths: normalizeLoyaltyExpiryMonths(
         stored.loyaltyPointsExpiryMonths ?? DEFAULT_LOYALTY_EXPIRY_MONTHS
       ),
+      showTopProductsOnHomepage: normalizeShowTopProductsOnHomepage(
+        stored.showTopProductsOnHomepage
+      ),
+      topProductsCount: normalizeTopProductsCount(
+        stored.topProductsCount ?? DEFAULT_TOP_PRODUCTS_COUNT
+      ),
       orderEmailTemplates: normalizeOrderEmailTemplates(
         stored.orderEmailTemplates
       ),
@@ -563,6 +575,8 @@ async function getSettingsFromFile(): Promise<AdminSettings> {
     enableRewardPointsSystem: true,
     loyaltyEarnPercent: DEFAULT_LOYALTY_EARN_PERCENT,
     loyaltyPointsExpiryMonths: DEFAULT_LOYALTY_EXPIRY_MONTHS,
+    showTopProductsOnHomepage: DEFAULT_SHOW_TOP_PRODUCTS_ON_HOMEPAGE,
+    topProductsCount: DEFAULT_TOP_PRODUCTS_COUNT,
     orderEmailTemplates: normalizeOrderEmailTemplates(undefined),
     updatedAt: new Date().toISOString(),
   }
@@ -600,6 +614,8 @@ export async function saveSettings(input: {
   enableRewardPointsSystem?: boolean
   loyaltyEarnPercent?: number
   loyaltyPointsExpiryMonths?: number
+  showTopProductsOnHomepage?: boolean
+  topProductsCount?: number
   orderEmailTemplates?: {
     receivedIntro?: string
     receivedFooter?: string
@@ -660,6 +676,16 @@ export async function saveSettings(input: {
         ? normalizeLoyaltyExpiryMonths(input.loyaltyPointsExpiryMonths)
         : normalizeLoyaltyExpiryMonths(
             current.loyaltyPointsExpiryMonths ?? DEFAULT_LOYALTY_EXPIRY_MONTHS
+          ),
+    showTopProductsOnHomepage:
+      input.showTopProductsOnHomepage !== undefined
+        ? normalizeShowTopProductsOnHomepage(input.showTopProductsOnHomepage)
+        : normalizeShowTopProductsOnHomepage(current.showTopProductsOnHomepage),
+    topProductsCount:
+      input.topProductsCount !== undefined
+        ? normalizeTopProductsCount(input.topProductsCount)
+        : normalizeTopProductsCount(
+            current.topProductsCount ?? DEFAULT_TOP_PRODUCTS_COUNT
           ),
     orderEmailTemplates:
       input.orderEmailTemplates !== undefined

@@ -13,6 +13,10 @@ import {
   DEFAULT_LOYALTY_EXPIRY_MONTHS,
 } from "@/lib/konto/loyalty-points-config"
 import { DEFAULT_ORDER_EMAIL_TEMPLATES } from "@/lib/email/order-email-templates"
+import {
+  DEFAULT_SHOW_TOP_PRODUCTS_ON_HOMEPAGE,
+  DEFAULT_TOP_PRODUCTS_COUNT,
+} from "@/lib/dripforge/top-products-settings"
 
 /** Sichere Standard-Einstellungen wenn Cosmos/Datei nicht erreichbar sind. */
 export function buildDefaultAdminSettings(): AdminSettings {
@@ -30,6 +34,8 @@ export function buildDefaultAdminSettings(): AdminSettings {
     enableRewardPointsSystem: true,
     loyaltyEarnPercent: DEFAULT_LOYALTY_EARN_PERCENT,
     loyaltyPointsExpiryMonths: DEFAULT_LOYALTY_EXPIRY_MONTHS,
+    showTopProductsOnHomepage: DEFAULT_SHOW_TOP_PRODUCTS_ON_HOMEPAGE,
+    topProductsCount: DEFAULT_TOP_PRODUCTS_COUNT,
     orderEmailTemplates: { ...DEFAULT_ORDER_EMAIL_TEMPLATES },
     updatedAt: new Date().toISOString(),
   }

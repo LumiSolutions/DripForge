@@ -15,8 +15,14 @@ import { cn } from "@/lib/utils"
 
 const SLIDER_PAGE_INSET_PX = 16
 
+type TopProductsResponse = {
+  enabled?: boolean
+  products?: Product[]
+}
+
 export function HomeTopProductsSection() {
   const [products, setProducts] = useState<Product[] | null>(null)
+  const [enabled, setEnabled] = useState(true)
   const sliderRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -25,12 +31,16 @@ export function HomeTopProductsSection() {
     void (async () => {
       try {
         const res = await fetch("/api/products/top", { cache: "no-store" })
-        const data = (await res.json()) as { products?: Product[] }
+        const data = (await res.json()) as TopProductsResponse
         if (!cancelled) {
+          setEnabled(data.enabled !== false)
           setProducts(Array.isArray(data.products) ? data.products : [])
         }
       } catch {
-        if (!cancelled) setProducts([])
+        if (!cancelled) {
+          setEnabled(true)
+          setProducts([])
+        }
       }
     })()
 
@@ -53,7 +63,7 @@ export function HomeTopProductsSection() {
     })
   }
 
-  if (!products || products.length === 0) return null
+  if (!enabled || !products || products.length === 0) return null
 
   const desktopCols =
     products.length >= 4 ? "md:grid-cols-4" : products.length === 3 ? "md:grid-cols-3" : "md:grid-cols-2"
