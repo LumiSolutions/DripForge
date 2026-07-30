@@ -22,7 +22,7 @@ import {
   samplePixel,
   type Rgba,
 } from "@/lib/dripforge/image-cutout-engine"
-import { applyPersonKeepMask } from "@/lib/dripforge/person-segmentation"
+import { applySubjectKeepMask } from "@/lib/dripforge/subject-segmentation"
 
 export type CutoutTool = "erase" | "restore" | "pipette"
 
@@ -58,7 +58,7 @@ export function ImageCutoutPanel({
   const [tool, setTool] = useState<CutoutTool>("erase")
   const [brushSize, setBrushSize] = useState(28)
   const [tolerance, setTolerance] = useState(36)
-  const [keepPerson, setKeepPerson] = useState(false)
+  const [keepSubject, setKeepSubject] = useState(false)
   const [loading, setLoading] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -195,31 +195,30 @@ export function ImageCutoutPanel({
     setMagnifier((m) => ({ ...m, visible: false }))
   }
 
-  const runPersonKeep = async () => {
+  const runSubjectKeep = async () => {
     const working = workingRef.current
     if (!working) return
     setBusy(true)
     setError(null)
-    setStatusHint("Personen-Erkennung läuft…")
+    setStatusHint("Subjekt-/Vordergrund-Erkennung läuft…")
     try {
-      // Reset from original then mask
       const original = originalRef.current
       if (original) {
         workingRef.current = cloneImageData(original)
       }
       const target = workingRef.current
       if (!target) return
-      await applyPersonKeepMask(target)
+      await applySubjectKeepMask(target)
       paintCanvas()
-      setKeepPerson(true)
-      setStatusHint("Personen beibehalten — Hintergrund ist transparent")
+      setKeepSubject(true)
+      setStatusHint("Subjekt beibehalten — Hintergrund ist transparent")
     } catch (err) {
       setError(
         err instanceof Error
           ? err.message
-          : "Personen-Erkennung fehlgeschlagen"
+          : "Subjekt-Erkennung fehlgeschlagen"
       )
-      setStatusHint("Personen-Erkennung fehlgeschlagen — manuell nacharbeiten")
+      setStatusHint("Subjekt-Erkennung fehlgeschlagen — manuell nacharbeiten")
     } finally {
       setBusy(false)
     }
@@ -229,7 +228,7 @@ export function ImageCutoutPanel({
     const original = originalRef.current
     if (!original) return
     workingRef.current = cloneImageData(original)
-    setKeepPerson(false)
+    setKeepSubject(false)
     paintCanvas()
     setStatusHint("Original wiederhergestellt")
   }
@@ -303,13 +302,13 @@ export function ImageCutoutPanel({
           disabled={busy}
           className={cn(
             "inline-flex min-h-11 min-w-11 flex-col items-center justify-center gap-0.5 rounded-lg border px-3 py-2 text-[10px] font-medium",
-            keepPerson
+            keepSubject
               ? "border-cyan-500 bg-cyan-500/15 text-cyan-400"
               : "border-border/60 bg-background/40 text-muted-foreground"
           )}
           onPointerDown={(e) => {
             e.preventDefault()
-            void runPersonKeep()
+            void runSubjectKeep()
           }}
         >
           {busy ? (
@@ -317,7 +316,7 @@ export function ImageCutoutPanel({
           ) : (
             <ScanFace className="h-5 w-5" />
           )}
-          Personen
+          Subjekt
         </button>
         <button
           type="button"

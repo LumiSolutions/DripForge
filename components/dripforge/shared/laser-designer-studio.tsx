@@ -33,11 +33,6 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import {
   clampScale,
@@ -176,6 +171,7 @@ function ToolIconButton({
   disabled,
   active,
   onClick,
+  onShowInfo,
   children,
 }: {
   label: string
@@ -183,51 +179,46 @@ function ToolIconButton({
   disabled?: boolean
   active?: boolean
   onClick?: () => void
+  onShowInfo?: (label: string, description: string) => void
   children: React.ReactNode
 }) {
   const touchHandledRef = useRef(false)
 
   const activate = () => {
     if (disabled) return
+    onShowInfo?.(label, description)
     onClick?.()
   }
 
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          type="button"
-          size="icon"
-          variant={active ? "default" : "outline"}
-          className={cn(
-            "h-11 w-11 min-h-11 min-w-11 touch-manipulation",
-            active && "bg-cyan-600 text-white hover:bg-cyan-500"
-          )}
-          disabled={disabled}
-          aria-label={label}
-          onPointerDown={(e) => {
-            if (e.pointerType !== "touch" && e.pointerType !== "pen") return
-            e.preventDefault()
-            touchHandledRef.current = true
-            activate()
-          }}
-          onClick={(e) => {
-            e.preventDefault()
-            if (touchHandledRef.current) {
-              touchHandledRef.current = false
-              return
-            }
-            activate()
-          }}
-        >
-          {children}
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent side="right" className="max-w-[16rem] space-y-0.5 p-2.5">
-        <p className="font-semibold">{label}</p>
-        <p className="text-[11px] leading-snug opacity-90">{description}</p>
-      </TooltipContent>
-    </Tooltip>
+    <Button
+      type="button"
+      size="icon"
+      variant={active ? "default" : "outline"}
+      title={label}
+      className={cn(
+        "h-11 w-11 min-h-11 min-w-11 shrink-0 touch-manipulation",
+        active && "bg-cyan-600 text-white hover:bg-cyan-500"
+      )}
+      disabled={disabled}
+      aria-label={label}
+      onPointerDown={(e) => {
+        if (e.pointerType !== "touch" && e.pointerType !== "pen") return
+        e.preventDefault()
+        touchHandledRef.current = true
+        activate()
+      }}
+      onClick={(e) => {
+        e.preventDefault()
+        if (touchHandledRef.current) {
+          touchHandledRef.current = false
+          return
+        }
+        activate()
+      }}
+    >
+      {children}
+    </Button>
   )
 }
 
@@ -1485,6 +1476,7 @@ function LaserDesignerPreview({
 }) {
   const { selectedFont, layers, activeLayerId } = state
   const canvasRef = useRef<HTMLDivElement>(null)
+  const [canvasMounted, setCanvasMounted] = useState(false)
   const layerInnerRefs = useRef<Map<string, HTMLElement>>(new Map())
   const dragSessionRef = useRef<DragSession | null>(null)
   const [dragMode, setDragMode] = useState<DragMode | null>(null)
@@ -1529,7 +1521,7 @@ function LaserDesignerPreview({
   )
   /** Additive Multi-Click Seeds (rel 0–1) */
   const [smartRemoveSeeds, setSmartRemoveSeeds] = useState<SmartSeed[]>([])
-  /** auto = Personen beibehalten / Rand-Flood; manual = Klick-Auswahl */
+  /** auto = Subjekt/Vordergrund beibehalten; manual = Klick-Auswahl */
   const [smartRemoveAutoMode, setSmartRemoveAutoMode] = useState(false)
   const smartRemoveGenRef = useRef(0)
   const eraserBusyRef = useRef(false)
@@ -1544,8 +1536,38 @@ function LaserDesignerPreview({
     maskOverlaySrc: string | null
   } | null>(null)
   const [mobileToolHint, setMobileToolHint] = useState<string | null>(null)
+  const [toolToast, setToolToast] = useState<{
+    label: string
+    description: string
+  } | null>(null)
+  const toolToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pinchSessionRef = useRef<{
+    targetId: string
+    startDistance: number
+    startScale: number
+    startScaleX: number
+    startScaleY: number
+  } | null>(null)
   const canvasStyle = getMaterialCanvasStyle(material.id)
   const workAreaLabel = `${workAreaMm.widthMm} x ${workAreaMm.heightMm} mm`
+
+  const showToolInfo = useCallback((label: string, description: string) => {
+    if (toolToastTimerRef.current) {
+      clearTimeout(toolToastTimerRef.current)
+      toolToastTimerRef.current = null
+    }
+    setToolToast({ label, description })
+    toolToastTimerRef.current = setTimeout(() => {
+      setToolToast(null)
+      toolToastTimerRef.current = null
+    }, 2500)
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      if (toolToastTimerRef.current) clearTimeout(toolToastTimerRef.current)
+    }
+  }, [])
 
   const stateRef = useRef(state)
   stateRef.current = state
@@ -1888,9 +1910,94 @@ function LaserDesignerPreview({
     }
   }, [endDragSession, processDragMove])
 
+  // 2-Finger-Pinch: Skaliert das aktive Element (Bild/Text)
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const touchDistance = (touches: TouchList) => {
+      if (touches.length < 2) return 0
+      const a = touches[0]
+      const b = touches[1]
+      return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY) || 1
+    }
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length !== 2) return
+      const current = stateRef.current
+      const targetId = current.activeLayerId
+      if (!targetId) return
+      const layer = current.layers.find((l) => l.id === targetId)
+      if (!layer) return
+
+      const isVisible =
+        (layer.kind === "text" && (layer.text ?? "").trim().length > 0) ||
+        (layer.kind === "image" && Boolean(layer.src))
+      if (!isVisible) return
+
+      e.preventDefault()
+      dragSessionRef.current = null
+      setDragMode(null)
+
+      const layout = layerToElementLayout(layer)
+      pinchSessionRef.current = {
+        targetId,
+        startDistance: touchDistance(e.touches),
+        startScale: layout.scale,
+        startScaleX: layout.scaleX ?? layout.scale,
+        startScaleY: layout.scaleY ?? layout.scale,
+      }
+    }
+
+    const onTouchMove = (e: TouchEvent) => {
+      const session = pinchSessionRef.current
+      if (!session || e.touches.length !== 2) return
+      e.preventDefault()
+      const dist = touchDistance(e.touches)
+      const ratio = dist / session.startDistance
+      const rawScale = session.startScale * ratio
+      const rawScaleX = session.startScaleX * ratio
+      const rawScaleY = session.startScaleY * ratio
+      const el = layerInnerRefs.current.get(session.targetId) ?? null
+      const canvasEl = canvasRef.current
+      const layer = stateRef.current.layers.find((l) => l.id === session.targetId)
+      if (!layer || !canvasEl) return
+      const layout = layerToElementLayout(layer)
+      const maxScale = el
+        ? computeMaxScaleToFitBounds(
+            canvasEl,
+            el,
+            layout,
+            ENGRAVING_FRAME_USABLE_FRACTION
+          )
+        : FALLBACK_MAX_SCALE
+      const scale = Math.max(0.15, Math.min(maxScale, rawScale))
+      const scaleX = Math.max(0.15, Math.min(maxScale, rawScaleX))
+      const scaleY = Math.max(0.15, Math.min(maxScale, rawScaleY))
+      applyLayout(session.targetId, { scale, scaleX, scaleY })
+    }
+
+    const endPinch = () => {
+      pinchSessionRef.current = null
+    }
+
+    canvas.addEventListener("touchstart", onTouchStart, { passive: false })
+    canvas.addEventListener("touchmove", onTouchMove, { passive: false })
+    canvas.addEventListener("touchend", endPinch)
+    canvas.addEventListener("touchcancel", endPinch)
+
+    return () => {
+      canvas.removeEventListener("touchstart", onTouchStart)
+      canvas.removeEventListener("touchmove", onTouchMove)
+      canvas.removeEventListener("touchend", endPinch)
+      canvas.removeEventListener("touchcancel", endPinch)
+    }
+  }, [applyLayout, activeLayerId, canvasMounted])
+
   const assignPreviewSurfaceRef = useCallback(
     (node: HTMLDivElement | null) => {
       canvasRef.current = node
+      setCanvasMounted(Boolean(node))
       if (previewSurfaceRef) {
         previewSurfaceRef.current = node
       }
@@ -2433,7 +2540,8 @@ function LaserDesignerPreview({
 
         <p className="mb-3 text-xs text-muted-foreground">
           Innen ziehen = verschieben · Griff oben rechts = drehen · 8 Griffe =
-          skalieren. Alles bleibt innerhalb von {workAreaLabel}.
+          skalieren · zwei Finger = Pinch-Zoom. Alles bleibt innerhalb von{" "}
+          {workAreaLabel}.
         </p>
 
         <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -2469,13 +2577,14 @@ function LaserDesignerPreview({
           </label>
         </div>
 
-        <div className="relative flex gap-2">
-          {/* Kompakte Werkzeug-Leiste am Canvas-Rand */}
+        <div className="relative flex w-full min-w-0 flex-col gap-2 md:flex-row md:items-start">
+          {/* Mobile: horizontal über dem Canvas · Desktop: vertikal links */}
           <div
-            className="flex shrink-0 flex-col gap-1.5"
+            className="order-1 flex w-full shrink-0 flex-row gap-1.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] md:order-none md:w-auto md:flex-col md:overflow-visible md:pb-0 [&::-webkit-scrollbar]:hidden"
             {...{ [CAPTURE_HIDE_ATTR]: "true" }}
           >
             <ToolIconButton
+              onShowInfo={showToolInfo}
               label="Pipette"
               description="Klicke auf eine Farbe im Bild, um ähnliche Pixel transparent zu machen. Toleranz danach per Slider feinjustieren."
               active={eyedropperActive}
@@ -2496,6 +2605,7 @@ function LaserDesignerPreview({
               <Pipette className="h-4 w-4" />
             </ToolIconButton>
             <ToolIconButton
+              onShowInfo={showToolInfo}
               label="Pinsel / Radierer"
               description="Zeichne freihand, um Bereiche transparent zu machen. Pinselgrösse unten einstellen."
               active={eraserActive}
@@ -2516,6 +2626,7 @@ function LaserDesignerPreview({
               <Eraser className="h-4 w-4" />
             </ToolIconButton>
             <ToolIconButton
+              onShowInfo={showToolInfo}
               label="Lasso freistellen"
               description="Kreise einen Bereich freihand ein; nach dem Loslassen wird nur dieser Teil entfernt."
               active={lassoActive}
@@ -2538,6 +2649,7 @@ function LaserDesignerPreview({
               <Lasso className="h-4 w-4" />
             </ToolIconButton>
             <ToolIconButton
+              onShowInfo={showToolInfo}
               label="Bild zuschneiden"
               description="Ziehe ein Rechteck auf dem Bild auf, um es zuzuschneiden."
               active={cropActive}
@@ -2550,6 +2662,7 @@ function LaserDesignerPreview({
               <Crop className="h-4 w-4" />
             </ToolIconButton>
             <ToolIconButton
+              onShowInfo={showToolInfo}
               label="Weiss entfernen"
               description="Entfernt sehr helle/weisse Hintergründe automatisch — ideal für Logos auf Weiss."
               disabled={removingBg || !activeImageLayer}
@@ -2558,8 +2671,9 @@ function LaserDesignerPreview({
               <Scissors className="h-4 w-4" />
             </ToolIconButton>
             <ToolIconButton
+              onShowInfo={showToolInfo}
               label="Intelligent freistellen"
-              description="Mehrfach-Klick auf Hintergrundbereiche (additiv). Kanten-Stop schützt Motive. Optional: Personen beibehalten."
+              description="Mehrfach-Klick auf Hintergrundbereiche (additiv). Kanten-Stop schützt Motive. Optional: Subjekt / Vordergrund beibehalten."
               active={smartRemoveOpen}
               disabled={removingBg || !activeImageLayer || smartRemoveBusy}
               onClick={() => {
@@ -2573,8 +2687,9 @@ function LaserDesignerPreview({
               <Wand2 className="h-4 w-4" />
             </ToolIconButton>
             <ToolIconButton
+              onShowInfo={showToolInfo}
               label="Freistell-Studio"
-              description="Erweitertes Freistellen mit Wiederherstellen-Pinsel, Personen-Erkennung (MediaPipe), Live-Maske und Lupe."
+              description="Erweitertes Freistellen mit Wiederherstellen-Pinsel, Subjekt-/Vordergrund-Erkennung, Live-Maske und Lupe."
               active={cutoutOpen}
               disabled={!activeImageLayer}
               onClick={() => {
@@ -2595,6 +2710,7 @@ function LaserDesignerPreview({
               <Stamp className="h-4 w-4" />
             </ToolIconButton>
             <ToolIconButton
+              onShowInfo={showToolInfo}
               label="Zentrieren"
               description="Platziert das gewählte Element exakt in der Mitte der Gravurfläche."
               disabled={!activeLayer}
@@ -2608,6 +2724,7 @@ function LaserDesignerPreview({
               <Crosshair className="h-4 w-4" />
             </ToolIconButton>
             <ToolIconButton
+              onShowInfo={showToolInfo}
               label="Rückgängig"
               description="Macht die letzte Änderung rückgängig (Position, Grösse, Rotation, Freistellen, Text)."
               disabled={undoStack.length === 0}
@@ -2616,6 +2733,7 @@ function LaserDesignerPreview({
               <Undo2 className="h-4 w-4" />
             </ToolIconButton>
             <ToolIconButton
+              onShowInfo={showToolInfo}
               label="Wiederholen"
               description="Stellt die zuletzt rückgängig gemachte Änderung wieder her."
               disabled={redoStack.length === 0}
@@ -2624,6 +2742,7 @@ function LaserDesignerPreview({
               <Redo2 className="h-4 w-4" />
             </ToolIconButton>
             <ToolIconButton
+              onShowInfo={showToolInfo}
               label="Nach vorne"
               description="Verschiebt die aktive Ebene eine Stufe nach vorne (über andere Elemente)."
               disabled={!activeLayerId}
@@ -2636,6 +2755,7 @@ function LaserDesignerPreview({
               <ArrowUp className="h-4 w-4" />
             </ToolIconButton>
             <ToolIconButton
+              onShowInfo={showToolInfo}
               label="Nach hinten"
               description="Verschiebt die aktive Ebene eine Stufe nach hinten (unter andere Elemente)."
               disabled={!activeLayerId}
@@ -2653,11 +2773,17 @@ function LaserDesignerPreview({
           ref={assignPreviewSurfaceRef}
           {...{ [LEITBILD_LASER_PREVIEW_ATTR]: "true" }}
           className={cn(
-            "relative z-0 mx-auto aspect-square w-full max-w-full min-w-0 flex-1 overflow-hidden rounded-xl border-2 border-cyan-500/25 shadow-inner",
+            "relative z-0 order-2 mx-auto w-full max-w-full shrink-0 overflow-hidden rounded-xl border-2 border-cyan-500/25 shadow-inner",
             CANVAS_TOUCH_LOCK_CLASS,
             canvasStyle.surface
           )}
-          style={{ ...CANVAS_TOUCH_LOCK_STYLE, height: "auto", maxWidth: "100%" }}
+          style={{
+            ...CANVAS_TOUCH_LOCK_STYLE,
+            aspectRatio: "1 / 1",
+            width: "100%",
+            maxWidth: "100%",
+            height: "auto",
+          }}
           onPointerDown={(e) => {
             if (e.target === e.currentTarget) {
               onStateChange({ activeLayerId: null })
@@ -2669,7 +2795,7 @@ function LaserDesignerPreview({
             <img
               src={customizationBackgroundUrl}
               alt=""
-              className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+              className="pointer-events-none absolute inset-0 h-full w-full object-contain"
               crossOrigin="anonymous"
               draggable={false}
             />
@@ -2961,7 +3087,7 @@ function LaserDesignerPreview({
               {smartRemoveSeeds.length > 0
                 ? ` · ${smartRemoveSeeds.length} Bereich${smartRemoveSeeds.length === 1 ? "" : "e"}`
                 : null}
-              {smartRemoveAutoMode ? " · Auto: Personen beibehalten" : null}
+              {smartRemoveAutoMode ? " · Auto: Subjekt / Vordergrund" : null}
             </p>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
@@ -3022,7 +3148,7 @@ function LaserDesignerPreview({
                 onClick={handleSmartKeepSubject}
               >
                 <UserRound className="h-3.5 w-3.5" />
-                Personen beibehalten
+                Subjekt / Vordergrund beibehalten
               </Button>
               <Button
                 type="button"
@@ -3224,6 +3350,19 @@ function LaserDesignerPreview({
             nutzen. Doppelklick auf Text öffnet die Textbearbeitung.
           </p>
         </div>
+
+        {toolToast ? (
+          <div
+            className="pointer-events-none absolute left-1/2 top-16 z-40 w-[min(92%,20rem)] -translate-x-1/2 rounded-lg border border-cyan-500/40 bg-background/95 px-3 py-2 text-center shadow-lg backdrop-blur-sm md:left-[3.25rem] md:top-20 md:translate-x-0 md:text-left"
+            role="status"
+            aria-live="polite"
+          >
+            <p className="text-xs font-semibold text-cyan-400">{toolToast.label}</p>
+            <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
+              {toolToast.description}
+            </p>
+          </div>
+        ) : null}
 
         {mobileToolHint ? (
           <div className="mt-2 rounded-md bg-secondary/60 px-3 py-2 text-center text-xs text-muted-foreground sm:hidden">
