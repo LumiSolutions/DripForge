@@ -60,8 +60,16 @@ export function pointerAngleDegrees(
   return normalizeRotation((rad * 180) / Math.PI + 90)
 }
 
-export function clampScale(scale: number): number {
-  return Math.max(0.3, Math.min(3, scale))
+/** Absolute Sicherheitsgrenze — der Slider nutzt Fit-to-Bounds als echtes Maximum. */
+export const MIN_LAYOUT_SCALE = 0.3
+export const ABSOLUTE_MAX_LAYOUT_SCALE = 50
+
+/** @deprecated Harte 3×-Grenze entfernt — Fit-to-Bounds gilt. */
+export const LEGACY_MAX_LAYOUT_SCALE = 3
+
+export function clampScale(scale: number, maxScale = ABSOLUTE_MAX_LAYOUT_SCALE): number {
+  if (!Number.isFinite(scale)) return MIN_LAYOUT_SCALE
+  return Math.max(MIN_LAYOUT_SCALE, Math.min(maxScale, scale))
 }
 
 export const MATERIAL_CANVAS_STYLES: Record<

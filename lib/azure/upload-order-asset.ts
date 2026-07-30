@@ -32,7 +32,7 @@ export function decodeDataUrl(dataUrl: string): DecodedDataUrl | null {
 export async function uploadOrderAsset(
   orderId: string,
   itemId: string,
-  assetKind: "leitbild" | "mockup" | "logo" | "skizze",
+  assetKind: string,
   dataUrl: string
 ): Promise<string | null> {
   const connectionString = process.env.AZURE_STORAGE_CONNECTION_STRING
@@ -57,7 +57,8 @@ export async function uploadOrderAsset(
     await containerClient.createIfNotExists({ access: "blob" })
 
     const safeItemId = itemId.replace(/[^a-zA-Z0-9-_]/g, "_")
-    const blobName = `${orderId}/${safeItemId}-${assetKind}.${decoded.extension}`
+    const safeKind = assetKind.replace(/[^a-zA-Z0-9-_]/g, "_")
+    const blobName = `${orderId}/${safeItemId}-${safeKind}.${decoded.extension}`
     const blockBlobClient = containerClient.getBlockBlobClient(blobName)
 
     await blockBlobClient.uploadData(decoded.buffer, {

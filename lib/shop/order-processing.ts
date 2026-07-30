@@ -61,6 +61,9 @@ export type ProcessOrderResult = {
     leitbildUrl: string | null
     previewMockupUrl: string | null
     uploadedImageUrl: string | null
+    uploadedImageUrls?: string[]
+    layerSrcMap?: Record<string, string>
+    colorReferenceImageUrl?: string | null
   }[]
   appliedCouponCode: string | null
   settings: AdminSettings
@@ -242,6 +245,55 @@ export async function processOrderPayload(
         uploadedImageUrl = logoDataUrl
       }
 
+      const extraImageSources = [
+        ...(Array.isArray(item.customDetails?.uploadedImages)
+          ? item.customDetails.uploadedImages
+          : []),
+        ...(item.customDetails?.layoutCoordinates?.layers ?? [])
+          .filter((layer) => layer.kind === "image" && typeof layer.src === "string")
+          .map((layer) => layer.src as string),
+      ]
+
+      const uploadedImageUrls: string[] = []
+      const uniqueSources = Array.from(new Set(extraImageSources.filter(Boolean)))
+      for (let i = 0; i < uniqueSources.length; i++) {
+        const src = uniqueSources[i]
+        if (src.startsWith("data:")) {
+          try {
+            const url = await uploadOrderAsset(
+              orderId,
+              item.id,
+              `logo-${i + 1}`,
+              src
+            )
+            if (url) uploadedImageUrls.push(url)
+          } catch (uploadError) {
+            console.error(
+              `Bestellung: Multi-Logo-Upload fehlgeschlagen (${orderId}, ${item.id}, ${i}).`,
+              uploadError
+            )
+          }
+        } else if (/^https?:\/\//i.test(src)) {
+          uploadedImageUrls.push(src)
+        }
+      }
+
+      if (!uploadedImageUrl && uploadedImageUrls[0]) {
+        uploadedImageUrl = uploadedImageUrls[0]
+      } else if (
+        uploadedImageUrl &&
+        !uploadedImageUrls.includes(uploadedImageUrl)
+      ) {
+        uploadedImageUrls.unshift(uploadedImageUrl)
+      }
+
+      const layerSrcMap = new Map<string, string>()
+      for (let i = 0; i < uniqueSources.length; i++) {
+        const src = uniqueSources[i]
+        const mapped = uploadedImageUrls[i]
+        if (mapped) layerSrcMap.set(src, mapped)
+      }
+
       const skizzeDataUrl = item.customDetails?.colorReferenceImage
       if (
         typeof skizzeDataUrl === "string" &&
@@ -272,6 +324,8 @@ export async function processOrderPayload(
         leitbildUrl,
         previewMockupUrl,
         uploadedImageUrl,
+        uploadedImageUrls,
+        layerSrcMap: Object.fromEntries(layerSrcMap),
         colorReferenceImageUrl,
       }
     })
@@ -279,6 +333,22 @@ export async function processOrderPayload(
 
   const items: StoredOrderItem[] = payload.items.map((item) => {
     const uploaded = itemResults.find((r) => r.id === item.id)
+    const layerSrcMap = uploaded?.layerSrcMap ?? {}
+    const coords = item.customDetails?.layoutCoordinates
+    const nextLayers = coords?.layers?.map((layer) => {
+      if (layer.kind !== "image") return layer
+      const mapped =
+        (layer.src && layerSrcMap[layer.src]) ||
+        (typeof layer.src === "string" && /^https?:\/\//i.test(layer.src)
+          ? layer.src
+          : null)
+      return {
+        ...layer,
+        src: mapped,
+        hasImage: Boolean(mapped || layer.hasImage),
+      }
+    })
+
     const details = item.customDetails
       ? {
           ...item.customDetails,
@@ -288,8 +358,19 @@ export async function processOrderPayload(
                 hasImage: true,
               }
             : {}),
+          ...(uploaded?.uploadedImageUrls?.length
+            ? { uploadedImages: uploaded.uploadedImageUrls }
+            : {}),
           ...(uploaded?.colorReferenceImageUrl
             ? { colorReferenceImage: uploaded.colorReferenceImageUrl }
+            : {}),
+          ...(coords
+            ? {
+                layoutCoordinates: {
+                  ...coords,
+                  ...(nextLayers ? { layers: nextLayers } : {}),
+                },
+              }
             : {}),
         }
       : item.customDetails

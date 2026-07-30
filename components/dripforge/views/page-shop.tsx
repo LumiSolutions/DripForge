@@ -47,6 +47,10 @@ import {
   capture3dPreviewLeitbild,
   captureLaserPreviewMockup,
 } from "@/lib/dripforge/capture-leitbild"
+import {
+  buildLaserCartCustomDetails,
+  laserDesignHasContent,
+} from "@/lib/dripforge/build-laser-cart-details"
 import { resolveProductImages } from "@/lib/dripforge/product-images-defaults"
 import {
   formatProductDimensionsText,
@@ -315,13 +319,14 @@ export function PageShop({
       })
     } else {
       if (!laserDesign) return
-      const { selectedVariant, selectedFont, engravingText, textLayout, imageLayout } =
-        laserDesign
       const productVarianten = resolveProductVarianten(selectedProduct)
       const needsVariant = productVarianten.length > 0
-      const hasContent =
-        engravingText.trim().length > 0 || Boolean(imageLayout.src)
-      if (!hasContent || (needsVariant && !selectedVariant)) return
+      const { selectedVariant } = laserDesign
+      if (
+        !laserDesignHasContent(laserDesign) ||
+        (needsVariant && !selectedVariant)
+      )
+        return
 
       let previewMockup: string | undefined
       try {
@@ -339,29 +344,10 @@ export function PageShop({
         type: "laser",
         leitbild: previewMockup,
         previewMockup,
-        customDetails: {
+        customDetails: buildLaserCartCustomDetails(laserDesign, {
           material: selectedProduct.name,
           variant: selectedVariant,
-          userText: engravingText.trim(),
-          userFont: selectedFont,
-          uploadedImage: imageLayout.src,
-          layoutCoordinates: {
-            textPosition: {
-              x: textLayout.x,
-              y: textLayout.y,
-              scale: textLayout.scale,
-              rotation: textLayout.rotation,
-            },
-            imagePosition: {
-              x: imageLayout.x,
-              y: imageLayout.y,
-              scale: imageLayout.scale,
-              rotation: imageLayout.rotation,
-            },
-          },
-          hasText: engravingText.trim().length > 0,
-          hasImage: Boolean(imageLayout.src),
-        },
+        }),
       }
 
       console.log("Warenkorb-Item hinzugefuegt:", newItem)
@@ -384,7 +370,9 @@ export function PageShop({
           laserDesign &&
             (selectedProductVarianten.length === 0 ||
               laserDesign.selectedVariant) &&
-            (laserDesign.engravingText.trim() || laserDesign.imageLayout.src)
+            (laserDesign.engravingText.trim() ||
+              laserDesign.imageLayout.src ||
+              laserDesignHasContent(laserDesign))
         )
 
   if (selectedProduct) {

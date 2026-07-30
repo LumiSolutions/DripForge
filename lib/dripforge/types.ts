@@ -137,7 +137,22 @@ export interface CartItem {
     layoutCoordinates?: {
       textPosition: LayoutPosition
       imagePosition: LayoutPosition
+      /** Multi-Element-Layer aus dem Laser-Konfigurator */
+      layers?: Array<{
+        id: string
+        kind: "text" | "image"
+        x: number
+        y: number
+        scale: number
+        rotation: number
+        text?: string
+        fontId?: string
+        src?: string | null
+        hasImage?: boolean
+      }>
     }
+    /** Alle hochgeladenen Logos (Multi-Image); uploadedImage bleibt Primärbild */
+    uploadedImages?: string[]
     /** Kunden sendet eigenes Produkt zur Verarbeitung (Personalisierte Laserkreation) */
     isCustomerInbound?: boolean
     /** @deprecated Alias — nutze isCustomerInbound */

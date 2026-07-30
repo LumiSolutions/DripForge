@@ -24,6 +24,7 @@ import {
   type ImageLayout,
   type LaserFontId,
 } from "@/lib/dripforge/laser-design"
+import type { LaserDesignLayer } from "@/lib/dripforge/laser-layers"
 import {
   DEFAULT_LASER_PRICING_CONFIG,
   type LaserPricingConfig,
@@ -39,6 +40,10 @@ import {
 } from "@/components/dripforge/shared/laser-designer-studio"
 import { IndividualProcessBar } from "@/components/dripforge/shared/individual-process-bar"
 import { captureLaserPreviewMockup } from "@/lib/dripforge/capture-leitbild"
+import {
+  buildLaserCartCustomDetails,
+  laserDesignHasContent,
+} from "@/lib/dripforge/build-laser-cart-details"
 import type { CartItem } from "@/lib/dripforge/types"
 
 export function PageIndividualLaser({
@@ -61,6 +66,8 @@ export function PageIndividualLaser({
   const [imageLayout, setImageLayout] = useState<ImageLayout>({
     ...DEFAULT_IMAGE_LAYOUT,
   })
+  const [layers, setLayers] = useState<LaserDesignLayer[]>([])
+  const [activeLayerId, setActiveLayerId] = useState<string | null>(null)
 
   const [selectedMaterialId, setSelectedMaterialId] =
     useState<IndividualLaserMaterialSelection>(defaultMaterial.id)
@@ -121,6 +128,8 @@ export function PageIndividualLaser({
         ...imageLayout,
         src: uploadedImageSrc ?? imageLayout.src,
       },
+      layers,
+      activeLayerId,
     }),
     [
       previewMaterial.types,
@@ -129,6 +138,8 @@ export function PageIndividualLaser({
       textLayout,
       imageLayout,
       uploadedImageSrc,
+      layers,
+      activeLayerId,
     ]
   )
 
@@ -142,6 +153,8 @@ export function PageIndividualLaser({
         setUploadedImageSrc(patch.imageLayout.src)
       }
     }
+    if (patch.layers !== undefined) setLayers(patch.layers)
+    if (patch.activeLayerId !== undefined) setActiveLayerId(patch.activeLayerId)
   }, [])
 
   const materialBase = isCustomerInbound
@@ -154,8 +167,7 @@ export function PageIndividualLaser({
     return calculateLaserPrice(basePrice, area, quantity, pricingConfig)
   }, [basePrice, engravingMetrics, quantity, pricingConfig])
 
-  const hasDesign =
-    gravurText.trim().length > 0 || Boolean(uploadedImageSrc)
+  const hasDesign = laserDesignHasContent(laserDesign)
 
   const handleAddToCart = async () => {
     if (!hasDesign) return
@@ -179,32 +191,17 @@ export function PageIndividualLaser({
       type: "laser",
       leitbild: previewMockup,
       previewMockup,
-      customDetails: {
+      customDetails: buildLaserCartCustomDetails(laserDesign, {
         material: isCustomerInbound
           ? CUSTOMER_INBOUND_MATERIAL_LABEL
           : material.name,
         materialVariant: laserDesign.selectedVariant,
         size: sizePreset.dimensionsLabel,
-        engravingText: gravurText.trim(),
-        userText: gravurText.trim(),
-        userFont: selectedFont,
-        uploadedImage: uploadedImageSrc,
-        layoutCoordinates: {
-          textPosition: { ...textLayout },
-          imagePosition: {
-            x: imageLayout.x,
-            y: imageLayout.y,
-            scale: imageLayout.scale,
-            rotation: imageLayout.rotation,
-          },
-        },
-        hasText: gravurText.trim().length > 0,
-        hasImage: Boolean(uploadedImageSrc),
         isCustomerInbound,
         dimensions: gravurSize
           ? `${gravurSize.widthMm.toFixed(1)} x ${gravurSize.heightMm.toFixed(1)} mm`
           : sizePreset.dimensionsLabel,
-      },
+      }),
     })
 
     setCurrentView("shop")

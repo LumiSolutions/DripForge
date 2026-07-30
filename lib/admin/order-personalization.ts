@@ -40,7 +40,18 @@ export function getItemPersonalizationLines(
     if (d.uploadedImage || d.hasImage) {
       lines.push({
         label: "Logo/Grafik",
-        value: d.uploadedImage ? "hochgeladen" : "ja",
+        value: d.uploadedImage
+          ? Array.isArray(d.uploadedImages) && d.uploadedImages.length > 1
+            ? `${d.uploadedImages.length} Dateien`
+            : "hochgeladen"
+          : "ja",
+      })
+    }
+    const layerCount = d.layoutCoordinates?.layers?.length ?? 0
+    if (layerCount > 2) {
+      lines.push({
+        label: "Elemente",
+        value: `${layerCount} Layer`,
       })
     }
     for (const placement of getLaserPlacementLines(item)) {

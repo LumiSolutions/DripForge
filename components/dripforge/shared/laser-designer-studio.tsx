@@ -6,10 +6,14 @@ import {
   CheckCircle2,
   ChevronDown,
   Crosshair,
+  Eraser,
   Image as ImageIcon,
   Layers,
+  Maximize2,
+  Plus,
   Scissors,
   Stamp,
+  Trash2,
   Type,
   Upload,
   X,
@@ -20,6 +24,11 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import {
   clampScale,
@@ -33,6 +42,7 @@ import {
   getLaserFontStyle,
   LASER_FONT_OPTIONS,
   getMaterialCanvasStyle,
+  MIN_LAYOUT_SCALE,
   normalizeRotation,
   pointerAngleDegrees,
   type ElementLayout,
@@ -42,11 +52,27 @@ import {
 import {
   clampLayoutPosition,
   clampLayoutScaleToFit,
+  computeMaxScaleToFitBounds,
+  ENGRAVING_FRAME_USABLE_FRACTION,
+  fitLayoutScaleToBounds,
   measureElementMm,
   scaleForTargetHeightMm,
   scaleForTargetWidthMm,
   type ElementMmSize,
 } from "@/lib/dripforge/laser-canvas-layout"
+import {
+  createImageLayer,
+  createTextLayer,
+  deriveCompatFromLayers,
+  ensureLaserLayers,
+  layerToElementLayout,
+  nextLayerOffset,
+  removeLayerById,
+  updateLayerById,
+  type LaserDesignLayer,
+  type LaserDesignerState,
+} from "@/lib/dripforge/laser-layers"
+import { removeLightImageBackground } from "@/lib/dripforge/remove-image-background"
 import {
   DEFAULT_WORK_AREA_MM,
   type WorkAreaMm,
@@ -54,13 +80,7 @@ import {
 import type { LaserMaterial } from "@/lib/dripforge/types"
 import { LEITBILD_LASER_PREVIEW_ATTR } from "@/lib/dripforge/capture-leitbild"
 
-export type LaserDesignerState = {
-  selectedVariant: string
-  selectedFont: LaserFontId
-  engravingText: string
-  textLayout: ElementLayout
-  imageLayout: ImageLayout
-}
+export type { LaserDesignerState } from "@/lib/dripforge/laser-layers"
 
 type LaserDesignerBaseProps = {
   material: LaserMaterial
@@ -116,16 +136,17 @@ export function createDefaultLaserDesignerState(
     engravingText: "",
     textLayout: { ...DEFAULT_TEXT_LAYOUT },
     imageLayout: { ...DEFAULT_IMAGE_LAYOUT },
+    layers: [],
+    activeLayerId: null,
   }
 }
-
-type ElementTarget = "text" | "image"
 
 type DragMode = "move" | "resize" | "rotate"
 
 type DragSession = {
   mode: DragMode
-  target: ElementTarget
+  /** Layer-ID */
+  target: string
   pointerId: number
   startLayout: ElementLayout
   startClientX: number
@@ -147,6 +168,8 @@ const CANVAS_TOUCH_LOCK_STYLE: CSSProperties = {
   // Safari / Chromium: verhindert natives Bild-Ziehen (nicht in CSSProperties typisiert)
   ...({ WebkitUserDrag: "none" } as CSSProperties),
 }
+
+const FALLBACK_MAX_SCALE = 10
 
 function getCanvasPoint(
   canvas: HTMLDivElement,
@@ -174,7 +197,7 @@ function getElementCenterPx(canvas: HTMLDivElement, layout: ElementLayout) {
 function buildDragSession(
   canvas: HTMLDivElement,
   layout: ElementLayout,
-  target: ElementTarget,
+  target: string,
   mode: DragMode,
   pointerId: number,
   clientX: number,
@@ -196,7 +219,7 @@ function buildDragSession(
 }
 
 function InteractiveCanvasElement({
-  target,
+  layerId,
   layout,
   isActive,
   isMoving,
@@ -206,9 +229,10 @@ function InteractiveCanvasElement({
   onInnerRef,
   className,
   style,
+  kind,
   children,
 }: {
-  target: ElementTarget
+  layerId: string
   layout: ElementLayout
   isActive: boolean
   isMoving: boolean
@@ -218,6 +242,7 @@ function InteractiveCanvasElement({
   onInnerRef?: (el: HTMLElement | null) => void
   className?: string
   style?: React.CSSProperties
+  kind: "text" | "image"
   children: React.ReactNode
 }) {
   const beginDragAt = (
@@ -232,7 +257,7 @@ function InteractiveCanvasElement({
     const session = buildDragSession(
       canvas,
       layout,
-      target,
+      layerId,
       mode,
       pointerId,
       clientX,
@@ -266,14 +291,14 @@ function InteractiveCanvasElement({
     <div
       className={cn("absolute z-10", CANVAS_TOUCH_LOCK_CLASS)}
       style={{ ...elementTransformStyle(layout), ...CANVAS_TOUCH_LOCK_STYLE }}
-      data-canvas-element={target}
+      data-canvas-element={layerId}
     >
       <div
         ref={onInnerRef}
         className={cn(
           "relative inline-block",
           CANVAS_TOUCH_LOCK_CLASS,
-          target === "text" ? "w-max max-w-none" : "max-w-full",
+          kind === "text" ? "w-max max-w-none" : "max-w-full",
           isMoving ? "cursor-grabbing" : "cursor-grab",
           className
         )}
@@ -343,15 +368,23 @@ function ElementTransformControls({
   onChange,
   sizeMm,
   workAreaMm,
+  maxScale,
+  onFitToBounds,
+  onDelete,
 }: {
   label: string
   layout: ElementLayout
   onChange: (patch: Partial<ElementLayout>) => void
   sizeMm: ElementMmSize | null
   workAreaMm: WorkAreaMm
+  maxScale: number
+  onFitToBounds?: () => void
+  onDelete?: () => void
 }) {
-  const maxWidthMm = workAreaMm.widthMm * 0.88
-  const maxHeightMm = workAreaMm.heightMm * 0.88
+  const usable = ENGRAVING_FRAME_USABLE_FRACTION
+  const maxWidthMm = workAreaMm.widthMm * usable
+  const maxHeightMm = workAreaMm.heightMm * usable
+  const sliderMax = Math.max(maxScale, MIN_LAYOUT_SCALE)
 
   const applyWidthMm = (value: number) => {
     if (!sizeMm || sizeMm.widthMm <= 0) return
@@ -360,7 +393,8 @@ function ElementTransformControls({
         layout.scale,
         sizeMm.widthMm,
         value,
-        maxWidthMm
+        maxWidthMm,
+        sliderMax
       ),
     })
   }
@@ -372,7 +406,8 @@ function ElementTransformControls({
         layout.scale,
         sizeMm.heightMm,
         value,
-        maxHeightMm
+        maxHeightMm,
+        sliderMax
       ),
     })
   }
@@ -415,22 +450,28 @@ function ElementTransformControls({
       <div className="space-y-2">
         <div className="flex items-center justify-between text-xs">
           <Label>Grösse (Skalierung)</Label>
-          <span className="font-mono text-muted-foreground">{layout.scale.toFixed(2)}x</span>
+          <span className="font-mono text-muted-foreground">
+            {layout.scale.toFixed(2)}x / max {sliderMax.toFixed(2)}x
+          </span>
         </div>
         <input
           type="range"
-          min={0.3}
-          max={3}
+          min={MIN_LAYOUT_SCALE}
+          max={sliderMax}
           step={0.05}
-          value={layout.scale}
-          onChange={(e) => onChange({ scale: Number(e.target.value) })}
+          value={Math.min(layout.scale, sliderMax)}
+          onChange={(e) =>
+            onChange({ scale: clampScale(Number(e.target.value), sliderMax) })
+          }
           className="h-2 w-full cursor-pointer accent-cyan-500"
         />
       </div>
       <div className="space-y-2">
         <div className="flex items-center justify-between text-xs">
           <Label>Rotation</Label>
-          <span className="font-mono text-muted-foreground">{Math.round(layout.rotation)}°</span>
+          <span className="font-mono text-muted-foreground">
+            {Math.round(layout.rotation)}°
+          </span>
         </div>
         <input
           type="range"
@@ -442,13 +483,17 @@ function ElementTransformControls({
           className="h-2 w-full cursor-pointer accent-cyan-500"
         />
       </div>
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <Button
           type="button"
           size="sm"
           variant="outline"
           className="flex-1 text-xs"
-          onClick={() => onChange({ scale: Math.max(0.3, layout.scale - 0.1) })}
+          onClick={() =>
+            onChange({
+              scale: clampScale(layout.scale - 0.1, sliderMax),
+            })
+          }
         >
           Kleiner
         </Button>
@@ -457,7 +502,11 @@ function ElementTransformControls({
           size="sm"
           variant="outline"
           className="flex-1 text-xs"
-          onClick={() => onChange({ scale: Math.min(3, layout.scale + 0.1) })}
+          onClick={() =>
+            onChange({
+              scale: clampScale(layout.scale + 0.1, sliderMax),
+            })
+          }
         >
           Grösser
         </Button>
@@ -470,9 +519,50 @@ function ElementTransformControls({
         >
           +15°
         </Button>
+        {onFitToBounds && (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="flex-1 border-cyan-500/40 text-xs text-cyan-400"
+            onClick={onFitToBounds}
+          >
+            <Maximize2 className="mr-1.5 h-3.5 w-3.5" />
+            An Feld anpassen
+          </Button>
+        )}
+        {onDelete && (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="text-xs text-destructive hover:bg-destructive/10"
+            onClick={onDelete}
+          >
+            <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+            Löschen
+          </Button>
+        )}
       </div>
     </div>
   )
+}
+
+/** Emit layers + compat fields so shop/individual pages stay in sync. */
+function buildLayersPatch(
+  layers: LaserDesignLayer[],
+  activeLayerId: string | null | undefined,
+  fallbackFont: LaserFontId
+): Partial<LaserDesignerState> {
+  const compat = deriveCompatFromLayers(layers, fallbackFont)
+  const patch: Partial<LaserDesignerState> = {
+    layers,
+    ...compat,
+  }
+  if (activeLayerId !== undefined) {
+    patch.activeLayerId = activeLayerId
+  }
+  return patch
 }
 
 function LaserDesignerSettings({
@@ -488,15 +578,54 @@ function LaserDesignerSettings({
   showVariantPicker?: boolean
   varianten?: string[]
 }) {
-  const { selectedVariant, selectedFont, engravingText } = state
+  const { selectedVariant, selectedFont, layers, activeLayerId } = state
   const hasVarianten = varianten.length > 0
-  const hasText = engravingText.trim().length > 0
+  const textLayers = layers.filter((l) => l.kind === "text")
+
+  const emitLayers = useCallback(
+    (nextLayers: LaserDesignLayer[], nextActive?: string | null) => {
+      onStateChange(
+        buildLayersPatch(
+          nextLayers,
+          nextActive !== undefined ? nextActive : activeLayerId,
+          selectedFont
+        )
+      )
+    },
+    [onStateChange, activeLayerId, selectedFont]
+  )
+
+  // Migrate legacy compat → layers once if needed
+  useEffect(() => {
+    const ensured = ensureLaserLayers(state)
+    const missing =
+      !Array.isArray(state.layers) ||
+      (state.layers.length === 0 &&
+        (Boolean(state.engravingText?.trim()) || Boolean(state.imageLayout?.src)))
+    if (missing && ensured.length > 0) {
+      onStateChange(
+        buildLayersPatch(ensured, state.activeLayerId ?? ensured[0]?.id ?? null, selectedFont)
+      )
+    }
+    // Nur einmal beim Mount / wenn Layers fehlen
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const setVariant = (variant: string) => onStateChange({ selectedVariant: variant })
-  const setFont = (font: LaserFontId) => onStateChange({ selectedFont: font })
-  const setEngravingText = (text: string) => onStateChange({ engravingText: text })
-  const inputFontStyle = {
-    ...getLaserFontInputStyle(selectedFont),
-    fontFamily: getLaserFontFamily(selectedFont),
+
+  const updateTextLayer = (id: string, patch: Partial<LaserDesignLayer>) => {
+    const next = updateLayerById(layers, id, patch)
+    emitLayers(next, id)
+  }
+
+  const addTextLayer = () => {
+    const offset = nextLayerOffset(layers.length)
+    const layer = createTextLayer({
+      text: "",
+      fontId: selectedFont,
+      ...offset,
+    })
+    emitLayers([...layers, layer], layer.id)
   }
 
   useEffect(() => {
@@ -509,151 +638,228 @@ function LaserDesignerSettings({
   return (
     <div className="space-y-6">
       {showMaterialCard && (
-      <Card className="overflow-hidden rounded-xl border-cyan-500/25 bg-gradient-to-br from-card/90 via-card/50 to-cyan-500/5 shadow-lg shadow-cyan-500/5">
-        <CardContent className="p-0">
-          <div className="border-b border-border/50 bg-cyan-500/5 px-6 py-3">
-            <p className="text-xs font-semibold uppercase tracking-wider text-cyan-500">
-              Wunsch-Material · {productName}
-            </p>
-          </div>
-          <div className="grid gap-4 p-6 sm:grid-cols-[auto_1fr]">
-            <div
-              className={cn(
-                "flex h-20 w-20 items-center justify-center rounded-xl text-4xl shadow-inner",
-                material.iconBg
-              )}
-            >
-              {material.icon}
-            </div>
-            <div>
-              <h3 className={cn("text-xl font-bold", material.iconColor)}>
-                {material.name}
-              </h3>
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                {material.description}
+        <Card className="overflow-hidden rounded-xl border-cyan-500/25 bg-gradient-to-br from-card/90 via-card/50 to-cyan-500/5 shadow-lg shadow-cyan-500/5">
+          <CardContent className="p-0">
+            <div className="border-b border-border/50 bg-cyan-500/5 px-6 py-3">
+              <p className="text-xs font-semibold uppercase tracking-wider text-cyan-500">
+                Wunsch-Material · {productName}
               </p>
-              <div className="mt-4 flex flex-wrap gap-2">
-                <FeatureTag label="Gravur erlaubt" allowed={material.canEngrave} />
-                <FeatureTag label="Schnitt erlaubt" allowed={material.canCut} />
-                {material.maxThickness && (
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-secondary/40 px-3 py-1 text-xs font-medium text-muted-foreground">
-                    <Scissors className="h-3 w-3 text-cyan-500" />
-                    Max. Dicke: {material.maxThickness}
-                  </span>
+            </div>
+            <div className="grid gap-4 p-6 sm:grid-cols-[auto_1fr]">
+              <div
+                className={cn(
+                  "flex h-20 w-20 items-center justify-center rounded-xl text-4xl shadow-inner",
+                  material.iconBg
                 )}
+              >
+                {material.icon}
+              </div>
+              <div>
+                <h3 className={cn("text-xl font-bold", material.iconColor)}>
+                  {material.name}
+                </h3>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                  {material.description}
+                </p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <FeatureTag label="Gravur erlaubt" allowed={material.canEngrave} />
+                  <FeatureTag label="Schnitt erlaubt" allowed={material.canCut} />
+                  {material.maxThickness && (
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-secondary/40 px-3 py-1 text-xs font-medium text-muted-foreground">
+                      <Scissors className="h-3 w-3 text-cyan-500" />
+                      Max. Dicke: {material.maxThickness}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
       )}
 
       {showVariantPicker && hasVarianten && (
-      <Card className="rounded-xl border-border/50 bg-card/50">
-        <CardContent className="p-6">
-          <div className="mb-4 flex items-center gap-2">
-            <Stamp className="h-4 w-4 text-cyan-400" />
-            <h3 className="font-bold">Variante wählen</h3>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            {varianten.map((varianteStichwort) => {
-              const isSelected = selectedVariant === varianteStichwort
-              return (
-                <button
-                  key={varianteStichwort}
-                  type="button"
-                  onClick={() => setVariant(varianteStichwort)}
-                  className={cn(
-                    "relative rounded-xl border p-3 text-center transition-all duration-200",
-                    isSelected
-                      ? "border-cyan-500 bg-cyan-500/10 shadow-md shadow-cyan-500/15"
-                      : "border-border/60 bg-background/40 hover:border-cyan-500/40 hover:bg-cyan-500/5"
-                  )}
-                >
-                  <span
+        <Card className="rounded-xl border-border/50 bg-card/50">
+          <CardContent className="p-6">
+            <div className="mb-4 flex items-center gap-2">
+              <Stamp className="h-4 w-4 text-cyan-400" />
+              <h3 className="font-bold">Variante wählen</h3>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              {varianten.map((varianteStichwort) => {
+                const isSelected = selectedVariant === varianteStichwort
+                return (
+                  <button
+                    key={varianteStichwort}
+                    type="button"
+                    onClick={() => setVariant(varianteStichwort)}
                     className={cn(
-                      "text-sm font-semibold",
-                      isSelected ? "text-cyan-400" : "text-foreground"
+                      "relative rounded-xl border p-3 text-center transition-all duration-200",
+                      isSelected
+                        ? "border-cyan-500 bg-cyan-500/10 shadow-md shadow-cyan-500/15"
+                        : "border-border/60 bg-background/40 hover:border-cyan-500/40 hover:bg-cyan-500/5"
                     )}
                   >
-                    {varianteStichwort}
-                  </span>
-                  {isSelected && (
-                    <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-cyan-500">
-                      <CheckCircle2 className="h-3 w-3 text-background" />
+                    <span
+                      className={cn(
+                        "text-sm font-semibold",
+                        isSelected ? "text-cyan-400" : "text-foreground"
+                      )}
+                    >
+                      {varianteStichwort}
                     </span>
-                  )}
-                </button>
-              )
-            })}
-          </div>
-        </CardContent>
-      </Card>
+                    {isSelected && (
+                      <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-cyan-500">
+                        <CheckCircle2 className="h-3 w-3 text-background" />
+                      </span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       <Card className="rounded-xl border-border/50 bg-card/50">
-        <CardContent className="p-6 space-y-5">
-          <div className="space-y-2">
-            <Label htmlFor="designer-font" className="text-sm font-semibold">
-              Schriftart wählen
-            </Label>
-            {!hasText && (
-              <p className="text-xs text-muted-foreground">
-                Bitte zuerst Gravur-Text eingeben, um die Schriftart zu wählen.
-              </p>
-            )}
-            <div className="relative">
-              <select
-                id="designer-font"
-                value={selectedFont}
-                disabled={!hasText}
-                onChange={(e) => setFont(e.target.value as LaserFontId)}
-              style={getLaserFontDropdownStyle(selectedFont)}
-                className={cn(
-                  "w-full appearance-none rounded-lg border border-border/70 bg-card/90 py-2.5 pl-4 pr-10 text-sm text-foreground",
-                  "shadow-[0_0_24px_-12px] shadow-cyan-500/30",
-                  "transition-all duration-200",
-                  "hover:border-cyan-500/35",
-                  "focus:border-cyan-500/55 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:shadow-[0_0_28px_-8px] focus:shadow-cyan-500/40",
-                  !hasText && "cursor-not-allowed opacity-50"
-                )}
-              >
-                {LASER_FONT_OPTIONS.map((font) => (
-                  <option
-                    key={font.id}
-                    value={font.id}
-                    style={getLaserFontDropdownStyle(font.id)}
-                  >
-                    {font.label}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown
-                className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-cyan-500/80"
-                aria-hidden
-              />
+        <CardContent className="space-y-5 p-6">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Type className="h-4 w-4 text-cyan-400" />
+              <h3 className="font-bold">Text-Layer</h3>
             </div>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="border-cyan-500/40 text-xs text-cyan-400"
+              onClick={addTextLayer}
+            >
+              <Plus className="mr-1.5 h-3.5 w-3.5" />
+              Weiteren Text hinzufügen
+            </Button>
           </div>
 
-          <div>
-            <Label htmlFor="designer-engraving" className="mb-3 block text-base font-bold">
-              Ihre Wunschgravur / Text
-            </Label>
-            <Textarea
-              id="designer-engraving"
-              value={engravingText}
-              onChange={(e) => setEngravingText(e.target.value)}
-              placeholder="z.B. Firmenname, Datum, Widmung..."
-              rows={4}
-              style={inputFontStyle}
-              className={cn(
-                "resize-none rounded-lg border-cyan-500/25 bg-background/60 text-sm",
-                "placeholder:text-muted-foreground/70 placeholder:font-[inherit]",
-                "shadow-[0_0_20px_-8px] shadow-cyan-500/20",
-                "focus-visible:border-cyan-500/50 focus-visible:ring-2 focus-visible:ring-cyan-500/25"
-              )}
-            />
-          </div>
+          {textLayers.length === 0 && (
+            <p className="text-xs text-muted-foreground">
+              Noch kein Text. Füge einen Text-Layer hinzu oder tippe unten.
+            </p>
+          )}
+
+          {textLayers.map((layer, index) => {
+            const fontId = layer.fontId ?? selectedFont
+            const inputFontStyle = {
+              ...getLaserFontInputStyle(fontId),
+              fontFamily: getLaserFontFamily(fontId),
+            }
+            const isActive = activeLayerId === layer.id
+            return (
+              <div
+                key={layer.id}
+                className={cn(
+                  "space-y-3 rounded-lg border p-4 transition-colors",
+                  isActive
+                    ? "border-cyan-500/50 bg-cyan-500/5"
+                    : "border-border/50 bg-background/40"
+                )}
+                onClick={() => onStateChange({ activeLayerId: layer.id })}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <Label className="text-sm font-semibold">
+                    Text {index + 1}
+                  </Label>
+                  {textLayers.length > 1 && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        const next = removeLayerById(layers, layer.id)
+                        emitLayers(
+                          next,
+                          activeLayerId === layer.id
+                            ? next[0]?.id ?? null
+                            : activeLayerId
+                        )
+                      }}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                </div>
+
+                <Textarea
+                  value={layer.text ?? ""}
+                  onChange={(e) =>
+                    updateTextLayer(layer.id, { text: e.target.value })
+                  }
+                  onFocus={() => onStateChange({ activeLayerId: layer.id })}
+                  placeholder="z.B. Firmenname, Datum, Widmung..."
+                  rows={3}
+                  style={inputFontStyle}
+                  className={cn(
+                    "resize-none rounded-lg border-cyan-500/25 bg-background/60 text-sm",
+                    "placeholder:text-muted-foreground/70 placeholder:font-[inherit]",
+                    "shadow-[0_0_20px_-8px] shadow-cyan-500/20",
+                    "focus-visible:border-cyan-500/50 focus-visible:ring-2 focus-visible:ring-cyan-500/25"
+                  )}
+                />
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Schriftart</Label>
+                  <div className="relative">
+                    <select
+                      value={fontId}
+                      onChange={(e) => {
+                        const nextFont = e.target.value as LaserFontId
+                        updateTextLayer(layer.id, { fontId: nextFont })
+                        // Primärer Text setzt auch selectedFont (Compat)
+                        if (index === 0) {
+                          onStateChange({ selectedFont: nextFont })
+                        }
+                      }}
+                      onFocus={() => onStateChange({ activeLayerId: layer.id })}
+                      style={getLaserFontDropdownStyle(fontId)}
+                      className={cn(
+                        "w-full appearance-none rounded-lg border border-border/70 bg-card/90 py-2.5 pl-4 pr-10 text-sm text-foreground",
+                        "shadow-[0_0_24px_-12px] shadow-cyan-500/30",
+                        "transition-all duration-200",
+                        "hover:border-cyan-500/35",
+                        "focus:border-cyan-500/55 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+                      )}
+                    >
+                      {LASER_FONT_OPTIONS.map((font) => (
+                        <option
+                          key={font.id}
+                          value={font.id}
+                          style={getLaserFontDropdownStyle(font.id)}
+                        >
+                          {font.label}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown
+                      className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-cyan-500/80"
+                      aria-hidden
+                    />
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+
+          {textLayers.length === 0 && (
+            <Button
+              type="button"
+              className="w-full border-cyan-500/40 bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20"
+              variant="outline"
+              onClick={addTextLayer}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Text hinzufügen
+            </Button>
+          )}
         </CardContent>
       </Card>
     </div>
@@ -674,81 +880,121 @@ function LaserDesignerPreview({
   previewSurfaceRef?: RefObject<HTMLDivElement | null>
   customizationBackgroundUrl?: string
 }) {
-  const { selectedFont, engravingText, textLayout, imageLayout } = state
+  const { selectedFont, layers, activeLayerId } = state
   const canvasRef = useRef<HTMLDivElement>(null)
-  const textInnerRef = useRef<HTMLElement | null>(null)
-  const imageInnerRef = useRef<HTMLElement | null>(null)
+  const layerInnerRefs = useRef<Map<string, HTMLElement>>(new Map())
   const dragSessionRef = useRef<DragSession | null>(null)
-  const [activeElement, setActiveElement] = useState<"text" | "image" | null>(null)
   const [dragMode, setDragMode] = useState<DragMode | null>(null)
   const [liveMmLabel, setLiveMmLabel] = useState<ElementMmSize | null>(null)
-  const [textMm, setTextMm] = useState<ElementMmSize | null>(null)
-  const [imageMm, setImageMm] = useState<ElementMmSize | null>(null)
+  const [layerMmMap, setLayerMmMap] = useState<Record<string, ElementMmSize>>({})
+  const [maxScaleMap, setMaxScaleMap] = useState<Record<string, number>>({})
+  const [removingBg, setRemovingBg] = useState(false)
   const canvasStyle = getMaterialCanvasStyle(material.id)
-  const fontFamily = getLaserFontFamily(selectedFont)
   const workAreaLabel = `${workAreaMm.widthMm} x ${workAreaMm.heightMm} mm`
 
   const stateRef = useRef(state)
   stateRef.current = state
 
-  const patchTextLayout = (patch: Partial<ElementLayout>) => {
-    const canvas = canvasRef.current
-    const next = { ...stateRef.current.textLayout, ...patch }
-    if (patch.scale !== undefined && canvas && textInnerRef.current) {
-      next.scale = clampLayoutScaleToFit(
-        canvas,
-        textInnerRef.current,
-        stateRef.current.textLayout,
-        patch.scale
+  const emitLayers = useCallback(
+    (nextLayers: LaserDesignLayer[], nextActive?: string | null) => {
+      const current = stateRef.current
+      onStateChange(
+        buildLayersPatch(
+          nextLayers,
+          nextActive !== undefined ? nextActive : current.activeLayerId,
+          current.selectedFont
+        )
+      )
+    },
+    [onStateChange]
+  )
+
+  // Migrate legacy compat → layers once
+  useEffect(() => {
+    const current = stateRef.current
+    const ensured = ensureLaserLayers(current)
+    const missing =
+      !Array.isArray(current.layers) ||
+      (current.layers.length === 0 &&
+        (Boolean(current.engravingText?.trim()) ||
+          Boolean(current.imageLayout?.src)))
+    if (missing && ensured.length > 0) {
+      onStateChange(
+        buildLayersPatch(
+          ensured,
+          current.activeLayerId ?? ensured[0]?.id ?? null,
+          current.selectedFont
+        )
       )
     }
-    if ((patch.x !== undefined || patch.y !== undefined) && canvas) {
-      const clamped = clampLayoutPosition(
-        canvas,
-        textInnerRef.current,
-        next.x,
-        next.y
-      )
-      next.x = clamped.x
-      next.y = clamped.y
-    }
-    onStateChange({ textLayout: next })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const visibleTextLayers = layers.filter(
+    (l) => l.kind === "text" && (l.text ?? "").trim().length > 0
+  )
+  const visibleImageLayers = layers.filter(
+    (l) => l.kind === "image" && Boolean(l.src)
+  )
+  const hasAnyContent =
+    visibleTextLayers.length > 0 || visibleImageLayers.length > 0
+
+  const activeLayer =
+    layers.find((l) => l.id === activeLayerId) ??
+    visibleTextLayers[0] ??
+    visibleImageLayers[0] ??
+    null
+
+  const imageLayersWithSrc = layers.filter(
+    (l) => l.kind === "image" && Boolean(l.src)
+  )
+  const activeImageLayer =
+    activeLayer?.kind === "image" && activeLayer.src
+      ? activeLayer
+      : imageLayersWithSrc.length === 1
+        ? imageLayersWithSrc[0]
+        : null
+
+  const setLayerInnerRef = (id: string, el: HTMLElement | null) => {
+    if (el) layerInnerRefs.current.set(id, el)
+    else layerInnerRefs.current.delete(id)
   }
 
-  const patchImageLayout = (patch: Partial<ImageLayout>) => {
+  const patchLayerLayout = (layerId: string, patch: Partial<ElementLayout>) => {
     const canvas = canvasRef.current
-    const next = { ...stateRef.current.imageLayout, ...patch }
-    if (patch.scale !== undefined && canvas && imageInnerRef.current) {
-      next.scale = clampLayoutScaleToFit(
-        canvas,
-        imageInnerRef.current,
-        stateRef.current.imageLayout,
-        patch.scale
-      )
+    const current = stateRef.current
+    const layer = current.layers.find((l) => l.id === layerId)
+    if (!layer) return
+
+    const layout = layerToElementLayout(layer)
+    const next: ElementLayout = { ...layout, ...patch }
+    const innerEl = layerInnerRefs.current.get(layerId) ?? null
+
+    if (patch.scale !== undefined && canvas && innerEl) {
+      next.scale = clampLayoutScaleToFit(canvas, innerEl, layout, patch.scale)
     }
     if ((patch.x !== undefined || patch.y !== undefined) && canvas) {
-      const clamped = clampLayoutPosition(
-        canvas,
-        imageInnerRef.current,
-        next.x,
-        next.y
-      )
+      const clamped = clampLayoutPosition(canvas, innerEl, next.x, next.y)
       next.x = clamped.x
       next.y = clamped.y
     }
-    onStateChange({ imageLayout: next })
+
+    const nextLayers = updateLayerById(current.layers, layerId, next)
+    emitLayers(nextLayers, layerId)
   }
 
   const applyLayout = useCallback(
-    (target: ElementTarget, patch: Partial<ElementLayout>) => {
+    (layerId: string, patch: Partial<ElementLayout>) => {
       const current = stateRef.current
-      if (target === "text") {
-        onStateChange({ textLayout: { ...current.textLayout, ...patch } })
-      } else {
-        onStateChange({ imageLayout: { ...current.imageLayout, ...patch } })
-      }
+      const layer = current.layers.find((l) => l.id === layerId)
+      if (!layer) return
+      const nextLayers = updateLayerById(current.layers, layerId, {
+        ...layerToElementLayout(layer),
+        ...patch,
+      })
+      emitLayers(nextLayers, layerId)
     },
-    [onStateChange]
+    [emitLayers]
   )
 
   const updateMetrics = useCallback(() => {
@@ -756,30 +1002,51 @@ function LaserDesignerPreview({
     if (!canvas) return
 
     const current = stateRef.current
-    let textSize: ElementMmSize | null = null
-    let imageSize: ElementMmSize | null = null
+    const mmById: Record<string, ElementMmSize> = {}
+    const maxById: Record<string, number> = {}
 
-    if (current.engravingText.trim() && textInnerRef.current) {
-      textSize = measureElementMm(canvas, textInnerRef.current, workAreaMm)
+    for (const layer of current.layers) {
+      const el = layerInnerRefs.current.get(layer.id)
+      if (!el) continue
+      const isVisible =
+        (layer.kind === "text" && (layer.text ?? "").trim().length > 0) ||
+        (layer.kind === "image" && Boolean(layer.src))
+      if (!isVisible) continue
+
+      const layout = layerToElementLayout(layer)
+      mmById[layer.id] = measureElementMm(canvas, el, workAreaMm)
+      maxById[layer.id] = computeMaxScaleToFitBounds(
+        canvas,
+        el,
+        layout,
+        ENGRAVING_FRAME_USABLE_FRACTION
+      )
     }
-    if (current.imageLayout.src && imageInnerRef.current) {
-      imageSize = measureElementMm(canvas, imageInnerRef.current, workAreaMm)
-    }
 
-    const active =
-      activeElement === "text"
-        ? textSize
-        : activeElement === "image"
-          ? imageSize
-          : textSize ?? imageSize
-
-    const maxAreaMm2 = Math.max(
-      textSize?.areaMm2 ?? 0,
-      imageSize?.areaMm2 ?? 0
+    const primaryText = current.layers.find(
+      (l) => l.kind === "text" && (l.text ?? "").trim()
+    )
+    const primaryImage = current.layers.find(
+      (l) => l.kind === "image" && l.src
     )
 
-    setTextMm(textSize)
-    setImageMm(imageSize)
+    const textSize = primaryText ? mmById[primaryText.id] ?? null : null
+    const imageSize = primaryImage ? mmById[primaryImage.id] ?? null : null
+
+    const activeId = current.activeLayerId
+    const active =
+      (activeId && mmById[activeId]) ||
+      textSize ||
+      imageSize ||
+      null
+
+    const maxAreaMm2 = Math.max(
+      0,
+      ...Object.values(mmById).map((m) => m.areaMm2)
+    )
+
+    setLayerMmMap(mmById)
+    setMaxScaleMap(maxById)
     setLiveMmLabel(active)
     onEngravingMetricsChange?.({
       text: textSize,
@@ -787,18 +1054,11 @@ function LaserDesignerPreview({
       active,
       maxAreaMm2,
     })
-  }, [activeElement, onEngravingMetricsChange, workAreaMm])
+  }, [onEngravingMetricsChange, workAreaMm])
 
   useLayoutEffect(() => {
     updateMetrics()
-  }, [
-    updateMetrics,
-    engravingText,
-    textLayout,
-    imageLayout,
-    selectedFont,
-    workAreaMm,
-  ])
+  }, [updateMetrics, layers, activeLayerId, selectedFont, workAreaMm])
 
   const processDragMove = useCallback(
     (clientX: number, clientY: number, pointerId?: number) => {
@@ -810,6 +1070,7 @@ function LaserDesignerPreview({
       if (!canvas) return
 
       const { startLayout, mode, target } = session
+      const innerEl = layerInnerRefs.current.get(target) ?? null
 
       if (mode === "move") {
         const start = getCanvasPoint(
@@ -820,8 +1081,6 @@ function LaserDesignerPreview({
         const now = getCanvasPoint(canvas, clientX, clientY)
         const rawX = startLayout.x + (now.percentX - start.percentX)
         const rawY = startLayout.y + (now.percentY - start.percentY)
-        const innerEl =
-          target === "text" ? textInnerRef.current : imageInnerRef.current
         const clamped = clampLayoutPosition(canvas, innerEl, rawX, rawY)
         applyLayout(target, clamped)
         return
@@ -831,8 +1090,6 @@ function LaserDesignerPreview({
         const center = getElementCenterPx(canvas, startLayout)
         const dist = Math.hypot(clientX - center.x, clientY - center.y) || 1
         const rawScale = (dist / session.startDistance) * startLayout.scale
-        const innerEl =
-          target === "text" ? textInnerRef.current : imageInnerRef.current
         const scale = clampLayoutScaleToFit(
           canvas,
           innerEl,
@@ -874,7 +1131,6 @@ function LaserDesignerPreview({
   }, [])
 
   // Window-Listener: Drag bleibt aktiv auch ausserhalb des Canvas.
-  // touchmove (passive: false) + preventDefault stoppt Mobile-Seiten-Scroll.
   useEffect(() => {
     const onPointerMove = (e: PointerEvent) => {
       const session = dragSessionRef.current
@@ -892,7 +1148,6 @@ function LaserDesignerPreview({
       e.preventDefault()
       const touch = e.touches[0]
       if (!touch) return
-      // Mit PointerEvents liefert pointermove die Logik; Touch blockiert nur Scroll.
       if (typeof window !== "undefined" && "PointerEvent" in window) return
       processDragMove(touch.clientX, touch.clientY, touch.identifier)
     }
@@ -927,11 +1182,9 @@ function LaserDesignerPreview({
 
   const startDragSession = useCallback((session: DragSession) => {
     dragSessionRef.current = session
-    setActiveElement(session.target)
+    onStateChange({ activeLayerId: session.target })
     setDragMode(session.mode)
-  }, [])
-
-  const canvasFontStyle = getLaserFontStyle(selectedFont, "canvas")
+  }, [onStateChange])
 
   const assignPreviewSurfaceRef = useCallback(
     (node: HTMLDivElement | null) => {
@@ -948,19 +1201,60 @@ function LaserDesignerPreview({
     if (!file) return
     const reader = new FileReader()
     reader.onload = (event) => {
-      onStateChange({
-        imageLayout: {
-          ...stateRef.current.imageLayout,
-          src: (event.target?.result as string) ?? null,
-          scale: 1,
-          rotation: 0,
-        },
-      })
-      setActiveElement("image")
+      const src = (event.target?.result as string) ?? null
+      if (!src) return
+      const current = stateRef.current
+      const offset = nextLayerOffset(current.layers.length)
+      const layer = createImageLayer({ src, ...offset })
+      emitLayers([...current.layers, layer], layer.id)
     }
     reader.readAsDataURL(file)
     e.target.value = ""
   }
+
+  const handleRemoveBackground = async () => {
+    if (!activeImageLayer?.src || removingBg) return
+    setRemovingBg(true)
+    try {
+      const nextSrc = await removeLightImageBackground(activeImageLayer.src)
+      const next = updateLayerById(stateRef.current.layers, activeImageLayer.id, {
+        src: nextSrc,
+      })
+      emitLayers(next, activeImageLayer.id)
+    } catch (err) {
+      console.warn("Hintergrund entfernen fehlgeschlagen:", err)
+    } finally {
+      setRemovingBg(false)
+    }
+  }
+
+  const handleFitToBounds = (layerId: string) => {
+    const canvas = canvasRef.current
+    const el = layerInnerRefs.current.get(layerId)
+    const layer = stateRef.current.layers.find((l) => l.id === layerId)
+    if (!canvas || !el || !layer) return
+    const layout = layerToElementLayout(layer)
+    const scale = fitLayoutScaleToBounds(
+      canvas,
+      el,
+      layout,
+      ENGRAVING_FRAME_USABLE_FRACTION
+    )
+    patchLayerLayout(layerId, { scale })
+  }
+
+  const handleDeleteLayer = (layerId: string) => {
+    const next = removeLayerById(stateRef.current.layers, layerId)
+    emitLayers(
+      next,
+      activeLayerId === layerId ? next[0]?.id ?? null : activeLayerId
+    )
+  }
+
+  const activeMaxScale =
+    (activeLayer && maxScaleMap[activeLayer.id]) || FALLBACK_MAX_SCALE
+  const activeSizeMm =
+    (activeLayer && layerMmMap[activeLayer.id]) || null
 
   return (
     <Card className="relative isolate rounded-xl border-cyan-500/20 bg-card/50 shadow-lg shadow-cyan-500/5">
@@ -970,7 +1264,10 @@ function LaserDesignerPreview({
             <Layers className="h-4 w-4 text-cyan-400" />
             <h3 className="font-bold">Live-Vorschau</h3>
           </div>
-          <Badge variant="outline" className="shrink-0 border-cyan-500/30 text-cyan-500">
+          <Badge
+            variant="outline"
+            className="shrink-0 border-cyan-500/30 text-cyan-500"
+          >
             {workAreaLabel}
           </Badge>
         </div>
@@ -990,7 +1287,9 @@ function LaserDesignerPreview({
           )}
           style={CANVAS_TOUCH_LOCK_STYLE}
           onPointerDown={(e) => {
-            if (e.target === e.currentTarget) setActiveElement(null)
+            if (e.target === e.currentTarget) {
+              onStateChange({ activeLayerId: null })
+            }
           }}
         >
           {customizationBackgroundUrl && (
@@ -1016,23 +1315,23 @@ function LaserDesignerPreview({
             ))}
           </div>
 
-          {imageLayout.src && (
+          {visibleImageLayers.map((layer) => (
             <InteractiveCanvasElement
-              target="image"
-              layout={imageLayout}
-              isActive={activeElement === "image"}
-              isMoving={dragMode === "move" && activeElement === "image"}
+              key={layer.id}
+              layerId={layer.id}
+              kind="image"
+              layout={layerToElementLayout(layer)}
+              isActive={activeLayerId === layer.id}
+              isMoving={dragMode === "move" && activeLayerId === layer.id}
               canvasRef={canvasRef}
-              onSelect={() => setActiveElement("image")}
+              onSelect={() => onStateChange({ activeLayerId: layer.id })}
               onDragStart={startDragSession}
-              onInnerRef={(el) => {
-                imageInnerRef.current = el
-              }}
+              onInnerRef={(el) => setLayerInnerRef(layer.id, el)}
               className="z-10"
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={imageLayout.src}
+                src={layer.src!}
                 alt="Logo-Vorschau"
                 className={cn(
                   "max-h-32 w-auto rounded opacity-90 drop-shadow-lg grayscale",
@@ -1042,78 +1341,85 @@ function LaserDesignerPreview({
                 draggable={false}
               />
             </InteractiveCanvasElement>
-          )}
+          ))}
 
-          {engravingText.trim() && (
-            <InteractiveCanvasElement
-              key={`text-${selectedFont}`}
-              target="text"
-              layout={textLayout}
-              isActive={activeElement === "text"}
-              isMoving={dragMode === "move" && activeElement === "text"}
-              canvasRef={canvasRef}
-              onSelect={() => setActiveElement("text")}
-              onDragStart={startDragSession}
-              onInnerRef={(el) => {
-                textInnerRef.current = el
-              }}
-              className="z-20 w-max max-w-none px-2 text-center text-white/90 drop-shadow-lg"
-              style={{
-                ...canvasFontStyle,
-                fontFamily,
-                fontSize:
-                  canvasFontStyle.fontSize ??
-                  "clamp(0.875rem, 3.5vw, 1.25rem)",
-                whiteSpace: "pre",
-                width: "max-content",
-                maxWidth: "none",
-                textShadow: "0 1px 8px rgba(0,0,0,0.8)",
-              }}
-            >
-              {engravingText}
-            </InteractiveCanvasElement>
-          )}
+          {visibleTextLayers.map((layer) => {
+            const fontId = layer.fontId ?? selectedFont
+            const canvasFontStyle = getLaserFontStyle(fontId, "canvas")
+            const fontFamily = getLaserFontFamily(fontId)
+            return (
+              <InteractiveCanvasElement
+                key={`${layer.id}-${fontId}`}
+                layerId={layer.id}
+                kind="text"
+                layout={layerToElementLayout(layer)}
+                isActive={activeLayerId === layer.id}
+                isMoving={dragMode === "move" && activeLayerId === layer.id}
+                canvasRef={canvasRef}
+                onSelect={() => onStateChange({ activeLayerId: layer.id })}
+                onDragStart={startDragSession}
+                onInnerRef={(el) => setLayerInnerRef(layer.id, el)}
+                className="z-20 w-max max-w-none px-2 text-center text-white/90 drop-shadow-lg"
+                style={{
+                  ...canvasFontStyle,
+                  fontFamily,
+                  fontSize:
+                    canvasFontStyle.fontSize ??
+                    "clamp(0.875rem, 3.5vw, 1.25rem)",
+                  whiteSpace: "pre",
+                  width: "max-content",
+                  maxWidth: "none",
+                  textShadow: "0 1px 8px rgba(0,0,0,0.8)",
+                }}
+              >
+                {layer.text}
+              </InteractiveCanvasElement>
+            )
+          })}
 
-          {!engravingText.trim() && !imageLayout.src && (
+          {!hasAnyContent && (
             <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center px-4 text-center text-muted-foreground">
               <Type className="mb-2 h-10 w-10 opacity-30" />
               <p className="text-sm">Text eingeben oder Logo hochladen</p>
-              <p className="mt-1 text-xs opacity-70">Verschieben, skalieren, drehen</p>
+              <p className="mt-1 text-xs opacity-70">
+                Mehrere Elemente möglich · Verschieben, skalieren, drehen
+              </p>
             </div>
           )}
         </div>
 
         <div className="relative z-0 mt-4 space-y-4 border-t border-border/50 pt-4">
-          {liveMmLabel && (engravingText.trim() || imageLayout.src) && (
+          {liveMmLabel && hasAnyContent && (
             <p className="rounded-lg border border-border/50 bg-background/60 px-3 py-2 text-center font-mono text-xs text-muted-foreground">
               Gravur-Grösse:{" "}
               <span className="font-semibold text-foreground">
-                {liveMmLabel.widthMm.toFixed(1)} x {liveMmLabel.heightMm.toFixed(1)} mm
+                {liveMmLabel.widthMm.toFixed(1)} x{" "}
+                {liveMmLabel.heightMm.toFixed(1)} mm
               </span>
               <span className="mx-1 text-border">·</span>
               {liveMmLabel.areaMm2.toFixed(0)} mm²
             </p>
           )}
 
-          {activeElement === "text" && engravingText.trim() && (
-            <ElementTransformControls
-              label="Text bearbeiten"
-              layout={textLayout}
-              onChange={patchTextLayout}
-              sizeMm={textMm}
-              workAreaMm={workAreaMm}
-            />
-          )}
-
-          {activeElement === "image" && imageLayout.src && (
-            <ElementTransformControls
-              label="Bild / Logo bearbeiten"
-              layout={imageLayout}
-              onChange={patchImageLayout}
-              sizeMm={imageMm}
-              workAreaMm={workAreaMm}
-            />
-          )}
+          {activeLayer &&
+            ((activeLayer.kind === "text" &&
+              (activeLayer.text ?? "").trim()) ||
+              (activeLayer.kind === "image" && activeLayer.src)) && (
+              <ElementTransformControls
+                label={
+                  activeLayer.kind === "text"
+                    ? "Text"
+                    : "Bild / Logo"
+                }
+                layout={layerToElementLayout(activeLayer)}
+                onChange={(patch) => patchLayerLayout(activeLayer.id, patch)}
+                sizeMm={activeSizeMm}
+                workAreaMm={workAreaMm}
+                maxScale={activeMaxScale}
+                onFitToBounds={() => handleFitToBounds(activeLayer.id)}
+                onDelete={() => handleDeleteLayer(activeLayer.id)}
+              />
+            )}
         </div>
 
         <div className="relative z-0 mt-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
@@ -1126,10 +1432,10 @@ function LaserDesignerPreview({
             />
             <span className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-4 py-2.5 text-sm font-medium text-cyan-400 transition-colors hover:bg-cyan-500/20 sm:w-auto">
               <Upload className="h-4 w-4" />
-              Bild / Logo hochladen
+              Weiteres Bild hochladen
             </span>
           </label>
-          {imageLayout.src ? (
+          {activeImageLayer ? (
             <>
               <Button
                 type="button"
@@ -1137,14 +1443,8 @@ function LaserDesignerPreview({
                 size="sm"
                 className="w-full border-cyan-500/30 sm:w-auto"
                 onClick={() => {
-                  onStateChange({
-                    imageLayout: {
-                      ...stateRef.current.imageLayout,
-                      x: 50,
-                      y: 50,
-                    },
-                  })
-                  setActiveElement("image")
+                  patchLayerLayout(activeImageLayer.id, { x: 50, y: 50 })
+                  onStateChange({ activeLayerId: activeImageLayer.id })
                 }}
               >
                 <Crosshair className="mr-2 h-4 w-4" />
@@ -1155,20 +1455,37 @@ function LaserDesignerPreview({
                 variant="outline"
                 size="sm"
                 className="w-full sm:w-auto"
-                onClick={() => {
-                  onStateChange({ imageLayout: { ...DEFAULT_IMAGE_LAYOUT } })
-                  if (activeElement === "image") setActiveElement(null)
-                }}
+                onClick={() => handleDeleteLayer(activeImageLayer.id)}
               >
                 <ImageIcon className="mr-2 h-4 w-4" />
                 Bild entfernen
               </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full border-cyan-500/30 sm:w-auto"
+                    disabled={removingBg}
+                    onClick={() => void handleRemoveBackground()}
+                  >
+                    <Eraser className="mr-2 h-4 w-4" />
+                    {removingBg ? "Entferne…" : "Hintergrund entfernen"}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-xs">
+                  Entfernt automatisch weisse Hintergründe für saubere
+                  Gravur-Vorschauen.
+                </TooltipContent>
+              </Tooltip>
             </>
           ) : null}
         </div>
         <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-          💡 Tipp: Für das beste Gravur-Ergebnis verwende am besten ein Bild mit
-          transparentem Hintergrund (.png / .svg).
+          Tipp: Für das beste Gravur-Ergebnis verwende am besten ein Bild mit
+          transparentem Hintergrund (.png / .svg) — oder nutze «Hintergrund
+          entfernen».
         </p>
       </CardContent>
     </Card>
@@ -1189,11 +1506,18 @@ export function LaserDesignerStudio({
   onEngravingMetricsChange,
   previewSurfaceRef,
 }: LaserDesignerStudioProps) {
+  // Defensive: ensure layers array exists for consumers that omit it
+  const safeState: LaserDesignerState = {
+    ...state,
+    layers: Array.isArray(state.layers) ? state.layers : [],
+    activeLayerId: state.activeLayerId ?? null,
+  }
+
   if (column === "preview") {
     return (
       <LaserDesignerPreview
         material={material}
-        state={state}
+        state={safeState}
         onStateChange={onStateChange}
         workAreaMm={workAreaMm}
         onEngravingMetricsChange={onEngravingMetricsChange}
@@ -1206,8 +1530,8 @@ export function LaserDesignerStudio({
   return (
     <LaserDesignerSettings
       material={material}
+      state={safeState}
       productName={productName}
-      state={state}
       onStateChange={onStateChange}
       showMaterialCard={showMaterialCard}
       showVariantPicker={showVariantPicker}
