@@ -24,6 +24,14 @@ export async function buildLaserCombinedMockup(args: {
   backgroundUrl?: string | null
   previewRoot?: HTMLElement | null
 }): Promise<string | undefined> {
+  // Fonts vor jedem Export laden (html2canvas + programmatisch)
+  const { ensureLaserFontsReady } = await import("@/lib/dripforge/laser-fonts")
+  const textIds = args.layers
+    .filter((l) => l.kind === "text" && (l.text ?? "").trim())
+    .map((l) => l.fontId)
+    .filter(Boolean) as import("@/lib/dripforge/laser-fonts").LaserFontId[]
+  await ensureLaserFontsReady(textIds)
+
   // 1) Exakte 1:1-Kopie der Live-Vorschau (inkl. CSS-Transforms)
   if (args.previewRoot) {
     try {

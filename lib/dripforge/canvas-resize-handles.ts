@@ -26,24 +26,24 @@ export const RESIZE_HANDLES: ResizeHandle[] = [
 ]
 
 export function resizeHandleClass(handle: ResizeHandle): string {
-  // Kleine Griffe (12px) knapp ausserhalb der Selektionsbox
+  // Sehr dezente Griffe (~10px), knapp ausserhalb der Box
   switch (handle) {
     case "nw":
-      return "cursor-nwse-resize -left-1 -top-1"
+      return "cursor-nwse-resize -left-0.5 -top-0.5"
     case "n":
-      return "cursor-ns-resize left-1/2 -top-1 -translate-x-1/2"
+      return "cursor-ns-resize left-1/2 -top-0.5 -translate-x-1/2"
     case "ne":
-      return "cursor-nesw-resize -right-1 -top-1"
+      return "cursor-nesw-resize -right-0.5 -top-0.5"
     case "e":
-      return "cursor-ew-resize -right-1 top-1/2 -translate-y-1/2"
+      return "cursor-ew-resize -right-0.5 top-1/2 -translate-y-1/2"
     case "se":
-      return "cursor-nwse-resize -right-1 -bottom-1"
+      return "cursor-nwse-resize -right-0.5 -bottom-0.5"
     case "s":
-      return "cursor-ns-resize left-1/2 -bottom-1 -translate-x-1/2"
+      return "cursor-ns-resize left-1/2 -bottom-0.5 -translate-x-1/2"
     case "sw":
-      return "cursor-nesw-resize -left-1 -bottom-1"
+      return "cursor-nesw-resize -left-0.5 -bottom-0.5"
     case "w":
-      return "cursor-ew-resize -left-1 top-1/2 -translate-y-1/2"
+      return "cursor-ew-resize -left-0.5 top-1/2 -translate-y-1/2"
   }
 }
 

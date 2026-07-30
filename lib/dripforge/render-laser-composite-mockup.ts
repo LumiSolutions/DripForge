@@ -1,15 +1,12 @@
 /**
  * Programmatisches Composite-Mockup — skaliert 1:1 relativ zur Live-Vorschau.
- *
- * Referenz: Live-Vorschau nutzt absolute CSS-Grössen (max-h-32 = 128px,
- * Font ~clamp 0.875–1.25rem) auf einem quadratischen Preview der Breite
- * `referencePreviewWidth`. Export skaliert alle Masse mit
- * `exportSize / referencePreviewWidth`.
  */
 
 import {
-  getLaserFontFamily,
+  ensureLaserFontsReady,
+  getLaserFontFamilyForCanvas,
   getLaserFontOption,
+  getLaserPreviewBaseFontPx,
   type LaserFontId,
 } from "@/lib/dripforge/laser-fonts"
 
@@ -29,8 +26,6 @@ export type CompositeMockupLayer = {
 
 /** Live-Vorschau: Tailwind max-h-32 */
 export const PREVIEW_BASE_IMAGE_HEIGHT_PX = 128
-/** Live-Vorschau: typische Canvas-Font (~1.25rem) */
-export const PREVIEW_BASE_TEXT_FONT_PX = 20
 /** Fallback wenn keine Preview-Breite gemessen werden kann */
 export const DEFAULT_REFERENCE_PREVIEW_WIDTH = 420
 export const DEFAULT_EXPORT_SIZE = 1200
@@ -65,9 +60,7 @@ function drawCover(
 }
 
 /**
- * Entspricht CSS:
- * left/top % + transform: translate(-50%,-50%) scale(sx,sy) rotate(deg)
- * → Zentrum auf (x%, y%), dann Scale, dann Rotation ums Zentrum.
+ * CSS: left/top % + translate(-50%,-50%) scale rotate — Zentrum auf (x%, y%).
  */
 function applyCssLikeTransform(
   ctx: CanvasRenderingContext2D,
@@ -78,21 +71,19 @@ function applyCssLikeTransform(
   rotationDeg: number
 ) {
   ctx.translate(cx, cy)
-  // CSS left-to-right after translate(-50%): scale then rotate
   ctx.scale(sx || 1, sy || 1)
   ctx.rotate(((rotationDeg || 0) * Math.PI) / 180)
 }
 
 /**
- * Rendert das kombinierte Endprodukt-Mockup für Cockpit/Admin.
- * `referencePreviewWidth` = gemessene Live-Vorschau-Breite (px), damit
- * Font/Bild-Grössen proportional zum Screen-Preview bleiben.
+ * Rendert Combined Mockup.
+ * Skalierungsfaktor = exportSize / referencePreviewWidth (1:1 zu Live-Vorschau).
  */
 export async function renderLaserCompositeMockup(args: {
   backgroundUrl?: string | null
   layers: CompositeMockupLayer[]
   size?: number
-  /** Breite der Live-Vorschau in CSS-Pixeln (für 1:1 Skalierung) */
+  /** Breite der Live-Vorschau in CSS-Pixeln */
   referencePreviewWidth?: number
 }): Promise<string | null> {
   if (typeof window === "undefined") return null
@@ -102,7 +93,13 @@ export async function renderLaserCompositeMockup(args: {
     120,
     Math.round(args.referencePreviewWidth ?? DEFAULT_REFERENCE_PREVIEW_WIDTH)
   )
-  const unit = size / refW
+  /** exportCanvas.width / previewCanvas.width */
+  const scaleFactor = size / refW
+
+  const textFontIds = args.layers
+    .filter((l) => l.kind === "text" && (l.text ?? "").trim())
+    .map((l) => (l.fontId as LaserFontId) || "modern")
+  await ensureLaserFontsReady(textFontIds)
 
   const canvas = document.createElement("canvas")
   canvas.width = size
@@ -131,6 +128,7 @@ export async function renderLaserCompositeMockup(args: {
   }
 
   for (const layer of args.layers) {
+    // Prozent-Positionen → Export-Pixel (bereits skaliert über size)
     const cx = (layer.x / 100) * size
     const cy = (layer.y / 100) * size
     const sx = Number.isFinite(layer.scaleX)
@@ -146,8 +144,7 @@ export async function renderLaserCompositeMockup(args: {
         const iw = img.naturalWidth || img.width
         const ih = img.naturalHeight || img.height
         if (iw <= 0 || ih <= 0) continue
-        // max-h-32 in Preview → proportional im Export
-        const baseH = PREVIEW_BASE_IMAGE_HEIGHT_PX * unit
+        const baseH = PREVIEW_BASE_IMAGE_HEIGHT_PX * scaleFactor
         const baseW = baseH * (iw / ih)
         ctx.save()
         applyCssLikeTransform(ctx, cx, cy, sx || 1, sy || 1, layer.rotation || 0)
@@ -166,42 +163,32 @@ export async function renderLaserCompositeMockup(args: {
       const text = (layer.text ?? "").trim()
       if (!text) continue
       const fontId = (layer.fontId as LaserFontId) || "modern"
-      const fontFamily = getLaserFontFamily(fontId)
+      const fontFamily = getLaserFontFamilyForCanvas(fontId)
       const opt = getLaserFontOption(fontId)
       const weight =
-        typeof opt.canvasStyle?.fontWeight === "number" ||
-        typeof opt.canvasStyle?.fontWeight === "string"
-          ? String(opt.canvasStyle.fontWeight)
-          : "600"
-      const fontPx = PREVIEW_BASE_TEXT_FONT_PX * unit
-      const letterSpacing =
-        typeof opt.canvasStyle?.letterSpacing === "string"
-          ? opt.canvasStyle.letterSpacing
-          : undefined
-      const uppercase =
-        opt.canvasStyle?.textTransform === "uppercase"
+        fontId === "kalligrafie" || fontId === "schwungvoll"
+          ? "400"
+          : typeof opt.canvasStyle?.fontWeight === "number" ||
+              typeof opt.canvasStyle?.fontWeight === "string"
+            ? String(opt.canvasStyle.fontWeight)
+            : "600"
+      // fontSize der Preview × Skalierungsfaktor
+      const fontPx = getLaserPreviewBaseFontPx(fontId) * scaleFactor
+      const uppercase = opt.canvasStyle?.textTransform === "uppercase"
 
       ctx.save()
       applyCssLikeTransform(ctx, cx, cy, sx || 1, sy || 1, layer.rotation || 0)
       ctx.font = `${weight} ${fontPx}px ${fontFamily}`
       ctx.textAlign = "center"
       ctx.textBaseline = "middle"
-      ctx.fillStyle = "rgba(255,255,255,0.9)"
-      ctx.shadowColor = "rgba(0,0,0,0.8)"
-      ctx.shadowBlur = 8 * unit
-      const lines = text.split("\n").map((l) =>
-        uppercase ? l.toUpperCase() : l
-      )
+      ctx.fillStyle = "rgba(255,255,255,0.92)"
+      ctx.shadowColor = "rgba(0,0,0,0.85)"
+      ctx.shadowBlur = 8 * scaleFactor
+      const lines = text.split("\n").map((l) => (uppercase ? l.toUpperCase() : l))
       const lineHeight = fontPx * 1.25
       const startY = -((lines.length - 1) * lineHeight) / 2
       lines.forEach((line, i) => {
-        const draw = line
-        if (letterSpacing && letterSpacing !== "normal") {
-          // einfache Annäherung: fillText reicht für Mockup
-          ctx.fillText(draw, 0, startY + i * lineHeight)
-        } else {
-          ctx.fillText(draw, 0, startY + i * lineHeight)
-        }
+        ctx.fillText(line, 0, startY + i * lineHeight)
       })
       ctx.restore()
     }

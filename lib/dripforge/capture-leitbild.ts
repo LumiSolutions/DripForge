@@ -1,4 +1,5 @@
 import html2canvas from "html2canvas"
+import { ensureLaserFontsReady } from "@/lib/dripforge/laser-fonts"
 
 export const LEITBILD_3D_CANVAS_ATTR = "data-leitbild-3d-preview"
 export const LEITBILD_LASER_PREVIEW_ATTR = "data-leitbild-laser-preview"
@@ -85,6 +86,7 @@ export async function captureLaserPreviewLeitbild(
   })
 
   try {
+    await ensureLaserFontsReady()
     await waitForPreviewPaint()
     const snapshot = await html2canvas(previewRoot, {
       backgroundColor: "#ffffff",
