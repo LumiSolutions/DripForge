@@ -18,26 +18,33 @@ function ShopPageInner() {
     useServiceVisibility()
   const searchParams = useSearchParams()
 
-  // Legacy ?product= → permanente Produkt-URL
   useEffect(() => {
     const productId = searchParams.get("product")?.trim()
     if (!productId) return
 
-    void fetch(`/api/products/${encodeURIComponent(productId)}`, {
-      cache: "no-store",
-    })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data?.product) {
-          const product = normalizeShopProduct(data.product as Product)
-          router.replace(productHref(product))
+    void (async () => {
+      try {
+        const [detailRes, listRes] = await Promise.all([
+          fetch(`/api/products/${encodeURIComponent(productId)}`, {
+            cache: "no-store",
+          }),
+          fetch("/api/products", { cache: "no-store" }),
+        ])
+        const detail = detailRes.ok ? await detailRes.json() : null
+        const list = listRes.ok ? await listRes.json() : null
+        const products = Array.isArray(list?.products)
+          ? (list.products as Product[]).map(normalizeShopProduct)
+          : []
+        if (detail?.product) {
+          const product = normalizeShopProduct(detail.product as Product)
+          router.replace(productHref(product, products))
           return
         }
-        router.replace(`/produkt/--${encodeURIComponent(productId)}`)
-      })
-      .catch(() => {
-        router.replace(`/produkt/--${encodeURIComponent(productId)}`)
-      })
+      } catch {
+        /* ignore */
+      }
+      router.replace("/shop")
+    })()
   }, [searchParams, router])
 
   return (

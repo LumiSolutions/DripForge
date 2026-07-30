@@ -319,8 +319,7 @@ export async function smartRemoveBackground(
 }
 
 /**
- * „Subjekt / Vordergrund beibehalten“: COCO-SSD + Masken-Verfeinerung.
- * Fallback: MediaPipe Personen / Rand-Flood.
+ * „Subjekt / Vordergrund beibehalten“: Alpha-Matting (imgly/rembg) + Fallbacks.
  */
 export async function smartKeepSubjectRemoveBackground(
   dataUrlOrHttp: string,

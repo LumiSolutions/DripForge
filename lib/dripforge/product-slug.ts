@@ -1,4 +1,6 @@
-/** Produkt-Slugs für /produkt/[slug] — stabil über Reloads. */
+/** Saubere Produkt-Slugs für /p/[slug] — ohne ID-Anhang. */
+
+import type { Product } from "@/lib/dripforge/types"
 
 export function slugifyProductName(name: string): string {
   return name
@@ -16,16 +18,36 @@ export function slugifyProductName(name: string): string {
 }
 
 /**
- * URL-Slug: `{name-slug}--{productId}`
- * Doppel-Bindestrich trennt lesbaren Namen von der stabilen ID.
+ * Lesbarer Slug ohne ID. Bei Namenskollisionen: herz-kette, herz-kette-2, …
+ * (stabile Reihenfolge nach Produkt-ID).
  */
-export function getProductSlug(product: { id: string; name: string }): string {
+export function getProductSlug(
+  product: { id: string; name: string },
+  allProducts?: Array<{ id: string; name: string }>
+): string {
   const base = slugifyProductName(product.name) || "produkt"
-  return `${base}--${encodeURIComponent(product.id)}`
+  if (!allProducts || allProducts.length === 0) return base
+
+  const sameName = allProducts
+    .filter((p) => slugifyProductName(p.name) === base)
+    .sort((a, b) => a.id.localeCompare(b.id))
+
+  if (sameName.length <= 1) return base
+
+  const index = sameName.findIndex((p) => p.id === product.id)
+  if (index <= 0) return base
+  return `${base}-${index + 1}`
 }
 
-/** Extrahiert die Produkt-ID aus einem Slug (oder akzeptiert reine IDs). */
-export function productIdFromSlug(slug: string): string | null {
+export function productHref(
+  product: { id: string; name: string },
+  allProducts?: Array<{ id: string; name: string }>
+): string {
+  return `/p/${getProductSlug(product, allProducts)}`
+}
+
+/** Legacy: `name--id` oder reine ID. */
+export function legacyProductIdFromSlug(slug: string): string | null {
   const raw = slug.trim()
   if (!raw) return null
   const sep = raw.lastIndexOf("--")
@@ -33,9 +55,41 @@ export function productIdFromSlug(slug: string): string | null {
     const id = decodeURIComponent(raw.slice(sep + 2)).trim()
     return id || null
   }
-  return decodeURIComponent(raw)
+  return null
 }
 
-export function productHref(product: { id: string; name: string }): string {
-  return `/produkt/${getProductSlug(product)}`
+export function findProductBySlug(
+  slug: string,
+  products: Product[]
+): Product | null {
+  const normalized = slug.trim().toLowerCase()
+  if (!normalized || products.length === 0) return null
+
+  // Legacy name--id
+  const legacyId = legacyProductIdFromSlug(slug)
+  if (legacyId) {
+    const byId = products.find((p) => p.id === legacyId)
+    if (byId) return byId
+  }
+
+  // Exakter Slug-Match (inkl. -2 Kollisions-Suffix)
+  for (const product of products) {
+    if (getProductSlug(product, products) === normalized) {
+      return product
+    }
+  }
+
+  // Fallback: nur Basis-Name (erster Treffer)
+  const baseMatch = products.find(
+    (p) => slugifyProductName(p.name) === normalized
+  )
+  if (baseMatch) return baseMatch
+
+  // Fallback: slug ist die Produkt-ID
+  return products.find((p) => p.id === slug.trim()) ?? null
+}
+
+/** @deprecated Nutze legacyProductIdFromSlug / findProductBySlug */
+export function productIdFromSlug(slug: string): string | null {
+  return legacyProductIdFromSlug(slug) ?? (slug.trim() || null)
 }

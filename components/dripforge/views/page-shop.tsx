@@ -14,7 +14,6 @@ import {
   Minus,
   Plus,
   ShoppingCart,
-  ArrowUpDown,
   LayoutGrid,
   Grid2x2,
   List,
@@ -22,13 +21,6 @@ import {
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 import {
   FilamentColorPicker,
@@ -77,7 +69,7 @@ import {
 } from "@/lib/dripforge/shop-filters"
 import { filterProductsByShopTags, getTagsForCategoryScope } from "@/lib/dripforge/shop-tag-filters"
 import { ShopTagFilterPanel } from "@/components/dripforge/shared/shop-tag-filter-panel"
-import { ShopMainFilterTabs } from "@/components/dripforge/shared/shop-main-filter-tabs"
+import { ShopStickyFilterChrome } from "@/components/dripforge/shared/shop-sticky-filter-chrome"
 import type { ProductTag } from "@/lib/admin/product-tags"
 import { normalizeShopProduct } from "@/lib/dripforge/normalize-shop-product"
 import { productHref } from "@/lib/dripforge/product-slug"
@@ -113,6 +105,8 @@ type PageShopProps = {
   servicesLoaded?: boolean
   /** true = dedizierte /produkt/[slug]-Seite (kein Listing) */
   productDetailMode?: boolean
+  /** Katalog für kollisionssichere Slugs */
+  productCatalog?: Product[]
 }
 
 type ShopSortMode = "price-asc" | "price-desc" | "newest" | "popular"
@@ -151,6 +145,7 @@ export function PageShop({
   shopConfigurators = DEFAULT_SHOP_CONFIGURATORS,
   servicesLoaded = false,
   productDetailMode = false,
+  productCatalog,
 }: PageShopProps) {
   const router = useRouter()
   const { materials: filamentMaterials, loading: filamentsLoading } =
@@ -294,7 +289,8 @@ export function PageShop({
 
   const openProduct = (product: Product) => {
     const initial = normalizeShopProduct(product)
-    router.push(productHref(initial))
+    const catalog = productCatalog?.length ? productCatalog : shopProducts
+    router.push(productHref(initial, catalog))
   }
 
   const closeProduct = () => {
@@ -488,9 +484,9 @@ export function PageShop({
 
           {detailProduct.type === "laser" && shopLaserMaterial && laserDesign ? (
             <div className="space-y-6">
-              <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-12 xl:gap-6">
-                {/* Spalte 1: grosse Galerie, Beschreibung, Material */}
-                <div className="flex min-w-0 flex-col gap-4 xl:col-span-4">
+              <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-12 xl:gap-5">
+                {/* Spalte 1: Galerie + Beschreibung + Material */}
+                <div className="flex min-w-0 max-w-full flex-col gap-4 overflow-hidden xl:col-span-5">
                   <ProductImageGallery
                     images={galleryImages}
                     alt={detailProduct.name}
@@ -529,8 +525,8 @@ export function PageShop({
                   />
                 </div>
 
-                {/* Spalte 2: dezenter Preis, Variante, Warenkorb */}
-                <div className="flex min-w-0 flex-col gap-4 xl:col-span-3 xl:sticky xl:top-24">
+                {/* Spalte 2: Preis, Variante, Warenkorb */}
+                <div className="flex min-w-0 max-w-full flex-col gap-4 overflow-hidden xl:col-span-3 xl:sticky xl:top-24">
                   <Card className="rounded-xl border border-border/60 bg-card/40 shadow-none">
                     <CardContent className="space-y-3 p-3">
                       <div className="flex items-center justify-between gap-2">
@@ -594,8 +590,8 @@ export function PageShop({
                   />
                 </div>
 
-                {/* Spalte 3: Live-Vorschau + Werkzeuge */}
-                <div className="flex min-w-0 flex-col gap-4 xl:col-span-5 xl:sticky xl:top-24">
+                {/* Spalte 3: Live-Vorschau — gleiche visuelle Breite wie Galerie */}
+                <div className="flex min-w-0 max-w-full flex-col gap-4 overflow-hidden xl:col-span-4 xl:sticky xl:top-24">
                   <LaserDesignerStudio
                     column="preview"
                     material={shopLaserMaterial}
@@ -947,77 +943,60 @@ export function PageShop({
         </section>
       )}
 
-      <section className="relative z-0 mx-auto max-w-7xl px-4 space-y-6">
-        <div className="sticky top-0 z-20 -mx-4 space-y-4 border-b border-border/40 bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-          <ShopMainFilterTabs
-            options={mainFilterOptions ?? []}
-            activeId={categoryFilter}
-            onChange={handleCategoryChange}
-          />
-
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-muted-foreground">
-              {displayedProducts.length} Produkt
-              {displayedProducts.length === 1 ? "" : "e"}
-            </p>
-            <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-              <div className="inline-flex rounded-lg border border-border/60 p-0.5">
-                <Button
-                  type="button"
-                  size="icon"
-                  variant={viewMode === "grid-sm" ? "default" : "ghost"}
-                  className="h-9 w-9"
-                  aria-label="Kleine Kacheln"
-                  title="Kleine Kacheln"
-                  onClick={() => setViewModePersist("grid-sm")}
-                >
-                  <Grid2x2 className="h-4 w-4" />
-                </Button>
-                <Button
-                  type="button"
-                  size="icon"
-                  variant={viewMode === "grid-lg" ? "default" : "ghost"}
-                  className="h-9 w-9"
-                  aria-label="Grosse Kacheln"
-                  title="Grosse Kacheln"
-                  onClick={() => setViewModePersist("grid-lg")}
-                >
-                  <LayoutGrid className="h-4 w-4" />
-                </Button>
-                <Button
-                  type="button"
-                  size="icon"
-                  variant={viewMode === "list" ? "default" : "ghost"}
-                  className="h-9 w-9"
-                  aria-label="Listenansicht"
-                  title="Listenansicht"
-                  onClick={() => setViewModePersist("list")}
-                >
-                  <List className="h-4 w-4" />
-                </Button>
-              </div>
-              <ArrowUpDown className="hidden h-4 w-4 text-muted-foreground sm:block" />
-              <Select
-                value={sortMode}
-                onValueChange={(value) => setSortMode(value as ShopSortMode)}
+      <section className="relative z-0 mx-auto max-w-7xl space-y-6 px-4">
+        <ShopStickyFilterChrome
+          mainFilterOptions={mainFilterOptions ?? []}
+          categoryFilter={categoryFilter}
+          onCategoryChange={handleCategoryChange}
+          visibleProductTags={visibleProductTags ?? []}
+          selectedTagIds={selectedTagIds}
+          onToggleTag={toggleTagFilter}
+          onClearTags={clearTagFilters}
+          sortMode={sortMode}
+          onSortChange={setSortMode}
+          productCount={displayedProducts.length}
+          viewToggle={
+            <div className="inline-flex rounded-lg border border-border/60 p-0.5">
+              <Button
+                type="button"
+                size="icon"
+                variant={viewMode === "grid-sm" ? "default" : "ghost"}
+                className="h-9 w-9"
+                aria-label="Kleine Kacheln"
+                title="Kleine Kacheln"
+                onClick={() => setViewModePersist("grid-sm")}
               >
-                <SelectTrigger className="w-full min-w-[180px] sm:w-[220px]">
-                  <SelectValue placeholder="Sortieren" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="price-asc">Preis: aufsteigend</SelectItem>
-                  <SelectItem value="price-desc">Preis: absteigend</SelectItem>
-                  <SelectItem value="popular">Beliebtheit</SelectItem>
-                  <SelectItem value="newest">Neueste zuerst</SelectItem>
-                </SelectContent>
-              </Select>
+                <Grid2x2 className="h-4 w-4" />
+              </Button>
+              <Button
+                type="button"
+                size="icon"
+                variant={viewMode === "grid-lg" ? "default" : "ghost"}
+                className="h-9 w-9"
+                aria-label="Grosse Kacheln"
+                title="Grosse Kacheln"
+                onClick={() => setViewModePersist("grid-lg")}
+              >
+                <LayoutGrid className="h-4 w-4" />
+              </Button>
+              <Button
+                type="button"
+                size="icon"
+                variant={viewMode === "list" ? "default" : "ghost"}
+                className="h-9 w-9"
+                aria-label="Listenansicht"
+                title="Listenansicht"
+                onClick={() => setViewModePersist("list")}
+              >
+                <List className="h-4 w-4" />
+              </Button>
             </div>
-          </div>
-        </div>
+          }
+        />
 
         <div className="flex flex-col gap-8 lg:flex-row lg:items-start">
           <ShopTagFilterPanel
-            className="w-full lg:sticky lg:top-28 lg:w-64 lg:shrink-0"
+            className="hidden w-full lg:sticky lg:top-36 lg:block lg:w-64 lg:shrink-0"
             tags={visibleProductTags ?? []}
             selectedTagIds={selectedTagIds}
             onToggleTag={toggleTagFilter}

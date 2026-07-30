@@ -4,7 +4,7 @@ export const SHOP_ROUTES = {
   "3d-druck": "/3d-druck",
   laser: "/laser",
   shop: "/shop",
-  produkt: "/produkt",
+  produkt: "/p",
   kontakt: "/kontakt",
   support: "/support",
   warenkorb: "/warenkorb",

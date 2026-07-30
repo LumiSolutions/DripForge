@@ -2006,40 +2006,61 @@ function LaserDesignerPreview({
   )
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = (event) => {
-      const raw = event.target?.result
-      const src = typeof raw === "string" ? raw : null
-      if (!src) return
-      const current = stateRef.current
+    const files = Array.from(e.target.files ?? []).filter((f) =>
+      f.type.startsWith("image/")
+    )
+    e.target.value = ""
+    if (files.length === 0) return
+
+    const readFileAsDataUrl = (file: File) =>
+      new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => {
+          const raw = reader.result
+          if (typeof raw === "string") resolve(raw)
+          else reject(new Error("Datei konnte nicht gelesen werden"))
+        }
+        reader.onerror = () => reject(new Error("Datei lesen fehlgeschlagen"))
+        reader.readAsDataURL(file)
+      })
+
+    void (async () => {
       pushHistorySnapshot()
-      // Tools/Cutout zurücksetzen — neuer Layer darf keinen State vom aktiven Bild erben
       deactivateImageTools()
       setCutoutOpen(false)
       setCutoutLive(null)
       setMobileToolHint(null)
-      const offset = nextLayerOffset(current.layers.length)
-      const layer = createImageLayer({
-        id:
-          typeof crypto !== "undefined" &&
-          typeof crypto.randomUUID === "function"
-            ? `img-${crypto.randomUUID()}`
-            : undefined,
-        src,
-        x: offset.x,
-        y: offset.y,
-        // Explizit frische Transform — kein Copy vom 1. Bild
-        scale: DEFAULT_IMAGE_LAYOUT.scale,
-        scaleX: DEFAULT_IMAGE_LAYOUT.scale,
-        scaleY: DEFAULT_IMAGE_LAYOUT.scale,
-        rotation: DEFAULT_IMAGE_LAYOUT.rotation,
-      })
-      emitLayers([...current.layers, layer], layer.id)
-    }
-    reader.readAsDataURL(file)
-    e.target.value = ""
+
+      let layers = [...stateRef.current.layers]
+      let lastId: string | null = null
+
+      for (let i = 0; i < files.length; i++) {
+        try {
+          const src = await readFileAsDataUrl(files[i]!)
+          const offset = nextLayerOffset(layers.length)
+          const layer = createImageLayer({
+            id:
+              typeof crypto !== "undefined" &&
+              typeof crypto.randomUUID === "function"
+                ? `img-${crypto.randomUUID()}`
+                : undefined,
+            src,
+            x: offset.x,
+            y: offset.y,
+            scale: DEFAULT_IMAGE_LAYOUT.scale,
+            scaleX: DEFAULT_IMAGE_LAYOUT.scale,
+            scaleY: DEFAULT_IMAGE_LAYOUT.scale,
+            rotation: DEFAULT_IMAGE_LAYOUT.rotation,
+          })
+          layers = [...layers, layer]
+          lastId = layer.id
+        } catch (error) {
+          console.warn("Bild-Upload fehlgeschlagen:", error)
+        }
+      }
+
+      if (lastId) emitLayers(layers, lastId)
+    })()
   }
 
   const pushHistorySnapshot = useCallback(() => {
@@ -2544,8 +2565,8 @@ function LaserDesignerPreview({
     (activeLayer && layerMmMap[activeLayer.id]) || null
 
   return (
-    <Card className="relative isolate rounded-xl border-cyan-500/20 bg-card/50 shadow-lg shadow-cyan-500/5">
-      <CardContent className="relative flex flex-col gap-0 p-2 sm:p-4 md:p-6">
+    <Card className="relative isolate w-full max-w-full overflow-hidden rounded-xl border-cyan-500/20 bg-card/50 shadow-lg shadow-cyan-500/5">
+      <CardContent className="relative box-border flex w-full max-w-full flex-col gap-0 overflow-hidden p-2 sm:p-4 md:p-5">
         <div className="mb-4 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <Layers className="h-4 w-4 text-cyan-400" />
@@ -2570,12 +2591,13 @@ function LaserDesignerPreview({
             <input
               type="file"
               accept="image/*"
+              multiple
               className="sr-only"
               onChange={handleImageUpload}
             />
             <span className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-3 py-1.5 text-xs font-medium text-cyan-400 hover:bg-cyan-500/20">
               <Plus className="h-3.5 w-3.5" />
-              Bild
+              Bild(er)
             </span>
           </label>
           <Button
@@ -2598,10 +2620,10 @@ function LaserDesignerPreview({
           </label>
         </div>
 
-        <div className="relative flex w-full min-w-0 flex-col gap-2 md:flex-row md:items-start">
+        <div className="relative box-border flex w-full min-w-0 max-w-full flex-col gap-2 overflow-hidden md:flex-row md:items-stretch">
           {/* Mobile: horizontal über dem Canvas · Desktop: vertikal links */}
           <div
-            className="order-1 flex w-full shrink-0 flex-row gap-1.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] md:order-none md:w-auto md:flex-col md:overflow-visible md:pb-0 [&::-webkit-scrollbar]:hidden"
+            className="order-1 flex w-full max-w-full shrink-0 flex-row gap-1.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] md:order-none md:w-11 md:flex-col md:overflow-visible md:pb-0 [&::-webkit-scrollbar]:hidden"
             {...{ [CAPTURE_HIDE_ATTR]: "true" }}
           >
             <ToolIconButton
@@ -2794,7 +2816,7 @@ function LaserDesignerPreview({
           ref={assignPreviewSurfaceRef}
           {...{ [LEITBILD_LASER_PREVIEW_ATTR]: "true" }}
           className={cn(
-            "relative z-0 order-2 mx-auto w-full max-w-full shrink-0 overflow-hidden rounded-xl border-2 border-cyan-500/25 shadow-inner",
+            "relative z-0 order-2 mx-auto min-w-0 w-full max-w-full flex-1 overflow-hidden rounded-xl border-2 border-cyan-500/25 shadow-inner [contain:layout_paint]",
             CANVAS_TOUCH_LOCK_CLASS,
             canvasStyle.surface
           )}
@@ -2804,6 +2826,7 @@ function LaserDesignerPreview({
             width: "100%",
             maxWidth: "100%",
             height: "auto",
+            boxSizing: "border-box",
           }}
           onPointerDown={(e) => {
             if (e.target === e.currentTarget) {

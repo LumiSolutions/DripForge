@@ -1,5 +1,5 @@
 import { notFound, redirect } from "next/navigation"
-import { getProductById } from "@/lib/admin/db"
+import { getProductById, getProducts } from "@/lib/admin/db"
 import { isProductActive } from "@/lib/admin/normalize-product"
 import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
 import {
@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic"
 
 type PageProps = { params: Promise<{ id: string }> }
 
-/** Legacy /shop/[id] → /produkt/[slug] */
+/** Legacy /shop/[id] → /p/[slug] */
 export default async function ShopProductDeepLinkPage({ params }: PageProps) {
   try {
     const { id } = await params
@@ -31,22 +31,27 @@ export default async function ShopProductDeepLinkPage({ params }: PageProps) {
       !isShopProductDocument(raw as Record<string, unknown>) ||
       !isProductActive(raw)
     ) {
-      console.error(
-        "Fehler beim Laden des Produkts: Dokument fehlt, inaktiv oder docType ist nicht 'product'.",
-        { productId }
-      )
       notFound()
     }
 
     const product = normalizeShopProduct(raw)
-    redirect(productHref(product))
+    const all = (await getProducts())
+      .filter(
+        (p) =>
+          isShopProductDocument(p as Record<string, unknown>) &&
+          isProductActive(p)
+      )
+      .map(normalizeShopProduct)
+
+    redirect(productHref(product, all))
   } catch (error) {
-    // Next.js redirect() wirft — nicht als Fehler behandeln
     if (
       error &&
       typeof error === "object" &&
       "digest" in error &&
-      String((error as { digest?: string }).digest ?? "").startsWith("NEXT_REDIRECT")
+      String((error as { digest?: string }).digest ?? "").startsWith(
+        "NEXT_REDIRECT"
+      )
     ) {
       throw error
     }
