@@ -60,6 +60,7 @@ async function loadSelfieSegmentationCtor(): Promise<
 /**
  * Behält Personen (inkl. Mütze/Haare/Schultern) und setzt den Rest transparent.
  * Arbeitet auf dem übergebenen ImageData (HD).
+ * @deprecated Für universelle Motive bitte applySubjectKeepMask nutzen.
  */
 export async function applyPersonKeepMask(
   working: ImageData
