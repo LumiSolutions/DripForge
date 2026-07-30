@@ -52,6 +52,7 @@ import {
   normalizeShowTopProductsOnHomepage,
   normalizeTopProductsCount,
 } from "@/lib/dripforge/top-products-settings"
+import { normalizeCompanySettings } from "@/lib/dripforge/company-settings"
 import {
   DEFAULT_ORDER_EMAIL_TEMPLATES,
   ORDER_EMAIL_PLACEHOLDER_HINT,
@@ -137,7 +138,7 @@ export function AdminSettingsTab() {
       const laserRes = await fetch("/api/admin/laser-configurator")
       const laserData = laserRes.ok ? await laserRes.json() : null
       setCheckout(data.checkout ?? DEFAULT_CHECKOUT_RUNTIME_CONFIG)
-      setCompany({ ...DEFAULT_COMPANY_SETTINGS, ...data.company })
+      setCompany(normalizeCompanySettings(data.company))
       setShopLive(Boolean(data.launch?.shopLive))
       setLaunch({
         ...DEFAULT_LAUNCH_SETTINGS,
@@ -249,7 +250,7 @@ export function AdminSettingsTab() {
         throw new Error(laserErr.error ?? "Laser-Konfigurator konnte nicht gespeichert werden.")
       }
       setCheckout(data.checkout)
-      setCompany({ ...DEFAULT_COMPANY_SETTINGS, ...data.company })
+      setCompany(normalizeCompanySettings(data.company))
       setLaunch({
         ...DEFAULT_LAUNCH_SETTINGS,
         ...data.launch,
@@ -1324,9 +1325,25 @@ export function AdminSettingsTab() {
                   onChange={(e) =>
                     setCompany((prev) => ({ ...prev, kontaktEmail: e.target.value }))
                   }
-                  placeholder="drip-forge@outlook.com"
+                  placeholder="shop@dripforge.ch"
                   className={adminUi.input}
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label className={adminUi.label}>Telefonnummer</Label>
+                <Input
+                  type="tel"
+                  value={company.telefonnummer ?? ""}
+                  onChange={(e) =>
+                    setCompany((prev) => ({ ...prev, telefonnummer: e.target.value }))
+                  }
+                  placeholder="+41 79 000 00 00"
+                  className={adminUi.input}
+                />
+                <p className={cn("text-xs", adminUi.muted)}>
+                  Optional — erscheint im Footer, auf der Kontaktseite und im Impressum.
+                </p>
               </div>
 
               <div className="space-y-2">

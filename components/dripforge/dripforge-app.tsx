@@ -41,8 +41,10 @@ import { PageAiConfigurator } from "@/components/dripforge/views/page-ai-configu
 import { PageWarenkorb } from "@/components/dripforge/views/page-warenkorb"
 import { PageCheckout } from "@/components/dripforge/views/page-checkout"
 import { useAiPublicSettings } from "@/hooks/use-ai-public-settings"
+import { useCompanySettings } from "@/components/dripforge/company-settings-provider"
 
 export default function DripForgeApp() {
+  const { company } = useCompanySettings()
   const [currentView, setCurrentView] = useState("home")
   const [selectedMaterial, setSelectedMaterial] = useState("pla")
   const [chatOpen, setChatOpen] = useState(false)
@@ -148,7 +150,7 @@ export default function DripForgeApp() {
       setChatMessages(prev => [...prev, {
         id: (Date.now() + 1).toString(),
         role: "assistant" as const,
-        content: "Vielen Dank für Ihre Nachricht! Unser Team wird sich in Kürze bei Ihnen melden. Für dringende Anfragen erreichen Sie uns unter drip-forge@outlook.com"
+        content: `Vielen Dank für Ihre Nachricht! Unser Team wird sich in Kürze bei Ihnen melden. Für dringende Anfragen erreichen Sie uns unter ${company.kontaktEmail}`
       }])
     }, 1000)
   }

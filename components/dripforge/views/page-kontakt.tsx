@@ -5,6 +5,7 @@ import {
   MessageSquare,
   Mail,
   MapPin,
+  Phone,
   Clock,
   Send,
   CheckCircle2,
@@ -18,8 +19,14 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { isValidKontaktEmail } from "@/lib/admin/kontaktanfrage-types"
+import { useCompanySettings } from "@/components/dripforge/company-settings-provider"
 
 export function PageKontakt({ setCurrentView }: { setCurrentView: (view: string) => void }) {
+  const {
+    company: companySettings,
+    mailtoHref,
+    telHref,
+  } = useCompanySettings()
   const [inquiryType, setInquiryType] = useState("")
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
@@ -240,16 +247,40 @@ export function PageKontakt({ setCurrentView }: { setCurrentView: (view: string)
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground">E-Mail</p>
-                      <p className="font-medium">drip-forge@outlook.com</p>
+                      <a href={mailtoHref} className="font-medium hover:text-primary">
+                        {companySettings.kontaktEmail}
+                      </a>
                     </div>
                   </li>
+                  {companySettings.telefonnummer ? (
+                    <li className="flex items-start gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/20">
+                        <Phone className="h-5 w-5 text-primary" />
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Telefon</p>
+                        {telHref ? (
+                          <a href={telHref} className="font-medium hover:text-primary">
+                            {companySettings.telefonnummer}
+                          </a>
+                        ) : (
+                          <p className="font-medium">{companySettings.telefonnummer}</p>
+                        )}
+                      </div>
+                    </li>
+                  ) : null}
                   <li className="flex items-start gap-3">
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-green-500/20">
                       <MapPin className="h-5 w-5 text-green-400" />
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground">Standort</p>
-                      <p className="font-medium">Schweiz</p>
+                      <p className="whitespace-pre-line font-medium">
+                        {companySettings.firmenname}
+                        {companySettings.firmenAdresse
+                          ? `\n${companySettings.firmenAdresse}`
+                          : ""}
+                      </p>
                     </div>
                   </li>
                 </ul>

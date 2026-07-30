@@ -10,7 +10,7 @@ export const LEGAL_SITE_TEXT_DEFAULTS = {
 
   agb_section_1_title: "1. Geltungsbereich & Vertragspartner",
   agb_section_1_body:
-    "Diese Allgemeinen Geschäftsbedingungen (AGB) gelten für alle Bestellungen über den Onlineshop von DripForge. Vertragspartner ist DripForge, Inhaber Robin Schulz, Mattenstrasse 7, 8330 Pfäffikon ZH. Mit dem Absenden einer Bestellung erkennt der Kunde diese AGB vollumfänglich an.",
+    "Diese Allgemeinen Geschäftsbedingungen (AGB) gelten für alle Bestellungen über den Onlineshop von {firmenname}. Vertragspartner ist {firmenname}, {firmenAdresse}. Mit dem Absenden einer Bestellung erkennt der Kunde diese AGB vollumfänglich an.",
 
   agb_section_2_title: "2. Transparenz & Preise (Art. 3 Abs. 1 lit. s UWG)",
   agb_section_2_body:
@@ -50,7 +50,7 @@ export const LEGAL_SITE_TEXT_DEFAULTS = {
 
   agb_section_11_title: "11. Gerichtsstand (Art. 10 ff. ZPO)",
   agb_section_11_body:
-    "Für alle vertraglichen Streitigkeiten wird, soweit gesetzlich zulässig und unter Berücksichtigung der Bestimmungen der Schweizerischen Zivilprozessordnung (ZPO), der Sitz von DripForge (Pfäffikon ZH) als ausschliesslicher Gerichtsstand vereinbart.",
+    "Für alle vertraglichen Streitigkeiten wird, soweit gesetzlich zulässig und unter Berücksichtigung der Bestimmungen der Schweizerischen Zivilprozessordnung (ZPO), der Sitz von {firmenname} als ausschliesslicher Gerichtsstand vereinbart.",
 
   impressum_hero_badge: "Rechtliches",
   impressum_hero_title_prefix: "Imp",
@@ -58,12 +58,11 @@ export const LEGAL_SITE_TEXT_DEFAULTS = {
   impressum_hero_title_suffix: "um",
 
   impressum_section_1_title: "Unternehmensidentifikation",
-  impressum_section_1_body:
-    "DripForge\nRobin Schulz\nMattenstrasse 7\n8330 Pfäffikon ZH\nSchweiz",
+  impressum_section_1_body: "{firmenname}\n{firmenAdresse}",
 
   impressum_section_2_title: "Kontaktmöglichkeit",
   impressum_section_2_body:
-    "E-Mail: drip-forge@outlook.com\nKontaktformular: Über unsere Website",
+    "E-Mail: {kontaktEmail}\nTelefon: {telefonnummer}\nKontaktformular: Über unsere Website",
 
   impressum_section_3_title: "Handelsregister & Mehrwertsteuer",
   impressum_section_3_body:
@@ -89,7 +88,7 @@ export const LEGAL_SITE_TEXT_DEFAULTS = {
 
   datenschutz_section_1_title: "1. Allgemeine Informationen",
   datenschutz_section_1_body:
-    "Verantwortliche Stelle für die Datenverarbeitung auf dieser Website im Sinne des Schweizerischen Datenschutzgesetzes (DSG) ist DripForge, Inhaber Robin Schulz, Mattenstrasse 7, 8330 Pfäffikon ZH (E-Mail: drip-forge@outlook.com). Wir nehmen den Schutz deiner persönlichen Daten sehr ernst und behandeln deine personenbezogenen Daten vertraulich und entsprechend der gesetzlichen Vorschriften.",
+    "Verantwortliche Stelle für die Datenverarbeitung auf dieser Website im Sinne des Schweizerischen Datenschutzgesetzes (DSG) ist {firmenname}, {firmenAdresse} (E-Mail: {kontaktEmail}). Wir nehmen den Schutz deiner persönlichen Daten sehr ernst und behandeln deine personenbezogenen Daten vertraulich und entsprechend der gesetzlichen Vorschriften.",
 
   datenschutz_section_2_title: "2. Erfassung und Verarbeitung von Personendaten",
   datenschutz_section_2_body:

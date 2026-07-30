@@ -12,7 +12,6 @@ import type {
   StoredCustomer,
   StoredOrder,
 } from "@/lib/admin/types"
-import { DEFAULT_COMPANY_SETTINGS as DEFAULT_COMPANY } from "@/lib/admin/types"
 import {
   DEFAULT_LAUNCH_SETTINGS,
   DEFAULT_SERVICE_VISIBILITY,
@@ -32,6 +31,7 @@ import {
 } from "@/lib/dripforge/theme-inbound-tour-settings"
 import { normalizeLaunchSettings } from "@/lib/dripforge/countdown-settings"
 import { normalizeEnableRewardPointsSystem } from "@/lib/dripforge/reward-points-settings"
+import { normalizeCompanySettings } from "@/lib/dripforge/company-settings"
 import {
   DEFAULT_LOYALTY_EARN_PERCENT,
   DEFAULT_LOYALTY_EXPIRY_MONTHS,
@@ -524,7 +524,7 @@ async function getSettingsFromFile(): Promise<AdminSettings> {
     const services = normalizeServiceVisibility(stored.services)
     return {
       checkout: stored.checkout,
-      company: { ...DEFAULT_COMPANY, ...stored.company },
+      company: normalizeCompanySettings(stored.company),
     launch: normalizeLaunchSettings(stored.launch),
       services,
       shopConfigurators: normalizeShopConfigurators(
@@ -563,7 +563,7 @@ async function getSettingsFromFile(): Promise<AdminSettings> {
   }
   const defaults: AdminSettings = {
     checkout: { ...DEFAULT_CHECKOUT_RUNTIME_CONFIG },
-    company: { ...DEFAULT_COMPANY },
+    company: normalizeCompanySettings(null),
     launch: { ...DEFAULT_LAUNCH_SETTINGS },
     services: { ...DEFAULT_SERVICE_VISIBILITY },
     shopConfigurators: normalizeShopConfigurators(null, DEFAULT_SERVICE_VISIBILITY),
@@ -628,10 +628,10 @@ export async function saveSettings(input: {
   })
   const next: AdminSettings = {
     checkout: input.checkout,
-    company: {
+    company: normalizeCompanySettings({
       ...current.company,
       ...input.company,
-    },
+    }),
     launch: normalizeLaunchSettings({
       ...current.launch,
       ...input.launch,
@@ -947,6 +947,7 @@ export async function saveDocumentTemplateSettings(
       iban: saved.iban,
       bankname: saved.bankname,
       kontaktEmail: saved.kontaktEmail,
+      telefonnummer: current.company.telefonnummer ?? "",
     },
   })
 

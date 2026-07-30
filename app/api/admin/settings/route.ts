@@ -88,6 +88,7 @@ export async function PUT(request: Request) {
       kontaktEmail:
         body.company?.kontaktEmail?.trim() ??
         DEFAULT_COMPANY_SETTINGS.kontaktEmail,
+      telefonnummer: body.company?.telefonnummer?.trim() ?? "",
     }
 
     const services = normalizeServiceVisibility(body.services)

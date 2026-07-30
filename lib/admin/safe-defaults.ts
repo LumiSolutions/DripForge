@@ -1,13 +1,13 @@
 import { DEFAULT_CHECKOUT_RUNTIME_CONFIG } from "@/lib/dripforge/checkout-config"
 import type { AdminSettings } from "@/lib/admin/types"
 import {
-  DEFAULT_COMPANY_SETTINGS,
   DEFAULT_LAUNCH_SETTINGS,
   DEFAULT_SERVICE_VISIBILITY,
   DEFAULT_SHOP_CONFIGURATORS,
 } from "@/lib/admin/types"
 import { normalizeServiceVisibility } from "@/lib/dripforge/service-visibility"
 import { normalizeShopConfigurators } from "@/lib/dripforge/shop-configurators"
+import { normalizeCompanySettings } from "@/lib/dripforge/company-settings"
 import {
   DEFAULT_LOYALTY_EARN_PERCENT,
   DEFAULT_LOYALTY_EXPIRY_MONTHS,
@@ -22,7 +22,7 @@ import {
 export function buildDefaultAdminSettings(): AdminSettings {
   return {
     checkout: { ...DEFAULT_CHECKOUT_RUNTIME_CONFIG },
-    company: { ...DEFAULT_COMPANY_SETTINGS },
+    company: normalizeCompanySettings(null),
     launch: { ...DEFAULT_LAUNCH_SETTINGS },
     services: { ...DEFAULT_SERVICE_VISIBILITY },
     shopConfigurators: { ...DEFAULT_SHOP_CONFIGURATORS },

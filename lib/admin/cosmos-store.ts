@@ -34,6 +34,7 @@ import {
 } from "@/lib/dripforge/theme-inbound-tour-settings"
 import { normalizeLaunchSettings } from "@/lib/dripforge/countdown-settings"
 import { normalizeEnableRewardPointsSystem } from "@/lib/dripforge/reward-points-settings"
+import { normalizeCompanySettings } from "@/lib/dripforge/company-settings"
 import {
   DEFAULT_LOYALTY_EARN_PERCENT,
   DEFAULT_LOYALTY_EXPIRY_MONTHS,
@@ -59,7 +60,6 @@ import type {
   StoredCustomer,
   StoredOrder,
 } from "@/lib/admin/types"
-import { DEFAULT_COMPANY_SETTINGS as DEFAULT_COMPANY } from "@/lib/admin/types"
 import { DEFAULT_LAUNCH_SETTINGS, DEFAULT_SERVICE_VISIBILITY } from "@/lib/admin/types"
 import { normalizeServiceVisibility } from "@/lib/dripforge/service-visibility"
 import { normalizeShopConfigurators } from "@/lib/dripforge/shop-configurators"
@@ -412,7 +412,7 @@ export async function cosmosGetSettings(): Promise<AdminSettings> {
       const services = normalizeServiceVisibility(resource.services)
       return {
         checkout: resource.checkout,
-        company: { ...DEFAULT_COMPANY, ...resource.company },
+        company: normalizeCompanySettings(resource.company),
         launch: normalizeLaunchSettings(resource.launch),
         services,
         shopConfigurators: normalizeShopConfigurators(
@@ -459,7 +459,7 @@ export async function cosmosGetSettings(): Promise<AdminSettings> {
 
   const defaults: AdminSettings = {
     checkout: { ...DEFAULT_CHECKOUT_RUNTIME_CONFIG },
-    company: { ...DEFAULT_COMPANY },
+    company: normalizeCompanySettings(null),
     launch: { ...DEFAULT_LAUNCH_SETTINGS },
     services: { ...DEFAULT_SERVICE_VISIBILITY },
     shopConfigurators: normalizeShopConfigurators(null, DEFAULT_SERVICE_VISIBILITY),
