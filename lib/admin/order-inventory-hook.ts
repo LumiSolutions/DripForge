@@ -5,6 +5,7 @@ import {
 } from "@/lib/admin/material-orders"
 import { getOrderById, saveOrder } from "@/lib/admin/db"
 import type { OrderStatus, StoredOrder } from "@/lib/admin/types"
+import { reverseLoyaltyPointsForStoredOrder } from "@/lib/shop/loyalty-order-reversal"
 
 export async function applyInventoryReservationForOrder(
   order: StoredOrder
@@ -67,10 +68,16 @@ export async function updateOrderStatusWithInventory(
       inventoryState: "released",
     }
     await saveOrder(next)
+    if (order.status !== "storniert") {
+      await reverseLoyaltyPointsForStoredOrder(next)
+    }
     return next
   }
 
   const next: StoredOrder = { ...order, status }
   await saveOrder(next)
+  if (status === "storniert" && order.status !== "storniert") {
+    await reverseLoyaltyPointsForStoredOrder(next)
+  }
   return next
 }

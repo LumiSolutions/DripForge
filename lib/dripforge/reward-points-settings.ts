@@ -3,18 +3,19 @@
 import {
   DEFAULT_LOYALTY_EARN_PERCENT,
   DEFAULT_LOYALTY_EXPIRY_MONTHS,
-  LOYALTY_POINT_VALUE_CHF,
+  DEFAULT_LOYALTY_POINT_VALUE_CHF,
   normalizeLoyaltyEarnPercent,
   normalizeLoyaltyExpiryMonths,
+  normalizeLoyaltyPointValueChf,
 } from "@/lib/konto/loyalty-points-config"
 
 export type RewardPointsPublicSettings = {
   enableRewardPointsSystem: boolean
-  /** Punkte-Gutschrift in % vom Einkaufswert (z. B. 10). */
+  /** Punkte-Gutschrift in % vom Einkaufswert (100 = 1 CHF → 1 Punkt). */
   loyaltyEarnPercent: number
   /** Ablaufdauer der Punkte in Monaten. */
   loyaltyPointsExpiryMonths: number
-  /** Gegenwert eines Punktes in CHF (fest 1.00). */
+  /** Einlösewert eines Punktes in CHF (Rabatt). */
   loyaltyPointValueChf: number
 }
 
@@ -27,6 +28,7 @@ export function buildRewardPointsPublicSettings(
     enableRewardPointsSystem?: unknown
     loyaltyEarnPercent?: unknown
     loyaltyPointsExpiryMonths?: unknown
+    loyaltyPointValueChf?: unknown
   } | null
 ): RewardPointsPublicSettings {
   return {
@@ -39,6 +41,8 @@ export function buildRewardPointsPublicSettings(
     loyaltyPointsExpiryMonths: normalizeLoyaltyExpiryMonths(
       input?.loyaltyPointsExpiryMonths ?? DEFAULT_LOYALTY_EXPIRY_MONTHS
     ),
-    loyaltyPointValueChf: LOYALTY_POINT_VALUE_CHF,
+    loyaltyPointValueChf: normalizeLoyaltyPointValueChf(
+      input?.loyaltyPointValueChf ?? DEFAULT_LOYALTY_POINT_VALUE_CHF
+    ),
   }
 }

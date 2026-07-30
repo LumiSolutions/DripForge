@@ -1,6 +1,6 @@
 import { normalizeCustomerEmail } from "@/lib/admin/customers"
 import {
-  chfToLoyaltyPoints,
+  chfToPurchasedLoyaltyPoints,
   createPointsPurchaseId,
   grantLoyaltyPoints,
   LOYALTY_POINT_PACKAGES,
@@ -51,7 +51,7 @@ export function resolveCheckoutPointsPurchase(
     if (amountChf > 500) {
       throw new Error("Maximal 500.00 CHF pro Punktekauf.")
     }
-    points = chfToLoyaltyPoints(amountChf)
+    points = chfToPurchasedLoyaltyPoints(amountChf)
     label = `${points} Punkte`
   } else {
     throw new Error("Kein Punktepaket ausgewählt.")
@@ -102,7 +102,7 @@ export function resolvePointsPurchase(
     if (amountChf > 500) {
       throw new Error("Maximal 500.00 CHF pro Punktekauf.")
     }
-    points = chfToLoyaltyPoints(amountChf)
+    points = chfToPurchasedLoyaltyPoints(amountChf)
     label = `${points} Punkte`
   }
 

@@ -122,7 +122,10 @@ export async function deleteAccountById(accountId: string): Promise<boolean> {
   )
 }
 
-export function toPublicAccount(account: CustomerAccount) {
+export function toPublicAccount(
+  account: CustomerAccount,
+  options?: { pointValueChf?: number }
+) {
   const loyaltyPoints = getEffectiveLoyaltyPoints(account)
   return {
     email: account.email,
@@ -138,7 +141,10 @@ export function toPublicAccount(account: CustomerAccount) {
     deliverySameAsBilling: account.deliverySameAsBilling ?? true,
     kundennummer: account.kundennummer,
     loyaltyPoints,
-    loyaltyBalanceChf: loyaltyPointsToChf(loyaltyPoints),
+    loyaltyBalanceChf: loyaltyPointsToChf(
+      loyaltyPoints,
+      options?.pointValueChf
+    ),
     createdAt: account.createdAt,
   }
 }

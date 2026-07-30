@@ -1,10 +1,16 @@
 /** Client-sichere Konstanten und reine Hilfsfunktionen (kein Cosmos/fs). */
 
-/** 1 Punkt = CHF 1.00 Gegenwert */
-export const LOYALTY_POINT_VALUE_CHF = 1
+/** Standard-Einlösewert: 1 Punkt = CHF 1.00 Rabatt (überschreibbar in Admin). */
+export const DEFAULT_LOYALTY_POINT_VALUE_CHF = 1
 
-/** Standard: 10 % des bezahlten Umsatzes als Punkte (überschreibbar in Admin). */
-export const DEFAULT_LOYALTY_EARN_PERCENT = 10
+/** @deprecated Nutze DEFAULT_LOYALTY_POINT_VALUE_CHF / Admin-Einstellung. */
+export const LOYALTY_POINT_VALUE_CHF = DEFAULT_LOYALTY_POINT_VALUE_CHF
+
+/**
+ * Standard-Sammelrate: 100 % vom Einkaufswert → 1 CHF Einkauf = 1 Punkt.
+ * (überschreibbar in Admin, z. B. 10 % → CHF 100 = 10 Punkte).
+ */
+export const DEFAULT_LOYALTY_EARN_PERCENT = 100
 
 /** Standard: Punkte ab Gutschrift 6 Monate gültig. */
 export const DEFAULT_LOYALTY_EXPIRY_MONTHS = 6
@@ -14,7 +20,7 @@ export const LOYALTY_EARN_RATE = DEFAULT_LOYALTY_EARN_PERCENT / 100
 
 export const LOYALTY_MIN_GATEWAY_PAYMENT_CHF = 0.5
 
-/** Kaufpakete: 1 Punkt = CHF 1.00 */
+/** Kaufpakete: Bezahlter CHF-Betrag = Punkteanzahl (1 CHF → 1 Punkt). */
 export const LOYALTY_POINT_PACKAGES = [
   { id: "100", points: 100, priceChf: 100, label: "100 Punkte" },
   { id: "500", points: 500, priceChf: 500, label: "500 Punkte" },
@@ -25,6 +31,9 @@ export type LoyaltyPointTransactionType =
   | "redeem_order"
   | "purchase"
   | "adjustment"
+  | "earn_order_reversal"
+  | "redeem_order_restore"
+  | "purchase_reversal"
 
 export type LoyaltyPointTransaction = {
   id: string
@@ -47,7 +56,7 @@ export type LoyaltyPointLot = {
   referenceId: string
   source: Extract<
     LoyaltyPointTransactionType,
-    "earn_order" | "purchase" | "adjustment"
+    "earn_order" | "purchase" | "adjustment" | "redeem_order_restore"
   >
 }
 
@@ -69,18 +78,41 @@ export function normalizeLoyaltyExpiryMonths(value: unknown): number {
   return Math.min(120, Math.max(1, Math.floor(n)))
 }
 
-export function loyaltyPointsToChf(points: number): number {
-  return Math.round(normalizeLoyaltyPoints(points) * LOYALTY_POINT_VALUE_CHF * 100) / 100
+/** Einlösewert pro Punkt in CHF (z. B. 1.00 oder 0.10). */
+export function normalizeLoyaltyPointValueChf(value: unknown): number {
+  const n = Number(value)
+  if (!Number.isFinite(n) || n <= 0) return DEFAULT_LOYALTY_POINT_VALUE_CHF
+  return Math.min(100, Math.max(0.01, Math.round(n * 100) / 100))
 }
 
-export function chfToLoyaltyPoints(chf: number): number {
+export function loyaltyPointsToChf(
+  points: number,
+  pointValueChf: number = DEFAULT_LOYALTY_POINT_VALUE_CHF
+): number {
+  const value = normalizeLoyaltyPointValueChf(pointValueChf)
+  return Math.round(normalizeLoyaltyPoints(points) * value * 100) / 100
+}
+
+/** Wie viele Punkte entsprechen einem CHF-Rabatt (Einlösewert). */
+export function chfToLoyaltyPoints(
+  chf: number,
+  pointValueChf: number = DEFAULT_LOYALTY_POINT_VALUE_CHF
+): number {
   if (!Number.isFinite(chf) || chf <= 0) return 0
-  return Math.floor(chf / LOYALTY_POINT_VALUE_CHF)
+  const value = normalizeLoyaltyPointValueChf(pointValueChf)
+  return Math.floor(chf / value)
+}
+
+/** Punktekauf: 1 CHF Zahlung = 1 Punkt (unabhängig vom Einlösewert). */
+export function chfToPurchasedLoyaltyPoints(chf: number): number {
+  if (!Number.isFinite(chf) || chf <= 0) return 0
+  return Math.floor(chf)
 }
 
 /**
- * Punkte-Gutschrift aus Umsatz.
- * Bei 10 % und CHF 100 → 10 Punkte (= CHF 10.00).
+ * Punkte-Gutschrift aus Umsatz (Sammelrate).
+ * Bei 100 % und CHF 100 → 100 Punkte. Bei 10 % → 10 Punkte.
+ * Unabhängig vom Einlöse-Gegenwert.
  */
 export function calculateEarnedLoyaltyPoints(
   paidTotalChf: number,
@@ -89,7 +121,7 @@ export function calculateEarnedLoyaltyPoints(
   const amount = Number(paidTotalChf)
   if (!Number.isFinite(amount) || amount <= 0) return 0
   const percent = normalizeLoyaltyEarnPercent(earnPercent)
-  return Math.floor((amount * (percent / 100)) / LOYALTY_POINT_VALUE_CHF)
+  return Math.floor(amount * (percent / 100))
 }
 
 /** Umsatzbasis für Punkte-Gutschrift (ohne Punktekauf-Aufschlag). */
@@ -107,20 +139,25 @@ export function calculateLoyaltyEarnBaseChf(totals: {
   return Math.max(0, Math.round(base * 100) / 100)
 }
 
-export function calculatePointsDiscountChf(points: number): number {
-  return loyaltyPointsToChf(points)
+export function calculatePointsDiscountChf(
+  points: number,
+  pointValueChf: number = DEFAULT_LOYALTY_POINT_VALUE_CHF
+): number {
+  return loyaltyPointsToChf(points, pointValueChf)
 }
 
 export function maxRedeemablePoints(
   availablePoints: number,
   totalBeforePoints: number,
-  minPaymentChf = LOYALTY_MIN_GATEWAY_PAYMENT_CHF
+  minPaymentChf = LOYALTY_MIN_GATEWAY_PAYMENT_CHF,
+  pointValueChf: number = DEFAULT_LOYALTY_POINT_VALUE_CHF
 ): number {
   const available = normalizeLoyaltyPoints(availablePoints)
   if (available <= 0 || totalBeforePoints <= 0) return 0
 
+  const value = normalizeLoyaltyPointValueChf(pointValueChf)
   const maxDiscountChf = Math.max(0, totalBeforePoints - minPaymentChf)
-  const maxFromTotal = Math.floor(maxDiscountChf / LOYALTY_POINT_VALUE_CHF)
+  const maxFromTotal = Math.floor(maxDiscountChf / value)
   return Math.min(available, maxFromTotal)
 }
 
@@ -174,7 +211,6 @@ export function consumeLoyaltyLotsFifo(
   if (remaining <= 0) return { lots: [...lots], consumed: 0 }
 
   const next = lots.map((lot) => ({ ...lot }))
-  // Älteste zuerst
   const order = [...next.keys()].sort(
     (a, b) =>
       new Date(next[a].createdAt).getTime() - new Date(next[b].createdAt).getTime()
@@ -197,6 +233,36 @@ export function consumeLoyaltyLotsFifo(
   }
 
   return { lots: next, consumed }
+}
+
+/**
+ * Zieht Punkte einer bestimmten Gutschrift-Referenz ab (Storno).
+ */
+export function revokeLoyaltyLotsByReference(
+  lots: LoyaltyPointLot[],
+  referenceId: string,
+  maxPoints?: number
+): { lots: LoyaltyPointLot[]; revoked: number } {
+  const ref = referenceId.trim()
+  let remaining =
+    maxPoints == null ? Number.POSITIVE_INFINITY : normalizeLoyaltyPoints(maxPoints)
+  if (!ref || remaining <= 0) return { lots: [...lots], revoked: 0 }
+
+  const next = lots.map((lot) => ({ ...lot }))
+  let revoked = 0
+
+  for (const lot of next) {
+    if (remaining <= 0) break
+    if (lot.referenceId !== ref) continue
+    const available = normalizeLoyaltyPoints(lot.remaining)
+    if (available <= 0) continue
+    const take = Math.min(available, remaining)
+    lot.remaining = available - take
+    remaining -= take
+    revoked += take
+  }
+
+  return { lots: next, revoked }
 }
 
 /**

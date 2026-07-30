@@ -6,6 +6,7 @@ import { cosmosGetCustomerByEmail } from "@/lib/admin/cosmos-store"
 import { saveCustomer } from "@/lib/admin/customer-store"
 import { deleteOrder, getCustomerByNumber, getOrderById } from "@/lib/admin/db"
 import { CosmosDatabaseError } from "@/lib/admin/storage-bridge"
+import { reverseLoyaltyPointsForStoredOrder } from "@/lib/shop/loyalty-order-reversal"
 
 export class HardDeleteOrderError extends Error {
   constructor(
@@ -31,6 +32,8 @@ export async function hardDeleteOrder(orderId: string): Promise<void> {
   if (!order) {
     throw new HardDeleteOrderError("Bestellung nicht gefunden.", 404)
   }
+
+  await reverseLoyaltyPointsForStoredOrder(order)
 
   try {
     const belege = await cosmosFindBelegeBySourceOrderId(trimmed)

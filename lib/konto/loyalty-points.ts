@@ -7,9 +7,9 @@ import {
   consumeLoyaltyLotsFifo,
   DEFAULT_LOYALTY_EXPIRY_MONTHS,
   ensureLoyaltyLots,
-  isPointsPurchaseReference,
   normalizeLoyaltyExpiryMonths,
   normalizeLoyaltyPoints,
+  revokeLoyaltyLotsByReference,
   sumActiveLoyaltyLotRemaining,
   type LoyaltyPointLot,
   type LoyaltyPointTransaction,
@@ -18,6 +18,7 @@ import {
 
 export {
   LOYALTY_POINT_VALUE_CHF,
+  DEFAULT_LOYALTY_POINT_VALUE_CHF,
   LOYALTY_EARN_RATE,
   DEFAULT_LOYALTY_EARN_PERCENT,
   DEFAULT_LOYALTY_EXPIRY_MONTHS,
@@ -26,8 +27,10 @@ export {
   normalizeLoyaltyPoints,
   normalizeLoyaltyEarnPercent,
   normalizeLoyaltyExpiryMonths,
+  normalizeLoyaltyPointValueChf,
   loyaltyPointsToChf,
   chfToLoyaltyPoints,
+  chfToPurchasedLoyaltyPoints,
   calculateEarnedLoyaltyPoints,
   calculatePointsDiscountChf,
   calculateLoyaltyEarnBaseChf,
@@ -37,6 +40,7 @@ export {
   addMonthsToIso,
   ensureLoyaltyLots,
   sumActiveLoyaltyLotRemaining,
+  revokeLoyaltyLotsByReference,
 } from "@/lib/konto/loyalty-points-config"
 
 export type {
@@ -289,4 +293,256 @@ export async function syncLoyaltyAccountBalance(
     return account
   }
   return saveAccount({ ...account, ...synced })
+}
+export type ReverseLoyaltyForOrderResult = {
+  success: boolean
+  revokedEarn: number
+  restoredRedeem: number
+  revokedPurchase: number
+  reason?: string
+}
+
+/**
+ * Storno/Löschung: gutgeschriebene Punkte abziehen, eingelöste Punkte zurückgeben.
+ * Idempotent über Grant-Keys `revoke-earn:`, `restore-redeem:`, `revoke-purchase:`.
+ */
+export async function reverseLoyaltyPointsForOrder(
+  email: string,
+  order: {
+    orderId: string
+    totals?: {
+      pointsRedeemed?: number
+      pointsPurchased?: number
+    }
+  },
+  options?: { expiryMonths?: number }
+): Promise<ReverseLoyaltyForOrderResult> {
+  const normalizedEmail = normalizeCustomerEmail(email)
+  const orderId = order.orderId?.trim()
+  const expiryMonths = normalizeLoyaltyExpiryMonths(
+    options?.expiryMonths ?? DEFAULT_LOYALTY_EXPIRY_MONTHS
+  )
+
+  if (!normalizedEmail || !orderId) {
+    return {
+      success: false,
+      revokedEarn: 0,
+      restoredRedeem: 0,
+      revokedPurchase: 0,
+      reason: "invalid_input",
+    }
+  }
+
+  const account = await getAccountByEmail(normalizedEmail)
+  if (!account) {
+    return {
+      success: false,
+      revokedEarn: 0,
+      restoredRedeem: 0,
+      revokedPurchase: 0,
+      reason: "no_account",
+    }
+  }
+
+  const grants = ensureGrantMap(account)
+  const now = new Date()
+  let lots = ensureLoyaltyLots(account, expiryMonths, now)
+  let ledger = ensureLedger(account)
+  let revokedEarn = 0
+  let restoredRedeem = 0
+  let revokedPurchase = 0
+
+  const earnRef = `earn:${orderId}`
+  const earnGranted = normalizeLoyaltyPoints(grants[earnRef] ?? 0)
+  const revokeEarnKey = `revoke-earn:${orderId}`
+  if (earnGranted > 0 && grants[revokeEarnKey] == null) {
+    const result = revokeLoyaltyLotsByReference(lots, earnRef, earnGranted)
+    lots = result.lots
+    revokedEarn = result.revoked
+    grants[revokeEarnKey] = revokedEarn
+    ledger = appendTransaction(
+      { ...account, loyaltyPointTransactions: ledger },
+      {
+        type: "earn_order_reversal",
+        points: -revokedEarn,
+        referenceId: orderId,
+        note: `Storno Gutschrift Bestellung ${orderId}`,
+      }
+    )
+  }
+
+  const purchaseRef = `purchase:${orderId}`
+  const purchaseGranted = normalizeLoyaltyPoints(grants[purchaseRef] ?? 0)
+  const revokePurchaseKey = `revoke-purchase:${orderId}`
+  if (purchaseGranted > 0 && grants[revokePurchaseKey] == null) {
+    const result = revokeLoyaltyLotsByReference(lots, purchaseRef, purchaseGranted)
+    lots = result.lots
+    revokedPurchase = result.revoked
+    grants[revokePurchaseKey] = revokedPurchase
+    ledger = appendTransaction(
+      { ...account, loyaltyPointTransactions: ledger },
+      {
+        type: "purchase_reversal",
+        points: -revokedPurchase,
+        referenceId: orderId,
+        note: `Storno Punktekauf Bestellung ${orderId}`,
+      }
+    )
+  }
+
+  const redeemRef = `redeem:${orderId}`
+  const redeemed = normalizeLoyaltyPoints(
+    grants[redeemRef] ?? order.totals?.pointsRedeemed ?? 0
+  )
+  const restoreRedeemKey = `restore-redeem:${orderId}`
+  if (redeemed > 0 && grants[restoreRedeemKey] == null) {
+    const createdAt = now.toISOString()
+    const expiresAt = addMonthsToIso(createdAt, expiryMonths)
+    lots.push({
+      id: `lot-restore-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      points: redeemed,
+      remaining: redeemed,
+      createdAt,
+      expiresAt,
+      referenceId: restoreRedeemKey,
+      source: "redeem_order_restore",
+    })
+    restoredRedeem = redeemed
+    grants[restoreRedeemKey] = restoredRedeem
+    ledger = appendTransaction(
+      { ...account, loyaltyPointTransactions: ledger },
+      {
+        type: "redeem_order_restore",
+        points: restoredRedeem,
+        referenceId: orderId,
+        note: `Rückgabe Einlösung Bestellung ${orderId}`,
+        expiresAt,
+        createdAt,
+      }
+    )
+  }
+
+  if (revokedEarn === 0 && restoredRedeem === 0 && revokedPurchase === 0) {
+    return {
+      success: true,
+      revokedEarn: 0,
+      restoredRedeem: 0,
+      revokedPurchase: 0,
+      reason: "nothing_to_reverse",
+    }
+  }
+
+  const synced = withSyncedBalance(account, lots, now)
+  await saveAccount({
+    ...account,
+    ...synced,
+    loyaltyPointGrants: grants,
+    loyaltyPointTransactions: ledger.slice(-100),
+  })
+
+  return {
+    success: true,
+    revokedEarn,
+    restoredRedeem,
+    revokedPurchase,
+  }
+}
+
+/**
+ * Manuelle Admin-Anpassung (positiv = gutschreiben, negativ = abziehen).
+ * Erfordert zwingend eine Notiz für den Punkte-Verlauf.
+ */
+export async function adjustLoyaltyPoints(
+  email: string,
+  delta: number,
+  note: string,
+  options?: { expiryMonths?: number; adminLabel?: string }
+): Promise<LoyaltyPointsMutationResult> {
+  const normalizedEmail = normalizeCustomerEmail(email)
+  const amount = Math.trunc(Number(delta))
+  const noteText = note?.trim()
+  const expiryMonths = normalizeLoyaltyExpiryMonths(
+    options?.expiryMonths ?? DEFAULT_LOYALTY_EXPIRY_MONTHS
+  )
+
+  if (!normalizedEmail || !Number.isFinite(amount) || amount === 0) {
+    return { success: false, newBalance: 0, points: 0, reason: "invalid_input" }
+  }
+  if (!noteText) {
+    return { success: false, newBalance: 0, points: 0, reason: "note_required" }
+  }
+
+  const account = await getAccountByEmail(normalizedEmail)
+  if (!account) {
+    return { success: false, newBalance: 0, points: 0, reason: "no_account" }
+  }
+
+  const now = new Date()
+  const lots = ensureLoyaltyLots(account, expiryMonths, now)
+  const adminPart = options?.adminLabel?.trim()
+  const fullNote = adminPart ? `${noteText} (${adminPart})` : noteText
+  const ref = `adj:${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+
+  if (amount > 0) {
+    const createdAt = now.toISOString()
+    const expiresAt = addMonthsToIso(createdAt, expiryMonths)
+    lots.push({
+      id: `lot-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      points: amount,
+      remaining: amount,
+      createdAt,
+      expiresAt,
+      referenceId: ref,
+      source: "adjustment",
+    })
+    const synced = withSyncedBalance(account, lots, now)
+    await saveAccount({
+      ...account,
+      ...synced,
+      loyaltyPointTransactions: appendTransaction(account, {
+        type: "adjustment",
+        points: amount,
+        referenceId: ref,
+        note: fullNote,
+        expiresAt,
+        createdAt,
+      }),
+    })
+    return { success: true, newBalance: synced.loyaltyPoints!, points: amount }
+  }
+
+  const toDebit = Math.abs(amount)
+  const balance = sumActiveLoyaltyLotRemaining(lots, now)
+  if (balance < toDebit) {
+    return {
+      success: false,
+      newBalance: balance,
+      points: 0,
+      reason: "insufficient_points",
+    }
+  }
+
+  const { lots: afterLots, consumed } = consumeLoyaltyLotsFifo(lots, toDebit, now)
+  if (consumed < toDebit) {
+    return {
+      success: false,
+      newBalance: sumActiveLoyaltyLotRemaining(afterLots, now),
+      points: 0,
+      reason: "insufficient_points",
+    }
+  }
+
+  const synced = withSyncedBalance(account, afterLots, now)
+  await saveAccount({
+    ...account,
+    ...synced,
+    loyaltyPointTransactions: appendTransaction(account, {
+      type: "adjustment",
+      points: -toDebit,
+      referenceId: ref,
+      note: fullNote,
+    }),
+  })
+
+  return { success: true, newBalance: synced.loyaltyPoints!, points: -toDebit }
 }

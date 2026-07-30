@@ -38,8 +38,10 @@ import { normalizeCompanySettings } from "@/lib/dripforge/company-settings"
 import {
   DEFAULT_LOYALTY_EARN_PERCENT,
   DEFAULT_LOYALTY_EXPIRY_MONTHS,
+  DEFAULT_LOYALTY_POINT_VALUE_CHF,
   normalizeLoyaltyEarnPercent,
   normalizeLoyaltyExpiryMonths,
+  normalizeLoyaltyPointValueChf,
 } from "@/lib/konto/loyalty-points-config"
 import { normalizeOrderEmailTemplates } from "@/lib/email/order-email-templates"
 import {
@@ -434,6 +436,9 @@ export async function cosmosGetSettings(): Promise<AdminSettings> {
         loyaltyEarnPercent: normalizeLoyaltyEarnPercent(
           resource.loyaltyEarnPercent ?? DEFAULT_LOYALTY_EARN_PERCENT
         ),
+        loyaltyPointValueChf: normalizeLoyaltyPointValueChf(
+          resource.loyaltyPointValueChf ?? DEFAULT_LOYALTY_POINT_VALUE_CHF
+        ),
         loyaltyPointsExpiryMonths: normalizeLoyaltyExpiryMonths(
           resource.loyaltyPointsExpiryMonths ?? DEFAULT_LOYALTY_EXPIRY_MONTHS
         ),
@@ -470,6 +475,7 @@ export async function cosmosGetSettings(): Promise<AdminSettings> {
     themeInboundTourImageUrl: null,
     enableRewardPointsSystem: true,
     loyaltyEarnPercent: DEFAULT_LOYALTY_EARN_PERCENT,
+    loyaltyPointValueChf: DEFAULT_LOYALTY_POINT_VALUE_CHF,
     loyaltyPointsExpiryMonths: DEFAULT_LOYALTY_EXPIRY_MONTHS,
     showTopProductsOnHomepage: DEFAULT_SHOW_TOP_PRODUCTS_ON_HOMEPAGE,
     topProductsCount: DEFAULT_TOP_PRODUCTS_COUNT,

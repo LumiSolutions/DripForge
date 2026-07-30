@@ -189,8 +189,10 @@ export type AdminSettings = {
   themeInboundTourImageUrl?: string | null
   /** Treuepunkte-System (Kaufen, Einlösen, Konto-Anzeige) */
   enableRewardPointsSystem: boolean
-  /** Punkte-Gutschrift in % vom Einkaufswert (z. B. 5 oder 10). */
+  /** Punkte-Gutschrift in % vom Einkaufswert (100 = 1 CHF → 1 Punkt). */
   loyaltyEarnPercent: number
+  /** Einlösewert eines Punktes in CHF (z. B. 1.00 oder 0.10). */
+  loyaltyPointValueChf: number
   /** Ablaufdauer der Punkte ab Gutschrift (Monate). */
   loyaltyPointsExpiryMonths: number
   /** Sektion «Unsere Top Produkte» auf der Startseite anzeigen */

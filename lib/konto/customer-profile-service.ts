@@ -44,9 +44,12 @@ function sortLoyaltyHistory(account: CustomerAccount): LoyaltyPointTransaction[]
   )
 }
 
-export function toCustomerProfileResponse(account: CustomerAccount): CustomerProfileResponse {
+export function toCustomerProfileResponse(
+  account: CustomerAccount,
+  options?: { pointValueChf?: number }
+): CustomerProfileResponse {
   return {
-    ...toPublicAccount(account),
+    ...toPublicAccount(account, options),
     loyaltyPointHistory: sortLoyaltyHistory(account),
   }
 }
@@ -67,7 +70,9 @@ export async function getCustomerProfile(
       email,
       rewardCfg.loyaltyPointsExpiryMonths
     )) ?? account
-  return toCustomerProfileResponse(synced)
+  return toCustomerProfileResponse(synced, {
+    pointValueChf: rewardCfg.loyaltyPointValueChf,
+  })
 }
 
 export async function updateCustomerAddress(
@@ -89,5 +94,12 @@ export async function updateCustomerAddress(
     deliverySameAsBilling: input.deliverySameAsBilling,
   })
   const synced = await syncAccountToCrm(saved)
-  return toCustomerProfileResponse(synced)
+  const { getSettings } = await import("@/lib/admin/db")
+  const { buildRewardPointsPublicSettings } = await import(
+    "@/lib/dripforge/reward-points-settings"
+  )
+  const rewardCfg = buildRewardPointsPublicSettings(await getSettings())
+  return toCustomerProfileResponse(synced, {
+    pointValueChf: rewardCfg.loyaltyPointValueChf,
+  })
 }

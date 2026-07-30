@@ -91,6 +91,8 @@ export function calculateCheckoutTotalsWithDiscounts(
       discountValue: number
     } | null
     pointsToRedeem?: number
+    /** Einlösewert pro Punkt in CHF */
+    pointValueChf?: number
     pointsPurchase?: {
       amountChf: number
       points: number
@@ -110,7 +112,7 @@ export function calculateCheckoutTotalsWithDiscounts(
   if (points > 0) {
     const pointsDiscountChf = Math.min(
       withCoupon.total,
-      calculatePointsDiscountChf(points)
+      calculatePointsDiscountChf(points, options?.pointValueChf)
     )
     const finalTotal = Math.max(
       0,
