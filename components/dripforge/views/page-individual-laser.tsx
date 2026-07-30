@@ -24,6 +24,7 @@ import {
   type ImageLayout,
   type LaserFontId,
 } from "@/lib/dripforge/laser-design"
+import type { LaserDesignLayer } from "@/lib/dripforge/laser-layers"
 import {
   DEFAULT_LASER_PRICING_CONFIG,
   type LaserPricingConfig,
@@ -61,6 +62,8 @@ export function PageIndividualLaser({
   const [imageLayout, setImageLayout] = useState<ImageLayout>({
     ...DEFAULT_IMAGE_LAYOUT,
   })
+  const [layers, setLayers] = useState<LaserDesignLayer[]>([])
+  const [activeLayerId, setActiveLayerId] = useState<string | null>(null)
 
   const [selectedMaterialId, setSelectedMaterialId] =
     useState<IndividualLaserMaterialSelection>(defaultMaterial.id)
@@ -121,6 +124,8 @@ export function PageIndividualLaser({
         ...imageLayout,
         src: uploadedImageSrc ?? imageLayout.src,
       },
+      layers,
+      activeLayerId,
     }),
     [
       previewMaterial.types,
@@ -129,6 +134,8 @@ export function PageIndividualLaser({
       textLayout,
       imageLayout,
       uploadedImageSrc,
+      layers,
+      activeLayerId,
     ]
   )
 
@@ -142,6 +149,8 @@ export function PageIndividualLaser({
         setUploadedImageSrc(patch.imageLayout.src)
       }
     }
+    if (patch.layers !== undefined) setLayers(patch.layers)
+    if (patch.activeLayerId !== undefined) setActiveLayerId(patch.activeLayerId)
   }, [])
 
   const materialBase = isCustomerInbound

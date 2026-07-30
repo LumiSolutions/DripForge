@@ -1,6 +1,13 @@
 import type { ElementLayout } from "@/lib/dripforge/laser-design"
-import { clampScale } from "@/lib/dripforge/laser-design"
+import {
+  ABSOLUTE_MAX_LAYOUT_SCALE,
+  clampScale,
+  MIN_LAYOUT_SCALE,
+} from "@/lib/dripforge/laser-design"
 import type { WorkAreaMm } from "@/lib/dripforge/laser-work-area"
+
+/** Gestrichelter Gravurrahmen: inset 6% → nutzbare Fläche 88%. */
+export const ENGRAVING_FRAME_USABLE_FRACTION = 0.88
 
 export type ElementMmSize = {
   widthMm: number
@@ -56,50 +63,75 @@ export function clampLayoutPosition(
   }
 }
 
+/**
+ * Maximaler Scale, damit das Element die Gravurfläche (gestrichelt) in
+ * Breite oder Höhe zu 100% ausfüllt — ohne Seitenverhältnis-Verzerrung.
+ */
+export function computeMaxScaleToFitBounds(
+  canvasEl: HTMLDivElement,
+  elementEl: HTMLElement,
+  layout: ElementLayout,
+  usableFraction: number = ENGRAVING_FRAME_USABLE_FRACTION
+): number {
+  const canvasRect = canvasEl.getBoundingClientRect()
+  const elementRect = elementEl.getBoundingClientRect()
+  if (canvasRect.width <= 0 || canvasRect.height <= 0 || layout.scale <= 0) {
+    return layout.scale
+  }
+
+  const baseW = elementRect.width / layout.scale
+  const baseH = elementRect.height / layout.scale
+  if (baseW <= 0 || baseH <= 0) return layout.scale
+
+  const maxW = canvasRect.width * usableFraction
+  const maxH = canvasRect.height * usableFraction
+  const maxScale = Math.min(maxW / baseW, maxH / baseH, ABSOLUTE_MAX_LAYOUT_SCALE)
+  return Math.max(MIN_LAYOUT_SCALE, maxScale)
+}
+
+/** Skaliert auf Fit-to-Bounds (Maximieren). */
+export function fitLayoutScaleToBounds(
+  canvasEl: HTMLDivElement,
+  elementEl: HTMLElement,
+  layout: ElementLayout,
+  usableFraction: number = ENGRAVING_FRAME_USABLE_FRACTION
+): number {
+  return computeMaxScaleToFitBounds(canvasEl, elementEl, layout, usableFraction)
+}
+
 export function clampLayoutScaleToFit(
   canvasEl: HTMLDivElement,
   elementEl: HTMLElement | null,
   layout: ElementLayout,
-  scale: number
+  scale: number,
+  usableFraction: number = ENGRAVING_FRAME_USABLE_FRACTION
 ): number {
-  const nextScale = clampScale(scale)
-  if (!elementEl) return nextScale
-
-  const canvasRect = canvasEl.getBoundingClientRect()
-  const maxW = canvasRect.width * 0.92
-  const maxH = canvasRect.height * 0.92
-
-  const ratio = nextScale / layout.scale || 1
-  const projectedW = elementEl.getBoundingClientRect().width * ratio
-  const projectedH = elementEl.getBoundingClientRect().height * ratio
-
-  if (projectedW <= maxW && projectedH <= maxH) return nextScale
-
-  const shrinkW = maxW / projectedW
-  const shrinkH = maxH / projectedH
-  const shrink = Math.min(shrinkW, shrinkH, 1)
-
-  return clampScale(nextScale * shrink)
+  const maxScale = elementEl
+    ? computeMaxScaleToFitBounds(canvasEl, elementEl, layout, usableFraction)
+    : ABSOLUTE_MAX_LAYOUT_SCALE
+  return clampScale(scale, maxScale)
 }
 
 export function scaleForTargetWidthMm(
   currentScale: number,
   currentWidthMm: number,
   targetWidthMm: number,
-  maxWidthMm: number
+  maxWidthMm: number,
+  maxScale: number = ABSOLUTE_MAX_LAYOUT_SCALE
 ): number {
   if (currentWidthMm <= 0 || targetWidthMm <= 0) return currentScale
   const clampedTarget = Math.min(Math.max(targetWidthMm, 1), maxWidthMm)
-  return clampScale(currentScale * (clampedTarget / currentWidthMm))
+  return clampScale(currentScale * (clampedTarget / currentWidthMm), maxScale)
 }
 
 export function scaleForTargetHeightMm(
   currentScale: number,
   currentHeightMm: number,
   targetHeightMm: number,
-  maxHeightMm: number
+  maxHeightMm: number,
+  maxScale: number = ABSOLUTE_MAX_LAYOUT_SCALE
 ): number {
   if (currentHeightMm <= 0 || targetHeightMm <= 0) return currentScale
   const clampedTarget = Math.min(Math.max(targetHeightMm, 1), maxHeightMm)
-  return clampScale(currentScale * (clampedTarget / currentHeightMm))
+  return clampScale(currentScale * (clampedTarget / currentHeightMm), maxScale)
 }
