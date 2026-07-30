@@ -36,6 +36,8 @@ function proxyHref(url: string, filename?: string): string {
 export function getItemMockupSrc(item: StoredOrderItem): string | null {
   const src =
     item.previewMockupUrl ??
+    item.mockupPreviewUrl ??
+    item.mockup_preview_url ??
     item.previewMockup ??
     item.leitbildUrl ??
     item.leitbild ??

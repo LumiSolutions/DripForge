@@ -432,7 +432,6 @@ export function PageShop({
                   <ProductImageGallery
                     images={galleryImages}
                     alt={detailProduct.name}
-                    className="[&>div:first-child]:aspect-[4/5] sm:[&>div:first-child]:aspect-[3/4]"
                   />
                   <Card className="rounded-2xl border-border/50 bg-card/50 shadow-sm">
                     <CardContent className="p-4 sm:p-5">

@@ -76,6 +76,8 @@ export type LayoutPosition = {
   x: number
   y: number
   scale?: number
+  scaleX?: number
+  scaleY?: number
   rotation?: number
 }
 

@@ -15,6 +15,8 @@ export type LaserDesignLayer = {
   x: number
   y: number
   scale: number
+  scaleX?: number
+  scaleY?: number
   rotation: number
   /** Textinhalt (nur kind=text) */
   text?: string
@@ -40,12 +42,15 @@ function newId(prefix: string) {
 export function createTextLayer(
   partial?: Partial<LaserDesignLayer> & { text?: string; fontId?: LaserFontId }
 ): LaserDesignLayer {
+  const scale = partial?.scale ?? DEFAULT_TEXT_LAYOUT.scale
   return {
     id: partial?.id ?? newId("text"),
     kind: "text",
     x: partial?.x ?? DEFAULT_TEXT_LAYOUT.x,
     y: partial?.y ?? DEFAULT_TEXT_LAYOUT.y,
-    scale: partial?.scale ?? DEFAULT_TEXT_LAYOUT.scale,
+    scale,
+    scaleX: partial?.scaleX ?? scale,
+    scaleY: partial?.scaleY ?? scale,
     rotation: partial?.rotation ?? DEFAULT_TEXT_LAYOUT.rotation,
     text: partial?.text ?? "",
     fontId: partial?.fontId ?? DEFAULT_LASER_FONT_ID,
@@ -55,22 +60,28 @@ export function createTextLayer(
 export function createImageLayer(
   partial?: Partial<LaserDesignLayer> & { src?: string | null }
 ): LaserDesignLayer {
+  const scale = partial?.scale ?? DEFAULT_IMAGE_LAYOUT.scale
   return {
     id: partial?.id ?? newId("img"),
     kind: "image",
     x: partial?.x ?? DEFAULT_IMAGE_LAYOUT.x,
     y: partial?.y ?? DEFAULT_IMAGE_LAYOUT.y + (partial?.src ? 0 : 0),
-    scale: partial?.scale ?? DEFAULT_IMAGE_LAYOUT.scale,
+    scale,
+    scaleX: partial?.scaleX ?? scale,
+    scaleY: partial?.scaleY ?? scale,
     rotation: partial?.rotation ?? DEFAULT_IMAGE_LAYOUT.rotation,
     src: partial?.src ?? null,
   }
 }
 
 export function layerToElementLayout(layer: LaserDesignLayer): ElementLayout {
+  const scale = layer.scale
   return {
     x: layer.x,
     y: layer.y,
-    scale: layer.scale,
+    scale,
+    scaleX: layer.scaleX ?? scale,
+    scaleY: layer.scaleY ?? scale,
     rotation: layer.rotation,
   }
 }
@@ -206,6 +217,8 @@ export type SerializedLaserLayer = {
   x: number
   y: number
   scale: number
+  scaleX?: number
+  scaleY?: number
   rotation: number
   text?: string
   fontId?: string
@@ -224,6 +237,8 @@ export function serializeLayersForOrder(
         x: layer.x,
         y: layer.y,
         scale: layer.scale,
+        scaleX: layer.scaleX ?? layer.scale,
+        scaleY: layer.scaleY ?? layer.scale,
         rotation: layer.rotation,
         text: layer.text ?? "",
         fontId: layer.fontId,
@@ -235,6 +250,8 @@ export function serializeLayersForOrder(
       x: layer.x,
       y: layer.y,
       scale: layer.scale,
+      scaleX: layer.scaleX ?? layer.scale,
+      scaleY: layer.scaleY ?? layer.scale,
       rotation: layer.rotation,
       src: layer.src?.startsWith("data:") ? null : layer.src ?? null,
       hasImage: Boolean(layer.src),

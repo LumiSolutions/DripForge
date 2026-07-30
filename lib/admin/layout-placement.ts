@@ -126,6 +126,8 @@ export function getItemLogoPreviewSrc(item: StoredOrderItem): string | null {
 export function getItemCompositePreviewSrc(item: StoredOrderItem): string | null {
   const src =
     item.previewMockupUrl ??
+    item.mockupPreviewUrl ??
+    item.mockup_preview_url ??
     item.previewMockup ??
     item.leitbildUrl ??
     item.leitbild ??
