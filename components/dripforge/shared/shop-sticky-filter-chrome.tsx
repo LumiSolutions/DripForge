@@ -45,8 +45,9 @@ type ShopStickyFilterChromeProps = {
   viewToggle: React.ReactNode
 }
 
+/** Sticky unter Header; z-40 über Produkt-Raster, unter Select-Portal (z-[110]) */
 const stickyBarClass =
-  "sticky top-[var(--header-height,4rem)] z-40 border-b border-border/40 bg-background/95 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/90"
+  "sticky top-[var(--header-height,4rem)] z-40 isolate border-b border-border/40 bg-background/95 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/95"
 
 export function ShopStickyFilterChrome({
   mainFilterOptions,
@@ -69,7 +70,7 @@ export function ShopStickyFilterChrome({
       <div
         className={cn(
           stickyBarClass,
-          "hidden space-y-3 py-3 lg:block"
+          "mt-2 hidden space-y-4 py-5 lg:block"
         )}
       >
         <ShopMainFilterTabs
@@ -77,11 +78,11 @@ export function ShopStickyFilterChrome({
           activeId={categoryFilter}
           onChange={onCategoryChange}
         />
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-muted-foreground">
+        <div className="flex flex-col gap-4 pt-1 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm font-medium text-muted-foreground">
             {productCount} Produkt{productCount === 1 ? "" : "e"}
           </p>
-          <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+          <div className="flex flex-wrap items-center gap-3 sm:justify-end">
             {viewToggle}
             <ArrowUpDown className="hidden h-4 w-4 text-muted-foreground sm:block" />
             <Select
@@ -91,7 +92,8 @@ export function ShopStickyFilterChrome({
               <SelectTrigger className="w-full min-w-[180px] sm:w-[220px]">
                 <SelectValue placeholder="Sortieren" />
               </SelectTrigger>
-              <SelectContent>
+              {/* Über sticky Filter (40) und Header (100) */}
+              <SelectContent className="z-[110]" position="popper" sideOffset={6}>
                 <SelectItem value="price-asc">Preis: aufsteigend</SelectItem>
                 <SelectItem value="price-desc">Preis: absteigend</SelectItem>
                 <SelectItem value="popular">Beliebtheit</SelectItem>
@@ -106,10 +108,10 @@ export function ShopStickyFilterChrome({
       <div
         className={cn(
           stickyBarClass,
-          "-mx-4 flex items-center justify-between gap-2 px-4 py-2 lg:hidden"
+          "-mx-4 mt-1 flex items-center justify-between gap-2 px-4 py-3 lg:hidden"
         )}
       >
-        <p className="truncate text-xs text-muted-foreground">
+        <p className="truncate text-xs font-medium text-muted-foreground">
           {productCount} Produkt{productCount === 1 ? "" : "e"}
         </p>
         <div className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-card/90 p-1 shadow-sm">
@@ -154,17 +156,21 @@ export function ShopStickyFilterChrome({
           if (!open) setSheet(null)
         }}
       >
-        <SheetContent side="bottom" className="max-h-[75vh] overflow-y-auto rounded-t-2xl">
-          <SheetHeader>
-            <SheetTitle>
+        <SheetContent
+          side="bottom"
+          overlayClassName="z-[120] bg-black/55 backdrop-blur-sm"
+          className="z-[121] max-h-[80vh] gap-0 overflow-y-auto rounded-t-2xl px-6 pb-8 pt-2"
+        >
+          <SheetHeader className="space-y-1 p-0 pb-2 pr-10 pt-4 text-left">
+            <SheetTitle className="text-lg">
               {sheet === "category" && "Kategorie"}
               {sheet === "tags" && "Tags"}
               {sheet === "sort" && "Sortierung"}
             </SheetTitle>
           </SheetHeader>
-          <div className="mt-4 space-y-4 pb-6">
+          <div className="mt-4 space-y-3 pb-4">
             {sheet === "category" ? (
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-3">
                 {mainFilterOptions.map((option) => {
                   const active = categoryFilter === option.id
                   return (
@@ -172,7 +178,7 @@ export function ShopStickyFilterChrome({
                       key={option.id}
                       type="button"
                       className={cn(
-                        "flex items-center gap-2 rounded-xl border px-4 py-3 text-left text-sm font-medium",
+                        "flex min-h-12 items-center gap-3 rounded-xl border px-4 py-3.5 text-left text-base font-medium",
                         active
                           ? "border-primary bg-primary/10 text-foreground"
                           : "border-border/60 bg-card/40 text-muted-foreground"
@@ -182,9 +188,9 @@ export function ShopStickyFilterChrome({
                         setSheet(null)
                       }}
                     >
-                      {option.id === "3d" && <Printer className="h-4 w-4" />}
-                      {option.id === "laser" && <Zap className="h-4 w-4" />}
-                      {option.id === "sale" && <Percent className="h-4 w-4" />}
+                      {option.id === "3d" && <Printer className="h-5 w-5" />}
+                      {option.id === "laser" && <Zap className="h-5 w-5" />}
+                      {option.id === "sale" && <Percent className="h-5 w-5" />}
                       {option.label}
                     </button>
                   )
@@ -194,6 +200,8 @@ export function ShopStickyFilterChrome({
             {sheet === "tags" ? (
               <ShopTagFilterPanel
                 className="border-0 bg-transparent p-0"
+                dense={false}
+                touchFriendly
                 tags={visibleProductTags}
                 selectedTagIds={selectedTagIds}
                 onToggleTag={onToggleTag}
@@ -201,7 +209,7 @@ export function ShopStickyFilterChrome({
               />
             ) : null}
             {sheet === "sort" ? (
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-3">
                 {(
                   [
                     ["price-asc", "Preis: aufsteigend"],
@@ -214,7 +222,7 @@ export function ShopStickyFilterChrome({
                     key={value}
                     type="button"
                     className={cn(
-                      "rounded-xl border px-4 py-3 text-left text-sm font-medium",
+                      "min-h-12 rounded-xl border px-4 py-3.5 text-left text-base font-medium",
                       sortMode === value
                         ? "border-primary bg-primary/10"
                         : "border-border/60 bg-card/40 text-muted-foreground"

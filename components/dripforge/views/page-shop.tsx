@@ -211,6 +211,19 @@ export function PageShop({
     }
   }
 
+  // Listen-Icon ist auf Mobile ausgeblendet → Fallback auf Einzelansicht
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)")
+    const coerce = () => {
+      if (mq.matches) {
+        setViewMode((prev) => (prev === "list" ? "grid3" : prev))
+      }
+    }
+    coerce()
+    mq.addEventListener("change", coerce)
+    return () => mq.removeEventListener("change", coerce)
+  }, [])
+
   useEffect(() => {
     void fetch("/api/products", { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : null))
@@ -1007,7 +1020,7 @@ export function PageShop({
         </section>
       )}
 
-      <section className="mx-auto max-w-7xl px-4">
+      <section className="mx-auto max-w-7xl px-4 pb-4 pt-2 md:pt-4">
         <ShopStickyFilterChrome
           mainFilterOptions={mainFilterOptions ?? []}
           categoryFilter={categoryFilter}
@@ -1026,8 +1039,8 @@ export function PageShop({
                 size="icon"
                 variant={viewMode === "grid3" ? "default" : "ghost"}
                 className="h-9 w-9"
-                aria-label="Grosse Karten (3 Spalten)"
-                title="Grosse Karten"
+                aria-label="Einzelansicht / grosse Karten"
+                title="Grosse Karten (1 Spalte mobil, 3 Desktop)"
                 onClick={() => setViewModePersist("grid3")}
               >
                 <LayoutGrid className="h-4 w-4" />
@@ -1037,8 +1050,8 @@ export function PageShop({
                 size="icon"
                 variant={viewMode === "grid5" ? "default" : "ghost"}
                 className="h-9 w-9"
-                aria-label="Kompakte Karten (5 Spalten)"
-                title="Kompakte Karten"
+                aria-label="Zwei-Spalten / kompakte Karten"
+                title="Kompakte Karten (2 Spalten mobil, 5 Desktop)"
                 onClick={() => setViewModePersist("grid5")}
               >
                 <Grid2x2 className="h-4 w-4" />
@@ -1047,7 +1060,7 @@ export function PageShop({
                 type="button"
                 size="icon"
                 variant={viewMode === "list" ? "default" : "ghost"}
-                className="h-9 w-9"
+                className="hidden h-9 w-9 md:inline-flex"
                 aria-label="Listenansicht"
                 title="Listenansicht"
                 onClick={() => setViewModePersist("list")}
@@ -1058,9 +1071,9 @@ export function PageShop({
           }
         />
 
-        <div className="mt-6 flex flex-col gap-8 lg:flex-row lg:items-start">
+        <div className="mt-8 flex flex-col gap-8 lg:mt-10 lg:flex-row lg:items-start lg:gap-10">
           <ShopTagFilterPanel
-            className="hidden w-full lg:sticky lg:top-[calc(var(--header-height,4rem)+7.5rem)] lg:block lg:w-64 lg:shrink-0 lg:self-start"
+            className="hidden w-full lg:sticky lg:top-[calc(var(--header-height,4rem)+8.5rem)] lg:block lg:w-64 lg:shrink-0 lg:self-start"
             tags={visibleProductTags ?? []}
             selectedTagIds={selectedTagIds}
             onToggleTag={toggleTagFilter}
