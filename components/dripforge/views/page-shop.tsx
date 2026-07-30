@@ -119,7 +119,15 @@ type PageShopProps = {
 }
 
 type ShopSortMode = "price-asc" | "price-desc" | "newest" | "popular"
-type ShopViewMode = "grid-sm" | "grid-lg" | "list"
+/** grid3 = grosse Karten (1 / 2 / 3 Spalten), grid5 = kompakt (2 / 3 / 5), list = Liste */
+type ShopViewMode = "grid3" | "grid5" | "list"
+
+function normalizeShopViewMode(raw: string | null): ShopViewMode {
+  if (raw === "grid3" || raw === "grid-lg") return "grid3"
+  if (raw === "grid5" || raw === "grid-sm") return "grid5"
+  if (raw === "list") return "list"
+  return "grid3"
+}
 
 function sortShopProducts(products: Product[], sortMode: ShopSortMode): Product[] {
   const list = [...products]
@@ -183,14 +191,12 @@ export function PageShop({
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([])
   const [categoryFilter, setCategoryFilter] = useState<ShopFilterId>("all")
   const [sortMode, setSortMode] = useState<ShopSortMode>("newest")
-  const [viewMode, setViewMode] = useState<ShopViewMode>("grid-lg")
+  const [viewMode, setViewMode] = useState<ShopViewMode>("grid3")
 
   useEffect(() => {
     try {
       const stored = window.localStorage.getItem("df-shop-view-mode")
-      if (stored === "grid-sm" || stored === "grid-lg" || stored === "list") {
-        setViewMode(stored)
-      }
+      setViewMode(normalizeShopViewMode(stored))
     } catch {
       /* ignore */
     }
@@ -542,9 +548,9 @@ export function PageShop({
 
           {detailProduct.type === "laser" && shopLaserMaterial && laserDesign ? (
             <div className="space-y-6">
-              <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-12 xl:gap-5">
-                {/* Spalte 1: Galerie + Beschreibung + Material */}
-                <div className="flex min-w-0 max-w-full flex-col gap-4 overflow-hidden xl:col-span-5">
+              <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-12 xl:gap-6">
+                {/* Spalte 1: Galerie */}
+                <div className="flex min-w-0 max-w-full flex-col gap-4 xl:col-span-4">
                   <ProductImageGallery
                     images={galleryImages}
                     alt={detailProduct.name}
@@ -583,49 +589,49 @@ export function PageShop({
                   />
                 </div>
 
-                {/* Spalte 2: Preis, Variante, Warenkorb */}
-                <div className="flex min-w-0 max-w-full flex-col gap-4 overflow-hidden xl:col-span-2 xl:sticky xl:top-24">
-                  <Card className="rounded-xl border border-border/60 bg-card/40 shadow-none">
-                    <CardContent className="space-y-3 p-3">
-                      <div className="flex items-center justify-between gap-2">
+                {/* Spalte 2: Preis / Varianten / Warenkorb — betont */}
+                <div className="flex min-w-0 max-w-full flex-col gap-4 xl:col-span-4 xl:sticky xl:top-[calc(var(--header-height,4rem)+1rem)]">
+                  <Card className="rounded-2xl border-2 border-primary/25 bg-card/80 shadow-md shadow-primary/5">
+                    <CardContent className="space-y-4 p-4 sm:p-5">
+                      <div className="flex flex-col gap-1">
                         <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                           Preis
                         </h3>
-                        <ProductShopPrice product={detailProduct} size="sm" />
+                        <ProductShopPrice product={detailProduct} size="lg" />
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-3">
                         <Button
-                          size="sm"
+                          size="default"
                           variant="outline"
-                          className="h-8 w-8 p-0"
+                          className="h-10 w-10 p-0"
                           onClick={() => setQuantity(Math.max(1, quantity - 1))}
                           aria-label="Anzahl verringern"
                         >
-                          <Minus className="h-3.5 w-3.5" />
+                          <Minus className="h-4 w-4" />
                         </Button>
-                        <span className="w-8 text-center text-sm font-bold tabular-nums">
+                        <span className="w-10 text-center text-lg font-bold tabular-nums">
                           {quantity}
                         </span>
                         <Button
-                          size="sm"
+                          size="default"
                           variant="outline"
-                          className="h-8 w-8 p-0"
+                          className="h-10 w-10 p-0"
                           onClick={() => setQuantity(quantity + 1)}
                           aria-label="Anzahl erhöhen"
                         >
-                          <Plus className="h-3.5 w-3.5" />
+                          <Plus className="h-4 w-4" />
                         </Button>
-                        <span className="ml-auto text-sm font-semibold tabular-nums">
+                        <span className="ml-auto text-base font-semibold tabular-nums">
                           CHF {(unitPrice * quantity).toFixed(2)}
                         </span>
                       </div>
                       <Button
                         onClick={handleAddToCart}
                         disabled={!canAddToCart}
-                        className="w-full bg-primary hover:bg-primary/90"
-                        size="default"
+                        className="w-full bg-primary text-base hover:bg-primary/90"
+                        size="lg"
                       >
-                        <ShoppingCart className="mr-2 h-4 w-4" />
+                        <ShoppingCart className="mr-2 h-5 w-5" />
                         In den Warenkorb
                       </Button>
                     </CardContent>
@@ -648,8 +654,8 @@ export function PageShop({
                   />
                 </div>
 
-                {/* Spalte 3: Live-Vorschau — gleiche Breite wie Galerie (5) */}
-                <div className="flex min-w-0 max-w-full flex-col gap-4 overflow-hidden xl:col-span-5 xl:sticky xl:top-24">
+                {/* Spalte 3: Live-Vorschau */}
+                <div className="flex min-w-0 max-w-full flex-col gap-4 xl:col-span-4 xl:sticky xl:top-[calc(var(--header-height,4rem)+1rem)]">
                   <LaserDesignerStudio
                     column="preview"
                     material={shopLaserMaterial}
@@ -1001,7 +1007,7 @@ export function PageShop({
         </section>
       )}
 
-      <section className="relative z-0 mx-auto max-w-7xl space-y-6 px-4">
+      <section className="mx-auto max-w-7xl px-4">
         <ShopStickyFilterChrome
           mainFilterOptions={mainFilterOptions ?? []}
           categoryFilter={categoryFilter}
@@ -1018,24 +1024,24 @@ export function PageShop({
               <Button
                 type="button"
                 size="icon"
-                variant={viewMode === "grid-sm" ? "default" : "ghost"}
+                variant={viewMode === "grid3" ? "default" : "ghost"}
                 className="h-9 w-9"
-                aria-label="Kleine Kacheln"
-                title="Kleine Kacheln"
-                onClick={() => setViewModePersist("grid-sm")}
+                aria-label="Grosse Karten (3 Spalten)"
+                title="Grosse Karten"
+                onClick={() => setViewModePersist("grid3")}
               >
-                <Grid2x2 className="h-4 w-4" />
+                <LayoutGrid className="h-4 w-4" />
               </Button>
               <Button
                 type="button"
                 size="icon"
-                variant={viewMode === "grid-lg" ? "default" : "ghost"}
+                variant={viewMode === "grid5" ? "default" : "ghost"}
                 className="h-9 w-9"
-                aria-label="Grosse Kacheln"
-                title="Grosse Kacheln"
-                onClick={() => setViewModePersist("grid-lg")}
+                aria-label="Kompakte Karten (5 Spalten)"
+                title="Kompakte Karten"
+                onClick={() => setViewModePersist("grid5")}
               >
-                <LayoutGrid className="h-4 w-4" />
+                <Grid2x2 className="h-4 w-4" />
               </Button>
               <Button
                 type="button"
@@ -1052,9 +1058,9 @@ export function PageShop({
           }
         />
 
-        <div className="flex flex-col gap-8 lg:flex-row lg:items-start">
+        <div className="mt-6 flex flex-col gap-8 lg:flex-row lg:items-start">
           <ShopTagFilterPanel
-            className="hidden w-full lg:sticky lg:top-20 lg:block lg:w-64 lg:shrink-0 lg:self-start"
+            className="hidden w-full lg:sticky lg:top-[calc(var(--header-height,4rem)+7.5rem)] lg:block lg:w-64 lg:shrink-0 lg:self-start"
             tags={visibleProductTags ?? []}
             selectedTagIds={selectedTagIds}
             onToggleTag={toggleTagFilter}
@@ -1072,10 +1078,11 @@ export function PageShop({
           <div
             className={cn(
               "gap-6",
-              viewMode === "list" && "flex flex-col",
-              viewMode === "grid-sm" &&
-                "grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5",
-              viewMode === "grid-lg" && "grid sm:grid-cols-2 lg:grid-cols-3"
+              viewMode === "list" && "grid grid-cols-1",
+              viewMode === "grid3" &&
+                "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3",
+              viewMode === "grid5" &&
+                "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5"
             )}
           >
             {displayedProducts.map((product) => {
@@ -1172,7 +1179,7 @@ export function PageShop({
                 <div
                   className={cn(
                     "relative bg-secondary/50",
-                    viewMode === "grid-sm" ? "h-36" : "h-48"
+                    viewMode === "grid5" ? "h-36" : "h-48"
                   )}
                 >
                   {product.sale && salePercent != null && (

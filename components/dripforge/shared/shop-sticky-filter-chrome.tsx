@@ -45,6 +45,9 @@ type ShopStickyFilterChromeProps = {
   viewToggle: React.ReactNode
 }
 
+const stickyBarClass =
+  "sticky top-[var(--header-height,4rem)] z-40 border-b border-border/40 bg-background/95 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/90"
+
 export function ShopStickyFilterChrome({
   mainFilterOptions,
   categoryFilter,
@@ -62,8 +65,13 @@ export function ShopStickyFilterChrome({
 
   return (
     <>
-      {/* Desktop: volle Sticky-Leiste */}
-      <div className="sticky top-20 z-30 hidden space-y-4 border-b border-border/40 bg-background/95 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/85 lg:block">
+      {/* Desktop: volle Sticky-Leiste unter dem Header */}
+      <div
+        className={cn(
+          stickyBarClass,
+          "hidden space-y-3 py-3 lg:block"
+        )}
+      >
         <ShopMainFilterTabs
           options={mainFilterOptions}
           activeId={categoryFilter}
@@ -94,12 +102,17 @@ export function ShopStickyFilterChrome({
         </div>
       </div>
 
-      {/* Mobile: kompakte Icon-Bar — immer am oberen Viewport-Rand */}
-      <div className="sticky top-0 z-30 -mx-4 flex items-center justify-between gap-2 border-b border-border/40 bg-background/95 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/90 lg:hidden">
+      {/* Mobile: Icon-Bar — sticky unter dem Header */}
+      <div
+        className={cn(
+          stickyBarClass,
+          "-mx-4 flex items-center justify-between gap-2 px-4 py-2 lg:hidden"
+        )}
+      >
         <p className="truncate text-xs text-muted-foreground">
           {productCount} Produkt{productCount === 1 ? "" : "e"}
         </p>
-        <div className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-card/80 p-1 shadow-sm">
+        <div className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-card/90 p-1 shadow-sm">
           <Button
             type="button"
             size="icon"

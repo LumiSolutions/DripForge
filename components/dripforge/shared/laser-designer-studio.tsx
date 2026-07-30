@@ -1374,13 +1374,13 @@ function LaserDesignerSettings({
       )}
 
       {showVariantPicker && hasVarianten && (
-        <Card className="rounded-xl border-border/50 bg-card/50">
-          <CardContent className="p-3">
-            <div className="mb-2 flex items-center gap-2">
-              <Stamp className="h-3.5 w-3.5 text-cyan-400" />
-              <h3 className="text-sm font-bold">Variante wählen</h3>
+        <Card className="rounded-2xl border-2 border-border/60 bg-card/70 shadow-sm">
+          <CardContent className="p-4 sm:p-5">
+            <div className="mb-3 flex items-center gap-2">
+              <Stamp className="h-4 w-4 text-cyan-400" />
+              <h3 className="text-sm font-bold sm:text-base">Variante wählen</h3>
             </div>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {varianten.map((varianteStichwort) => {
                 const isSelected = selectedVariant === varianteStichwort
                 return (
@@ -1389,23 +1389,23 @@ function LaserDesignerSettings({
                     type="button"
                     onClick={() => setVariant(varianteStichwort)}
                     className={cn(
-                      "relative rounded-lg border px-2 py-1.5 text-center transition-all duration-200",
+                      "relative min-h-11 rounded-xl border px-3 py-2.5 text-center transition-all duration-200",
                       isSelected
-                        ? "border-cyan-500 bg-cyan-500/10 shadow-sm shadow-cyan-500/15"
-                        : "border-border/60 bg-background/40 hover:border-cyan-500/40 hover:bg-cyan-500/5"
+                        ? "border-cyan-500 bg-cyan-500/15 shadow-md shadow-cyan-500/20"
+                        : "border-border/60 bg-background/50 hover:border-cyan-500/40 hover:bg-cyan-500/5"
                     )}
                   >
                     <span
                       className={cn(
-                        "text-xs font-semibold",
+                        "text-sm font-semibold",
                         isSelected ? "text-cyan-400" : "text-foreground"
                       )}
                     >
                       {varianteStichwort}
                     </span>
                     {isSelected && (
-                      <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-cyan-500">
-                        <CheckCircle2 className="h-2.5 w-2.5 text-background" />
+                      <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-cyan-500">
+                        <CheckCircle2 className="h-3 w-3 text-background" />
                       </span>
                     )}
                   </button>

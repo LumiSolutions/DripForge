@@ -15,10 +15,10 @@ export function StorefrontShell({ children }: { children: React.ReactNode }) {
   }, [])
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="min-h-screen bg-background text-foreground overflow-x-clip">
       <ShopHeader mode="link" cartCount={cart.length} />
 
-      <main>{children}</main>
+      <main className="overflow-x-clip">{children}</main>
     </div>
   )
 }

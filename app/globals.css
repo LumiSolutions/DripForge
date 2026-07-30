@@ -77,10 +77,16 @@
     @apply border-border outline-ring/50;
   }
 
+  :root {
+    /* Fester Shop-Header (h-16) — Sticky-Filter dockt darunter an */
+    --header-height: 4rem;
+  }
+
   html,
   body {
     max-width: 100%;
-    overflow-x: hidden;
+    /* clip statt hidden: kein Scroll-Container → sticky funktioniert */
+    overflow-x: clip;
   }
 
   body {

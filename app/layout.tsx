@@ -89,7 +89,7 @@ export default function RootLayout({
     >
       <body className="flex min-h-full flex-col font-sans">
         <ParticleBackground />
-        <div className="relative z-20 flex min-h-full flex-1 flex-col">
+        <div className="relative z-20 flex min-h-full flex-1 flex-col overflow-x-clip">
           <SiteConfigPreviewProvider>
             <SiteTextsProvider>
               <CompanySettingsProvider>

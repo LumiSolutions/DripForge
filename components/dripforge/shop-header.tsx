@@ -178,7 +178,7 @@ export function ShopHeader(props: ShopHeaderProps) {
           "supports-[backdrop-filter]:bg-background/90"
         )}
       >
-      <div className="mx-auto flex h-16 max-w-7xl flex-nowrap items-center gap-2 px-3 sm:gap-4 sm:px-4">
+      <div className="mx-auto flex h-[var(--header-height,4rem)] max-w-7xl flex-nowrap items-center gap-2 px-3 sm:gap-4 sm:px-4">
         {props.mode === "spa" ? (
           <button
             type="button"
@@ -476,7 +476,10 @@ export function ShopHeader(props: ShopHeaderProps) {
       <ThemeInboundTour anchorRef={themeButtonRef} onThemeChange={setTheme} />
       </header>
       {/* Platzhalter: verhindert, dass Content unter dem fixed Header verschwindet */}
-      <div className="h-16 shrink-0" aria-hidden="true" />
+      <div
+        className="h-[var(--header-height,4rem)] shrink-0"
+        aria-hidden="true"
+      />
     </>
   )
 }
