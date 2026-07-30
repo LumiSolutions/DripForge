@@ -14,7 +14,11 @@ export {
 export type ElementLayout = {
   x: number
   y: number
+  /** Uniforme/Legacy-Skalierung */
   scale: number
+  /** Optionale Achsen — fehlen sie, gilt `scale` für beide */
+  scaleX?: number
+  scaleY?: number
   rotation: number
 }
 
@@ -26,6 +30,8 @@ export const DEFAULT_TEXT_LAYOUT: ElementLayout = {
   x: 50,
   y: 62,
   scale: 1,
+  scaleX: 1,
+  scaleY: 1,
   rotation: 0,
 }
 
@@ -33,15 +39,27 @@ export const DEFAULT_IMAGE_LAYOUT: ImageLayout = {
   x: 50,
   y: 38,
   scale: 1,
+  scaleX: 1,
+  scaleY: 1,
   rotation: 0,
   src: null,
 }
 
+export function resolvedScaleXY(layout: ElementLayout): {
+  sx: number
+  sy: number
+} {
+  const sx = Number.isFinite(layout.scaleX) ? (layout.scaleX as number) : layout.scale
+  const sy = Number.isFinite(layout.scaleY) ? (layout.scaleY as number) : layout.scale
+  return { sx, sy }
+}
+
 export function elementTransformStyle(layout: ElementLayout): CSSProperties {
+  const { sx, sy } = resolvedScaleXY(layout)
   return {
     left: `${layout.x}%`,
     top: `${layout.y}%`,
-    transform: `translate(-50%, -50%) scale(${layout.scale}) rotate(${layout.rotation}deg)`,
+    transform: `translate(-50%, -50%) scale(${sx}, ${sy}) rotate(${layout.rotation}deg)`,
   }
 }
 

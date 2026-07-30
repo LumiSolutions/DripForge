@@ -33,6 +33,13 @@ export function sanitizeOrderItemForPersistence(
     type: rest.type === "laser" ? "laser" : "3d",
     leitbildUrl: rest.leitbildUrl ?? null,
     previewMockupUrl: rest.previewMockupUrl ?? null,
+    mockupPreviewUrl:
+      rest.mockupPreviewUrl ?? rest.previewMockupUrl ?? null,
+    mockup_preview_url:
+      rest.mockup_preview_url ??
+      rest.mockupPreviewUrl ??
+      rest.previewMockupUrl ??
+      null,
   }
 
   if (rest.unit) next.unit = rest.unit

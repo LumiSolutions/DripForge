@@ -5,19 +5,21 @@ import type { CSSProperties, RefObject } from "react"
 import {
   CheckCircle2,
   ChevronDown,
+  Crop,
   Crosshair,
   Eraser,
   Info,
+  Lasso,
   Layers,
   Maximize2,
   Plus,
   Pipette,
+  RotateCw,
   Scissors,
   Stamp,
   Trash2,
   Type,
   Undo2,
-  Upload,
   ArrowUp,
   ArrowDown,
   X,
@@ -49,6 +51,7 @@ import {
   MIN_LAYOUT_SCALE,
   normalizeRotation,
   pointerAngleDegrees,
+  resolvedScaleXY,
   type ElementLayout,
   type ImageLayout,
   type LaserFontId,
@@ -82,7 +85,18 @@ import {
   sampleImageColorAt,
   type RgbColor,
 } from "@/lib/dripforge/remove-image-background"
-import { eraseImageBrushStroke } from "@/lib/dripforge/erase-image-brush"
+import {
+  cropImageToRelRect,
+  eraseImageBrushStroke,
+  eraseImageLassoRegion,
+  interpolateBrushPoints,
+} from "@/lib/dripforge/erase-image-brush"
+import {
+  computeResizeScales,
+  RESIZE_HANDLES,
+  resizeHandleClass,
+  type ResizeHandle,
+} from "@/lib/dripforge/canvas-resize-handles"
 import {
   CAPTURE_HIDE_ATTR,
   LEITBILD_LASER_PREVIEW_ATTR,
@@ -92,6 +106,7 @@ import {
   type WorkAreaMm,
 } from "@/lib/dripforge/laser-work-area"
 import type { LaserMaterial } from "@/lib/dripforge/types"
+import { Checkbox } from "@/components/ui/checkbox"
 
 export type { LaserDesignerState } from "@/lib/dripforge/laser-layers"
 
@@ -174,6 +189,8 @@ type DragSession = {
   halfWPercent: number
   halfHPercent: number
   maxScale: number
+  resizeHandle?: ResizeHandle
+  proportional?: boolean
 }
 
 /** Sperrt Browser-Scroll/-Select/-Drag während Canvas-Gesten (Mobil + Desktop). */
@@ -221,7 +238,8 @@ function buildDragSession(
   pointerId: number,
   clientX: number,
   clientY: number,
-  innerEl: HTMLElement | null
+  innerEl: HTMLElement | null,
+  options?: { resizeHandle?: ResizeHandle; proportional?: boolean }
 ): DragSession {
   const center = getElementCenterPx(canvas, layout)
   const canvasRect = canvas.getBoundingClientRect()
@@ -255,6 +273,8 @@ function buildDragSession(
     halfWPercent,
     halfHPercent,
     maxScale,
+    resizeHandle: options?.resizeHandle,
+    proportional: options?.proportional,
   }
 }
 
@@ -273,13 +293,21 @@ function InteractiveCanvasElement({
   kind,
   eyedropperActive,
   eraserActive,
+  lassoActive,
+  cropActive,
+  proportionalScale,
   onEyedropperSample,
   onEraserPaint,
+  onLassoPoint,
+  onLassoComplete,
+  onCropDrag,
+  onCropComplete,
   onDelete,
   onRotateStep,
   onScaleStep,
   onBringForward,
   onSendBackward,
+  onEditText,
   children,
 }: {
   layerId: string
@@ -296,16 +324,37 @@ function InteractiveCanvasElement({
   kind: "text" | "image"
   eyedropperActive?: boolean
   eraserActive?: boolean
+  lassoActive?: boolean
+  cropActive?: boolean
+  proportionalScale?: boolean
   onEyedropperSample?: (relX: number, relY: number, layerId: string) => void
   onEraserPaint?: (relX: number, relY: number) => void
+  onLassoPoint?: (relX: number, relY: number) => void
+  onLassoComplete?: () => void
+  onCropDrag?: (
+    start: { relX: number; relY: number },
+    end: { relX: number; relY: number }
+  ) => void
+  onCropComplete?: (
+    start: { relX: number; relY: number },
+    end: { relX: number; relY: number }
+  ) => void
   onDelete?: () => void
   onRotateStep?: () => void
   onScaleStep?: (delta: number) => void
   onBringForward?: () => void
   onSendBackward?: () => void
+  onEditText?: () => void
   children: React.ReactNode
 }) {
   const localInnerRef = useRef<HTMLElement | null>(null)
+  const cropStartRef = useRef<{ relX: number; relY: number } | null>(null)
+  const [cropPreview, setCropPreview] = useState<{
+    x: number
+    y: number
+    w: number
+    h: number
+  } | null>(null)
 
   const setInnerRef = (el: HTMLElement | null) => {
     localInnerRef.current = el
@@ -316,7 +365,8 @@ function InteractiveCanvasElement({
     mode: DragMode,
     pointerId: number,
     clientX: number,
-    clientY: number
+    clientY: number,
+    options?: { resizeHandle?: ResizeHandle; proportional?: boolean }
   ) => {
     onSelect()
     const canvas = canvasRef.current
@@ -329,7 +379,8 @@ function InteractiveCanvasElement({
       pointerId,
       clientX,
       clientY,
-      localInnerRef.current
+      localInnerRef.current,
+      options
     )
     try {
       canvas.setPointerCapture(pointerId)
@@ -339,19 +390,27 @@ function InteractiveCanvasElement({
     onDragStart(session)
   }
 
-  const beginPointerDrag = (e: React.PointerEvent, mode: DragMode) => {
+  const beginPointerDrag = (
+    e: React.PointerEvent,
+    mode: DragMode,
+    options?: { resizeHandle?: ResizeHandle; proportional?: boolean }
+  ) => {
     e.preventDefault()
     e.stopPropagation()
-    beginDragAt(mode, e.pointerId, e.clientX, e.clientY)
+    beginDragAt(mode, e.pointerId, e.clientX, e.clientY, options)
   }
 
-  const beginTouchDrag = (e: React.TouchEvent, mode: DragMode) => {
+  const beginTouchDrag = (
+    e: React.TouchEvent,
+    mode: DragMode,
+    options?: { resizeHandle?: ResizeHandle; proportional?: boolean }
+  ) => {
     if (typeof window !== "undefined" && "PointerEvent" in window) return
     const touch = e.touches[0]
     if (!touch) return
     e.preventDefault()
     e.stopPropagation()
-    beginDragAt(mode, touch.identifier, touch.clientX, touch.clientY)
+    beginDragAt(mode, touch.identifier, touch.clientX, touch.clientY, options)
   }
 
   const isHandleTarget = (target: EventTarget | null) => {
@@ -363,10 +422,16 @@ function InteractiveCanvasElement({
     const rect = el.getBoundingClientRect()
     if (rect.width <= 0 || rect.height <= 0) return null
     return {
-      relX: (clientX - rect.left) / rect.width,
-      relY: (clientY - rect.top) / rect.height,
+      relX: Math.min(1, Math.max(0, (clientX - rect.left) / rect.width)),
+      relY: Math.min(1, Math.max(0, (clientY - rect.top) / rect.height)),
     }
   }
+
+  const toolModeActive =
+    Boolean(eyedropperActive) ||
+    Boolean(eraserActive) ||
+    Boolean(lassoActive) ||
+    Boolean(cropActive)
 
   const zIndex = 10 + stackIndex + (isActive ? 1 : 0)
   const toolCursor =
@@ -374,12 +439,15 @@ function InteractiveCanvasElement({
       ? "cursor-crosshair"
       : eraserActive && kind === "image" && isActive
         ? "cursor-cell"
-        : isMoving
-          ? "cursor-grabbing"
-          : "cursor-grab"
+        : lassoActive && kind === "image" && isActive
+          ? "cursor-crosshair"
+          : cropActive && kind === "image" && isActive
+            ? "cursor-crosshair"
+            : isMoving
+              ? "cursor-grabbing"
+              : "cursor-grab"
 
-  const showChrome =
-    isActive && !eyedropperActive && !eraserActive && !isMoving
+  const showChrome = isActive && !toolModeActive && !isMoving
 
   return (
     <div
@@ -402,6 +470,13 @@ function InteractiveCanvasElement({
           className
         )}
         style={{ ...CANVAS_TOUCH_LOCK_STYLE, ...style }}
+        onDoubleClick={(e) => {
+          if (kind !== "text") return
+          e.preventDefault()
+          e.stopPropagation()
+          onSelect()
+          onEditText?.()
+        }}
         onPointerDown={(e) => {
           if (isHandleTarget(e.target)) return
           if (eyedropperActive && kind === "image") {
@@ -425,23 +500,94 @@ function InteractiveCanvasElement({
             }
             return
           }
+          if (lassoActive && kind === "image") {
+            e.preventDefault()
+            e.stopPropagation()
+            onSelect()
+            const rel = relFromEvent(e.currentTarget, e.clientX, e.clientY)
+            if (rel) onLassoPoint?.(rel.relX, rel.relY)
+            try {
+              e.currentTarget.setPointerCapture(e.pointerId)
+            } catch {
+              /* ignore */
+            }
+            return
+          }
+          if (cropActive && kind === "image") {
+            e.preventDefault()
+            e.stopPropagation()
+            onSelect()
+            const rel = relFromEvent(e.currentTarget, e.clientX, e.clientY)
+            if (!rel) return
+            cropStartRef.current = rel
+            setCropPreview({ x: rel.relX, y: rel.relY, w: 0, h: 0 })
+            try {
+              e.currentTarget.setPointerCapture(e.pointerId)
+            } catch {
+              /* ignore */
+            }
+            return
+          }
           e.stopPropagation()
           beginPointerDrag(e, "move")
         }}
         onPointerMove={(e) => {
-          if (!(eraserActive && kind === "image")) return
-          if (e.buttons === 0) return
-          const rel = relFromEvent(e.currentTarget, e.clientX, e.clientY)
-          if (rel) onEraserPaint?.(rel.relX, rel.relY)
+          if (eraserActive && kind === "image" && e.buttons !== 0) {
+            const rel = relFromEvent(e.currentTarget, e.clientX, e.clientY)
+            if (rel) onEraserPaint?.(rel.relX, rel.relY)
+            return
+          }
+          if (lassoActive && kind === "image" && e.buttons !== 0) {
+            const rel = relFromEvent(e.currentTarget, e.clientX, e.clientY)
+            if (rel) onLassoPoint?.(rel.relX, rel.relY)
+            return
+          }
+          if (cropActive && kind === "image" && cropStartRef.current) {
+            const rel = relFromEvent(e.currentTarget, e.clientX, e.clientY)
+            if (!rel) return
+            const start = cropStartRef.current
+            const x = Math.min(start.relX, rel.relX)
+            const y = Math.min(start.relY, rel.relY)
+            const w = Math.abs(rel.relX - start.relX)
+            const h = Math.abs(rel.relY - start.relY)
+            setCropPreview({ x, y, w, h })
+            onCropDrag?.(start, rel)
+          }
+        }}
+        onPointerUp={(e) => {
+          if (lassoActive && kind === "image") {
+            onLassoComplete?.()
+            return
+          }
+          if (cropActive && kind === "image" && cropStartRef.current) {
+            const rel = relFromEvent(e.currentTarget, e.clientX, e.clientY)
+            if (rel) onCropComplete?.(cropStartRef.current, rel)
+            cropStartRef.current = null
+            setCropPreview(null)
+          }
         }}
         onTouchStart={(e) => {
           if (isHandleTarget(e.target)) return
-          if (eyedropperActive || eraserActive) return
+          if (toolModeActive) return
           e.stopPropagation()
           beginTouchDrag(e, "move")
         }}
       >
         {children}
+
+        {cropPreview && cropPreview.w > 0.01 && cropPreview.h > 0.01 ? (
+          <div
+            className="pointer-events-none absolute border-2 border-dashed border-amber-400 bg-amber-400/15"
+            style={{
+              left: `${cropPreview.x * 100}%`,
+              top: `${cropPreview.y * 100}%`,
+              width: `${cropPreview.w * 100}%`,
+              height: `${cropPreview.h * 100}%`,
+            }}
+            aria-hidden
+            {...{ [CAPTURE_HIDE_ATTR]: "true" }}
+          />
+        ) : null}
 
         {showChrome && (
           <>
@@ -451,7 +597,6 @@ function InteractiveCanvasElement({
               {...{ [CAPTURE_HIDE_ATTR]: "true" }}
             />
 
-            {/* Floating corner tools */}
             <div
               {...{ [CAPTURE_HIDE_ATTR]: "true" }}
               className="pointer-events-none absolute inset-0"
@@ -478,13 +623,14 @@ function InteractiveCanvasElement({
                 <Trash2 className="h-3.5 w-3.5" />
               </button>
 
+              {/* Rotation oben rechts (Word-Stil) */}
               <button
                 type="button"
                 data-handle="rotate"
                 aria-label="Drehen"
                 className={cn(
-                  "pointer-events-auto absolute -right-3 -top-3 z-40 flex h-7 w-7 items-center justify-center rounded-full",
-                  "border-2 border-cyan-400 bg-background shadow-md hover:bg-cyan-500/20",
+                  "pointer-events-auto absolute -right-3 -top-8 z-40 flex h-7 w-7 items-center justify-center rounded-full",
+                  "border-2 border-cyan-400 bg-background text-cyan-500 shadow-md hover:bg-cyan-500/20",
                   CANVAS_TOUCH_LOCK_CLASS
                 )}
                 style={CANVAS_TOUCH_LOCK_STYLE}
@@ -502,7 +648,7 @@ function InteractiveCanvasElement({
                   beginTouchDrag(e, "rotate")
                 }}
               >
-                <span className="block h-2 w-2 rounded-full bg-cyan-400" />
+                <RotateCw className="h-3.5 w-3.5" />
               </button>
 
               <button
@@ -549,29 +695,37 @@ function InteractiveCanvasElement({
                 <ArrowUp className="h-3.5 w-3.5" />
               </button>
 
-              <button
-                type="button"
-                data-handle="resize"
-                aria-label="Grösse ändern"
-                className={cn(
-                  "pointer-events-auto absolute -bottom-3 -right-3 z-40 h-4 w-4 rounded-sm border-2 border-cyan-400 bg-cyan-400 shadow-md",
-                  "cursor-se-resize hover:scale-110",
-                  CANVAS_TOUCH_LOCK_CLASS
-                )}
-                style={CANVAS_TOUCH_LOCK_STYLE}
-                onPointerDown={(e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  beginPointerDrag(e, "resize")
-                }}
-                onTouchStart={(e) => {
-                  e.stopPropagation()
-                  beginTouchDrag(e, "resize")
-                }}
-              />
+              {RESIZE_HANDLES.map((handle) => (
+                <button
+                  key={handle}
+                  type="button"
+                  data-handle={`resize-${handle}`}
+                  aria-label={`Grösse ändern (${handle})`}
+                  className={cn(
+                    "pointer-events-auto absolute z-40 h-3.5 w-3.5 rounded-sm border-2 border-cyan-400 bg-cyan-400 shadow-md hover:scale-110",
+                    resizeHandleClass(handle),
+                    CANVAS_TOUCH_LOCK_CLASS
+                  )}
+                  style={CANVAS_TOUCH_LOCK_STYLE}
+                  onPointerDown={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    beginPointerDrag(e, "resize", {
+                      resizeHandle: handle,
+                      proportional: Boolean(proportionalScale),
+                    })
+                  }}
+                  onTouchStart={(e) => {
+                    e.stopPropagation()
+                    beginTouchDrag(e, "resize", {
+                      resizeHandle: handle,
+                      proportional: Boolean(proportionalScale),
+                    })
+                  }}
+                />
+              ))}
             </div>
 
-            {/* Quick scale +/- */}
             <div
               {...{ [CAPTURE_HIDE_ATTR]: "true" }}
               className="pointer-events-none absolute left-1/2 top-full z-40 mt-2 flex -translate-x-1/2 gap-1"
@@ -650,27 +804,33 @@ function ElementTransformControls({
 
   const applyWidthMm = (value: number) => {
     if (!sizeMm || sizeMm.widthMm <= 0) return
+    const next = scaleForTargetWidthMm(
+      layout.scale,
+      sizeMm.widthMm,
+      value,
+      maxWidthMm,
+      sliderMax
+    )
     onChange({
-      scale: scaleForTargetWidthMm(
-        layout.scale,
-        sizeMm.widthMm,
-        value,
-        maxWidthMm,
-        sliderMax
-      ),
+      scale: next,
+      scaleX: next,
+      scaleY: next,
     })
   }
 
   const applyHeightMm = (value: number) => {
     if (!sizeMm || sizeMm.heightMm <= 0) return
+    const next = scaleForTargetHeightMm(
+      layout.scale,
+      sizeMm.heightMm,
+      value,
+      maxHeightMm,
+      sliderMax
+    )
     onChange({
-      scale: scaleForTargetHeightMm(
-        layout.scale,
-        sizeMm.heightMm,
-        value,
-        maxHeightMm,
-        sliderMax
-      ),
+      scale: next,
+      scaleX: next,
+      scaleY: next,
     })
   }
 
@@ -722,9 +882,10 @@ function ElementTransformControls({
           max={sliderMax}
           step={0.05}
           value={Math.min(layout.scale, sliderMax)}
-          onChange={(e) =>
-            onChange({ scale: clampScale(Number(e.target.value), sliderMax) })
-          }
+          onChange={(e) => {
+            const next = clampScale(Number(e.target.value), sliderMax)
+            onChange({ scale: next, scaleX: next, scaleY: next })
+          }}
           className="h-2 w-full cursor-pointer accent-cyan-500"
         />
       </div>
@@ -751,11 +912,14 @@ function ElementTransformControls({
           size="sm"
           variant="outline"
           className="flex-1 text-xs"
-          onClick={() =>
+          onClick={() => {
+            const next = clampScale(layout.scale - 0.1, sliderMax)
             onChange({
-              scale: clampScale(layout.scale - 0.1, sliderMax),
+              scale: next,
+              scaleX: next,
+              scaleY: next,
             })
-          }
+          }}
         >
           Kleiner
         </Button>
@@ -764,11 +928,14 @@ function ElementTransformControls({
           size="sm"
           variant="outline"
           className="flex-1 text-xs"
-          onClick={() =>
+          onClick={() => {
+            const next = clampScale(layout.scale + 0.1, sliderMax)
             onChange({
-              scale: clampScale(layout.scale + 0.1, sliderMax),
+              scale: next,
+              scaleX: next,
+              scaleY: next,
             })
-          }
+          }}
         >
           Grösser
         </Button>
@@ -1165,11 +1332,21 @@ function LaserDesignerPreview({
     null
   )
   const [eraserActive, setEraserActive] = useState(false)
+  const [lassoActive, setLassoActive] = useState(false)
+  const [cropActive, setCropActive] = useState(false)
+  const [proportionalScale, setProportionalScale] = useState(true)
+  const [editingTextLayerId, setEditingTextLayerId] = useState<string | null>(
+    null
+  )
   const [eraserRadius, setEraserRadius] = useState(0.045)
   const [undoStack, setUndoStack] = useState<
     Array<{ layerId: string; src: string }>
   >([])
   const eraserBusyRef = useRef(false)
+  const eraserSrcRef = useRef<string | null>(null)
+  const lastBrushPointRef = useRef<{ relX: number; relY: number } | null>(null)
+  const lassoPointsRef = useRef<Array<{ relX: number; relY: number }>>([])
+  const lassoBusyRef = useRef(false)
   const canvasStyle = getMaterialCanvasStyle(material.id)
   const workAreaLabel = `${workAreaMm.widthMm} x ${workAreaMm.heightMm} mm`
 
@@ -1264,6 +1441,16 @@ function LaserDesignerPreview({
 
     if (patch.scale !== undefined && canvas && innerEl) {
       next.scale = clampLayoutScaleToFit(canvas, innerEl, layout, patch.scale)
+      if (patch.scaleX === undefined && patch.scaleY === undefined) {
+        next.scaleX = next.scale
+        next.scaleY = next.scale
+      }
+    }
+    if (patch.scaleX !== undefined || patch.scaleY !== undefined) {
+      const { sx, sy } = resolvedScaleXY(next)
+      next.scaleX = sx
+      next.scaleY = sy
+      next.scale = (sx + sy) / 2
     }
     if ((patch.x !== undefined || patch.y !== undefined) && canvas) {
       const clamped = clampLayoutPosition(canvas, innerEl, next.x, next.y)
@@ -1383,11 +1570,25 @@ function LaserDesignerPreview({
       }
 
       if (mode === "resize") {
-        const center = getElementCenterPx(canvas, startLayout)
-        const dist = Math.hypot(clientX - center.x, clientY - center.y) || 1
-        const rawScale = (dist / session.startDistance) * startLayout.scale
-        const scale = clampScale(rawScale, session.maxScale)
-        applyLayout(target, { scale })
+        const handle = session.resizeHandle ?? "se"
+        const scales = computeResizeScales({
+          handle,
+          startLayout,
+          centerClientX: session.centerClientX,
+          centerClientY: session.centerClientY,
+          startClientX: session.startClientX,
+          startClientY: session.startClientY,
+          clientX,
+          clientY,
+          startDistance: session.startDistance,
+          proportional: session.proportional ?? true,
+          maxScale: session.maxScale,
+        })
+        applyLayout(target, {
+          scale: scales.scale,
+          scaleX: scales.scaleX,
+          scaleY: scales.scaleY,
+        })
         return
       }
 
@@ -1526,28 +1727,41 @@ function LaserDesignerPreview({
     setUndoStack((prev) => [...prev.slice(-19), { layerId, src }])
   }, [])
 
+  const clearPipetteLiveChain = useCallback(() => {
+    setEyedropperColor(null)
+    setEyedropperBaseSrc(null)
+    setEyedropperLayerId(null)
+  }, [])
+
+  const deactivateImageTools = useCallback(
+    (except?: "eyedropper" | "eraser" | "lasso" | "crop") => {
+      if (except !== "eyedropper") setEyedropperActive(false)
+      if (except !== "eraser") setEraserActive(false)
+      if (except !== "lasso") setLassoActive(false)
+      if (except !== "crop") setCropActive(false)
+    },
+    []
+  )
+
   const handleUndoImageEdit = useCallback(() => {
     setUndoStack((prev) => {
       if (prev.length === 0) return prev
       const last = prev[prev.length - 1]
       const next = prev.slice(0, -1)
       // Pipette-Live-Kette stoppen, sonst überschreibt der Effect das Undo
-      setEyedropperColor(null)
-      setEyedropperBaseSrc(null)
-      setEyedropperLayerId(null)
+      clearPipetteLiveChain()
       const layersNow = updateLayerById(stateRef.current.layers, last.layerId, {
         src: last.src,
       })
       emitLayers(layersNow, last.layerId)
       return next
     })
-  }, [emitLayers])
+  }, [clearPipetteLiveChain, emitLayers])
 
   const handleRemoveBackground = async () => {
     if (!activeImageLayer?.src || removingBg) return
     setRemovingBg(true)
-    setEyedropperActive(false)
-    setEraserActive(false)
+    deactivateImageTools()
     try {
       pushImageUndo(activeImageLayer.id, activeImageLayer.src)
       const nextSrc = await removeLightImageBackground(activeImageLayer.src)
@@ -1555,9 +1769,7 @@ function LaserDesignerPreview({
         src: nextSrc,
       })
       emitLayers(next, activeImageLayer.id)
-      setEyedropperColor(null)
-      setEyedropperBaseSrc(null)
-      setEyedropperLayerId(null)
+      clearPipetteLiveChain()
     } catch (err) {
       console.warn("Hintergrund entfernen fehlgeschlagen:", err)
     } finally {
@@ -1594,11 +1806,9 @@ function LaserDesignerPreview({
     setRemovingBg(true)
     onStateChange({ activeLayerId: layerId })
     try {
-      const baseSrc =
-        eyedropperLayerId === targetLayer.id && eyedropperBaseSrc
-          ? eyedropperBaseSrc
-          : targetLayer.src
-      const color = await sampleImageColorAt(targetLayer.src, relX, relY)
+      // Kumulativ: aktuelle Layer-Src (bereits maskiert) ist Basis für neue Farbe
+      const baseSrc = targetLayer.src
+      const color = await sampleImageColorAt(baseSrc, relX, relY)
       pushImageUndo(targetLayer.id, targetLayer.src)
       setEyedropperColor(color)
       setEyedropperBaseSrc(baseSrc)
@@ -1650,19 +1860,21 @@ function LaserDesignerPreview({
   ])
 
   const handleEraserPaint = async (relX: number, relY: number) => {
-    if (!activeImageLayer?.src || eraserBusyRef.current) return
+    const layerId = activeImageLayer?.id
+    if (!layerId || eraserBusyRef.current) return
+    const current = eraserSrcRef.current ?? activeImageLayer?.src
+    if (!current || !eraserActive) return
     eraserBusyRef.current = true
     try {
-      const current = activeImageLayer.src
-      // Erstes Stroke der Serie: Undo einmal pushen
-      if (!eraserActive) return
-      const nextSrc = await eraseImageBrushStroke(current, [
-        { relX, relY, radiusRel: eraserRadius },
-      ])
-      const next = updateLayerById(stateRef.current.layers, activeImageLayer.id, {
+      const from = lastBrushPointRef.current ?? { relX, relY }
+      const strokePoints = interpolateBrushPoints(from, { relX, relY }, eraserRadius)
+      lastBrushPointRef.current = { relX, relY }
+      const nextSrc = await eraseImageBrushStroke(current, strokePoints)
+      eraserSrcRef.current = nextSrc
+      const next = updateLayerById(stateRef.current.layers, layerId, {
         src: nextSrc,
       })
-      emitLayers(next, activeImageLayer.id)
+      emitLayers(next, layerId)
     } catch (err) {
       console.warn("Radierer fehlgeschlagen:", err)
     } finally {
@@ -1671,30 +1883,90 @@ function LaserDesignerPreview({
   }
 
   const eraserStrokeStartedRef = useRef(false)
+
   const handleEraserPaintSafe = (relX: number, relY: number) => {
     if (!activeImageLayer?.src) return
-    // Radierer beendet live-Pipette-Kette
-    if (eyedropperColor) {
-      setEyedropperColor(null)
-      setEyedropperBaseSrc(null)
-      setEyedropperLayerId(null)
-    }
+    if (eyedropperColor) clearPipetteLiveChain()
     if (!eraserStrokeStartedRef.current) {
       pushImageUndo(activeImageLayer.id, activeImageLayer.src)
       eraserStrokeStartedRef.current = true
+      lastBrushPointRef.current = null
+      eraserSrcRef.current = activeImageLayer.src
     }
     void handleEraserPaint(relX, relY)
+  }
+
+  const handleLassoPoint = (relX: number, relY: number) => {
+    if (!activeImageLayer?.src) return
+    if (eyedropperColor) clearPipetteLiveChain()
+    if (lassoPointsRef.current.length === 0) {
+      pushImageUndo(activeImageLayer.id, activeImageLayer.src)
+    }
+    const last = lassoPointsRef.current[lassoPointsRef.current.length - 1]
+    if (
+      last &&
+      Math.hypot(last.relX - relX, last.relY - relY) < 0.004
+    ) {
+      return
+    }
+    lassoPointsRef.current.push({ relX, relY })
+  }
+
+  const handleLassoComplete = async () => {
+    if (!activeImageLayer?.src || lassoBusyRef.current) return
+    const points = lassoPointsRef.current
+    lassoPointsRef.current = []
+    if (points.length < 3) return
+    lassoBusyRef.current = true
+    try {
+      const nextSrc = await eraseImageLassoRegion(activeImageLayer.src, points)
+      const next = updateLayerById(stateRef.current.layers, activeImageLayer.id, {
+        src: nextSrc,
+      })
+      emitLayers(next, activeImageLayer.id)
+    } catch (err) {
+      console.warn("Lasso fehlgeschlagen:", err)
+    } finally {
+      lassoBusyRef.current = false
+    }
+  }
+
+  const handleCropComplete = async (
+    start: { relX: number; relY: number },
+    end: { relX: number; relY: number }
+  ) => {
+    if (!activeImageLayer?.src) return
+    const x = Math.min(start.relX, end.relX)
+    const y = Math.min(start.relY, end.relY)
+    const w = Math.abs(end.relX - start.relX)
+    const h = Math.abs(end.relY - start.relY)
+    if (w < 0.04 || h < 0.04) return
+    if (eyedropperColor) clearPipetteLiveChain()
+    pushImageUndo(activeImageLayer.id, activeImageLayer.src)
+    try {
+      const nextSrc = await cropImageToRelRect(activeImageLayer.src, { x, y, w, h })
+      const next = updateLayerById(stateRef.current.layers, activeImageLayer.id, {
+        src: nextSrc,
+      })
+      emitLayers(next, activeImageLayer.id)
+      setCropActive(false)
+    } catch (err) {
+      console.warn("Zuschneiden fehlgeschlagen:", err)
+    }
   }
 
   useEffect(() => {
     if (!eraserActive) {
       eraserStrokeStartedRef.current = false
+      lastBrushPointRef.current = null
+      eraserSrcRef.current = null
     }
   }, [eraserActive])
 
   useEffect(() => {
     const onUp = () => {
       eraserStrokeStartedRef.current = false
+      lastBrushPointRef.current = null
     }
     window.addEventListener("pointerup", onUp)
     return () => window.removeEventListener("pointerup", onUp)
@@ -1776,8 +2048,8 @@ function LaserDesignerPreview({
         </div>
 
         <p className="mb-3 text-xs text-muted-foreground">
-          Innen ziehen = verschieben · Griff oben = drehen · Griff unten rechts =
-          Grösse. Alles bleibt innerhalb von {workAreaLabel}.
+          Innen ziehen = verschieben · Griff oben rechts = drehen · 8 Griffe =
+          skalieren. Alles bleibt innerhalb von {workAreaLabel}.
         </p>
 
         <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -1803,6 +2075,14 @@ function LaserDesignerPreview({
             <Plus className="mr-1 h-3.5 w-3.5" />
             Text
           </Button>
+          <label className="ml-auto inline-flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+            <Checkbox
+              checked={proportionalScale}
+              onCheckedChange={(v) => setProportionalScale(v === true)}
+              aria-label="Proportional skalieren"
+            />
+            Proportional skalieren
+          </label>
         </div>
 
         <div className="relative flex gap-2">
@@ -1819,10 +2099,10 @@ function LaserDesignerPreview({
                 "h-9 w-9",
                 eyedropperActive && "bg-cyan-600 text-white hover:bg-cyan-500"
               )}
-              title="Pipette"
+              title="Pipette / Farbe entfernen"
               disabled={removingBg || !activeImageLayer}
               onClick={() => {
-                setEraserActive(false)
+                deactivateImageTools("eyedropper")
                 setEyedropperActive((v) => !v)
               }}
             >
@@ -1839,11 +2119,72 @@ function LaserDesignerPreview({
               title="Radierer / Pinsel"
               disabled={!activeImageLayer}
               onClick={() => {
-                setEyedropperActive(false)
+                deactivateImageTools("eraser")
                 setEraserActive((v) => !v)
               }}
             >
               <Eraser className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              size="icon"
+              variant={lassoActive ? "default" : "outline"}
+              className={cn(
+                "h-9 w-9",
+                lassoActive && "bg-cyan-600 text-white hover:bg-cyan-500"
+              )}
+              title="Lasso freistellen"
+              disabled={!activeImageLayer}
+              onClick={() => {
+                deactivateImageTools("lasso")
+                lassoPointsRef.current = []
+                setLassoActive((v) => !v)
+              }}
+            >
+              <Lasso className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              size="icon"
+              variant={cropActive ? "default" : "outline"}
+              className={cn(
+                "h-9 w-9",
+                cropActive && "bg-cyan-600 text-white hover:bg-cyan-500"
+              )}
+              title="Bild zuschneiden"
+              disabled={!activeImageLayer}
+              onClick={() => {
+                deactivateImageTools("crop")
+                setCropActive((v) => !v)
+              }}
+            >
+              <Crop className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              size="icon"
+              variant="outline"
+              className="h-9 w-9"
+              title="Weiss entfernen"
+              disabled={removingBg || !activeImageLayer}
+              onClick={() => void handleRemoveBackground()}
+            >
+              <Scissors className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              size="icon"
+              variant="outline"
+              className="h-9 w-9"
+              title="Zentrieren"
+              disabled={!activeLayer}
+              onClick={() => {
+                if (!activeLayer) return
+                patchLayerLayout(activeLayer.id, { x: 50, y: 50 })
+                onStateChange({ activeLayerId: activeLayer.id })
+              }}
+            >
+              <Crosshair className="h-4 w-4" />
             </Button>
             <Button
               type="button"
@@ -1946,10 +2287,20 @@ function LaserDesignerPreview({
                   onInnerRef={(el) => setLayerInnerRef(layer.id, el)}
                   eyedropperActive={eyedropperActive}
                   eraserActive={eraserActive}
+                  lassoActive={lassoActive}
+                  cropActive={cropActive}
+                  proportionalScale={proportionalScale}
                   onEyedropperSample={(relX, relY, id) => {
                     void handleEyedropperSample(relX, relY, id)
                   }}
                   onEraserPaint={handleEraserPaintSafe}
+                  onLassoPoint={handleLassoPoint}
+                  onLassoComplete={() => {
+                    void handleLassoComplete()
+                  }}
+                  onCropComplete={(start, end) => {
+                    void handleCropComplete(start, end)
+                  }}
                   onDelete={() => handleDeleteLayer(layer.id)}
                   onRotateStep={() =>
                     patchLayerLayout(layer.id, {
@@ -1958,8 +2309,11 @@ function LaserDesignerPreview({
                   }
                   onScaleStep={(delta) => {
                     const max = maxScaleMap[layer.id] ?? FALLBACK_MAX_SCALE
+                    const next = clampScale((layer.scale ?? 1) + delta, max)
                     patchLayerLayout(layer.id, {
-                      scale: clampScale((layer.scale ?? 1) + delta, max),
+                      scale: next,
+                      scaleX: next,
+                      scaleY: next,
                     })
                   }}
                   onBringForward={() => bringLayerForward(layer.id)}
@@ -1998,7 +2352,9 @@ function LaserDesignerPreview({
                   isMoving={dragMode != null && isActive}
                   stackIndex={index}
                   canvasRef={canvasRef}
-                  onSelect={() => onStateChange({ activeLayerId: layer.id })}
+                  onSelect={() => {
+                    onStateChange({ activeLayerId: layer.id })
+                  }}
                   onDragStart={startDragSession}
                   onInnerRef={(el) => setLayerInnerRef(layer.id, el)}
                   className="w-max max-w-none px-2 text-center text-white/90 drop-shadow-lg"
@@ -2013,6 +2369,7 @@ function LaserDesignerPreview({
                     maxWidth: "none",
                     textShadow: "0 1px 8px rgba(0,0,0,0.8)",
                   }}
+                  proportionalScale={proportionalScale}
                   onDelete={() => handleDeleteLayer(layer.id)}
                   onRotateStep={() =>
                     patchLayerLayout(layer.id, {
@@ -2021,12 +2378,19 @@ function LaserDesignerPreview({
                   }
                   onScaleStep={(delta) => {
                     const max = maxScaleMap[layer.id] ?? FALLBACK_MAX_SCALE
+                    const next = clampScale((layer.scale ?? 1) + delta, max)
                     patchLayerLayout(layer.id, {
-                      scale: clampScale((layer.scale ?? 1) + delta, max),
+                      scale: next,
+                      scaleX: next,
+                      scaleY: next,
                     })
                   }}
                   onBringForward={() => bringLayerForward(layer.id)}
                   onSendBackward={() => sendLayerBackward(layer.id)}
+                  onEditText={() => {
+                    onStateChange({ activeLayerId: layer.id })
+                    setEditingTextLayerId(layer.id)
+                  }}
                 >
                   {text || "Text"}
                 </InteractiveCanvasElement>
@@ -2048,7 +2412,7 @@ function LaserDesignerPreview({
         </div>
         </div>
 
-        {(eyedropperColor || eyedropperActive || eraserActive) && (
+        {(eyedropperColor || eyedropperActive || eraserActive || lassoActive || cropActive) && (
           <div className="mt-3 flex flex-wrap gap-4">
             {(eyedropperColor || eyedropperActive) && (
               <div className="flex min-w-[10rem] flex-1 flex-col gap-1">
@@ -2094,8 +2458,112 @@ function LaserDesignerPreview({
                 />
               </div>
             ) : null}
+            {lassoActive ? (
+              <p className="text-xs text-muted-foreground">
+                Lasso: Bereich freihand einkreisen — Loslassen stellt frei.
+              </p>
+            ) : null}
+            {cropActive ? (
+              <p className="text-xs text-muted-foreground">
+                Zuschneiden: Rechteck auf dem Bild aufziehen.
+              </p>
+            ) : null}
           </div>
         )}
+
+        {(() => {
+          const textEditId = editingTextLayerId ?? (
+            activeLayer?.kind === "text" ? activeLayer.id : null
+          )
+          const textLayer = textEditId
+            ? layers.find((l) => l.id === textEditId && l.kind === "text")
+            : null
+          if (!textLayer) return null
+          const fontId = textLayer.fontId ?? selectedFont
+          const inputFontStyle = {
+            ...getLaserFontInputStyle(fontId),
+            fontFamily: getLaserFontFamily(fontId),
+          }
+          return (
+            <div className="relative z-0 mt-4 space-y-3 rounded-lg border border-cyan-500/30 bg-cyan-500/5 p-4">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm font-semibold text-cyan-400">
+                  Text bearbeiten
+                </p>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => setEditingTextLayerId(null)}
+                >
+                  Schliessen
+                </Button>
+              </div>
+              <Textarea
+                value={textLayer.text ?? ""}
+                onChange={(e) => {
+                  const next = updateLayerById(stateRef.current.layers, textLayer.id, {
+                    text: e.target.value,
+                  })
+                  emitLayers(next, textLayer.id)
+                }}
+                onFocus={() => {
+                  onStateChange({ activeLayerId: textLayer.id })
+                  setEditingTextLayerId(textLayer.id)
+                }}
+                placeholder="Textinhalt…"
+                rows={2}
+                style={inputFontStyle}
+                className="resize-none rounded-lg border-cyan-500/25 bg-background/60 text-sm"
+                autoFocus={editingTextLayerId === textLayer.id}
+              />
+              <div className="space-y-1.5">
+                <Label className="text-xs">Schriftart</Label>
+                <select
+                  value={fontId}
+                  onChange={(e) => {
+                    const nextFont = e.target.value as LaserFontId
+                    const next = updateLayerById(stateRef.current.layers, textLayer.id, {
+                      fontId: nextFont,
+                    })
+                    emitLayers(next, textLayer.id)
+                    onStateChange({ selectedFont: nextFont })
+                  }}
+                  style={getLaserFontDropdownStyle(fontId)}
+                  className="w-full appearance-none rounded-lg border border-border/70 bg-card/90 py-2 pl-3 pr-8 text-sm"
+                >
+                  {LASER_FONT_OPTIONS.map((font) => (
+                    <option key={font.id} value={font.id}>
+                      {font.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">
+                  Grösse: {(textLayer.scale ?? 1).toFixed(2)}x
+                </Label>
+                <input
+                  type="range"
+                  min={MIN_LAYOUT_SCALE}
+                  max={Math.max(activeMaxScale, MIN_LAYOUT_SCALE)}
+                  step={0.05}
+                  value={Math.min(textLayer.scale ?? 1, activeMaxScale)}
+                  onChange={(e) => {
+                    const next = clampScale(Number(e.target.value), activeMaxScale)
+                    patchLayerLayout(textLayer.id, {
+                      scale: next,
+                      scaleX: next,
+                      scaleY: next,
+                    })
+                  }}
+                  className="h-2 w-full cursor-pointer accent-cyan-500"
+                />
+              </div>
+            </div>
+          )
+        })()}
 
         <div className="relative z-0 mt-4 space-y-4 border-t border-border/50 pt-4">
           {liveMmLabel && hasAnyContent && (
@@ -2131,42 +2599,13 @@ function LaserDesignerPreview({
             )}
         </div>
 
-        <div className="relative z-0 mt-3 flex flex-wrap items-center gap-2">
-          {activeImageLayer ? (
-            <>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="border-cyan-500/30 text-xs"
-                onClick={() => {
-                  patchLayerLayout(activeImageLayer.id, { x: 50, y: 50 })
-                  onStateChange({ activeLayerId: activeImageLayer.id })
-                }}
-              >
-                <Crosshair className="mr-1.5 h-3.5 w-3.5" />
-                Zentrieren
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="border-cyan-500/30 text-xs"
-                disabled={removingBg}
-                onClick={() => void handleRemoveBackground()}
-              >
-                <Eraser className="mr-1.5 h-3.5 w-3.5" />
-                {removingBg ? "Entferne…" : "Weiss entfernen"}
-              </Button>
-            </>
-          ) : null}
-        </div>
         <div className="mt-3 flex items-start gap-3 rounded-xl border border-cyan-400/40 bg-cyan-500/10 px-4 py-3 text-sm text-cyan-950 dark:text-cyan-100">
           <Info className="mt-0.5 h-5 w-5 shrink-0 text-cyan-600 dark:text-cyan-300" />
           <p className="leading-relaxed">
             <span className="font-semibold">Tipp für saubere Gravuren:</span>{" "}
             Am besten ein Bild mit transparentem Hintergrund (.png / .svg)
-            hochladen — oder Pipette / Radierer an der Live-Vorschau nutzen.
+            hochladen — oder Pipette, Lasso bzw. Radierer an der Live-Vorschau
+            nutzen. Doppelklick auf Text öffnet die Textbearbeitung.
           </p>
         </div>
       </CardContent>

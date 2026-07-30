@@ -48,7 +48,7 @@ export function ProductImageGallery({
 
   return (
     <div className={cn("flex flex-col gap-3", className)}>
-      <div className="group relative aspect-[4/3] w-full overflow-hidden rounded-xl border border-border/50 bg-secondary/30 shadow-sm">
+      <div className="group relative aspect-square w-full overflow-hidden rounded-xl border border-border/50 bg-secondary/30 shadow-sm">
         <SafeProductImage
           key={mainSrc}
           src={mainSrc}

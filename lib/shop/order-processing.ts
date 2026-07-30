@@ -389,11 +389,15 @@ export async function processOrderPayload(
         }
       : item.customDetails
 
+    const mockupUrl = uploaded?.previewMockupUrl ?? null
     return stripLeitbildPayload({
       ...item,
       customDetails: details,
       leitbildUrl: uploaded?.leitbildUrl ?? null,
-      previewMockupUrl: uploaded?.previewMockupUrl ?? null,
+      previewMockupUrl: mockupUrl,
+      // Aliase für Cockpit / API-Konsumenten
+      mockupPreviewUrl: mockupUrl,
+      mockup_preview_url: mockupUrl,
     })
   })
 

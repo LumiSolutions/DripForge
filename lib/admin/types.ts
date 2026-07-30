@@ -39,6 +39,10 @@ export type StoredOrderItem = CartItem & {
    * Entspricht dem Canvas-/html2canvas-Snapshot beim Warenkorb.
    */
   previewMockupUrl?: string | null
+  /** Alias für previewMockupUrl (API/Cockpit) */
+  mockupPreviewUrl?: string | null
+  /** Snake-case Alias */
+  mockup_preview_url?: string | null
 }
 
 export type StoredOrder = {
