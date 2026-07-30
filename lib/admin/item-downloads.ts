@@ -1,6 +1,7 @@
 import type { StoredOrder, StoredOrderItem } from "@/lib/admin/types"
 import { sanitizeFilename } from "@/lib/admin/sanitize-filename"
 import { resolveSiteOrigin } from "@/lib/site/site-origin"
+import { filenameFromAssetUrl } from "@/lib/dripforge/product-print-file"
 
 export type ItemDownloadLink = {
   id: string
@@ -9,14 +10,29 @@ export type ItemDownloadLink = {
   /** Direkt-URL, Data-URL oder Admin-Proxy-Pfad */
   href: string
   kind: "blob" | "data" | "proxy"
+  role?: "stl" | "leitbild" | "logo" | "mockup" | "skizze"
 }
 
 function isHttpUrl(value: string): boolean {
-  return /^https?:\/\//i.test(value)
+  return /^https?:\/\//i.test(value) || value.startsWith("/")
 }
 
 function isDataUrl(value: string): boolean {
   return value.startsWith("data:")
+}
+
+function proxyHref(url: string): string {
+  return `/api/admin/download-blob?url=${encodeURIComponent(url)}`
+}
+
+export function getItemMockupSrc(item: StoredOrderItem): string | null {
+  const src =
+    item.previewMockupUrl ??
+    item.previewMockup ??
+    item.leitbildUrl ??
+    item.leitbild ??
+    null
+  return typeof src === "string" && src.trim() ? src : null
 }
 
 export function getItemDownloadLinks(
@@ -31,23 +47,60 @@ export function getItemDownloadLinks(
       })
     | undefined
 
-  const leitbildSrc = item.leitbildUrl ?? item.leitbild
-  if (leitbildSrc) {
-    if (isHttpUrl(leitbildSrc)) {
+  const mockupSrc = getItemMockupSrc(item)
+  const leitbildOnly =
+    item.leitbildUrl ?? item.leitbild ?? null
+
+  if (item.type === "laser" && mockupSrc) {
+    if (isHttpUrl(mockupSrc)) {
       links.push({
-        id: `${item.id}-leitbild`,
-        label: "Leitbild (Azure)",
-        filename: sanitizeFilename(`${orderId}-${item.id}-leitbild.png`),
-        href: `/api/admin/download-blob?url=${encodeURIComponent(leitbildSrc)}`,
+        id: `${item.id}-mockup`,
+        label: "Vorschau-Mockup",
+        filename: sanitizeFilename(`${orderId}-${item.id}-mockup.png`),
+        href: proxyHref(mockupSrc),
         kind: "proxy",
+        role: "mockup",
       })
-    } else if (isDataUrl(leitbildSrc)) {
+    } else if (isDataUrl(mockupSrc)) {
+      links.push({
+        id: `${item.id}-mockup`,
+        label: "Vorschau-Mockup",
+        filename: sanitizeFilename(`${orderId}-${item.id}-mockup.png`),
+        href: mockupSrc,
+        kind: "data",
+        role: "mockup",
+      })
+    }
+  } else if (item.type === "3d" && leitbildOnly) {
+    if (isHttpUrl(leitbildOnly)) {
       links.push({
         id: `${item.id}-leitbild`,
-        label: "Leitbild",
+        label: "Leitbild anzeigen",
         filename: sanitizeFilename(`${orderId}-${item.id}-leitbild.png`),
-        href: leitbildSrc,
+        href: proxyHref(leitbildOnly),
+        kind: "proxy",
+        role: "leitbild",
+      })
+    } else if (isDataUrl(leitbildOnly)) {
+      links.push({
+        id: `${item.id}-leitbild`,
+        label: "Leitbild anzeigen",
+        filename: sanitizeFilename(`${orderId}-${item.id}-leitbild.png`),
+        href: leitbildOnly,
         kind: "data",
+        role: "leitbild",
+      })
+    }
+  } else if (mockupSrc && item.type !== "3d") {
+    // Fallback for mixed/legacy
+    if (isHttpUrl(mockupSrc)) {
+      links.push({
+        id: `${item.id}-leitbild`,
+        label: "Leitbild anzeigen",
+        filename: sanitizeFilename(`${orderId}-${item.id}-leitbild.png`),
+        href: proxyHref(mockupSrc),
+        kind: "proxy",
+        role: "leitbild",
       })
     }
   }
@@ -57,18 +110,20 @@ export function getItemDownloadLinks(
     if (isHttpUrl(img)) {
       links.push({
         id: `${item.id}-logo`,
-        label: "Logo / Grafik",
+        label: "Original Logo/Grafik",
         filename: sanitizeFilename(`${orderId}-${item.id}-logo.png`),
-        href: `/api/admin/download-blob?url=${encodeURIComponent(img)}`,
+        href: proxyHref(img),
         kind: "proxy",
+        role: "logo",
       })
     } else if (isDataUrl(img)) {
       links.push({
         id: `${item.id}-logo`,
-        label: "Logo / Grafik",
+        label: "Original Logo/Grafik",
         filename: sanitizeFilename(`${orderId}-${item.id}-logo.png`),
         href: img,
         kind: "data",
+        role: "logo",
       })
     }
   }
@@ -82,8 +137,9 @@ export function getItemDownloadLinks(
         id: `${item.id}-skizze`,
         label: "Farb-Skizze",
         filename: sanitizeFilename(name),
-        href: `/api/admin/download-blob?url=${encodeURIComponent(img)}`,
+        href: proxyHref(img),
         kind: "proxy",
+        role: "skizze",
       })
     } else if (isDataUrl(img)) {
       links.push({
@@ -92,6 +148,7 @@ export function getItemDownloadLinks(
         filename: sanitizeFilename(name),
         href: img,
         kind: "data",
+        role: "skizze",
       })
     }
   }
@@ -100,13 +157,14 @@ export function getItemDownloadLinks(
   if (modelSrc && typeof modelSrc === "string" && isHttpUrl(modelSrc)) {
     const fileName =
       details?.fileName ||
-      sanitizeFilename(`${orderId}-${item.id}-modell.stl`)
+      filenameFromAssetUrl(modelSrc, `${orderId}-${item.id}-modell.stl`)
     links.push({
       id: `${item.id}-modell`,
-      label: `3D-Modell (${fileName})`,
+      label: "STL-Datei herunterladen",
       filename: sanitizeFilename(fileName),
-      href: `/api/admin/download-blob?url=${encodeURIComponent(modelSrc)}`,
+      href: proxyHref(modelSrc),
       kind: "proxy",
+      role: "stl",
     })
   }
 
@@ -133,19 +191,20 @@ function collectDirectHttpAssets(
     | undefined
 
   const push = (label: string, src: string | null | undefined) => {
-    if (src && isHttpUrl(src)) {
+    if (src && /^https?:\/\//i.test(src)) {
       refs.push({ itemName: item.name, label, href: src })
     }
   }
 
+  push("Vorschau-Mockup", item.previewMockupUrl ?? undefined)
   push("Leitbild", item.leitbildUrl ?? undefined)
-  push("Logo / Grafik", details?.uploadedImage)
+  push("Original Logo/Grafik", details?.uploadedImage)
   push("Farb-Skizze", details?.colorReferenceImage)
   const modelSrc = details?.fileUrl || details?.modelUrl
-  if (modelSrc && isHttpUrl(modelSrc)) {
+  if (modelSrc && /^https?:\/\//i.test(modelSrc)) {
     refs.push({
       itemName: item.name,
-      label: `3D-Modell${details?.fileName ? ` (${details.fileName})` : ""}`,
+      label: `STL-Datei${details?.fileName ? ` (${details.fileName})` : ""}`,
       href: modelSrc,
     })
   } else if (details?.fileName?.trim()) {
@@ -157,7 +216,6 @@ function collectDirectHttpAssets(
     })
   }
 
-  // Fallback: Admin-Proxy-Links wenn keine direkten URLs
   if (refs.length === 0) {
     const origin = resolveSiteOrigin()
     for (const link of getItemDownloadLinks(orderId, item)) {

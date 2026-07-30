@@ -20,10 +20,17 @@ export function getCustomerItemDownloadLinks(
     | undefined
   const base = `/api/customer/orders/${encodeURIComponent(orderId)}/items/${encodeURIComponent(item.id)}/asset`
 
-  if (item.leitbildUrl || item.leitbild) {
+  if (item.type === "laser" && (item.previewMockupUrl || item.leitbildUrl || item.leitbild)) {
+    links.push({
+      id: `${item.id}-mockup`,
+      label: "Vorschau-Mockup",
+      filename: `mockup-${item.id}.png`,
+      href: `${base}?type=mockup`,
+    })
+  } else if (item.leitbildUrl || item.leitbild) {
     links.push({
       id: `${item.id}-leitbild`,
-      label: "Leitbild (Vorschau)",
+      label: "Leitbild anzeigen",
       filename: `leitbild-${item.id}.png`,
       href: `${base}?type=leitbild`,
     })
@@ -32,7 +39,7 @@ export function getCustomerItemDownloadLinks(
   if (details?.uploadedImage) {
     links.push({
       id: `${item.id}-logo`,
-      label: "Logo / Grafik",
+      label: "Original Logo/Grafik",
       filename: `grafik-${item.id}.png`,
       href: `${base}?type=logo`,
     })
@@ -51,9 +58,7 @@ export function getCustomerItemDownloadLinks(
   if (modelSrc) {
     links.push({
       id: `${item.id}-modell`,
-      label: details?.fileName?.trim()
-        ? `3D-Datei (${details.fileName.trim()})`
-        : "3D-Datei (STL)",
+      label: "STL-Datei herunterladen",
       filename: details?.fileName?.trim() || `modell-${item.id}.stl`,
       href: `${base}?type=modell`,
     })

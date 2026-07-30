@@ -1,4 +1,4 @@
-import { uploadOrderLeitbild } from "@/lib/azure/upload-order-leitbild"
+import { uploadOrderAsset, uploadOrderLeitbild } from "@/lib/azure/upload-order-asset"
 import {
   getOrderById,
   getSettings,
@@ -56,7 +56,12 @@ function stripLeitbildPayload(item: StoredOrderItem): StoredOrderItem {
 
 export type ProcessOrderResult = {
   order: StoredOrder
-  itemResults: { id: string; leitbildUrl: string | null }[]
+  itemResults: {
+    id: string
+    leitbildUrl: string | null
+    previewMockupUrl: string | null
+    uploadedImageUrl: string | null
+  }[]
   appliedCouponCode: string | null
   settings: AdminSettings
 }
@@ -175,25 +180,125 @@ export async function processOrderPayload(
   const itemResults = await Promise.all(
     payload.items.map(async (item) => {
       let leitbildUrl: string | null = null
-      if (item.leitbild) {
+      let previewMockupUrl: string | null = null
+      let uploadedImageUrl: string | null = null
+      let colorReferenceImageUrl: string | null = null
+
+      const mockupDataUrl =
+        (typeof item.previewMockup === "string" && item.previewMockup) ||
+        (typeof item.leitbild === "string" && item.leitbild) ||
+        null
+
+      if (mockupDataUrl) {
         try {
-          leitbildUrl = await uploadOrderLeitbild(orderId, item.id, item.leitbild)
+          if (item.type === "laser") {
+            previewMockupUrl = await uploadOrderAsset(
+              orderId,
+              item.id,
+              "mockup",
+              mockupDataUrl
+            )
+            // Leitbild bleibt Alias auf das Composite-Mockup (Abwärtskompatibilität)
+            leitbildUrl =
+              previewMockupUrl ??
+              (await uploadOrderLeitbild(orderId, item.id, mockupDataUrl))
+          } else {
+            leitbildUrl = await uploadOrderLeitbild(
+              orderId,
+              item.id,
+              mockupDataUrl
+            )
+          }
         } catch (uploadError) {
           console.error(
-            `Bestellung: Leitbild-Upload fehlgeschlagen (${orderId}, ${item.id}).`,
+            `Bestellung: Vorschau-Upload fehlgeschlagen (${orderId}, ${item.id}).`,
             uploadError
           )
         }
       }
-      return { id: item.id, leitbildUrl }
+
+      const logoDataUrl = item.customDetails?.uploadedImage
+      if (
+        typeof logoDataUrl === "string" &&
+        logoDataUrl.startsWith("data:")
+      ) {
+        try {
+          uploadedImageUrl = await uploadOrderAsset(
+            orderId,
+            item.id,
+            "logo",
+            logoDataUrl
+          )
+        } catch (uploadError) {
+          console.error(
+            `Bestellung: Logo-Upload fehlgeschlagen (${orderId}, ${item.id}).`,
+            uploadError
+          )
+        }
+      } else if (
+        typeof logoDataUrl === "string" &&
+        /^https?:\/\//i.test(logoDataUrl)
+      ) {
+        uploadedImageUrl = logoDataUrl
+      }
+
+      const skizzeDataUrl = item.customDetails?.colorReferenceImage
+      if (
+        typeof skizzeDataUrl === "string" &&
+        skizzeDataUrl.startsWith("data:")
+      ) {
+        try {
+          colorReferenceImageUrl = await uploadOrderAsset(
+            orderId,
+            item.id,
+            "skizze",
+            skizzeDataUrl
+          )
+        } catch (uploadError) {
+          console.error(
+            `Bestellung: Farb-Skizze-Upload fehlgeschlagen (${orderId}, ${item.id}).`,
+            uploadError
+          )
+        }
+      } else if (
+        typeof skizzeDataUrl === "string" &&
+        /^https?:\/\//i.test(skizzeDataUrl)
+      ) {
+        colorReferenceImageUrl = skizzeDataUrl
+      }
+
+      return {
+        id: item.id,
+        leitbildUrl,
+        previewMockupUrl,
+        uploadedImageUrl,
+        colorReferenceImageUrl,
+      }
     })
   )
 
   const items: StoredOrderItem[] = payload.items.map((item) => {
     const uploaded = itemResults.find((r) => r.id === item.id)
+    const details = item.customDetails
+      ? {
+          ...item.customDetails,
+          ...(uploaded?.uploadedImageUrl
+            ? {
+                uploadedImage: uploaded.uploadedImageUrl,
+                hasImage: true,
+              }
+            : {}),
+          ...(uploaded?.colorReferenceImageUrl
+            ? { colorReferenceImage: uploaded.colorReferenceImageUrl }
+            : {}),
+        }
+      : item.customDetails
+
     return stripLeitbildPayload({
       ...item,
+      customDetails: details,
       leitbildUrl: uploaded?.leitbildUrl ?? null,
+      previewMockupUrl: uploaded?.previewMockupUrl ?? null,
     })
   })
 

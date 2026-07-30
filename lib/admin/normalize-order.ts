@@ -24,7 +24,7 @@ const ORDER_STATUSES = new Set<OrderStatus>([
 export function sanitizeOrderItemForPersistence(
   item: StoredOrderItem
 ): StoredOrderItem {
-  const { leitbild: _leitbild, ...rest } = item
+  const { leitbild: _leitbild, previewMockup: _previewMockup, ...rest } = item
   const next: StoredOrderItem = {
     id: String(rest.id ?? ""),
     name: String(rest.name ?? "Artikel"),
@@ -32,6 +32,7 @@ export function sanitizeOrderItemForPersistence(
     quantity: Number.isFinite(rest.quantity) && rest.quantity > 0 ? rest.quantity : 1,
     type: rest.type === "laser" ? "laser" : "3d",
     leitbildUrl: rest.leitbildUrl ?? null,
+    previewMockupUrl: rest.previewMockupUrl ?? null,
   }
 
   if (rest.unit) next.unit = rest.unit

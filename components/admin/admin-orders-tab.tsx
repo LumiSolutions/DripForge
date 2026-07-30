@@ -42,7 +42,7 @@ import {
   downloadTextFile,
   sanitizeFilename,
 } from "@/lib/admin/download-helpers"
-import { getItemDownloadLinks } from "@/lib/admin/item-downloads"
+import { getItemDownloadLinks, getItemMockupSrc } from "@/lib/admin/item-downloads"
 import {
   getItemLogoPreviewSrc,
   getLaserPlacementLines,
@@ -263,18 +263,27 @@ function OrderDetailPanel({ order }: { order: StoredOrder }) {
                 </ul>
               )}
 
-              {item.type === "laser" && getItemLogoPreviewSrc(item) && (
+              {item.type === "laser" &&
+                (getItemMockupSrc(item) || getItemLogoPreviewSrc(item)) && (
                 <div className="flex items-start gap-3 pt-2">
                   <div className={cn("overflow-hidden rounded-lg border", adminUi.thumbnail)}>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={getItemLogoPreviewSrc(item)!}
-                      alt="Logo-Vorschau"
-                      className="h-20 w-20 object-contain bg-black/20"
+                      src={getItemMockupSrc(item) ?? getItemLogoPreviewSrc(item)!}
+                      alt={
+                        getItemMockupSrc(item)
+                          ? "Vorschau-Mockup"
+                          : "Logo-Vorschau"
+                      }
+                      className="h-24 w-32 object-contain bg-black/20"
                     />
                   </div>
                   <div className={cn("space-y-1 text-xs", adminUi.bodyText)}>
-                    <p className="font-medium">Hochgeladene Grafik</p>
+                    <p className="font-medium">
+                      {getItemMockupSrc(item)
+                        ? "Kombiniertes Vorschau-Mockup"
+                        : "Hochgeladene Grafik"}
+                    </p>
                     {getLaserPlacementLines(item)
                       .filter((l) => l.label.startsWith("Logo"))
                       .map((line) => (
@@ -287,59 +296,72 @@ function OrderDetailPanel({ order }: { order: StoredOrder }) {
               )}
 
               <div className="flex flex-wrap gap-2 pt-2">
-                {getItemDownloadLinks(order.orderId, item).map((file) => (
-                  <Button
-                    key={file.id}
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className={adminUi.outlineBtn}
-                    onClick={() =>
-                      triggerAdminFileDownload(file.filename, file.href)
-                    }
-                  >
-                    <Download className="mr-2 h-3.5 w-3.5" />
-                    {file.label}
-                  </Button>
-                ))}
-                {item.customDetails?.fileName &&
-                  !getItemDownloadLinks(order.orderId, item).some((f) =>
-                    f.id.endsWith("-modell")
-                  ) && (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className={adminUi.outlineBtn}
-                    onClick={() =>
-                      downloadTextFile(
-                        sanitizeFilename(item.customDetails!.fileName!),
-                        `Referenzdatei: ${item.customDetails!.fileName}\n(Bitte Original aus Produktionsablage laden.)`
-                      )
-                    }
-                  >
-                    <Download className="mr-2 h-3.5 w-3.5" />
-                    {item.customDetails.fileName}
-                  </Button>
-                )}
+                {(() => {
+                  const links = getItemDownloadLinks(order.orderId, item)
+                  return (
+                    <>
+                      {links.map((file) => (
+                        <Button
+                          key={file.id}
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className={adminUi.outlineBtn}
+                          onClick={() =>
+                            triggerAdminFileDownload(file.filename, file.href)
+                          }
+                        >
+                          <Download className="mr-2 h-3.5 w-3.5" />
+                          {file.label}
+                        </Button>
+                      ))}
+                      {item.customDetails?.fileName &&
+                        !links.some((f) => f.role === "stl") && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className={adminUi.outlineBtn}
+                            onClick={() =>
+                              downloadTextFile(
+                                sanitizeFilename(item.customDetails!.fileName!),
+                                `Referenzdatei: ${item.customDetails!.fileName}\n(Bitte Original aus Produktionsablage laden.)`
+                              )
+                            }
+                          >
+                            <Download className="mr-2 h-3.5 w-3.5" />
+                            STL-Datei herunterladen
+                          </Button>
+                        )}
+                    </>
+                  )
+                })()}
               </div>
             </div>
 
             <div className="space-y-3">
               <h5 className={cn("text-xs font-semibold uppercase tracking-wide", adminUi.muted)}>
-                Qualitätssicherung — Leitbild
+                {item.type === "laser"
+                  ? "Qualitätssicherung — Vorschau-Mockup"
+                  : "Qualitätssicherung — Leitbild"}
               </h5>
-              {item.leitbild || item.leitbildUrl ? (
+              {getItemMockupSrc(item) ? (
                 <div className={cn("overflow-hidden rounded-xl border bg-black/40", adminUi.thumbnail)}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={item.leitbildUrl ?? item.leitbild}
-                    alt="Leitbild Kunden-Wunsch-Ansicht"
+                    src={getItemMockupSrc(item)!}
+                    alt={
+                      item.type === "laser"
+                        ? "Vorschau-Mockup (Hintergrund + Overlay)"
+                        : "Leitbild Kunden-Wunsch-Ansicht"
+                    }
                     className="max-h-80 w-full object-contain"
                   />
                   <div className={cn("flex items-center justify-between gap-2 border-t px-3 py-2", adminUi.sidebarBorder)}>
                     <span className={cn("text-xs", adminUi.muted)}>
-                      Snapshot beim Warenkorb-Hinzufuegen
+                      {item.type === "laser"
+                        ? "Composite-Snapshot beim Warenkorb (Hintergrund + Logo/Text)"
+                        : "Snapshot beim Warenkorb-Hinzufuegen"}
                     </span>
                     <Button
                       type="button"
@@ -347,9 +369,11 @@ function OrderDetailPanel({ order }: { order: StoredOrder }) {
                       variant="ghost"
                       className={cn("hover:text-orange-300", adminUi.accentTitle)}
                       onClick={() =>
-                        downloadDataUrl(
-                          sanitizeFilename(`${item.id}-leitbild.png`),
-                          item.leitbildUrl ?? item.leitbild!
+                        triggerAdminFileDownload(
+                          sanitizeFilename(
+                            `${item.id}-${item.type === "laser" ? "mockup" : "leitbild"}.png`
+                          ),
+                          getItemMockupSrc(item)!
                         )
                       }
                     >
@@ -361,7 +385,9 @@ function OrderDetailPanel({ order }: { order: StoredOrder }) {
               ) : (
                 <div className={cn("flex h-40 items-center justify-center rounded-xl border border-dashed text-sm", adminUi.dashedBox, adminUi.muted)}>
                   <ImageIcon className="mr-2 h-5 w-5 opacity-50" />
-                  Kein Leitbild vorhanden
+                  {item.type === "laser"
+                    ? "Kein Vorschau-Mockup vorhanden"
+                    : "Kein Leitbild vorhanden"}
                 </div>
               )}
             </div>

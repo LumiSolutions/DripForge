@@ -41,7 +41,10 @@ import {
   downloadDataUrl,
   downloadTextFile,
 } from "@/lib/admin/download-helpers"
-import { getItemDownloadLinks } from "@/lib/admin/item-downloads"
+import {
+  getItemDownloadLinks,
+  getItemMockupSrc,
+} from "@/lib/admin/item-downloads"
 import {
   getItemLogoPreviewSrc,
   getItemModelFile,
@@ -142,8 +145,12 @@ function ItemAttachmentBlock({
   const downloads = getItemDownloadLinks(orderId, item)
   const model = getItemModelFile(item)
   const logoSrc = getItemLogoPreviewSrc(item)
+  const mockupSrc = getItemMockupSrc(item)
   const placements = getLaserPlacementLines(item)
-  const modelDownload = downloads.find((d) => d.id.endsWith("-modell"))
+  const stlDownload = downloads.find((d) => d.role === "stl")
+  const leitbildDownload = downloads.find((d) => d.role === "leitbild")
+  const logoDownload = downloads.find((d) => d.role === "logo")
+  const mockupDownload = downloads.find((d) => d.role === "mockup")
 
   return (
     <div className={cn("space-y-2 rounded-lg border p-3 text-sm", adminUi.section)}>
@@ -169,9 +176,19 @@ function ItemAttachmentBlock({
         <p className={cn("text-xs", adminUi.muted)}>Keine Zusatzdetails</p>
       )}
 
-      {item.type === "laser" && (logoSrc || placements.length > 0) && (
+      {item.type === "laser" && (mockupSrc || logoSrc || placements.length > 0) && (
         <div className="flex flex-wrap items-start gap-3 pt-1">
-          {logoSrc && (
+          {mockupSrc && (
+            <div className={cn("overflow-hidden rounded-md border", adminUi.thumbnail)}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={mockupSrc}
+                alt="Vorschau-Mockup"
+                className="h-20 w-28 object-contain bg-black/20"
+              />
+            </div>
+          )}
+          {!mockupSrc && logoSrc && (
             <div className={cn("overflow-hidden rounded-md border", adminUi.thumbnail)}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -189,67 +206,122 @@ function ItemAttachmentBlock({
                 {p.value}
               </p>
             ))}
-            {!placements.length && logoSrc && (
-              <p className={adminUi.muted}>Logo hochgeladen</p>
+            {mockupSrc && (
+              <p className={adminUi.muted}>Kombiniertes Vorschau-Mockup</p>
             )}
           </div>
         </div>
       )}
 
-      {item.type === "3d" && model && (
-        <div className="pt-1">
-          {modelDownload ? (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className={cn("h-7 max-w-full text-xs", adminUi.outlineBtn)}
-              onClick={() =>
-                triggerFileDownload(modelDownload.filename, modelDownload.href)
-              }
-            >
-              <Download className="mr-1 h-3 w-3 shrink-0" />
-              <span className="truncate">STL: {model.fileName}</span>
-            </Button>
-          ) : (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className={cn("h-7 max-w-full text-xs", adminUi.outlineBtn)}
-              onClick={() =>
-                downloadTextFile(
-                  model.fileName,
-                  `3D-Modell: ${model.fileName}\n(Bitte Originaldatei aus Kundenkommunikation.)`
-                )
-              }
-            >
-              <Download className="mr-1 h-3 w-3 shrink-0" />
-              <span className="truncate">{model.fileName}</span>
-            </Button>
-          )}
+      {item.type === "3d" && mockupSrc && (
+        <div className={cn("overflow-hidden rounded-md border", adminUi.thumbnail)}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={mockupSrc}
+            alt="Leitbild"
+            className="max-h-24 w-full object-contain bg-black/20"
+          />
         </div>
       )}
 
-      {downloads.filter((d) => !d.id.endsWith("-modell")).length > 0 && (
-        <div className="flex flex-wrap gap-1.5 pt-1">
-          {downloads
-            .filter((d) => !d.id.endsWith("-modell"))
-            .map((file) => (
-              <Button
-                key={file.id}
-                type="button"
-                size="sm"
-                variant="outline"
-                className={cn("h-7 text-xs", adminUi.outlineBtn)}
-                onClick={() => triggerFileDownload(file.filename, file.href)}
-              >
-                <Download className="mr-1 h-3 w-3" />
-                {file.label}
-              </Button>
-            ))}
-        </div>
-      )}
+      <div className="flex w-full flex-wrap gap-1.5 pt-1">
+        {item.type === "3d" && stlDownload && (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className={cn("h-7 max-w-full text-xs", adminUi.outlineBtn)}
+            onClick={() =>
+              triggerFileDownload(stlDownload.filename, stlDownload.href)
+            }
+          >
+            <Download className="mr-1 h-3 w-3 shrink-0" />
+            <span className="truncate">STL-Datei herunterladen</span>
+          </Button>
+        )}
+        {item.type === "3d" && !stlDownload && model && (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className={cn("h-7 max-w-full text-xs", adminUi.outlineBtn)}
+            onClick={() =>
+              downloadTextFile(
+                model.fileName,
+                `3D-Modell: ${model.fileName}\n(Bitte Originaldatei aus Kundenkommunikation.)`
+              )
+            }
+          >
+            <Download className="mr-1 h-3 w-3 shrink-0" />
+            <span className="truncate">STL-Datei herunterladen</span>
+          </Button>
+        )}
+        {item.type === "3d" && leitbildDownload && (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className={cn("h-7 max-w-full text-xs", adminUi.outlineBtn)}
+            onClick={() =>
+              triggerFileDownload(leitbildDownload.filename, leitbildDownload.href)
+            }
+          >
+            <Download className="mr-1 h-3 w-3 shrink-0" />
+            Leitbild anzeigen
+          </Button>
+        )}
+        {item.type === "laser" && logoDownload && (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className={cn("h-7 max-w-full text-xs", adminUi.outlineBtn)}
+            onClick={() =>
+              triggerFileDownload(logoDownload.filename, logoDownload.href)
+            }
+          >
+            <Download className="mr-1 h-3 w-3 shrink-0" />
+            <span className="truncate">Original Logo/Grafik</span>
+          </Button>
+        )}
+        {item.type === "laser" && mockupDownload && (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className={cn("h-7 max-w-full text-xs", adminUi.outlineBtn)}
+            onClick={() =>
+              triggerFileDownload(mockupDownload.filename, mockupDownload.href)
+            }
+          >
+            <Download className="mr-1 h-3 w-3 shrink-0" />
+            <span className="truncate">Vorschau-Mockup</span>
+          </Button>
+        )}
+        {downloads
+          .filter(
+            (d) =>
+              d.role === "skizze" ||
+              (!d.role &&
+                !d.id.endsWith("-modell") &&
+                !d.id.endsWith("-leitbild") &&
+                !d.id.endsWith("-logo") &&
+                !d.id.endsWith("-mockup"))
+          )
+          .map((file) => (
+            <Button
+              key={file.id}
+              type="button"
+              size="sm"
+              variant="outline"
+              className={cn("h-7 text-xs", adminUi.outlineBtn)}
+              onClick={() => triggerFileDownload(file.filename, file.href)}
+            >
+              <Download className="mr-1 h-3 w-3" />
+              {file.label}
+            </Button>
+          ))}
+      </div>
     </div>
   )
 }

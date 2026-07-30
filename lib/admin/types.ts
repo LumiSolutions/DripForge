@@ -34,6 +34,11 @@ export const DEFAULT_PRODUCTION_STATUS: ProductionStatus = "bereit_fuer_produkti
 
 export type StoredOrderItem = CartItem & {
   leitbildUrl?: string | null
+  /**
+   * Zusammengesetztes Vorschau-Mockup (Laser: Hintergrund + Logo/Text).
+   * Entspricht dem Canvas-/html2canvas-Snapshot beim Warenkorb.
+   */
+  previewMockupUrl?: string | null
 }
 
 export type StoredOrder = {
