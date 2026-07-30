@@ -330,6 +330,13 @@ export function PageShop({
 
       let previewMockup: string | undefined
       try {
+        // Auswahl-Chrome ausblenden vor Composite-Capture
+        setLaserDesign((prev) =>
+          prev ? { ...prev, activeLayerId: null } : prev
+        )
+        await new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+        )
         const mockupUrl = await captureLaserPreviewMockup(laserPreviewRef.current)
         previewMockup = mockupUrl ?? undefined
       } catch {
@@ -420,8 +427,13 @@ export function PageShop({
           {detailProduct.type === "laser" && shopLaserMaterial && laserDesign ? (
             <div className="space-y-6">
               <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-12 xl:gap-6">
-                {/* Spalte 1: Galerie & Beschreibung */}
-                <div className="flex min-w-0 flex-col gap-4 xl:col-span-3">
+                {/* Spalte 1: grosse Galerie, Beschreibung, Material */}
+                <div className="flex min-w-0 flex-col gap-4 xl:col-span-4">
+                  <ProductImageGallery
+                    images={galleryImages}
+                    alt={detailProduct.name}
+                    className="[&>div:first-child]:aspect-[4/5] sm:[&>div:first-child]:aspect-[3/4]"
+                  />
                   <Card className="rounded-2xl border-border/50 bg-card/50 shadow-sm">
                     <CardContent className="p-4 sm:p-5">
                       <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -435,62 +447,60 @@ export function PageShop({
                       <h1 className="text-xl font-bold sm:text-2xl">
                         {detailProduct.name}
                       </h1>
-                      <p className="mt-2 text-sm text-muted-foreground">
+                      <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                         {detailProduct.description}
                       </p>
                     </CardContent>
                   </Card>
-                  <ProductImageGallery
-                    images={galleryImages}
-                    alt={detailProduct.name}
+                  <LaserDesignerStudio
+                    column="settings"
+                    material={shopLaserMaterial}
+                    productName={detailProduct.name}
+                    state={laserDesign}
+                    showMaterialCard
+                    showVariantPicker={false}
+                    showTextLayers={false}
+                    onStateChange={(patch) =>
+                      setLaserDesign((prev) =>
+                        prev ? { ...prev, ...patch } : prev
+                      )
+                    }
                   />
                 </div>
 
-                {/* Spalte 2: Preis, Menge, Varianten, Warenkorb */}
-                <div className="flex min-w-0 flex-col gap-4 xl:col-span-4 xl:sticky xl:top-24">
-                  <Card className="rounded-2xl border border-sky-200/80 bg-sky-50 shadow-sm dark:border-cyan-500/25 dark:bg-gradient-to-b dark:from-cyan-500/10 dark:via-sky-950/20">
-                    <CardContent className="space-y-4 p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <h3 className="text-sm font-bold">Preis & Menge</h3>
-                        <ProductShopPrice product={detailProduct} size="lg" />
+                {/* Spalte 2: dezenter Preis, Variante, Warenkorb */}
+                <div className="flex min-w-0 flex-col gap-4 xl:col-span-3 xl:sticky xl:top-24">
+                  <Card className="rounded-xl border border-border/60 bg-card/40 shadow-none">
+                    <CardContent className="space-y-3 p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          Preis
+                        </h3>
+                        <ProductShopPrice product={detailProduct} size="sm" />
                       </div>
-                      <div className="space-y-1.5 text-sm">
-                        {laserDesign.selectedVariant && (
-                          <div className="flex justify-between gap-3">
-                            <span className="text-muted-foreground">Variante</span>
-                            <span className="font-medium">
-                              {laserDesign.selectedVariant}
-                            </span>
-                          </div>
-                        )}
-                        <div className="flex justify-between gap-3">
-                          <span className="text-muted-foreground">Stückpreis</span>
-                          <span className="font-medium">
-                            CHF {unitPrice.toFixed(2)}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2">
                         <Button
                           size="sm"
                           variant="outline"
+                          className="h-8 w-8 p-0"
                           onClick={() => setQuantity(Math.max(1, quantity - 1))}
                           aria-label="Anzahl verringern"
                         >
-                          <Minus className="h-4 w-4" />
+                          <Minus className="h-3.5 w-3.5" />
                         </Button>
-                        <span className="w-10 text-center text-base font-bold tabular-nums">
+                        <span className="w-8 text-center text-sm font-bold tabular-nums">
                           {quantity}
                         </span>
                         <Button
                           size="sm"
                           variant="outline"
+                          className="h-8 w-8 p-0"
                           onClick={() => setQuantity(quantity + 1)}
                           aria-label="Anzahl erhöhen"
                         >
-                          <Plus className="h-4 w-4" />
+                          <Plus className="h-3.5 w-3.5" />
                         </Button>
-                        <span className="ml-auto text-sm font-bold text-cyan-600 dark:text-cyan-400">
+                        <span className="ml-auto text-sm font-semibold tabular-nums">
                           CHF {(unitPrice * quantity).toFixed(2)}
                         </span>
                       </div>
@@ -498,9 +508,9 @@ export function PageShop({
                         onClick={handleAddToCart}
                         disabled={!canAddToCart}
                         className="w-full bg-primary hover:bg-primary/90"
-                        size="lg"
+                        size="default"
                       >
-                        <ShoppingCart className="mr-2 h-5 w-5" />
+                        <ShoppingCart className="mr-2 h-4 w-4" />
                         In den Warenkorb
                       </Button>
                     </CardContent>
@@ -512,6 +522,9 @@ export function PageShop({
                     productName={detailProduct.name}
                     state={laserDesign}
                     varianten={shopProductVarianten}
+                    showMaterialCard={false}
+                    showVariantPicker
+                    showTextLayers={false}
                     onStateChange={(patch) =>
                       setLaserDesign((prev) =>
                         prev ? { ...prev, ...patch } : prev
@@ -520,7 +533,7 @@ export function PageShop({
                   />
                 </div>
 
-                {/* Spalte 3: Live-Vorschau */}
+                {/* Spalte 3: Live-Vorschau + Werkzeuge */}
                 <div className="flex min-w-0 flex-col gap-4 xl:col-span-5 xl:sticky xl:top-24">
                   <LaserDesignerStudio
                     column="preview"

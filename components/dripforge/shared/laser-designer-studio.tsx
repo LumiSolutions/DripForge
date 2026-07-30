@@ -18,6 +18,8 @@ import {
   Type,
   Undo2,
   Upload,
+  ArrowUp,
+  ArrowDown,
   X,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
@@ -112,6 +114,8 @@ type LaserDesignerStudioProps = LaserDesignerBaseProps & {
   workAreaMm?: WorkAreaMm
   showMaterialCard?: boolean
   showVariantPicker?: boolean
+  /** Text-Layer-Editor in der Settings-Spalte (sonst im Preview) */
+  showTextLayers?: boolean
   /** Produkt-Varianten aus Admin (Stichworte); leer = keine Auswahl */
   varianten?: string[]
   /** Admin-Hintergrundbild für Laser-Individualisierung */
@@ -275,6 +279,7 @@ function InteractiveCanvasElement({
   onRotateStep,
   onScaleStep,
   onBringForward,
+  onSendBackward,
   children,
 }: {
   layerId: string
@@ -291,12 +296,13 @@ function InteractiveCanvasElement({
   kind: "text" | "image"
   eyedropperActive?: boolean
   eraserActive?: boolean
-  onEyedropperSample?: (relX: number, relY: number) => void
+  onEyedropperSample?: (relX: number, relY: number, layerId: string) => void
   onEraserPaint?: (relX: number, relY: number) => void
   onDelete?: () => void
   onRotateStep?: () => void
   onScaleStep?: (delta: number) => void
   onBringForward?: () => void
+  onSendBackward?: () => void
   children: React.ReactNode
 }) {
   const localInnerRef = useRef<HTMLElement | null>(null)
@@ -362,7 +368,7 @@ function InteractiveCanvasElement({
     }
   }
 
-  const zIndex = isActive ? 40 + stackIndex : 10 + stackIndex
+  const zIndex = 10 + stackIndex + (isActive ? 1 : 0)
   const toolCursor =
     eyedropperActive && kind === "image" && isActive
       ? "cursor-crosshair"
@@ -398,15 +404,15 @@ function InteractiveCanvasElement({
         style={{ ...CANVAS_TOUCH_LOCK_STYLE, ...style }}
         onPointerDown={(e) => {
           if (isHandleTarget(e.target)) return
-          if (eyedropperActive && kind === "image" && isActive) {
+          if (eyedropperActive && kind === "image") {
             e.preventDefault()
             e.stopPropagation()
             onSelect()
             const rel = relFromEvent(e.currentTarget, e.clientX, e.clientY)
-            if (rel) onEyedropperSample?.(rel.relX, rel.relY)
+            if (rel) onEyedropperSample?.(rel.relX, rel.relY, layerId)
             return
           }
-          if (eraserActive && kind === "image" && isActive) {
+          if (eraserActive && kind === "image") {
             e.preventDefault()
             e.stopPropagation()
             onSelect()
@@ -419,10 +425,11 @@ function InteractiveCanvasElement({
             }
             return
           }
+          e.stopPropagation()
           beginPointerDrag(e, "move")
         }}
         onPointerMove={(e) => {
-          if (!(eraserActive && kind === "image" && isActive)) return
+          if (!(eraserActive && kind === "image")) return
           if (e.buttons === 0) return
           const rel = relFromEvent(e.currentTarget, e.clientX, e.clientY)
           if (rel) onEraserPaint?.(rel.relX, rel.relY)
@@ -430,6 +437,7 @@ function InteractiveCanvasElement({
         onTouchStart={(e) => {
           if (isHandleTarget(e.target)) return
           if (eyedropperActive || eraserActive) return
+          e.stopPropagation()
           beginTouchDrag(e, "move")
         }}
       >
@@ -499,8 +507,30 @@ function InteractiveCanvasElement({
 
               <button
                 type="button"
+                data-handle="tool-layers-back"
+                aria-label="Nach hinten senden"
+                className={cn(
+                  "pointer-events-auto absolute -bottom-3 -left-10 z-40 flex h-7 w-7 items-center justify-center rounded-full",
+                  "border border-cyan-400/60 bg-background text-cyan-500 shadow-md hover:bg-cyan-500/15",
+                  CANVAS_TOUCH_LOCK_CLASS
+                )}
+                style={CANVAS_TOUCH_LOCK_STYLE}
+                onPointerDown={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                }}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onSendBackward?.()
+                }}
+              >
+                <ArrowDown className="h-3.5 w-3.5" />
+              </button>
+
+              <button
+                type="button"
                 data-handle="tool-layers"
-                aria-label="Ebene nach vorne"
+                aria-label="Nach vorne bringen"
                 className={cn(
                   "pointer-events-auto absolute -bottom-3 -left-3 z-40 flex h-7 w-7 items-center justify-center rounded-full",
                   "border border-cyan-400/60 bg-background text-cyan-500 shadow-md hover:bg-cyan-500/15",
@@ -516,7 +546,7 @@ function InteractiveCanvasElement({
                   onBringForward?.()
                 }}
               >
-                <Layers className="h-3.5 w-3.5" />
+                <ArrowUp className="h-3.5 w-3.5" />
               </button>
 
               <button
@@ -804,10 +834,12 @@ function LaserDesignerSettings({
   onStateChange,
   showMaterialCard = true,
   showVariantPicker = true,
+  showTextLayers = true,
   varianten = [],
 }: LaserDesignerBaseProps & {
   showMaterialCard?: boolean
   showVariantPicker?: boolean
+  showTextLayers?: boolean
   varianten?: string[]
 }) {
   const { selectedVariant, selectedFont, layers, activeLayerId } = state
@@ -952,6 +984,7 @@ function LaserDesignerSettings({
         </Card>
       )}
 
+      {showTextLayers && (
       <Card className="rounded-xl border-border/50 bg-card/50">
         <CardContent className="space-y-5 p-6">
           <div className="flex items-center justify-between gap-2">
@@ -1094,6 +1127,7 @@ function LaserDesignerSettings({
           )}
         </CardContent>
       </Card>
+      )}
     </div>
   )
 }
@@ -1184,7 +1218,18 @@ function LaserDesignerPreview({
     (l) => l.kind === "image" && Boolean(l.src)
   )
   const hasAnyContent =
-    visibleTextLayers.length > 0 || visibleImageLayers.length > 0
+    visibleTextLayers.length > 0 ||
+    visibleImageLayers.length > 0 ||
+    Boolean(
+      activeLayerId &&
+        layers.some(
+          (l) =>
+            l.id === activeLayerId &&
+            (l.kind === "image"
+              ? Boolean(l.src)
+              : true)
+        )
+    )
 
   const activeLayer =
     layers.find((l) => l.id === activeLayerId) ??
@@ -1486,16 +1531,17 @@ function LaserDesignerPreview({
       if (prev.length === 0) return prev
       const last = prev[prev.length - 1]
       const next = prev.slice(0, -1)
+      // Pipette-Live-Kette stoppen, sonst überschreibt der Effect das Undo
+      setEyedropperColor(null)
+      setEyedropperBaseSrc(null)
+      setEyedropperLayerId(null)
       const layersNow = updateLayerById(stateRef.current.layers, last.layerId, {
         src: last.src,
       })
       emitLayers(layersNow, last.layerId)
-      if (eyedropperLayerId === last.layerId) {
-        setEyedropperBaseSrc(last.src)
-      }
       return next
     })
-  }, [emitLayers, eyedropperLayerId])
+  }, [emitLayers])
 
   const handleRemoveBackground = async () => {
     if (!activeImageLayer?.src || removingBg) return
@@ -1535,24 +1581,34 @@ function LaserDesignerPreview({
     [emitLayers]
   )
 
-  const handleEyedropperSample = async (relX: number, relY: number) => {
-    if (!activeImageLayer?.src || removingBg) return
+  const handleEyedropperSample = async (
+    relX: number,
+    relY: number,
+    layerId: string
+  ) => {
+    if (removingBg) return
+    const targetLayer = stateRef.current.layers.find(
+      (l) => l.id === layerId && l.kind === "image" && l.src
+    )
+    if (!targetLayer?.src) return
     setRemovingBg(true)
+    onStateChange({ activeLayerId: layerId })
     try {
-      const baseSrc = activeImageLayer.src
-      const color = await sampleImageColorAt(baseSrc, relX, relY)
-      pushImageUndo(activeImageLayer.id, baseSrc)
+      const baseSrc =
+        eyedropperLayerId === targetLayer.id && eyedropperBaseSrc
+          ? eyedropperBaseSrc
+          : targetLayer.src
+      const color = await sampleImageColorAt(targetLayer.src, relX, relY)
+      pushImageUndo(targetLayer.id, targetLayer.src)
       setEyedropperColor(color)
       setEyedropperBaseSrc(baseSrc)
-      setEyedropperLayerId(activeImageLayer.id)
+      setEyedropperLayerId(targetLayer.id)
       await applyEyedropperFilter(
-        activeImageLayer.id,
+        targetLayer.id,
         baseSrc,
         color,
         eyedropperTolerance
       )
-      // Nach Farbwahl Pipette aus — sofort wieder verschieben
-      setEyedropperActive(false)
     } catch (err) {
       console.warn("Pipette-Hintergrund entfernen fehlgeschlagen:", err)
     } finally {
@@ -1654,6 +1710,27 @@ function LaserDesignerPreview({
     emitLayers(next, layerId)
   }
 
+  const sendLayerBackward = (layerId: string) => {
+    const current = stateRef.current.layers
+    const idx = current.findIndex((l) => l.id === layerId)
+    if (idx <= 0) return
+    const next = [...current]
+    const [item] = next.splice(idx, 1)
+    next.splice(idx - 1, 0, item)
+    emitLayers(next, layerId)
+  }
+
+  const addTextLayerFromPreview = () => {
+    const current = stateRef.current
+    const offset = nextLayerOffset(current.layers.length)
+    const layer = createTextLayer({
+      text: "Text",
+      fontId: current.selectedFont,
+      ...offset,
+    })
+    emitLayers([...current.layers, layer], layer.id)
+  }
+
   const handleFitToBounds = (layerId: string) => {
     const canvas = canvasRef.current
     const el = layerInnerRefs.current.get(layerId)
@@ -1703,11 +1780,111 @@ function LaserDesignerPreview({
           Grösse. Alles bleibt innerhalb von {workAreaLabel}.
         </p>
 
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <label className="inline-flex cursor-pointer">
+            <input
+              type="file"
+              accept="image/*"
+              className="sr-only"
+              onChange={handleImageUpload}
+            />
+            <span className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-3 py-1.5 text-xs font-medium text-cyan-400 hover:bg-cyan-500/20">
+              <Plus className="h-3.5 w-3.5" />
+              Bild
+            </span>
+          </label>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-8 border-cyan-500/40 px-3 text-xs text-cyan-400"
+            onClick={addTextLayerFromPreview}
+          >
+            <Plus className="mr-1 h-3.5 w-3.5" />
+            Text
+          </Button>
+        </div>
+
+        <div className="relative flex gap-2">
+          {/* Kompakte Werkzeug-Leiste am Canvas-Rand */}
+          <div
+            className="flex shrink-0 flex-col gap-1.5"
+            {...{ [CAPTURE_HIDE_ATTR]: "true" }}
+          >
+            <Button
+              type="button"
+              size="icon"
+              variant={eyedropperActive ? "default" : "outline"}
+              className={cn(
+                "h-9 w-9",
+                eyedropperActive && "bg-cyan-600 text-white hover:bg-cyan-500"
+              )}
+              title="Pipette"
+              disabled={removingBg || !activeImageLayer}
+              onClick={() => {
+                setEraserActive(false)
+                setEyedropperActive((v) => !v)
+              }}
+            >
+              <Pipette className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              size="icon"
+              variant={eraserActive ? "default" : "outline"}
+              className={cn(
+                "h-9 w-9",
+                eraserActive && "bg-cyan-600 text-white hover:bg-cyan-500"
+              )}
+              title="Radierer / Pinsel"
+              disabled={!activeImageLayer}
+              onClick={() => {
+                setEyedropperActive(false)
+                setEraserActive((v) => !v)
+              }}
+            >
+              <Eraser className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              size="icon"
+              variant="outline"
+              className="h-9 w-9"
+              title="Rückgängig"
+              disabled={undoStack.length === 0}
+              onClick={handleUndoImageEdit}
+            >
+              <Undo2 className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              size="icon"
+              variant="outline"
+              className="h-9 w-9"
+              title="Nach vorne"
+              disabled={!activeLayerId}
+              onClick={() => activeLayerId && bringLayerForward(activeLayerId)}
+            >
+              <ArrowUp className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              size="icon"
+              variant="outline"
+              className="h-9 w-9"
+              title="Nach hinten"
+              disabled={!activeLayerId}
+              onClick={() => activeLayerId && sendLayerBackward(activeLayerId)}
+            >
+              <ArrowDown className="h-4 w-4" />
+            </Button>
+          </div>
+
         <div
           ref={assignPreviewSurfaceRef}
           {...{ [LEITBILD_LASER_PREVIEW_ATTR]: "true" }}
           className={cn(
-            "relative z-0 aspect-square w-full overflow-hidden rounded-xl border-2 border-cyan-500/25 shadow-inner",
+            "relative z-0 aspect-square min-w-0 flex-1 overflow-hidden rounded-xl border-2 border-cyan-500/25 shadow-inner",
             CANVAS_TOUCH_LOCK_CLASS,
             canvasStyle.surface
           )}
@@ -1718,12 +1895,16 @@ function LaserDesignerPreview({
             }
           }}
         >
-          {customizationBackgroundUrl && (
-            <div
-              className="pointer-events-none absolute inset-0 bg-cover bg-center"
-              style={{ backgroundImage: `url(${customizationBackgroundUrl})` }}
+          {customizationBackgroundUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={customizationBackgroundUrl}
+              alt=""
+              className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+              crossOrigin="anonymous"
+              draggable={false}
             />
-          )}
+          ) : null}
           <div
             className={cn(
               "pointer-events-none absolute inset-0",
@@ -1747,109 +1928,112 @@ function LaserDesignerPreview({
             ))}
           </div>
 
-          {visibleImageLayers.map((layer, index) => (
-            <InteractiveCanvasElement
-              key={layer.id}
-              layerId={layer.id}
-              kind="image"
-              layout={layerToElementLayout(layer)}
-              isActive={activeLayerId === layer.id}
-              isMoving={
-                dragMode != null && activeLayerId === layer.id
-              }
-              stackIndex={index}
-              canvasRef={canvasRef}
-              onSelect={() => onStateChange({ activeLayerId: layer.id })}
-              onDragStart={startDragSession}
-              onInnerRef={(el) => setLayerInnerRef(layer.id, el)}
-              eyedropperActive={eyedropperActive}
-              eraserActive={eraserActive}
-              onEyedropperSample={(relX, relY) => {
-                void handleEyedropperSample(relX, relY)
-              }}
-              onEraserPaint={handleEraserPaintSafe}
-              onDelete={() => handleDeleteLayer(layer.id)}
-              onRotateStep={() =>
-                patchLayerLayout(layer.id, {
-                  rotation: normalizeRotation(
-                    (layer.rotation ?? 0) + 15
-                  ),
-                })
-              }
-              onScaleStep={(delta) => {
-                const max =
-                  maxScaleMap[layer.id] ?? FALLBACK_MAX_SCALE
-                patchLayerLayout(layer.id, {
-                  scale: clampScale((layer.scale ?? 1) + delta, max),
-                })
-              }}
-              onBringForward={() => bringLayerForward(layer.id)}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={layer.src!}
-                alt="Logo-Vorschau"
-                className={cn(
-                  "max-h-32 w-auto rounded opacity-90 drop-shadow-lg grayscale",
-                  CANVAS_TOUCH_LOCK_CLASS
-                )}
-                style={CANVAS_TOUCH_LOCK_STYLE}
-                draggable={false}
-              />
-            </InteractiveCanvasElement>
-          ))}
+          {layers.map((layer, index) => {
+            const isActive = activeLayerId === layer.id
+            if (layer.kind === "image" && layer.src) {
+              return (
+                <InteractiveCanvasElement
+                  key={layer.id}
+                  layerId={layer.id}
+                  kind="image"
+                  layout={layerToElementLayout(layer)}
+                  isActive={isActive}
+                  isMoving={dragMode != null && isActive}
+                  stackIndex={index}
+                  canvasRef={canvasRef}
+                  onSelect={() => onStateChange({ activeLayerId: layer.id })}
+                  onDragStart={startDragSession}
+                  onInnerRef={(el) => setLayerInnerRef(layer.id, el)}
+                  eyedropperActive={eyedropperActive}
+                  eraserActive={eraserActive}
+                  onEyedropperSample={(relX, relY, id) => {
+                    void handleEyedropperSample(relX, relY, id)
+                  }}
+                  onEraserPaint={handleEraserPaintSafe}
+                  onDelete={() => handleDeleteLayer(layer.id)}
+                  onRotateStep={() =>
+                    patchLayerLayout(layer.id, {
+                      rotation: normalizeRotation((layer.rotation ?? 0) + 15),
+                    })
+                  }
+                  onScaleStep={(delta) => {
+                    const max = maxScaleMap[layer.id] ?? FALLBACK_MAX_SCALE
+                    patchLayerLayout(layer.id, {
+                      scale: clampScale((layer.scale ?? 1) + delta, max),
+                    })
+                  }}
+                  onBringForward={() => bringLayerForward(layer.id)}
+                  onSendBackward={() => sendLayerBackward(layer.id)}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={layer.src}
+                    alt="Logo-Vorschau"
+                    className={cn(
+                      "max-h-32 w-auto rounded opacity-90 drop-shadow-lg grayscale",
+                      CANVAS_TOUCH_LOCK_CLASS
+                    )}
+                    style={CANVAS_TOUCH_LOCK_STYLE}
+                    draggable={false}
+                    crossOrigin="anonymous"
+                  />
+                </InteractiveCanvasElement>
+              )
+            }
 
-          {visibleTextLayers.map((layer, index) => {
-            const fontId = layer.fontId ?? selectedFont
-            const canvasFontStyle = getLaserFontStyle(fontId, "canvas")
-            const fontFamily = getLaserFontFamily(fontId)
-            return (
-              <InteractiveCanvasElement
-                key={`${layer.id}-${fontId}`}
-                layerId={layer.id}
-                kind="text"
-                layout={layerToElementLayout(layer)}
-                isActive={activeLayerId === layer.id}
-                isMoving={
-                  dragMode != null && activeLayerId === layer.id
-                }
-                stackIndex={visibleImageLayers.length + index}
-                canvasRef={canvasRef}
-                onSelect={() => onStateChange({ activeLayerId: layer.id })}
-                onDragStart={startDragSession}
-                onInnerRef={(el) => setLayerInnerRef(layer.id, el)}
-                className="w-max max-w-none px-2 text-center text-white/90 drop-shadow-lg"
-                style={{
-                  ...canvasFontStyle,
-                  fontFamily,
-                  fontSize:
-                    canvasFontStyle.fontSize ??
-                    "clamp(0.875rem, 3.5vw, 1.25rem)",
-                  whiteSpace: "pre",
-                  width: "max-content",
-                  maxWidth: "none",
-                  textShadow: "0 1px 8px rgba(0,0,0,0.8)",
-                }}
-                onDelete={() => handleDeleteLayer(layer.id)}
-                onRotateStep={() =>
-                  patchLayerLayout(layer.id, {
-                    rotation: normalizeRotation(
-                      (layer.rotation ?? 0) + 15
-                    ),
-                  })
-                }
-                onScaleStep={(delta) => {
-                  const max =
-                    maxScaleMap[layer.id] ?? FALLBACK_MAX_SCALE
-                  patchLayerLayout(layer.id, {
-                    scale: clampScale((layer.scale ?? 1) + delta, max),
-                  })
-                }}
-                onBringForward={() => bringLayerForward(layer.id)}
-              >
-                {layer.text}
-              </InteractiveCanvasElement>
-            )
+            if (layer.kind === "text") {
+              const text = (layer.text ?? "").trim()
+              // Leerer Text nur rendern wenn aktiv — damit Auswahl/Move funktioniert
+              if (!text && !isActive) return null
+              const fontId = layer.fontId ?? selectedFont
+              const canvasFontStyle = getLaserFontStyle(fontId, "canvas")
+              const fontFamily = getLaserFontFamily(fontId)
+              return (
+                <InteractiveCanvasElement
+                  key={`${layer.id}-${fontId}`}
+                  layerId={layer.id}
+                  kind="text"
+                  layout={layerToElementLayout(layer)}
+                  isActive={isActive}
+                  isMoving={dragMode != null && isActive}
+                  stackIndex={index}
+                  canvasRef={canvasRef}
+                  onSelect={() => onStateChange({ activeLayerId: layer.id })}
+                  onDragStart={startDragSession}
+                  onInnerRef={(el) => setLayerInnerRef(layer.id, el)}
+                  className="w-max max-w-none px-2 text-center text-white/90 drop-shadow-lg"
+                  style={{
+                    ...canvasFontStyle,
+                    fontFamily,
+                    fontSize:
+                      canvasFontStyle.fontSize ??
+                      "clamp(0.875rem, 3.5vw, 1.25rem)",
+                    whiteSpace: "pre",
+                    width: "max-content",
+                    maxWidth: "none",
+                    textShadow: "0 1px 8px rgba(0,0,0,0.8)",
+                  }}
+                  onDelete={() => handleDeleteLayer(layer.id)}
+                  onRotateStep={() =>
+                    patchLayerLayout(layer.id, {
+                      rotation: normalizeRotation((layer.rotation ?? 0) + 15),
+                    })
+                  }
+                  onScaleStep={(delta) => {
+                    const max = maxScaleMap[layer.id] ?? FALLBACK_MAX_SCALE
+                    patchLayerLayout(layer.id, {
+                      scale: clampScale((layer.scale ?? 1) + delta, max),
+                    })
+                  }}
+                  onBringForward={() => bringLayerForward(layer.id)}
+                  onSendBackward={() => sendLayerBackward(layer.id)}
+                >
+                  {text || "Text"}
+                </InteractiveCanvasElement>
+              )
+            }
+
+            return null
           })}
 
           {!hasAnyContent && (
@@ -1862,6 +2046,56 @@ function LaserDesignerPreview({
             </div>
           )}
         </div>
+        </div>
+
+        {(eyedropperColor || eyedropperActive || eraserActive) && (
+          <div className="mt-3 flex flex-wrap gap-4">
+            {(eyedropperColor || eyedropperActive) && (
+              <div className="flex min-w-[10rem] flex-1 flex-col gap-1">
+                <Label className="flex items-center gap-2 text-xs text-muted-foreground">
+                  Toleranz: {eyedropperTolerance}
+                  {eyedropperColor ? (
+                    <span
+                      className="inline-block h-3 w-3 rounded-sm border border-border"
+                      style={{
+                        backgroundColor: `rgb(${eyedropperColor.r},${eyedropperColor.g},${eyedropperColor.b})`,
+                      }}
+                    />
+                  ) : null}
+                </Label>
+                <input
+                  type="range"
+                  min={5}
+                  max={120}
+                  step={1}
+                  value={eyedropperTolerance}
+                  onChange={(e) =>
+                    setEyedropperTolerance(Number(e.target.value))
+                  }
+                  className="w-full accent-cyan-500"
+                  aria-label="Farb-Toleranz"
+                />
+              </div>
+            )}
+            {eraserActive ? (
+              <div className="flex min-w-[8rem] flex-1 flex-col gap-1">
+                <Label className="text-xs text-muted-foreground">
+                  Pinselgrösse
+                </Label>
+                <input
+                  type="range"
+                  min={0.015}
+                  max={0.12}
+                  step={0.005}
+                  value={eraserRadius}
+                  onChange={(e) => setEraserRadius(Number(e.target.value))}
+                  className="w-full accent-cyan-500"
+                  aria-label="Pinselgrösse"
+                />
+              </div>
+            ) : null}
+          </div>
+        )}
 
         <div className="relative z-0 mt-4 space-y-4 border-t border-border/50 pt-4">
           {liveMmLabel && hasAnyContent && (
@@ -1897,167 +2131,33 @@ function LaserDesignerPreview({
             )}
         </div>
 
-        <div className="relative z-0 mt-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-          <label className="inline-flex w-full cursor-pointer sm:w-auto">
-            <input
-              type="file"
-              accept="image/*"
-              className="sr-only"
-              onChange={handleImageUpload}
-            />
-            <span className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-4 py-2.5 text-sm font-medium text-cyan-400 transition-colors hover:bg-cyan-500/20 sm:w-auto">
-              <Upload className="h-4 w-4" />
-              Weiteres Bild hochladen
-            </span>
-          </label>
+        <div className="relative z-0 mt-3 flex flex-wrap items-center gap-2">
           {activeImageLayer ? (
             <>
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                className="w-full border-cyan-500/30 sm:w-auto"
+                className="border-cyan-500/30 text-xs"
                 onClick={() => {
                   patchLayerLayout(activeImageLayer.id, { x: 50, y: 50 })
                   onStateChange({ activeLayerId: activeImageLayer.id })
                 }}
               >
-                <Crosshair className="mr-2 h-4 w-4" />
-                Bild zentrieren
+                <Crosshair className="mr-1.5 h-3.5 w-3.5" />
+                Zentrieren
               </Button>
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                className="w-full sm:w-auto"
-                disabled={undoStack.length === 0}
-                onClick={handleUndoImageEdit}
+                className="border-cyan-500/30 text-xs"
+                disabled={removingBg}
+                onClick={() => void handleRemoveBackground()}
               >
-                <Undo2 className="mr-2 h-4 w-4" />
-                Rückgängig
+                <Eraser className="mr-1.5 h-3.5 w-3.5" />
+                {removingBg ? "Entferne…" : "Weiss entfernen"}
               </Button>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="w-full border-cyan-500/30 sm:w-auto"
-                    disabled={removingBg}
-                    onClick={() => void handleRemoveBackground()}
-                  >
-                    <Eraser className="mr-2 h-4 w-4" />
-                    {removingBg && !eyedropperActive
-                      ? "Entferne…"
-                      : "Hintergrund entfernen"}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="top" className="max-w-xs">
-                  Entfernt automatisch weisse Hintergründe für saubere
-                  Gravur-Vorschauen.
-                </TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    variant={eyedropperActive ? "default" : "outline"}
-                    size="sm"
-                    className={cn(
-                      "w-full sm:w-auto",
-                      eyedropperActive
-                        ? "bg-cyan-600 text-white hover:bg-cyan-500"
-                        : "border-cyan-500/30"
-                    )}
-                    disabled={removingBg}
-                    onClick={() => {
-                      setEraserActive(false)
-                      setEyedropperActive((v) => !v)
-                    }}
-                  >
-                    <Pipette className="mr-2 h-4 w-4" />
-                    {eyedropperActive
-                      ? "Pipette aktiv — Farbe anklicken"
-                      : "Hintergrund-Farbe entfernen (Pipette)"}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="top" className="max-w-xs">
-                  Klicke im Bild auf die Farbe. Danach Toleranz live anpassen —
-                  Pipette schaltet sich automatisch aus.
-                </TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    variant={eraserActive ? "default" : "outline"}
-                    size="sm"
-                    className={cn(
-                      "w-full sm:w-auto",
-                      eraserActive
-                        ? "bg-cyan-600 text-white hover:bg-cyan-500"
-                        : "border-cyan-500/30"
-                    )}
-                    onClick={() => {
-                      setEyedropperActive(false)
-                      setEraserActive((v) => !v)
-                    }}
-                  >
-                    <Eraser className="mr-2 h-4 w-4" />
-                    {eraserActive ? "Radierer aktiv" : "Pinsel / Radierer"}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="top" className="max-w-xs">
-                  Wische verbliebene Schatten oder Flecken manuell weg.
-                </TooltipContent>
-              </Tooltip>
-              {(eyedropperColor || eyedropperActive) && (
-                <div className="flex w-full flex-col gap-1 sm:min-w-[12rem] sm:flex-1">
-                  <Label className="flex items-center gap-2 text-xs text-muted-foreground">
-                    Toleranz: {eyedropperTolerance}
-                    {eyedropperColor ? (
-                      <span
-                        className="inline-block h-3 w-3 rounded-sm border border-border"
-                        style={{
-                          backgroundColor: `rgb(${eyedropperColor.r},${eyedropperColor.g},${eyedropperColor.b})`,
-                        }}
-                        title="Gewählte Farbe"
-                      />
-                    ) : null}
-                  </Label>
-                  <input
-                    type="range"
-                    min={5}
-                    max={120}
-                    step={1}
-                    value={eyedropperTolerance}
-                    onChange={(e) =>
-                      setEyedropperTolerance(Number(e.target.value))
-                    }
-                    className="w-full accent-cyan-500"
-                    aria-label="Farb-Toleranz"
-                  />
-                </div>
-              )}
-              {eraserActive ? (
-                <div className="flex w-full flex-col gap-1 sm:min-w-[10rem] sm:flex-1">
-                  <Label className="text-xs text-muted-foreground">
-                    Pinselgrösse
-                  </Label>
-                  <input
-                    type="range"
-                    min={0.015}
-                    max={0.12}
-                    step={0.005}
-                    value={eraserRadius}
-                    onChange={(e) =>
-                      setEraserRadius(Number(e.target.value))
-                    }
-                    className="w-full accent-cyan-500"
-                    aria-label="Pinselgrösse"
-                  />
-                </div>
-              ) : null}
             </>
           ) : null}
         </div>
@@ -2066,8 +2166,7 @@ function LaserDesignerPreview({
           <p className="leading-relaxed">
             <span className="font-semibold">Tipp für saubere Gravuren:</span>{" "}
             Am besten ein Bild mit transparentem Hintergrund (.png / .svg)
-            hochladen — oder «Hintergrund entfernen», die Pipette bzw. den
-            Radierer nutzen.
+            hochladen — oder Pipette / Radierer an der Live-Vorschau nutzen.
           </p>
         </div>
       </CardContent>
@@ -2084,6 +2183,7 @@ export function LaserDesignerStudio({
   workAreaMm,
   showMaterialCard = true,
   showVariantPicker = true,
+  showTextLayers = true,
   varianten = [],
   customizationBackgroundUrl,
   onEngravingMetricsChange,
@@ -2118,6 +2218,7 @@ export function LaserDesignerStudio({
       onStateChange={onStateChange}
       showMaterialCard={showMaterialCard}
       showVariantPicker={showVariantPicker}
+      showTextLayers={showTextLayers}
       varianten={varianten}
     />
   )
