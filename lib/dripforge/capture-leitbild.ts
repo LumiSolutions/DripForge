@@ -45,7 +45,7 @@ export function findLeitbildCanvas(root?: ParentNode | null): HTMLCanvasElement 
   if (root instanceof HTMLCanvasElement) return root
   if (root) {
     const nested = root.querySelector<HTMLCanvasElement>(
-      `canvas[${LEITBILD_3D_CANVAS_ATTR}], canvas`
+      `canvas[${LEITBILD_3D_CANVAS_ATTR}]`
     )
     if (nested) return nested
   }
@@ -61,7 +61,7 @@ function shouldHideForCapture(el: Element): boolean {
   )
 }
 
-/** Laser-Vorschau (HTML) oder verschachteltes Canvas als PNG-Base64. */
+/** Laser-Vorschau (HTML) — immer Composite (Hintergrund + Layer), kein 3D-Canvas-Shortcut. */
 export async function captureLaserPreviewLeitbild(
   previewRoot: HTMLElement | null | undefined
 ): Promise<string | null> {
@@ -70,12 +70,14 @@ export async function captureLaserPreviewLeitbild(
     return null
   }
 
-  const nestedCanvas = previewRoot.querySelector("canvas")
-  if (nestedCanvas) {
-    return captureCanvasLeitbild(nestedCanvas)
+  // Nur explizite 3D-Leitbild-Canvas — nie ein zufälliges nested canvas
+  const marked3d = previewRoot.querySelector<HTMLCanvasElement>(
+    `canvas[${LEITBILD_3D_CANVAS_ATTR}]`
+  )
+  if (marked3d) {
+    return captureCanvasLeitbild(marked3d)
   }
 
-  // Auswahl-Griffe / Hilfsgitter vor Capture ausblenden
   const hiddenNodes: { el: HTMLElement; visibility: string }[] = []
   previewRoot.querySelectorAll<HTMLElement>(`[${CAPTURE_HIDE_ATTR}]`).forEach((el) => {
     hiddenNodes.push({ el, visibility: el.style.visibility })
@@ -85,9 +87,10 @@ export async function captureLaserPreviewLeitbild(
   try {
     await waitForPreviewPaint()
     const snapshot = await html2canvas(previewRoot, {
-      backgroundColor: null,
+      backgroundColor: "#ffffff",
       scale: 2,
       useCORS: true,
+      allowTaint: false,
       logging: false,
       ignoreElements: (element) => shouldHideForCapture(element),
     })
@@ -108,8 +111,8 @@ export async function captureLaserPreviewLeitbild(
 }
 
 /**
- * Kombiniertes Laser-Mockup (Hintergrund + alle Layer) als PNG-Data-URL.
- * Speichern unter preview_mockup_url / previewMockup.
+ * Kombiniertes Laser-Mockup (Produkt-Hintergrund + alle Layer) als PNG-Data-URL.
+ * Speichern unter previewMockup / preview_mockup_url.
  */
 export async function captureLaserPreviewMockup(
   previewRoot: HTMLElement | null | undefined

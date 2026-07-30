@@ -174,6 +174,10 @@ export function PageIndividualLaser({
 
     let previewMockup: string | undefined
     try {
+      setActiveLayerId(null)
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+      )
       const mockupUrl = await captureLaserPreviewMockup(laserPreviewRef.current)
       previewMockup = mockupUrl ?? undefined
     } catch {
