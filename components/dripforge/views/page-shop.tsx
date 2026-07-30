@@ -17,10 +17,19 @@ import {
   LayoutGrid,
   Grid2x2,
   List,
+  CheckCircle2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
 import {
   FilamentColorPicker,
@@ -166,6 +175,7 @@ export function PageShop({
   const [filamentSelection, setFilamentSelection] = useState<FilamentSelection | null>(null)
   const [laserDesign, setLaserDesign] = useState<LaserDesignerState | null>(null)
   const [quantity, setQuantity] = useState(1)
+  const [cartAddedOpen, setCartAddedOpen] = useState(false)
   const product3dCanvasRef = useRef<HTMLCanvasElement>(null)
   const laserPreviewRef = useRef<HTMLDivElement>(null)
   const [shopProducts, setShopProducts] = useState<Product[]>(staticProducts)
@@ -419,8 +429,8 @@ export function PageShop({
       addToCart(newItem)
     }
 
-    setSelectedProduct(null)
-    setLaserDesign(null)
+    // Bleibt auf der Produktseite — Modal statt Redirect
+    setCartAddedOpen(true)
   }
 
   const selectedProductVarianten =
@@ -472,6 +482,54 @@ export function PageShop({
     return (
       <ProductDetailErrorBoundary onReset={closeProduct}>
       <div className="space-y-10 pb-12 md:pb-24">
+        <Dialog open={cartAddedOpen} onOpenChange={setCartAddedOpen}>
+          <DialogContent className="z-[200] max-w-md border-border/60 sm:rounded-2xl">
+            <DialogHeader className="items-center text-center sm:text-center">
+              <div className="mb-2 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600">
+                <CheckCircle2 className="h-8 w-8" />
+              </div>
+              <DialogTitle className="text-xl sm:text-2xl">
+                Erfolgreich zum Warenkorb hinzugefügt!
+              </DialogTitle>
+              <DialogDescription>
+                Dein Design bleibt geöffnet — du kannst weiter anpassen oder
+                zum Warenkorb wechseln.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="flex flex-col gap-2 sm:flex-col">
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={() => setCartAddedOpen(false)}
+              >
+                Weiter einkaufen / Anpassen
+              </Button>
+              <Button
+                type="button"
+                className="w-full bg-primary hover:bg-primary/90"
+                onClick={() => {
+                  setCartAddedOpen(false)
+                  router.push(SHOP_ROUTES.warenkorb)
+                }}
+              >
+                <ShoppingCart className="mr-2 h-4 w-4" />
+                Zum Warenkorb
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                className="w-full"
+                onClick={() => {
+                  setCartAddedOpen(false)
+                  router.push(SHOP_ROUTES.checkout)
+                }}
+              >
+                Zur Kasse
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
         <div className="mx-auto max-w-7xl px-2 pt-8 sm:px-4">
           <Button
             variant="outline"
@@ -526,7 +584,7 @@ export function PageShop({
                 </div>
 
                 {/* Spalte 2: Preis, Variante, Warenkorb */}
-                <div className="flex min-w-0 max-w-full flex-col gap-4 overflow-hidden xl:col-span-3 xl:sticky xl:top-24">
+                <div className="flex min-w-0 max-w-full flex-col gap-4 overflow-hidden xl:col-span-2 xl:sticky xl:top-24">
                   <Card className="rounded-xl border border-border/60 bg-card/40 shadow-none">
                     <CardContent className="space-y-3 p-3">
                       <div className="flex items-center justify-between gap-2">
@@ -590,8 +648,8 @@ export function PageShop({
                   />
                 </div>
 
-                {/* Spalte 3: Live-Vorschau — gleiche visuelle Breite wie Galerie */}
-                <div className="flex min-w-0 max-w-full flex-col gap-4 overflow-hidden xl:col-span-4 xl:sticky xl:top-24">
+                {/* Spalte 3: Live-Vorschau — gleiche Breite wie Galerie (5) */}
+                <div className="flex min-w-0 max-w-full flex-col gap-4 overflow-hidden xl:col-span-5 xl:sticky xl:top-24">
                   <LaserDesignerStudio
                     column="preview"
                     material={shopLaserMaterial}
@@ -996,7 +1054,7 @@ export function PageShop({
 
         <div className="flex flex-col gap-8 lg:flex-row lg:items-start">
           <ShopTagFilterPanel
-            className="hidden w-full lg:sticky lg:top-36 lg:block lg:w-64 lg:shrink-0"
+            className="hidden w-full lg:sticky lg:top-20 lg:block lg:w-64 lg:shrink-0 lg:self-start"
             tags={visibleProductTags ?? []}
             selectedTagIds={selectedTagIds}
             onToggleTag={toggleTagFilter}
@@ -1061,7 +1119,7 @@ export function PageShop({
                           alt={product.name}
                           fill
                           sizes="160px"
-                          className="object-contain p-2"
+                          className="object-cover sm:object-contain sm:p-2"
                         />
                       </div>
                       <div className="min-w-0 flex-1">
@@ -1127,7 +1185,7 @@ export function PageShop({
                     alt={product.name}
                     fill
                     sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
-                    className="object-contain p-4"
+                    className="object-cover sm:object-contain sm:p-4"
                   />
                 </div>
                 <CardContent className="p-4">

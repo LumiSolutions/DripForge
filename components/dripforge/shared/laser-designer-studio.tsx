@@ -35,6 +35,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 import {
+  ABSOLUTE_MAX_LAYOUT_SCALE,
   clampScale,
   DEFAULT_IMAGE_LAYOUT,
   DEFAULT_LASER_FONT_ID,
@@ -55,9 +56,6 @@ import {
   type LaserFontId,
 } from "@/lib/dripforge/laser-design"
 import {
-  clampLayoutPosition,
-  clampLayoutScaleToFit,
-  computeMaxScaleToFitBounds,
   ENGRAVING_FRAME_USABLE_FRACTION,
   fitLayoutScaleToBounds,
   measureElementMm,
@@ -259,19 +257,42 @@ type DragSession = {
   proportional?: boolean
 }
 
-/** Sperrt Browser-Scroll/-Select/-Drag während Canvas-Gesten (Mobil + Desktop). */
+/** Sperrt Browser-Scroll/-Select/-Drag während Canvas-Gesten (Mobil + Desktop / iOS). */
 const CANVAS_TOUCH_LOCK_CLASS =
-  "touch-none select-none [-webkit-user-drag:none] [-webkit-touch-callout:none]"
+  "touch-none select-none overscroll-none [-webkit-user-drag:none] [-webkit-touch-callout:none]"
 
 const CANVAS_TOUCH_LOCK_STYLE: CSSProperties = {
   touchAction: "none",
   userSelect: "none",
   WebkitUserSelect: "none",
+  overscrollBehavior: "none",
   // Safari / Chromium: verhindert natives Bild-Ziehen (nicht in CSSProperties typisiert)
-  ...({ WebkitUserDrag: "none" } as CSSProperties),
+  ...({
+    WebkitUserDrag: "none",
+    WebkitOverflowScrolling: "auto",
+  } as CSSProperties),
 }
 
-const FALLBACK_MAX_SCALE = 10
+/** Freies Skalieren über die Gravurfläche hinaus (Zuschneiden am Rand). */
+const FALLBACK_MAX_SCALE = ABSOLUTE_MAX_LAYOUT_SCALE
+
+/**
+ * CSS-Pixel-Koordinaten relativ zum Element (iOS-sicher, ohne DPR-Skalierung).
+ * clientX/Y und getBoundingClientRect sind beide in CSS-Pixeln.
+ */
+function relFromClientRect(
+  el: HTMLElement,
+  clientX: number,
+  clientY: number
+): { relX: number; relY: number } | null {
+  const rect = el.getBoundingClientRect()
+  if (rect.width <= 0 || rect.height <= 0) return null
+  return {
+    relX: (clientX - rect.left) / rect.width,
+    relY: (clientY - rect.top) / rect.height,
+  }
+}
+
 function getCanvasPoint(
   canvas: HTMLDivElement,
   clientX: number,
@@ -285,6 +306,42 @@ function getCanvasPoint(
     clientX,
     clientY,
   }
+}
+
+function BrushMagnifier({
+  src,
+  relX,
+  relY,
+  clientX,
+  clientY,
+}: {
+  src: string
+  relX: number
+  relY: number
+  clientX: number
+  clientY: number
+}) {
+  const size = 96
+  const offsetY = 110
+  return (
+    <div
+      className="pointer-events-none fixed z-[90] overflow-hidden rounded-full border-2 border-cyan-400 bg-black/40 shadow-xl"
+      style={{
+        width: size,
+        height: size,
+        left: clientX - size / 2,
+        top: Math.max(8, clientY - offsetY),
+        backgroundImage: `url(${src})`,
+        backgroundRepeat: "no-repeat",
+        backgroundSize: "250%",
+        backgroundPosition: `${relX * 100}% ${relY * 100}%`,
+      }}
+      aria-hidden
+    >
+      <div className="absolute inset-0 rounded-full ring-1 ring-inset ring-white/40" />
+      <div className="absolute left-1/2 top-1/2 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-cyan-300" />
+    </div>
+  )
 }
 
 function getElementCenterPx(canvas: HTMLDivElement, layout: ElementLayout) {
@@ -316,12 +373,8 @@ function buildDragSession(
     const elRect = innerEl.getBoundingClientRect()
     halfWPercent = (elRect.width / canvasRect.width) * 50
     halfHPercent = (elRect.height / canvasRect.height) * 50
-    maxScale = computeMaxScaleToFitBounds(
-      canvas,
-      innerEl,
-      layout,
-      ENGRAVING_FRAME_USABLE_FRACTION
-    )
+    // Kein Fit-to-Bounds-Cap — Bild darf über den Rand hinaus skaliert werden
+    maxScale = ABSOLUTE_MAX_LAYOUT_SCALE
   }
 
   return {
@@ -377,6 +430,7 @@ function InteractiveCanvasElement({
   onEditText,
   brushRadiusRel,
   lassoPoints,
+  magnifierSrc,
   children,
 }: {
   layerId: string
@@ -398,8 +452,9 @@ function InteractiveCanvasElement({
   smartSelectActive?: boolean
   proportionalScale?: boolean
   onEyedropperSample?: (relX: number, relY: number, layerId: string) => void
-  onEraserPaint?: (relX: number, relY: number) => void
+  onEraserPaint?: (relX: number, relY: number, clientX: number, clientY: number) => void
   onLassoPoint?: (relX: number, relY: number) => void
+  magnifierSrc?: string | null
   onLassoComplete?: () => void
   onCropDrag?: (
     start: { relX: number; relY: number },
@@ -422,6 +477,8 @@ function InteractiveCanvasElement({
 }) {
   const localInnerRef = useRef<HTMLElement | null>(null)
   const cropStartRef = useRef<{ relX: number; relY: number } | null>(null)
+  const eraserPaintingRef = useRef(false)
+  const eraserPointerIdRef = useRef<number | null>(null)
   const [cropPreview, setCropPreview] = useState<{
     x: number
     y: number
@@ -431,6 +488,8 @@ function InteractiveCanvasElement({
   const [brushCursor, setBrushCursor] = useState<{
     relX: number
     relY: number
+    clientX: number
+    clientY: number
   } | null>(null)
 
   const setInnerRef = (el: HTMLElement | null) => {
@@ -503,14 +562,8 @@ function InteractiveCanvasElement({
     return kind === "rotate" || kind.startsWith("resize-")
   }
 
-  const relFromEvent = (el: HTMLElement, clientX: number, clientY: number) => {
-    const rect = el.getBoundingClientRect()
-    if (rect.width <= 0 || rect.height <= 0) return null
-    return {
-      relX: Math.min(1, Math.max(0, (clientX - rect.left) / rect.width)),
-      relY: Math.min(1, Math.max(0, (clientY - rect.top) / rect.height)),
-    }
-  }
+  const relFromEvent = (el: HTMLElement, clientX: number, clientY: number) =>
+    relFromClientRect(el, clientX, clientY)
 
   const toolModeActive =
     Boolean(eyedropperActive) ||
@@ -592,8 +645,15 @@ function InteractiveCanvasElement({
             onSelect()
             const rel = relFromEvent(e.currentTarget, e.clientX, e.clientY)
             if (rel) {
-              setBrushCursor(rel)
-              onEraserPaint?.(rel.relX, rel.relY)
+              eraserPaintingRef.current = true
+              eraserPointerIdRef.current = e.pointerId
+              setBrushCursor({
+                relX: rel.relX,
+                relY: rel.relY,
+                clientX: e.clientX,
+                clientY: e.clientY,
+              })
+              onEraserPaint?.(rel.relX, rel.relY, e.clientX, e.clientY)
             }
             try {
               e.currentTarget.setPointerCapture(e.pointerId)
@@ -637,14 +697,26 @@ function InteractiveCanvasElement({
         }}
         onPointerMove={(e) => {
           if (eraserActive && kind === "image") {
+            e.preventDefault()
             const rel = relFromEvent(e.currentTarget, e.clientX, e.clientY)
             if (rel) {
-              setBrushCursor(rel)
-              if (e.buttons !== 0) onEraserPaint?.(rel.relX, rel.relY)
+              setBrushCursor({
+                relX: rel.relX,
+                relY: rel.relY,
+                clientX: e.clientX,
+                clientY: e.clientY,
+              })
+              const painting =
+                eraserPaintingRef.current &&
+                (eraserPointerIdRef.current === null ||
+                  eraserPointerIdRef.current === e.pointerId)
+              if (painting || e.buttons !== 0) {
+                onEraserPaint?.(rel.relX, rel.relY, e.clientX, e.clientY)
+              }
             }
             return
           }
-          if (lassoActive && kind === "image" && e.buttons !== 0) {
+          if (lassoActive && kind === "image" && (e.buttons !== 0 || e.pressure > 0)) {
             const rel = relFromEvent(e.currentTarget, e.clientX, e.clientY)
             if (rel) onLassoPoint?.(rel.relX, rel.relY)
             return
@@ -662,9 +734,20 @@ function InteractiveCanvasElement({
           }
         }}
         onPointerLeave={() => {
-          if (eraserActive) setBrushCursor(null)
+          if (eraserActive && !eraserPaintingRef.current) setBrushCursor(null)
         }}
         onPointerUp={(e) => {
+          if (eraserActive && kind === "image") {
+            eraserPaintingRef.current = false
+            eraserPointerIdRef.current = null
+            setBrushCursor(null)
+            try {
+              e.currentTarget.releasePointerCapture(e.pointerId)
+            } catch {
+              /* ignore */
+            }
+            return
+          }
           if (lassoActive && kind === "image") {
             onLassoComplete?.()
             return
@@ -675,6 +758,13 @@ function InteractiveCanvasElement({
             cropStartRef.current = null
             setCropPreview(null)
           }
+        }}
+        onPointerCancel={() => {
+          eraserPaintingRef.current = false
+          eraserPointerIdRef.current = null
+          setBrushCursor(null)
+          cropStartRef.current = null
+          setCropPreview(null)
         }}
         onTouchStart={(e) => {
           if (isHandleTarget(e.target)) return
@@ -701,6 +791,20 @@ function InteractiveCanvasElement({
             }}
             aria-hidden
             {...{ [CAPTURE_HIDE_ATTR]: "true" }}
+          />
+        ) : null}
+
+        {eraserActive &&
+        kind === "image" &&
+        isActive &&
+        brushCursor &&
+        magnifierSrc ? (
+          <BrushMagnifier
+            src={magnifierSrc}
+            relX={brushCursor.relX}
+            relY={brushCursor.relY}
+            clientX={brushCursor.clientX}
+            clientY={brushCursor.clientY}
           />
         ) : null}
 
@@ -1527,6 +1631,10 @@ function LaserDesignerPreview({
   const eraserBusyRef = useRef(false)
   const eraserSrcRef = useRef<string | null>(null)
   const lastBrushPointRef = useRef<{ relX: number; relY: number } | null>(null)
+  const eraserStrokeStartedRef = useRef(false)
+  const pendingEraserPointRef = useRef<{ relX: number; relY: number } | null>(
+    null
+  )
   const lassoPointsRef = useRef<Array<{ relX: number; relY: number }>>([])
   const lassoBusyRef = useRef(false)
   const historyLockedRef = useRef(false)
@@ -1649,17 +1757,15 @@ function LaserDesignerPreview({
   }
 
   const patchLayerLayout = (layerId: string, patch: Partial<ElementLayout>) => {
-    const canvas = canvasRef.current
     const current = stateRef.current
     const layer = current.layers.find((l) => l.id === layerId)
     if (!layer) return
 
     const layout = layerToElementLayout(layer)
     const next: ElementLayout = { ...layout, ...patch }
-    const innerEl = layerInnerRefs.current.get(layerId) ?? null
 
-    if (patch.scale !== undefined && canvas && innerEl) {
-      next.scale = clampLayoutScaleToFit(canvas, innerEl, layout, patch.scale)
+    if (patch.scale !== undefined) {
+      next.scale = clampScale(patch.scale, ABSOLUTE_MAX_LAYOUT_SCALE)
       if (patch.scaleX === undefined && patch.scaleY === undefined) {
         next.scaleX = next.scale
         next.scaleY = next.scale
@@ -1667,15 +1773,11 @@ function LaserDesignerPreview({
     }
     if (patch.scaleX !== undefined || patch.scaleY !== undefined) {
       const { sx, sy } = resolvedScaleXY(next)
-      next.scaleX = sx
-      next.scaleY = sy
-      next.scale = (sx + sy) / 2
+      next.scaleX = clampScale(sx, ABSOLUTE_MAX_LAYOUT_SCALE)
+      next.scaleY = clampScale(sy, ABSOLUTE_MAX_LAYOUT_SCALE)
+      next.scale = (next.scaleX + next.scaleY) / 2
     }
-    if ((patch.x !== undefined || patch.y !== undefined) && canvas) {
-      const clamped = clampLayoutPosition(canvas, innerEl, next.x, next.y)
-      next.x = clamped.x
-      next.y = clamped.y
-    }
+    // Position/Scale bewusst ungeklemmt — Motiv darf über den Rand hinausragen
 
     const nextLayers = updateLayerById(current.layers, layerId, next)
     emitLayers(nextLayers, layerId)
@@ -1713,12 +1815,7 @@ function LaserDesignerPreview({
 
       const layout = layerToElementLayout(layer)
       mmById[layer.id] = measureElementMm(canvas, el, workAreaMm)
-      maxById[layer.id] = computeMaxScaleToFitBounds(
-        canvas,
-        el,
-        layout,
-        ENGRAVING_FRAME_USABLE_FRACTION
-      )
+      maxById[layer.id] = ABSOLUTE_MAX_LAYOUT_SCALE
     }
 
     const primaryText = current.layers.find(
@@ -1768,7 +1865,6 @@ function LaserDesignerPreview({
       if (!canvas) return
 
       const { startLayout, mode, target } = session
-      const pad = 2
 
       if (mode === "move") {
         const start = getCanvasPoint(
@@ -1779,11 +1875,10 @@ function LaserDesignerPreview({
         const now = getCanvasPoint(canvas, clientX, clientY)
         const rawX = startLayout.x + (now.percentX - start.percentX)
         const rawY = startLayout.y + (now.percentY - start.percentY)
-        const halfW = session.halfWPercent
-        const halfH = session.halfHPercent
+        // Freies Verschieben über den Rand hinaus (Zuschneiden durch Overflow)
         applyLayout(target, {
-          x: Math.max(halfW + pad, Math.min(100 - halfW - pad, rawX)),
-          y: Math.max(halfH + pad, Math.min(100 - halfH - pad, rawY)),
+          x: Math.max(-80, Math.min(180, rawX)),
+          y: Math.max(-80, Math.min(180, rawY)),
         })
         return
       }
@@ -1958,22 +2053,12 @@ function LaserDesignerPreview({
       const rawScale = session.startScale * ratio
       const rawScaleX = session.startScaleX * ratio
       const rawScaleY = session.startScaleY * ratio
-      const el = layerInnerRefs.current.get(session.targetId) ?? null
-      const canvasEl = canvasRef.current
       const layer = stateRef.current.layers.find((l) => l.id === session.targetId)
-      if (!layer || !canvasEl) return
-      const layout = layerToElementLayout(layer)
-      const maxScale = el
-        ? computeMaxScaleToFitBounds(
-            canvasEl,
-            el,
-            layout,
-            ENGRAVING_FRAME_USABLE_FRACTION
-          )
-        : FALLBACK_MAX_SCALE
-      const scale = Math.max(0.15, Math.min(maxScale, rawScale))
-      const scaleX = Math.max(0.15, Math.min(maxScale, rawScaleX))
-      const scaleY = Math.max(0.15, Math.min(maxScale, rawScaleY))
+      if (!layer) return
+      const maxScale = ABSOLUTE_MAX_LAYOUT_SCALE
+      const scale = Math.max(MIN_LAYOUT_SCALE, Math.min(maxScale, rawScale))
+      const scaleX = Math.max(MIN_LAYOUT_SCALE, Math.min(maxScale, rawScaleX))
+      const scaleY = Math.max(MIN_LAYOUT_SCALE, Math.min(maxScale, rawScaleY))
       applyLayout(session.targetId, { scale, scaleX, scaleY })
     }
 
@@ -2392,9 +2477,13 @@ function LaserDesignerPreview({
 
   const handleEraserPaint = async (relX: number, relY: number) => {
     const layerId = activeImageLayer?.id
-    if (!layerId || eraserBusyRef.current) return
+    if (!layerId) return
     const current = eraserSrcRef.current ?? activeImageLayer?.src
     if (!current || !eraserActive) return
+    if (eraserBusyRef.current) {
+      pendingEraserPointRef.current = { relX, relY }
+      return
+    }
     eraserBusyRef.current = true
     try {
       const from = lastBrushPointRef.current ?? { relX, relY }
@@ -2410,12 +2499,20 @@ function LaserDesignerPreview({
       console.warn("Radierer fehlgeschlagen:", err)
     } finally {
       eraserBusyRef.current = false
+      const pending = pendingEraserPointRef.current
+      if (pending) {
+        pendingEraserPointRef.current = null
+        void handleEraserPaint(pending.relX, pending.relY)
+      }
     }
   }
 
-  const eraserStrokeStartedRef = useRef(false)
-
-  const handleEraserPaintSafe = (relX: number, relY: number) => {
+  const handleEraserPaintSafe = (
+    relX: number,
+    relY: number,
+    _clientX?: number,
+    _clientY?: number
+  ) => {
     if (!activeImageLayer?.src) return
     if (eyedropperColor) clearPipetteLiveChain()
     if (!eraserStrokeStartedRef.current) {
@@ -2620,7 +2717,7 @@ function LaserDesignerPreview({
           </label>
         </div>
 
-        <div className="relative box-border flex w-full min-w-0 max-w-full flex-col gap-2 overflow-hidden md:flex-row md:items-stretch">
+        <div className="relative box-border flex w-full min-w-0 max-w-full flex-col gap-2 overflow-hidden md:flex-row md:items-start">
           {/* Mobile: horizontal über dem Canvas · Desktop: vertikal links */}
           <div
             className="order-1 flex w-full max-w-full shrink-0 flex-row gap-1.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] md:order-none md:w-11 md:flex-col md:overflow-visible md:pb-0 [&::-webkit-scrollbar]:hidden"
@@ -2816,7 +2913,7 @@ function LaserDesignerPreview({
           ref={assignPreviewSurfaceRef}
           {...{ [LEITBILD_LASER_PREVIEW_ATTR]: "true" }}
           className={cn(
-            "relative z-0 order-2 mx-auto min-w-0 w-full max-w-full flex-1 overflow-hidden rounded-xl border-2 border-cyan-500/25 shadow-inner [contain:layout_paint]",
+            "relative z-0 order-2 mx-auto aspect-square min-w-0 w-full max-w-full flex-1 overflow-hidden rounded-xl border-2 border-cyan-500/25 shadow-inner [contain:layout_paint]",
             CANVAS_TOUCH_LOCK_CLASS,
             canvasStyle.surface
           )}
@@ -2826,8 +2923,11 @@ function LaserDesignerPreview({
             width: "100%",
             maxWidth: "100%",
             height: "auto",
+            maxHeight: "100%",
             boxSizing: "border-box",
-          }}
+            overscrollBehavior: "none",
+            WebkitOverflowScrolling: "auto",
+          } as CSSProperties}
           onPointerDown={(e) => {
             if (e.target === e.currentTarget) {
               onStateChange({ activeLayerId: null })
@@ -2895,6 +2995,7 @@ function LaserDesignerPreview({
                   }
                   proportionalScale={proportionalScale}
                   brushRadiusRel={eraserRadius}
+                  magnifierSrc={layer.src}
                   lassoPoints={
                     isActive && lassoActive ? lassoPreviewPoints : undefined
                   }

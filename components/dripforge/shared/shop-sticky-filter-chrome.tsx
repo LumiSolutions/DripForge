@@ -63,7 +63,7 @@ export function ShopStickyFilterChrome({
   return (
     <>
       {/* Desktop: volle Sticky-Leiste */}
-      <div className="sticky top-20 z-20 hidden space-y-4 border-b border-border/40 bg-background/95 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/85 lg:block">
+      <div className="sticky top-20 z-30 hidden space-y-4 border-b border-border/40 bg-background/95 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/85 lg:block">
         <ShopMainFilterTabs
           options={mainFilterOptions}
           activeId={categoryFilter}
@@ -94,8 +94,8 @@ export function ShopStickyFilterChrome({
         </div>
       </div>
 
-      {/* Mobile: kompakte Icon-Bar */}
-      <div className="sticky top-14 z-20 flex items-center justify-between gap-2 border-b border-border/40 bg-background/95 px-1 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/85 lg:hidden">
+      {/* Mobile: kompakte Icon-Bar — immer am oberen Viewport-Rand */}
+      <div className="sticky top-0 z-30 -mx-4 flex items-center justify-between gap-2 border-b border-border/40 bg-background/95 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/90 lg:hidden">
         <p className="truncate text-xs text-muted-foreground">
           {productCount} Produkt{productCount === 1 ? "" : "e"}
         </p>

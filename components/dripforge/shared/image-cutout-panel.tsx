@@ -28,7 +28,8 @@ export type CutoutTool = "erase" | "restore" | "pipette"
 
 const TOOL_HINTS: Record<CutoutTool, string> = {
   erase: "Radiergummi aktiv — Wische über Bereiche zum Löschen",
-  restore: "Wiederherstellen-Pinsel aktiv — Wische über gelöschte Stellen zum Wiederherstellen",
+  restore:
+    "Wiederherstellen-Pinsel aktiv — Wische über gelöschte Stellen zum Wiederherstellen",
   pipette: "Pipette aktiv — Tippe eine Farbe an, die entfernt werden soll",
 }
 
@@ -44,6 +45,29 @@ type ImageCutoutPanelProps = {
   } | null) => void
 }
 
+/**
+ * Mappt CSS-Touch-Koordinaten auf Canvas-Pixel unter object-fit: contain
+ * (inkl. Letterboxing — kritisch für iOS Safari).
+ */
+function clientToCanvasPixel(
+  canvas: HTMLCanvasElement,
+  clientX: number,
+  clientY: number
+): { x: number; y: number; scale: number; rect: DOMRect } | null {
+  const rect = canvas.getBoundingClientRect()
+  if (rect.width <= 0 || rect.height <= 0 || canvas.width <= 0 || canvas.height <= 0) {
+    return null
+  }
+  const scale = Math.min(rect.width / canvas.width, rect.height / canvas.height)
+  const dispW = canvas.width * scale
+  const dispH = canvas.height * scale
+  const offsetX = (rect.width - dispW) / 2
+  const offsetY = (rect.height - dispH) / 2
+  const x = (clientX - rect.left - offsetX) / scale
+  const y = (clientY - rect.top - offsetY) / scale
+  return { x, y, scale, rect }
+}
+
 export function ImageCutoutPanel({
   sourceSrc,
   open,
@@ -55,45 +79,33 @@ export function ImageCutoutPanel({
   const originalRef = useRef<ImageData | null>(null)
   const workingRef = useRef<ImageData | null>(null)
   const drawingRef = useRef(false)
+  const pointerIdRef = useRef<number | null>(null)
+
   const [tool, setTool] = useState<CutoutTool>("erase")
   const [brushSize, setBrushSize] = useState(28)
   const [tolerance, setTolerance] = useState(36)
-  const [keepSubject, setKeepSubject] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [statusHint, setStatusHint] = useState(TOOL_HINTS.erase)
   const [magnifier, setMagnifier] = useState<{
     x: number
     y: number
+    clientX: number
+    clientY: number
     visible: boolean
-  }>({ x: 0, y: 0, visible: false })
-  const [statusHint, setStatusHint] = useState(TOOL_HINTS.erase)
+  }>({ x: 0, y: 0, clientX: 0, clientY: 0, visible: false })
 
   const paintCanvas = useCallback(() => {
     const canvas = canvasRef.current
     const working = workingRef.current
     if (!canvas || !working) return
+    canvas.width = working.width
+    canvas.height = working.height
     const ctx = canvas.getContext("2d")
     if (!ctx) return
-    if (canvas.width !== working.width || canvas.height !== working.height) {
-      canvas.width = working.width
-      canvas.height = working.height
-    }
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
-    // Checkerboard for transparency
-    const size = 12
-    for (let y = 0; y < canvas.height; y += size) {
-      for (let x = 0; x < canvas.width; x += size) {
-        const odd = ((x / size) | 0) + ((y / size) | 0)
-        ctx.fillStyle = odd % 2 === 0 ? "#e5e7eb" : "#ffffff"
-        ctx.fillRect(x, y, size, size)
-      }
-    }
     ctx.putImageData(working, 0, 0)
-
-    const processedSrc = imageDataToDataUrl(working)
-    const mask = buildMaskHighlightOverlay(working)
-    const maskOverlaySrc = imageDataToDataUrl(mask)
+    const processedSrc = canvas.toDataURL("image/png")
+    const maskOverlaySrc = imageDataToDataUrl(buildMaskHighlightOverlay(working))
     onLivePreviewChange?.({ processedSrc, maskOverlaySrc })
   }, [onLivePreviewChange])
 
@@ -128,45 +140,44 @@ export function ImageCutoutPanel({
     setStatusHint(TOOL_HINTS[tool])
   }, [tool])
 
-  const canvasToImageCoords = (clientX: number, clientY: number) => {
-    const canvas = canvasRef.current
-    if (!canvas) return null
-    const rect = canvas.getBoundingClientRect()
-    if (rect.width <= 0 || rect.height <= 0) return null
-    const x = ((clientX - rect.left) / rect.width) * canvas.width
-    const y = ((clientY - rect.top) / rect.height) * canvas.height
-    return { x, y, rect }
-  }
-
   const applyBrushAt = (clientX: number, clientY: number) => {
     const working = workingRef.current
     const original = originalRef.current
-    if (!working || !original) return
-    const coords = canvasToImageCoords(clientX, clientY)
+    const canvas = canvasRef.current
+    if (!working || !original || !canvas) return
+    const coords = clientToCanvasPixel(canvas, clientX, clientY)
     if (!coords) return
-    const scale = working.width / Math.max(1, coords.rect.width)
-    const radius = (brushSize / 2) * scale
+    const radiusPx = (brushSize / 2) / coords.scale
     if (tool === "erase") {
-      brushErase(working, coords.x, coords.y, radius)
+      brushErase(working, coords.x, coords.y, radiusPx)
     } else if (tool === "restore") {
-      brushRestore(working, original, coords.x, coords.y, radius)
+      brushRestore(working, original, coords.x, coords.y, radiusPx)
     }
     paintCanvas()
     setMagnifier({
       x: clientX,
-      y: clientY - 72,
+      y: clientY - 88,
+      clientX,
+      clientY,
       visible: true,
     })
   }
 
   const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     e.preventDefault()
-    ;(e.target as HTMLCanvasElement).setPointerCapture(e.pointerId)
+    e.stopPropagation()
     drawingRef.current = true
+    pointerIdRef.current = e.pointerId
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId)
+    } catch {
+      /* ignore */
+    }
     if (tool === "pipette") {
       const working = workingRef.current
-      if (!working) return
-      const coords = canvasToImageCoords(e.clientX, e.clientY)
+      const canvas = canvasRef.current
+      if (!working || !canvas) return
+      const coords = clientToCanvasPixel(canvas, e.clientX, e.clientY)
       if (!coords) return
       const color = samplePixel(working, coords.x, coords.y)
       if (!color) return
@@ -181,8 +192,20 @@ export function ImageCutoutPanel({
   const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (!drawingRef.current) {
       if (tool === "erase" || tool === "restore") {
-        setMagnifier({ x: e.clientX, y: e.clientY - 72, visible: true })
+        setMagnifier({
+          x: e.clientX,
+          y: e.clientY - 88,
+          clientX: e.clientX,
+          clientY: e.clientY,
+          visible: true,
+        })
       }
+      return
+    }
+    if (
+      pointerIdRef.current !== null &&
+      e.pointerId !== pointerIdRef.current
+    ) {
       return
     }
     e.preventDefault()
@@ -190,27 +213,29 @@ export function ImageCutoutPanel({
     applyBrushAt(e.clientX, e.clientY)
   }
 
-  const endStroke = () => {
+  const endStroke = (e?: React.PointerEvent<HTMLCanvasElement>) => {
     drawingRef.current = false
+    pointerIdRef.current = null
     setMagnifier((m) => ({ ...m, visible: false }))
+    if (e) {
+      try {
+        e.currentTarget.releasePointerCapture(e.pointerId)
+      } catch {
+        /* ignore */
+      }
+    }
   }
 
   const runSubjectKeep = async () => {
     const working = workingRef.current
     if (!working) return
-    setBusy(true)
-    setError(null)
     setStatusHint("Subjekt-/Vordergrund-Erkennung läuft…")
+    setLoading(true)
     try {
-      const original = originalRef.current
-      if (original) {
-        workingRef.current = cloneImageData(original)
-      }
-      const target = workingRef.current
-      if (!target) return
+      const target = cloneImageData(working)
       await applySubjectKeepMask(target)
+      workingRef.current = target
       paintCanvas()
-      setKeepSubject(true)
       setStatusHint("Subjekt beibehalten — Hintergrund ist transparent")
     } catch (err) {
       setError(
@@ -220,7 +245,7 @@ export function ImageCutoutPanel({
       )
       setStatusHint("Subjekt-Erkennung fehlgeschlagen — manuell nacharbeiten")
     } finally {
-      setBusy(false)
+      setLoading(false)
     }
   }
 
@@ -228,105 +253,68 @@ export function ImageCutoutPanel({
     const original = originalRef.current
     if (!original) return
     workingRef.current = cloneImageData(original)
-    setKeepSubject(false)
     paintCanvas()
-    setStatusHint("Original wiederhergestellt")
-  }
-
-  const activateTool = (next: CutoutTool) => {
-    setTool(next)
-    setStatusHint(TOOL_HINTS[next])
+    setStatusHint("Zurückgesetzt")
   }
 
   if (!open) return null
 
   return (
-    <div className="relative space-y-3 rounded-xl border border-pink-500/30 bg-card/80 p-3 shadow-lg sm:p-4">
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <h4 className="font-bold text-pink-400">Freistellen</h4>
-          <p className="text-xs text-muted-foreground">
-            Bearbeite auf HD-Daten — Auswahl erscheint live auf dem Haupt-Canvas.
-          </p>
-        </div>
+    <div className="space-y-3 rounded-xl border border-pink-500/30 bg-card/90 p-3 shadow-lg">
+      <div className="flex items-center justify-between gap-2">
+        <h4 className="text-sm font-semibold">Freistell-Studio</h4>
         <Button
           type="button"
           size="icon"
           variant="ghost"
-          className="h-11 w-11 shrink-0"
+          className="h-9 w-9"
           onPointerDown={(e) => {
             e.preventDefault()
             onClose()
           }}
           aria-label="Schliessen"
         >
-          <X className="h-5 w-5" />
+          <X className="h-4 w-4" />
         </Button>
       </div>
 
-      <div className="flex gap-2 overflow-x-auto pb-1">
+      <div className="flex flex-wrap gap-2">
         {(
           [
-            { id: "erase" as const, icon: Eraser, label: "Radieren", invert: false },
-            {
-              id: "restore" as const,
-              icon: Eraser,
-              label: "Wiederherstellen",
-              invert: true,
-            },
-            { id: "pipette" as const, icon: Droplet, label: "Pipette", invert: false },
+            ["erase", "Löschen", Eraser],
+            ["restore", "Wiederherstellen", Undo2],
+            ["pipette", "Pipette", Droplet],
           ] as const
-        ).map((item) => (
+        ).map(([id, label, Icon]) => (
           <button
-            key={item.id}
+            key={id}
             type="button"
             className={cn(
-              "inline-flex min-h-11 min-w-11 flex-col items-center justify-center gap-0.5 rounded-lg border px-3 py-2 text-[10px] font-medium transition-colors",
-              tool === item.id
-                ? "border-pink-500 bg-pink-500/15 text-pink-400"
-                : "border-border/60 bg-background/40 text-muted-foreground"
+              "inline-flex min-h-11 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium",
+              tool === id
+                ? "border-pink-500 bg-pink-500/15 text-foreground"
+                : "border-border/60 text-muted-foreground"
             )}
-            onPointerDown={(e) => {
-              e.preventDefault()
-              activateTool(item.id)
-            }}
+            onClick={() => setTool(id)}
           >
-            <item.icon
-              className={cn("h-5 w-5", item.invert && "scale-x-[-1] rotate-180")}
-            />
-            {item.label}
+            <Icon className="h-3.5 w-3.5" />
+            {label}
           </button>
         ))}
         <button
           type="button"
-          disabled={busy}
-          className={cn(
-            "inline-flex min-h-11 min-w-11 flex-col items-center justify-center gap-0.5 rounded-lg border px-3 py-2 text-[10px] font-medium",
-            keepSubject
-              ? "border-cyan-500 bg-cyan-500/15 text-cyan-400"
-              : "border-border/60 bg-background/40 text-muted-foreground"
-          )}
-          onPointerDown={(e) => {
-            e.preventDefault()
-            void runSubjectKeep()
-          }}
+          className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-3 text-xs font-medium text-cyan-400"
+          onClick={() => void runSubjectKeep()}
+          disabled={loading}
         >
-          {busy ? (
-            <Loader2 className="h-5 w-5 animate-spin" />
-          ) : (
-            <ScanFace className="h-5 w-5" />
-          )}
+          <ScanFace className="h-3.5 w-3.5" />
           Subjekt
         </button>
         <button
           type="button"
-          className="inline-flex min-h-11 min-w-11 flex-col items-center justify-center gap-0.5 rounded-lg border border-border/60 bg-background/40 px-3 py-2 text-[10px] font-medium text-muted-foreground"
-          onPointerDown={(e) => {
-            e.preventDefault()
-            resetWorking()
-          }}
+          className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-border/60 px-3 text-xs font-medium text-muted-foreground"
+          onClick={resetWorking}
         >
-          <Undo2 className="h-5 w-5" />
           Reset
         </button>
       </div>
@@ -356,7 +344,10 @@ export function ImageCutoutPanel({
         </label>
       </div>
 
-      <div className="relative overflow-hidden rounded-lg border border-border/50 bg-secondary/30">
+      <div
+        className="relative overflow-hidden rounded-lg border border-border/50 bg-secondary/30 overscroll-none"
+        style={{ touchAction: "none", overscrollBehavior: "none" }}
+      >
         {loading ? (
           <div className="flex h-56 items-center justify-center gap-2 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -365,20 +356,26 @@ export function ImageCutoutPanel({
         ) : (
           <canvas
             ref={canvasRef}
-            className="max-h-[50vh] w-full touch-none object-contain"
-            style={{ touchAction: "none" }}
+            className="mx-auto block max-h-[50vh] w-full touch-none select-none"
+            style={{
+              touchAction: "none",
+              overscrollBehavior: "none",
+              WebkitUserSelect: "none",
+              userSelect: "none",
+            }}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
             onPointerUp={endStroke}
             onPointerCancel={endStroke}
-            onPointerLeave={endStroke}
           />
         )}
-        {magnifier.visible && canvasRef.current && (tool === "erase" || tool === "restore") ? (
+        {magnifier.visible &&
+        canvasRef.current &&
+        (tool === "erase" || tool === "restore") ? (
           <MagnifierLens
             canvas={canvasRef.current}
-            clientX={magnifier.x + 0}
-            clientY={magnifier.y + 72}
+            clientX={magnifier.clientX}
+            clientY={magnifier.clientY}
             anchorX={magnifier.x}
             anchorY={magnifier.y}
           />
@@ -407,16 +404,14 @@ export function ImageCutoutPanel({
         <Button
           type="button"
           className="min-h-11 bg-pink-600 hover:bg-pink-600/90"
-          disabled={!workingRef.current || loading}
           onPointerDown={(e) => {
             e.preventDefault()
             const working = workingRef.current
             if (!working) return
-            const url = imageDataToDataUrl(working)
-            if (url) onApply(url)
+            onApply(imageDataToDataUrl(working))
           }}
         >
-          Auf Vorschau anwenden
+          Übernehmen
         </Button>
       </div>
     </div>
@@ -445,16 +440,15 @@ function MagnifierLens({
     lens.height = size
     const ctx = lens.getContext("2d")
     if (!ctx) return
-    const rect = canvas.getBoundingClientRect()
-    const sx = ((clientX - rect.left) / rect.width) * canvas.width
-    const sy = ((clientY - rect.top) / rect.height) * canvas.height
+    const mapped = clientToCanvasPixel(canvas, clientX, clientY)
+    if (!mapped) return
     const srcSize = 40
     ctx.imageSmoothingEnabled = false
     ctx.clearRect(0, 0, size, size)
     ctx.drawImage(
       canvas,
-      sx - srcSize / 2,
-      sy - srcSize / 2,
+      mapped.x - srcSize / 2,
+      mapped.y - srcSize / 2,
       srcSize,
       srcSize,
       0,
@@ -475,11 +469,10 @@ function MagnifierLens({
       className="pointer-events-none fixed z-[80] h-24 w-24 rounded-full border-2 border-pink-400 shadow-xl"
       style={{
         left: anchorX - 48,
-        top: anchorY - 48,
+        top: Math.max(8, anchorY - 48),
       }}
     />
   )
 }
 
-// silence unused Rgba import warning if tree-shaken differently
 export type { Rgba }
