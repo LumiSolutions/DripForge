@@ -621,7 +621,8 @@ function InteractiveCanvasElement({
           }
           // Nur Move — nie Scale beim Body-Drag
           if (isResizeOrRotateHandle(e.target)) return
-          e.stopPropagation()          beginPointerDrag(e, "move")
+          e.stopPropagation()
+          beginPointerDrag(e, "move")
         }}
         onPointerMove={(e) => {
           if (eraserActive && kind === "image") {
@@ -667,7 +668,8 @@ function InteractiveCanvasElement({
         onTouchStart={(e) => {
           if (isHandleTarget(e.target)) return
           if (toolModeActive) return
-          e.stopPropagation()          beginTouchDrag(e, "move")
+          e.stopPropagation()
+          beginTouchDrag(e, "move")
         }}
       >
         {children}
