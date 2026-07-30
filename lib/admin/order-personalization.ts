@@ -1,4 +1,5 @@
 import type { StoredOrderItem } from "@/lib/admin/types"
+import { getLaserPlacementLines } from "@/lib/admin/layout-placement"
 
 export type PersonalizationLine = {
   label: string
@@ -41,6 +42,9 @@ export function getItemPersonalizationLines(
         label: "Logo/Grafik",
         value: d.uploadedImage ? "hochgeladen" : "ja",
       })
+    }
+    for (const placement of getLaserPlacementLines(item)) {
+      lines.push(placement)
     }
   }
 

@@ -3,6 +3,10 @@ import {
   getCustomerItemDownloadLinks,
   type CustomerItemDownload,
 } from "@/lib/konto/customer-item-downloads"
+import {
+  formatLayoutPositionDetails,
+  getItemLogoPreviewSrc,
+} from "@/lib/admin/layout-placement"
 
 export type CustomerOrderItemView = {
   id: string
@@ -12,8 +16,10 @@ export type CustomerOrderItemView = {
   lineTotalChf: number
   type: "3d" | "laser"
   imageUrl: string | null
+  logoPreviewUrl: string | null
   fileName: string | null
   engravingText: string | null
+  placementSummary: string | null
   options: string[]
   downloads: CustomerItemDownload[]
 }
@@ -44,6 +50,19 @@ export function mapOrderItemToCustomerView(
     pushOption(options, "Farbwünsche", details.colorWishes)
   }
 
+  const coords = details?.layoutCoordinates
+  let placementSummary: string | null = null
+  if (coords) {
+    const parts: string[] = []
+    if ((details?.userText || details?.engravingText) && coords.textPosition) {
+      parts.push(`Text: ${formatLayoutPositionDetails(coords.textPosition)}`)
+    }
+    if ((details?.uploadedImage || details?.hasImage) && coords.imagePosition) {
+      parts.push(`Logo: ${formatLayoutPositionDetails(coords.imagePosition)}`)
+    }
+    if (parts.length) placementSummary = parts.join(" · ")
+  }
+
   const imageUrl =
     item.leitbildUrl ??
     details?.uploadedImage ??
@@ -58,8 +77,10 @@ export function mapOrderItemToCustomerView(
     lineTotalChf: Math.round(item.price * item.quantity * 100) / 100,
     type: item.type,
     imageUrl,
+    logoPreviewUrl: getItemLogoPreviewSrc(item),
     fileName: details?.fileName?.trim() || null,
     engravingText: (details?.engravingText ?? details?.userText)?.trim() || null,
+    placementSummary,
     options,
     downloads: getCustomerItemDownloadLinks(orderId, item),
   }
