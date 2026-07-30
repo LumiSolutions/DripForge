@@ -20,6 +20,8 @@ import {
   Trash2,
   Type,
   Undo2,
+  Redo2,
+  Wand2,
   ArrowUp,
   ArrowDown,
   X,
@@ -85,6 +87,7 @@ import {
   sampleImageColorAt,
   type RgbColor,
 } from "@/lib/dripforge/remove-image-background"
+import { smartRemoveBackground } from "@/lib/dripforge/smart-remove-background"
 import {
   cropImageToRelRect,
   eraseImageBrushStroke,
@@ -153,6 +156,52 @@ function FeatureTag({ label, allowed }: { label: string; allowed: boolean }) {
       {allowed ? <CheckCircle2 className="h-3 w-3" /> : <X className="h-3 w-3 opacity-60" />}
       {label}
     </span>
+  )
+}
+
+type HistorySnapshot = {
+  layers: LaserDesignLayer[]
+  activeLayerId: string | null
+}
+
+function ToolIconButton({
+  label,
+  description,
+  disabled,
+  active,
+  onClick,
+  children,
+}: {
+  label: string
+  description: string
+  disabled?: boolean
+  active?: boolean
+  onClick?: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          type="button"
+          size="icon"
+          variant={active ? "default" : "outline"}
+          className={cn(
+            "h-9 w-9",
+            active && "bg-cyan-600 text-white hover:bg-cyan-500"
+          )}
+          disabled={disabled}
+          aria-label={label}
+          onClick={onClick}
+        >
+          {children}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent side="right" className="max-w-[16rem] space-y-0.5 p-2.5">
+        <p className="font-semibold">{label}</p>
+        <p className="text-[11px] leading-snug opacity-90">{description}</p>
+      </TooltipContent>
+    </Tooltip>
   )
 }
 
@@ -1424,9 +1473,21 @@ function LaserDesignerPreview({
   const [lassoPreviewPoints, setLassoPreviewPoints] = useState<
     Array<{ relX: number; relY: number }>
   >([])
-  const [undoStack, setUndoStack] = useState<
-    Array<{ layers: LaserDesignLayer[]; activeLayerId: string | null }>
-  >([])
+  const [undoStack, setUndoStack] = useState<HistorySnapshot[]>([])
+  const [redoStack, setRedoStack] = useState<HistorySnapshot[]>([])
+  const [smartRemoveOpen, setSmartRemoveOpen] = useState(false)
+  const [smartRemoveTolerance, setSmartRemoveTolerance] = useState(45)
+  const [smartRemoveBusy, setSmartRemoveBusy] = useState(false)
+  const [smartRemoveBaseSrc, setSmartRemoveBaseSrc] = useState<string | null>(
+    null
+  )
+  const [smartRemovePreview, setSmartRemovePreview] = useState<string | null>(
+    null
+  )
+  const [smartRemoveResult, setSmartRemoveResult] = useState<string | null>(null)
+  const [smartRemoveLayerId, setSmartRemoveLayerId] = useState<string | null>(
+    null
+  )
   const eraserBusyRef = useRef(false)
   const eraserSrcRef = useRef<string | null>(null)
   const lastBrushPointRef = useRef<{ relX: number; relY: number } | null>(null)
@@ -1813,6 +1874,7 @@ function LaserDesignerPreview({
         activeLayerId: current.activeLayerId,
       },
     ])
+    setRedoStack([])
   }, [])
 
   const pushImageUndo = useCallback(
@@ -1838,20 +1900,56 @@ function LaserDesignerPreview({
     []
   )
 
-  const handleUndoImageEdit = useCallback(() => {
+  const applyHistorySnapshot = useCallback(
+    (snap: HistorySnapshot) => {
+      clearPipetteLiveChain()
+      historyLockedRef.current = true
+      emitLayers(
+        snap.layers.map((l) => ({ ...l })),
+        snap.activeLayerId
+      )
+      queueMicrotask(() => {
+        historyLockedRef.current = false
+      })
+    },
+    [clearPipetteLiveChain, emitLayers]
+  )
+
+  const handleUndo = useCallback(() => {
     setUndoStack((prev) => {
       if (prev.length === 0) return prev
       const last = prev[prev.length - 1]
       const next = prev.slice(0, -1)
-      clearPipetteLiveChain()
-      historyLockedRef.current = true
-      emitLayers(last.layers.map((l) => ({ ...l })), last.activeLayerId)
-      queueMicrotask(() => {
-        historyLockedRef.current = false
-      })
+      const current = stateRef.current
+      setRedoStack((redo) => [
+        ...redo.slice(-29),
+        {
+          layers: current.layers.map((l) => ({ ...l })),
+          activeLayerId: current.activeLayerId,
+        },
+      ])
+      applyHistorySnapshot(last)
       return next
     })
-  }, [clearPipetteLiveChain, emitLayers])
+  }, [applyHistorySnapshot])
+
+  const handleRedo = useCallback(() => {
+    setRedoStack((prev) => {
+      if (prev.length === 0) return prev
+      const last = prev[prev.length - 1]
+      const next = prev.slice(0, -1)
+      const current = stateRef.current
+      setUndoStack((undo) => [
+        ...undo.slice(-29),
+        {
+          layers: current.layers.map((l) => ({ ...l })),
+          activeLayerId: current.activeLayerId,
+        },
+      ])
+      applyHistorySnapshot(last)
+      return next
+    })
+  }, [applyHistorySnapshot])
 
   const startDragSession = useCallback(
     (session: DragSession) => {
@@ -1881,6 +1979,68 @@ function LaserDesignerPreview({
       setRemovingBg(false)
     }
   }
+
+  const runSmartRemovePreview = useCallback(
+    async (src: string, tolerance: number) => {
+      setSmartRemoveBusy(true)
+      try {
+        const out = await smartRemoveBackground(src, tolerance)
+        setSmartRemovePreview(out.previewHighlight)
+        setSmartRemoveResult(out.result)
+      } catch (err) {
+        console.warn("Smart-Remove Vorschau fehlgeschlagen:", err)
+      } finally {
+        setSmartRemoveBusy(false)
+      }
+    },
+    []
+  )
+
+  const openSmartRemove = () => {
+    if (!activeImageLayer?.src) return
+    deactivateImageTools()
+    setSmartRemoveLayerId(activeImageLayer.id)
+    setSmartRemoveBaseSrc(activeImageLayer.src)
+    setSmartRemoveOpen(true)
+    setSmartRemoveTolerance(45)
+    void runSmartRemovePreview(activeImageLayer.src, 45)
+  }
+
+  const applySmartRemove = () => {
+    if (!smartRemoveResult || !smartRemoveLayerId || !smartRemoveBaseSrc) return
+    pushHistorySnapshot()
+    const next = updateLayerById(stateRef.current.layers, smartRemoveLayerId, {
+      src: smartRemoveResult,
+    })
+    emitLayers(next, smartRemoveLayerId)
+    clearPipetteLiveChain()
+    setSmartRemoveOpen(false)
+    setSmartRemovePreview(null)
+    setSmartRemoveResult(null)
+    setSmartRemoveBaseSrc(null)
+    setSmartRemoveLayerId(null)
+  }
+
+  const cancelSmartRemove = () => {
+    setSmartRemoveOpen(false)
+    setSmartRemovePreview(null)
+    setSmartRemoveResult(null)
+    setSmartRemoveBaseSrc(null)
+    setSmartRemoveLayerId(null)
+  }
+
+  useEffect(() => {
+    if (!smartRemoveOpen || !smartRemoveBaseSrc) return
+    const t = window.setTimeout(() => {
+      void runSmartRemovePreview(smartRemoveBaseSrc, smartRemoveTolerance)
+    }, 80)
+    return () => window.clearTimeout(t)
+  }, [
+    smartRemoveOpen,
+    smartRemoveBaseSrc,
+    smartRemoveTolerance,
+    runSmartRemovePreview,
+  ])
 
   const applyEyedropperFilter = useCallback(
     async (
@@ -2198,15 +2358,10 @@ function LaserDesignerPreview({
             className="flex shrink-0 flex-col gap-1.5"
             {...{ [CAPTURE_HIDE_ATTR]: "true" }}
           >
-            <Button
-              type="button"
-              size="icon"
-              variant={eyedropperActive ? "default" : "outline"}
-              className={cn(
-                "h-9 w-9",
-                eyedropperActive && "bg-cyan-600 text-white hover:bg-cyan-500"
-              )}
-              title="Pipette / Farbe entfernen"
+            <ToolIconButton
+              label="Pipette"
+              description="Klicke auf eine Farbe im Bild, um ähnliche Pixel transparent zu machen. Toleranz danach per Slider feinjustieren."
+              active={eyedropperActive}
               disabled={removingBg || !activeImageLayer}
               onClick={() => {
                 deactivateImageTools("eyedropper")
@@ -2214,16 +2369,11 @@ function LaserDesignerPreview({
               }}
             >
               <Pipette className="h-4 w-4" />
-            </Button>
-            <Button
-              type="button"
-              size="icon"
-              variant={eraserActive ? "default" : "outline"}
-              className={cn(
-                "h-9 w-9",
-                eraserActive && "bg-cyan-600 text-white hover:bg-cyan-500"
-              )}
-              title="Radierer / Pinsel"
+            </ToolIconButton>
+            <ToolIconButton
+              label="Pinsel / Radierer"
+              description="Zeichne freihand, um Bereiche transparent zu machen. Pinselgrösse unten einstellen."
+              active={eraserActive}
               disabled={!activeImageLayer}
               onClick={() => {
                 deactivateImageTools("eraser")
@@ -2231,16 +2381,11 @@ function LaserDesignerPreview({
               }}
             >
               <Eraser className="h-4 w-4" />
-            </Button>
-            <Button
-              type="button"
-              size="icon"
-              variant={lassoActive ? "default" : "outline"}
-              className={cn(
-                "h-9 w-9",
-                lassoActive && "bg-cyan-600 text-white hover:bg-cyan-500"
-              )}
-              title="Lasso freistellen"
+            </ToolIconButton>
+            <ToolIconButton
+              label="Lasso freistellen"
+              description="Kreise einen Bereich freihand ein; nach dem Loslassen wird nur dieser Teil entfernt."
+              active={lassoActive}
               disabled={!activeImageLayer}
               onClick={() => {
                 deactivateImageTools("lasso")
@@ -2250,16 +2395,11 @@ function LaserDesignerPreview({
               }}
             >
               <Lasso className="h-4 w-4" />
-            </Button>
-            <Button
-              type="button"
-              size="icon"
-              variant={cropActive ? "default" : "outline"}
-              className={cn(
-                "h-9 w-9",
-                cropActive && "bg-cyan-600 text-white hover:bg-cyan-500"
-              )}
-              title="Bild zuschneiden"
+            </ToolIconButton>
+            <ToolIconButton
+              label="Bild zuschneiden"
+              description="Ziehe ein Rechteck auf dem Bild auf, um es zuzuschneiden."
+              active={cropActive}
               disabled={!activeImageLayer}
               onClick={() => {
                 deactivateImageTools("crop")
@@ -2267,24 +2407,27 @@ function LaserDesignerPreview({
               }}
             >
               <Crop className="h-4 w-4" />
-            </Button>
-            <Button
-              type="button"
-              size="icon"
-              variant="outline"
-              className="h-9 w-9"
-              title="Weiss entfernen"
+            </ToolIconButton>
+            <ToolIconButton
+              label="Weiss entfernen"
+              description="Entfernt sehr helle/weisse Hintergründe automatisch — ideal für Logos auf Weiss."
               disabled={removingBg || !activeImageLayer}
               onClick={() => void handleRemoveBackground()}
             >
               <Scissors className="h-4 w-4" />
-            </Button>
-            <Button
-              type="button"
-              size="icon"
-              variant="outline"
-              className="h-9 w-9"
-              title="Zentrieren"
+            </ToolIconButton>
+            <ToolIconButton
+              label="Intelligent freistellen"
+              description="Erkennt den Hintergrund vom Bildrand (Magic-Wand) und zeigt eine Live-Vorschau mit Toleranz-Slider, bevor du übernimmst."
+              active={smartRemoveOpen}
+              disabled={removingBg || !activeImageLayer || smartRemoveBusy}
+              onClick={openSmartRemove}
+            >
+              <Wand2 className="h-4 w-4" />
+            </ToolIconButton>
+            <ToolIconButton
+              label="Zentrieren"
+              description="Platziert das gewählte Element exakt in der Mitte der Gravurfläche."
               disabled={!activeLayer}
               onClick={() => {
                 if (!activeLayer) return
@@ -2294,40 +2437,47 @@ function LaserDesignerPreview({
               }}
             >
               <Crosshair className="h-4 w-4" />
-            </Button>
-            <Button
-              type="button"
-              size="icon"
-              variant="outline"
-              className="h-9 w-9"
-              title="Rückgängig"
+            </ToolIconButton>
+            <ToolIconButton
+              label="Rückgängig"
+              description="Macht die letzte Änderung rückgängig (Position, Grösse, Rotation, Freistellen, Text)."
               disabled={undoStack.length === 0}
-              onClick={handleUndoImageEdit}
+              onClick={handleUndo}
             >
               <Undo2 className="h-4 w-4" />
-            </Button>
-            <Button
-              type="button"
-              size="icon"
-              variant="outline"
-              className="h-9 w-9"
-              title="Nach vorne"
+            </ToolIconButton>
+            <ToolIconButton
+              label="Wiederholen"
+              description="Stellt die zuletzt rückgängig gemachte Änderung wieder her."
+              disabled={redoStack.length === 0}
+              onClick={handleRedo}
+            >
+              <Redo2 className="h-4 w-4" />
+            </ToolIconButton>
+            <ToolIconButton
+              label="Nach vorne"
+              description="Verschiebt die aktive Ebene eine Stufe nach vorne (über andere Elemente)."
               disabled={!activeLayerId}
-              onClick={() => activeLayerId && bringLayerForward(activeLayerId)}
+              onClick={() => {
+                if (!activeLayerId) return
+                pushHistorySnapshot()
+                bringLayerForward(activeLayerId)
+              }}
             >
               <ArrowUp className="h-4 w-4" />
-            </Button>
-            <Button
-              type="button"
-              size="icon"
-              variant="outline"
-              className="h-9 w-9"
-              title="Nach hinten"
+            </ToolIconButton>
+            <ToolIconButton
+              label="Nach hinten"
+              description="Verschiebt die aktive Ebene eine Stufe nach hinten (unter andere Elemente)."
               disabled={!activeLayerId}
-              onClick={() => activeLayerId && sendLayerBackward(activeLayerId)}
+              onClick={() => {
+                if (!activeLayerId) return
+                pushHistorySnapshot()
+                sendLayerBackward(activeLayerId)
+              }}
             >
               <ArrowDown className="h-4 w-4" />
-            </Button>
+            </ToolIconButton>
           </div>
 
         <div
@@ -2539,7 +2689,7 @@ function LaserDesignerPreview({
         </div>
         </div>
 
-        {(eyedropperColor || eyedropperActive || eraserActive || lassoActive || cropActive) && (
+        {(eyedropperColor || eyedropperActive || eraserActive || lassoActive || cropActive || smartRemoveOpen) && (
           <div className="mt-3 flex flex-wrap gap-4">
             {(eyedropperColor || eyedropperActive) && (
               <div className="flex min-w-[10rem] flex-1 flex-col gap-1">
@@ -2598,6 +2748,85 @@ function LaserDesignerPreview({
           </div>
         )}
 
+        {smartRemoveOpen && smartRemoveBaseSrc ? (
+          <div className="relative z-0 mt-4 space-y-3 rounded-lg border border-violet-500/30 bg-violet-500/5 p-4">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-semibold text-violet-400">
+                Intelligent freistellen — Live-Vorschau
+              </p>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="h-7 px-2 text-xs"
+                onClick={cancelSmartRemove}
+              >
+                Abbrechen
+              </Button>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                  Vorher
+                </p>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={smartRemoveBaseSrc}
+                  alt="Original"
+                  className="max-h-36 w-full rounded-md border border-border/50 object-contain bg-[linear-gradient(45deg,#ccc_25%,transparent_25%,transparent_75%,#ccc_75%),linear-gradient(45deg,#ccc_25%,transparent_25%,transparent_75%,#ccc_75%)] bg-[length:12px_12px] bg-[position:0_0,6px_6px]"
+                />
+              </div>
+              <div className="space-y-1">
+                <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                  {smartRemoveBusy ? "Berechne…" : "Maske / Nachher"}
+                </p>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={smartRemovePreview ?? smartRemoveResult ?? smartRemoveBaseSrc}
+                  alt="Vorschau Freistellen"
+                  className="max-h-36 w-full rounded-md border border-border/50 object-contain bg-[linear-gradient(45deg,#ccc_25%,transparent_25%,transparent_75%,#ccc_75%),linear-gradient(45deg,#ccc_25%,transparent_25%,transparent_75%,#ccc_75%)] bg-[length:12px_12px] bg-[position:0_0,6px_6px]"
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">
+                Toleranz: {smartRemoveTolerance} — höher = mehr Hintergrund weg
+              </Label>
+              <input
+                type="range"
+                min={10}
+                max={120}
+                step={1}
+                value={smartRemoveTolerance}
+                onChange={(e) =>
+                  setSmartRemoveTolerance(Number(e.target.value))
+                }
+                className="w-full accent-violet-500"
+                aria-label="Smart-Remove Toleranz"
+              />
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                size="sm"
+                className="bg-violet-600 text-white hover:bg-violet-500"
+                disabled={!smartRemoveResult || smartRemoveBusy}
+                onClick={applySmartRemove}
+              >
+                Übernehmen
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={cancelSmartRemove}
+              >
+                Verwerfen
+              </Button>
+            </div>
+          </div>
+        ) : null}
+
         {(() => {
           // Nur das aktuell aktive Text-Element (activeLayerId)
           const textLayer =
@@ -2651,6 +2880,7 @@ function LaserDesignerPreview({
                   emitLayers(next, textLayer.id)
                 }}
                 onFocus={() => {
+                  pushHistorySnapshot()
                   onStateChange({ activeLayerId: textLayer.id })
                   setEditingTextLayerId(textLayer.id)
                 }}
@@ -2666,6 +2896,7 @@ function LaserDesignerPreview({
                   value={fontId}
                   onChange={(e) => {
                     const nextFont = e.target.value as LaserFontId
+                    pushHistorySnapshot()
                     const next = updateLayerById(
                       stateRef.current.layers,
                       textLayer.id,

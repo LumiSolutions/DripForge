@@ -88,7 +88,7 @@ export async function captureLaserPreviewLeitbild(
     await waitForPreviewPaint()
     const snapshot = await html2canvas(previewRoot, {
       backgroundColor: "#ffffff",
-      scale: 2,
+      scale: Math.min(3, Math.max(2, window.devicePixelRatio || 2)),
       useCORS: true,
       allowTaint: false,
       logging: false,
