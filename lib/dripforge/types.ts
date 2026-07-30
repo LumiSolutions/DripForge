@@ -113,6 +113,11 @@ export interface CartItem {
    * Wird beim Bestellen als previewMockupUrl persistiert.
    */
   previewMockup?: string
+  /**
+   * Transparenter Produktions-Composite (nur Gravur-Inhalte, ohne Produkthintergrund).
+   * data:image/png;base64,…
+   */
+  productionLayer?: string
   customDetails?: {
     fileName?: string
     /** Azure-/CDN-URL zur hochgeladenen 3D-Datei (falls vorhanden) */

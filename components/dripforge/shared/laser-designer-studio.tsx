@@ -115,6 +115,7 @@ import {
 } from "@/lib/dripforge/laser-work-area"
 import type { LaserMaterial } from "@/lib/dripforge/types"
 import { Checkbox } from "@/components/ui/checkbox"
+import { ImageCutoutPanel } from "@/components/dripforge/shared/image-cutout-panel"
 
 export type { LaserDesignerState } from "@/lib/dripforge/laser-layers"
 
@@ -260,7 +261,6 @@ const CANVAS_TOUCH_LOCK_STYLE: CSSProperties = {
 }
 
 const FALLBACK_MAX_SCALE = 10
-
 function getCanvasPoint(
   canvas: HTMLDivElement,
   clientX: number,
@@ -621,8 +621,7 @@ function InteractiveCanvasElement({
           }
           // Nur Move — nie Scale beim Body-Drag
           if (isResizeOrRotateHandle(e.target)) return
-          e.stopPropagation()
-          beginPointerDrag(e, "move")
+          e.stopPropagation()          beginPointerDrag(e, "move")
         }}
         onPointerMove={(e) => {
           if (eraserActive && kind === "image") {
@@ -668,8 +667,7 @@ function InteractiveCanvasElement({
         onTouchStart={(e) => {
           if (isHandleTarget(e.target)) return
           if (toolModeActive) return
-          e.stopPropagation()
-          beginTouchDrag(e, "move")
+          e.stopPropagation()          beginTouchDrag(e, "move")
         }}
       >
         {children}
@@ -921,8 +919,7 @@ function InteractiveCanvasElement({
               >
                 +
               </button>
-            </div>
-          </>
+            </div>          </>
         )}
       </div>
     </div>
@@ -1519,6 +1516,12 @@ function LaserDesignerPreview({
   const lassoPointsRef = useRef<Array<{ relX: number; relY: number }>>([])
   const lassoBusyRef = useRef(false)
   const historyLockedRef = useRef(false)
+  const [cutoutOpen, setCutoutOpen] = useState(false)
+  const [cutoutLive, setCutoutLive] = useState<{
+    processedSrc: string
+    maskOverlaySrc: string | null
+  } | null>(null)
+  const [mobileToolHint, setMobileToolHint] = useState<string | null>(null)
   const canvasStyle = getMaterialCanvasStyle(material.id)
   const workAreaLabel = `${workAreaMm.widthMm} x ${workAreaMm.heightMm} mm`
 
@@ -1744,8 +1747,7 @@ function LaserDesignerPreview({
       if (mode === "resize") {
         const handle = session.resizeHandle ?? "se"
         const scales = computeResizeScales({
-          handle,
-          startLayout,
+          handle,          startLayout,
           centerClientX: session.centerClientX,
           centerClientY: session.centerClientY,
           startClientX: session.startClientX,
@@ -2524,6 +2526,28 @@ function LaserDesignerPreview({
               <Wand2 className="h-4 w-4" />
             </ToolIconButton>
             <ToolIconButton
+              label="Freistell-Studio"
+              description="Erweitertes Freistellen mit Restore-Pinsel, Personen-Erkennung, Live-Maske und Lupe."
+              active={cutoutOpen}
+              disabled={!activeImageLayer}
+              onClick={() => {
+                if (!activeImageLayer) return
+                deactivateImageTools()
+                setCutoutOpen((v) => {
+                  const next = !v
+                  setMobileToolHint(
+                    next
+                      ? "Freistellen aktiv — Werkzeuge unten nutzen"
+                      : null
+                  )
+                  if (!next) setCutoutLive(null)
+                  return next
+                })
+              }}
+            >
+              <Stamp className="h-4 w-4" />
+            </ToolIconButton>
+            <ToolIconButton
               label="Zentrieren"
               description="Platziert das gewählte Element exakt in der Mitte der Gravurfläche."
               disabled={!activeLayer}
@@ -2582,11 +2606,10 @@ function LaserDesignerPreview({
           ref={assignPreviewSurfaceRef}
           {...{ [LEITBILD_LASER_PREVIEW_ATTR]: "true" }}
           className={cn(
-            "relative z-0 aspect-square min-w-0 flex-1 overflow-hidden rounded-xl border-2 border-cyan-500/25 shadow-inner",
-            CANVAS_TOUCH_LOCK_CLASS,
+            "relative z-0 aspect-square min-w-0 flex-1 overflow-hidden rounded-xl border-2 border-cyan-500/25 shadow-inner",            CANVAS_TOUCH_LOCK_CLASS,
             canvasStyle.surface
           )}
-          style={CANVAS_TOUCH_LOCK_STYLE}
+          style={{ ...CANVAS_TOUCH_LOCK_STYLE, height: "auto" }}
           onPointerDown={(e) => {
             if (e.target === e.currentTarget) {
               onStateChange({ activeLayerId: null })
@@ -2692,18 +2715,38 @@ function LaserDesignerPreview({
                   onBringForward={() => bringLayerForward(layer.id)}
                   onSendBackward={() => sendLayerBackward(layer.id)}
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={layer.src}
-                    alt="Logo-Vorschau"
-                    className={cn(
-                      "max-h-32 w-auto rounded opacity-90 drop-shadow-lg grayscale",
-                      CANVAS_TOUCH_LOCK_CLASS
-                    )}
-                    style={CANVAS_TOUCH_LOCK_STYLE}
-                    draggable={false}
-                    crossOrigin="anonymous"
-                  />
+                  <div className="relative inline-block">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={
+                        cutoutOpen &&
+                        cutoutLive?.processedSrc &&
+                        activeLayerId === layer.id
+                          ? cutoutLive.processedSrc
+                          : layer.src
+                      }
+                      alt="Logo-Vorschau"
+                      className={cn(
+                        "max-h-32 w-auto rounded opacity-90 drop-shadow-lg grayscale",
+                        CANVAS_TOUCH_LOCK_CLASS
+                      )}
+                      style={CANVAS_TOUCH_LOCK_STYLE}
+                      draggable={false}
+                      crossOrigin="anonymous"
+                    />
+                    {cutoutOpen &&
+                    cutoutLive?.maskOverlaySrc &&
+                    activeLayerId === layer.id ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={cutoutLive.maskOverlaySrc}
+                        alt=""
+                        aria-hidden
+                        className="pointer-events-none absolute inset-0 h-full w-full max-h-32 rounded object-contain opacity-90"
+                        draggable={false}
+                      />
+                    ) : null}
+                  </div>
                 </InteractiveCanvasElement>
               )
             }
@@ -2775,7 +2818,6 @@ function LaserDesignerPreview({
                 </InteractiveCanvasElement>
               )
             }
-
             return null
           })}
 
@@ -2855,14 +2897,12 @@ function LaserDesignerPreview({
             <div className="flex items-center justify-between gap-2">
               <p className="text-sm font-semibold text-violet-400">
                 Intelligent freistellen — Mehrfach-Auswahl
-              </p>
-              <Button
+              </p>              <Button
                 type="button"
                 size="sm"
                 variant="ghost"
                 className="h-7 px-2 text-xs"
-                onClick={cancelSmartRemove}
-              >
+                onClick={cancelSmartRemove}              >
                 Abbrechen
               </Button>
             </div>
@@ -2945,8 +2985,7 @@ function LaserDesignerPreview({
                   smartRemoveBusy ||
                   (smartRemoveSeeds.length === 0 && !smartRemoveAutoMode)
                 }
-                onClick={clearSmartSeeds}
-              >
+                onClick={clearSmartSeeds}              >
                 Auswahl zurücksetzen
               </Button>
               <Button
@@ -3136,6 +3175,37 @@ function LaserDesignerPreview({
             nutzen. Doppelklick auf Text öffnet die Textbearbeitung.
           </p>
         </div>
+
+        {mobileToolHint ? (
+          <div className="mt-2 rounded-md bg-secondary/60 px-3 py-2 text-center text-xs text-muted-foreground sm:hidden">
+            {mobileToolHint}
+          </div>
+        ) : null}
+
+        {cutoutOpen && activeImageLayer?.src ? (
+          <ImageCutoutPanel
+            sourceSrc={activeImageLayer.src}
+            open={cutoutOpen}
+            onClose={() => {
+              setCutoutOpen(false)
+              setCutoutLive(null)
+              setMobileToolHint(null)
+            }}
+            onLivePreviewChange={setCutoutLive}
+            onApply={(processedDataUrl) => {
+              pushHistorySnapshot()
+              const next = updateLayerById(
+                stateRef.current.layers,
+                activeImageLayer.id,
+                { src: processedDataUrl }
+              )
+              emitLayers(next, activeImageLayer.id)
+              setCutoutOpen(false)
+              setCutoutLive(null)
+              setMobileToolHint("Freistellen übernommen")
+            }}
+          />
+        ) : null}
       </CardContent>
     </Card>
   )

@@ -24,7 +24,12 @@ const ORDER_STATUSES = new Set<OrderStatus>([
 export function sanitizeOrderItemForPersistence(
   item: StoredOrderItem
 ): StoredOrderItem {
-  const { leitbild: _leitbild, previewMockup: _previewMockup, ...rest } = item
+  const {
+    leitbild: _leitbild,
+    previewMockup: _previewMockup,
+    productionLayer: _productionLayer,
+    ...rest
+  } = item
   const next: StoredOrderItem = {
     id: String(rest.id ?? ""),
     name: String(rest.name ?? "Artikel"),
@@ -40,6 +45,7 @@ export function sanitizeOrderItemForPersistence(
       rest.mockupPreviewUrl ??
       rest.previewMockupUrl ??
       null,
+    productionLayerUrl: rest.productionLayerUrl ?? null,
   }
 
   if (rest.unit) next.unit = rest.unit

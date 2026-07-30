@@ -1,4 +1,8 @@
-import { uploadOrderAsset, uploadOrderLeitbild } from "@/lib/azure/upload-order-asset"
+import {
+  uploadOrderAsset,
+  uploadOrderLeitbild,
+} from "@/lib/azure/upload-order-asset"
+import { uploadOrderProductionLayer } from "@/lib/azure/upload-order-leitbild"
 import {
   getOrderById,
   getSettings,
@@ -60,6 +64,7 @@ export type ProcessOrderResult = {
     id: string
     leitbildUrl: string | null
     previewMockupUrl: string | null
+    productionLayerUrl: string | null
     uploadedImageUrl: string | null
     uploadedImageUrls?: string[]
     layerSrcMap?: Record<string, string>
@@ -198,6 +203,7 @@ export async function processOrderPayload(
     payload.items.map(async (item) => {
       let leitbildUrl: string | null = null
       let previewMockupUrl: string | null = null
+      let productionLayerUrl: string | null = null
       let uploadedImageUrl: string | null = null
       let colorReferenceImageUrl: string | null = null
 
@@ -229,6 +235,21 @@ export async function processOrderPayload(
         } catch (uploadError) {
           console.error(
             `Bestellung: Vorschau-Upload fehlgeschlagen (${orderId}, ${item.id}).`,
+            uploadError
+          )
+        }
+      }
+
+      if (item.productionLayer) {
+        try {
+          productionLayerUrl = await uploadOrderProductionLayer(
+            orderId,
+            item.id,
+            item.productionLayer
+          )
+        } catch (uploadError) {
+          console.error(
+            `Bestellung: Produktions-Layer-Upload fehlgeschlagen (${orderId}, ${item.id}).`,
             uploadError
           )
         }
@@ -337,6 +358,7 @@ export async function processOrderPayload(
         id: item.id,
         leitbildUrl,
         previewMockupUrl,
+        productionLayerUrl,
         uploadedImageUrl,
         uploadedImageUrls,
         layerSrcMap: Object.fromEntries(layerSrcMap),
@@ -398,6 +420,7 @@ export async function processOrderPayload(
       // Aliase für Cockpit / API-Konsumenten
       mockupPreviewUrl: mockupUrl,
       mockup_preview_url: mockupUrl,
+      productionLayerUrl: uploaded?.productionLayerUrl ?? null,
     })
   })
 

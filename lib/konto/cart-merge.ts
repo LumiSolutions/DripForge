@@ -52,6 +52,10 @@ export function normalizeCartItem(raw: unknown): CartItem | null {
     item.previewMockup = raw.previewMockup
   }
 
+  if (typeof raw.productionLayer === "string" && raw.productionLayer.length > 0) {
+    item.productionLayer = raw.productionLayer
+  }
+
   if (isRecord(raw.customDetails)) {
     item.customDetails = raw.customDetails as CartItem["customDetails"]
   }
@@ -65,6 +69,7 @@ function cartItemSignature(item: CartItem): string {
     quantity: _quantity,
     leitbild: _leitbild,
     previewMockup: _previewMockup,
+    productionLayer: _productionLayer,
     ...rest
   } = item
   return JSON.stringify(rest)
@@ -91,6 +96,9 @@ export function mergeCartItems(
       }
       if (!existing.previewMockup && guestItem.previewMockup) {
         existing.previewMockup = guestItem.previewMockup
+      }
+      if (!existing.productionLayer && guestItem.productionLayer) {
+        existing.productionLayer = guestItem.productionLayer
       }
     } else {
       merged.push({

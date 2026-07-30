@@ -172,6 +172,30 @@ export function getItemDownloadLinks(
     }
   }
 
+  const productionSrc = item.productionLayerUrl ?? item.productionLayer
+  if (productionSrc) {
+    const filename = sanitizeFilename(
+      `${orderId}-${item.id}-production_layer.png`
+    )
+    if (isHttpUrl(productionSrc)) {
+      links.push({
+        id: `${item.id}-production`,
+        label: "Produktions-Datei (Transparent)",
+        filename,
+        href: proxyHref(productionSrc, filename),
+        kind: "proxy",
+      })
+    } else if (isDataUrl(productionSrc)) {
+      links.push({
+        id: `${item.id}-production`,
+        label: "Produktions-Datei (Transparent)",
+        filename,
+        href: productionSrc,
+        kind: "data",
+      })
+    }
+  }
+
   // Alle Bild-Assets: uploadedImages + Layer-srcs (ohne Duplikate)
   const imageAssets: string[] = []
   const pushUnique = (src: string | null | undefined) => {
@@ -302,6 +326,7 @@ function collectDirectHttpAssets(
 
   push("Vorschau-Mockup", item.previewMockupUrl ?? undefined)
   push("Leitbild", item.leitbildUrl ?? undefined)
+  push("Produktions-Datei (Transparent)", item.productionLayerUrl ?? undefined)
   push("Original Logo/Grafik", details?.uploadedImage)
   push("Farb-Skizze", details?.colorReferenceImage)
 

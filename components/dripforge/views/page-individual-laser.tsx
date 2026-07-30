@@ -45,6 +45,7 @@ import {
 } from "@/lib/dripforge/build-laser-cart-details"
 import { buildLaserCombinedMockup } from "@/lib/dripforge/ensure-laser-mockup"
 import { ensureLaserLayers } from "@/lib/dripforge/laser-layers"
+import { captureProductionLayerPng } from "@/lib/dripforge/capture-production-layer"
 import type { CartItem } from "@/lib/dripforge/types"
 
 export function PageIndividualLaser({
@@ -174,6 +175,7 @@ export function PageIndividualLaser({
     if (!hasDesign) return
 
     let previewMockup: string | undefined
+    let productionLayer: string | undefined
     try {
       setActiveLayerId(null)
       await new Promise<void>((resolve) =>
@@ -187,6 +189,17 @@ export function PageIndividualLaser({
     } catch {
       console.warn("Mockup: Laser-Snapshot konnte nicht erstellt werden.")
     }
+    try {
+      const layer = await captureProductionLayerPng({
+        textLayout,
+        imageLayout,
+        engravingText: gravurText,
+        fontId: selectedFont,
+      })
+      productionLayer = layer ?? undefined
+    } catch {
+      console.warn("Produktions-Layer: Laser-Export fehlgeschlagen.")
+    }
 
     const gravurSize = engravingMetrics?.active
     addToCart({
@@ -199,6 +212,7 @@ export function PageIndividualLaser({
       type: "laser",
       leitbild: previewMockup,
       previewMockup,
+      productionLayer,
       customDetails: buildLaserCartCustomDetails(laserDesign, {
         material: isCustomerInbound
           ? CUSTOMER_INBOUND_MATERIAL_LABEL

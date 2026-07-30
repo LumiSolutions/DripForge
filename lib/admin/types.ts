@@ -43,6 +43,8 @@ export type StoredOrderItem = CartItem & {
   mockupPreviewUrl?: string | null
   /** Snake-case Alias */
   mockup_preview_url?: string | null
+  /** Azure-URL der transparenten Produktionsdatei */
+  productionLayerUrl?: string | null
 }
 
 export type StoredOrder = {

@@ -80,6 +80,7 @@ import { SHOP_ROUTES } from "@/lib/dripforge/shop-routes"
 import { ProductDetailErrorBoundary } from "@/components/dripforge/product-detail-error-boundary"
 import { SiteText } from "@/components/dripforge/editable-site-text"
 import { SiteTextPhrase } from "@/components/dripforge/site-text-phrase"
+import { captureProductionLayerPng } from "@/lib/dripforge/capture-production-layer"
 
 const Product3DPreview = dynamic(
   () =>
@@ -330,6 +331,7 @@ export function PageShop({
         return
 
       let previewMockup: string | undefined
+      let productionLayer: string | undefined
       try {
         // Auswahl-Chrome ausblenden vor Composite-Capture
         setLaserDesign((prev) =>
@@ -354,6 +356,17 @@ export function PageShop({
       } catch {
         console.warn("Mockup: Shop-Laser-Snapshot konnte nicht erstellt werden.")
       }
+      try {
+        const layer = await captureProductionLayerPng({
+          textLayout: laserDesign.textLayout,
+          imageLayout: laserDesign.imageLayout,
+          engravingText: laserDesign.engravingText,
+          fontId: laserDesign.selectedFont,
+        })
+        productionLayer = layer ?? undefined
+      } catch {
+        console.warn("Produktions-Layer: Shop-Export fehlgeschlagen.")
+      }
 
       const newItem: CartItem = {
         id: `${selectedProduct.id}-${Date.now()}`,
@@ -363,6 +376,7 @@ export function PageShop({
         type: "laser",
         leitbild: previewMockup,
         previewMockup,
+        productionLayer,
         customDetails: buildLaserCartCustomDetails(laserDesign, {
           material: selectedProduct.name,
           variant: selectedVariant,
