@@ -39,11 +39,12 @@ import {
   type LaserEngravingMetrics,
 } from "@/components/dripforge/shared/laser-designer-studio"
 import { IndividualProcessBar } from "@/components/dripforge/shared/individual-process-bar"
-import { captureLaserPreviewMockup } from "@/lib/dripforge/capture-leitbild"
 import {
   buildLaserCartCustomDetails,
   laserDesignHasContent,
 } from "@/lib/dripforge/build-laser-cart-details"
+import { buildLaserCombinedMockup } from "@/lib/dripforge/ensure-laser-mockup"
+import { ensureLaserLayers } from "@/lib/dripforge/laser-layers"
 import type { CartItem } from "@/lib/dripforge/types"
 
 export function PageIndividualLaser({
@@ -178,8 +179,11 @@ export function PageIndividualLaser({
       await new Promise<void>((resolve) =>
         requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
       )
-      const mockupUrl = await captureLaserPreviewMockup(laserPreviewRef.current)
-      previewMockup = mockupUrl ?? undefined
+      previewMockup = await buildLaserCombinedMockup({
+        layers: ensureLaserLayers(laserDesign),
+        backgroundUrl: null,
+        previewRoot: laserPreviewRef.current,
+      })
     } catch {
       console.warn("Mockup: Laser-Snapshot konnte nicht erstellt werden.")
     }
@@ -199,6 +203,7 @@ export function PageIndividualLaser({
         material: isCustomerInbound
           ? CUSTOMER_INBOUND_MATERIAL_LABEL
           : material.name,
+        productBackgroundUrl: null,
         materialVariant: laserDesign.selectedVariant,
         size: sizePreset.dimensionsLabel,
         isCustomerInbound,

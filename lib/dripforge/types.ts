@@ -146,6 +146,8 @@ export interface CartItem {
         x: number
         y: number
         scale: number
+        scaleX?: number
+        scaleY?: number
         rotation: number
         text?: string
         fontId?: string
@@ -155,6 +157,8 @@ export interface CartItem {
     }
     /** Alle hochgeladenen Logos (Multi-Image); uploadedImage bleibt Primärbild */
     uploadedImages?: string[]
+    /** Produkt-Hintergrund für Composite-Mockup (Individualisierungsbild) */
+    productBackgroundUrl?: string | null
     /** Kunden sendet eigenes Produkt zur Verarbeitung (Personalisierte Laserkreation) */
     isCustomerInbound?: boolean
     /** @deprecated Alias — nutze isCustomerInbound */
