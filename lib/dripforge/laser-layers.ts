@@ -36,7 +36,10 @@ export type LaserDesignerState = {
 }
 
 function newId(prefix: string) {
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return `${prefix}-${crypto.randomUUID()}`
+  }
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 }
 
 export function createTextLayer(
@@ -60,16 +63,36 @@ export function createTextLayer(
 export function createImageLayer(
   partial?: Partial<LaserDesignLayer> & { src?: string | null }
 ): LaserDesignLayer {
-  const scale = partial?.scale ?? DEFAULT_IMAGE_LAYOUT.scale
+  // Immer frische Defaults — nie Scale/Rotation eines bestehenden Layers übernehmen,
+  // ausser sie wurden explizit im partial gesetzt.
+  const scale =
+    typeof partial?.scale === "number" && Number.isFinite(partial.scale)
+      ? partial.scale
+      : DEFAULT_IMAGE_LAYOUT.scale
   return {
     id: partial?.id ?? newId("img"),
     kind: "image",
-    x: partial?.x ?? DEFAULT_IMAGE_LAYOUT.x,
-    y: partial?.y ?? DEFAULT_IMAGE_LAYOUT.y + (partial?.src ? 0 : 0),
+    x:
+      typeof partial?.x === "number" && Number.isFinite(partial.x)
+        ? partial.x
+        : DEFAULT_IMAGE_LAYOUT.x,
+    y:
+      typeof partial?.y === "number" && Number.isFinite(partial.y)
+        ? partial.y
+        : DEFAULT_IMAGE_LAYOUT.y,
     scale,
-    scaleX: partial?.scaleX ?? scale,
-    scaleY: partial?.scaleY ?? scale,
-    rotation: partial?.rotation ?? DEFAULT_IMAGE_LAYOUT.rotation,
+    scaleX:
+      typeof partial?.scaleX === "number" && Number.isFinite(partial.scaleX)
+        ? partial.scaleX
+        : scale,
+    scaleY:
+      typeof partial?.scaleY === "number" && Number.isFinite(partial.scaleY)
+        ? partial.scaleY
+        : scale,
+    rotation:
+      typeof partial?.rotation === "number" && Number.isFinite(partial.rotation)
+        ? partial.rotation
+        : DEFAULT_IMAGE_LAYOUT.rotation,
     src: partial?.src ?? null,
   }
 }

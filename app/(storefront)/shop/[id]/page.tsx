@@ -6,12 +6,14 @@ import {
   isShopProductDocument,
   normalizeShopProduct,
 } from "@/lib/dripforge/normalize-shop-product"
+import { productHref } from "@/lib/dripforge/product-slug"
 
 export const revalidate = 0
 export const dynamic = "force-dynamic"
 
 type PageProps = { params: Promise<{ id: string }> }
 
+/** Legacy /shop/[id] → /produkt/[slug] */
 export default async function ShopProductDeepLinkPage({ params }: PageProps) {
   try {
     const { id } = await params
@@ -37,8 +39,17 @@ export default async function ShopProductDeepLinkPage({ params }: PageProps) {
     }
 
     const product = normalizeShopProduct(raw)
-    redirect(`/shop?product=${encodeURIComponent(product.id)}`)
+    redirect(productHref(product))
   } catch (error) {
+    // Next.js redirect() wirft — nicht als Fehler behandeln
+    if (
+      error &&
+      typeof error === "object" &&
+      "digest" in error &&
+      String((error as { digest?: string }).digest ?? "").startsWith("NEXT_REDIRECT")
+    ) {
+      throw error
+    }
     console.error("Fehler beim Laden des Produkts:", error)
     notFound()
   }

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import dynamic from "next/dynamic"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import {
   Printer,
   Zap,
@@ -14,6 +15,9 @@ import {
   Plus,
   ShoppingCart,
   ArrowUpDown,
+  LayoutGrid,
+  Grid2x2,
+  List,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -76,6 +80,7 @@ import { ShopTagFilterPanel } from "@/components/dripforge/shared/shop-tag-filte
 import { ShopMainFilterTabs } from "@/components/dripforge/shared/shop-main-filter-tabs"
 import type { ProductTag } from "@/lib/admin/product-tags"
 import { normalizeShopProduct } from "@/lib/dripforge/normalize-shop-product"
+import { productHref } from "@/lib/dripforge/product-slug"
 import { SHOP_ROUTES } from "@/lib/dripforge/shop-routes"
 import { ProductDetailErrorBoundary } from "@/components/dripforge/product-detail-error-boundary"
 import { SiteText } from "@/components/dripforge/editable-site-text"
@@ -106,9 +111,12 @@ type PageShopProps = {
   shopConfigurators?: ShopConfiguratorSettings
   /** false bis /api/settings/services geantwortet hat — Teaser-Karten optimistisch anzeigen */
   servicesLoaded?: boolean
+  /** true = dedizierte /produkt/[slug]-Seite (kein Listing) */
+  productDetailMode?: boolean
 }
 
 type ShopSortMode = "price-asc" | "price-desc" | "newest" | "popular"
+type ShopViewMode = "grid-sm" | "grid-lg" | "list"
 
 function sortShopProducts(products: Product[], sortMode: ShopSortMode): Product[] {
   const list = [...products]
@@ -142,7 +150,9 @@ export function PageShop({
   services,
   shopConfigurators = DEFAULT_SHOP_CONFIGURATORS,
   servicesLoaded = false,
+  productDetailMode = false,
 }: PageShopProps) {
+  const router = useRouter()
   const { materials: filamentMaterials, loading: filamentsLoading } =
     useFilamentCatalog()
 
@@ -168,6 +178,27 @@ export function PageShop({
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([])
   const [categoryFilter, setCategoryFilter] = useState<ShopFilterId>("all")
   const [sortMode, setSortMode] = useState<ShopSortMode>("newest")
+  const [viewMode, setViewMode] = useState<ShopViewMode>("grid-lg")
+
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem("df-shop-view-mode")
+      if (stored === "grid-sm" || stored === "grid-lg" || stored === "list") {
+        setViewMode(stored)
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
+  const setViewModePersist = (mode: ShopViewMode) => {
+    setViewMode(mode)
+    try {
+      window.localStorage.setItem("df-shop-view-mode", mode)
+    } catch {
+      /* ignore */
+    }
+  }
 
   useEffect(() => {
     void fetch("/api/products", { cache: "no-store" })
@@ -239,9 +270,13 @@ export function PageShop({
     Boolean
   ).length
 
-  const applySelectedProduct = (product: Product) => {
-    const normalized = normalizeShopProduct(product)
-    setSelectedProduct(normalized)
+  // Produktseite / Deep-Link: Laser-/Filament-State beim Produktwechsel initialisieren
+  useEffect(() => {
+    if (!selectedProduct) {
+      setLaserDesign(null)
+      return
+    }
+    const normalized = normalizeShopProduct(selectedProduct)
     setQuantity(1)
     setFilamentTab("pla")
     setFilamentSelection(null)
@@ -253,28 +288,20 @@ export function PageShop({
     } else {
       setLaserDesign(null)
     }
-  }
+    // Nur bei Produkt-ID-Wechsel neu initialisieren
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProduct?.id])
 
   const openProduct = (product: Product) => {
     const initial = normalizeShopProduct(product)
-    applySelectedProduct(initial)
+    router.push(productHref(initial))
+  }
 
-    const fetchId = initial.id !== "unknown" ? initial.id : product.id
-    if (!fetchId || fetchId === "unknown") {
-      console.warn("Shop: Produkt-ID fehlt — Detail wird nur aus der Liste angezeigt.")
-      return
+  const closeProduct = () => {
+    setSelectedProduct(null)
+    if (productDetailMode) {
+      router.push("/shop")
     }
-
-    void fetch(`/api/products/${encodeURIComponent(fetchId)}`, {
-      cache: "no-store",
-    })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data?.product) applySelectedProduct(data.product as Product)
-      })
-      .catch((error) => {
-        console.error("Fehler beim Laden des Produkts:", error)
-      })
   }
 
   const effectiveFilamentSelection =
@@ -447,12 +474,12 @@ export function PageShop({
     const shopProductVarianten = resolveProductVarianten(detailProduct)
 
     return (
-      <ProductDetailErrorBoundary onReset={() => setSelectedProduct(null)}>
+      <ProductDetailErrorBoundary onReset={closeProduct}>
       <div className="space-y-10 pb-12 md:pb-24">
-        <div className="mx-auto max-w-7xl px-4 pt-8">
+        <div className="mx-auto max-w-7xl px-2 pt-8 sm:px-4">
           <Button
             variant="outline"
-            onClick={() => setSelectedProduct(null)}
+            onClick={closeProduct}
             className="mb-8"
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
@@ -921,15 +948,76 @@ export function PageShop({
       )}
 
       <section className="relative z-0 mx-auto max-w-7xl px-4 space-y-6">
-        <ShopMainFilterTabs
-          options={mainFilterOptions ?? []}
-          activeId={categoryFilter}
-          onChange={handleCategoryChange}
-        />
+        <div className="sticky top-0 z-20 -mx-4 space-y-4 border-b border-border/40 bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+          <ShopMainFilterTabs
+            options={mainFilterOptions ?? []}
+            activeId={categoryFilter}
+            onChange={handleCategoryChange}
+          />
+
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-muted-foreground">
+              {displayedProducts.length} Produkt
+              {displayedProducts.length === 1 ? "" : "e"}
+            </p>
+            <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+              <div className="inline-flex rounded-lg border border-border/60 p-0.5">
+                <Button
+                  type="button"
+                  size="icon"
+                  variant={viewMode === "grid-sm" ? "default" : "ghost"}
+                  className="h-9 w-9"
+                  aria-label="Kleine Kacheln"
+                  title="Kleine Kacheln"
+                  onClick={() => setViewModePersist("grid-sm")}
+                >
+                  <Grid2x2 className="h-4 w-4" />
+                </Button>
+                <Button
+                  type="button"
+                  size="icon"
+                  variant={viewMode === "grid-lg" ? "default" : "ghost"}
+                  className="h-9 w-9"
+                  aria-label="Grosse Kacheln"
+                  title="Grosse Kacheln"
+                  onClick={() => setViewModePersist("grid-lg")}
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                </Button>
+                <Button
+                  type="button"
+                  size="icon"
+                  variant={viewMode === "list" ? "default" : "ghost"}
+                  className="h-9 w-9"
+                  aria-label="Listenansicht"
+                  title="Listenansicht"
+                  onClick={() => setViewModePersist("list")}
+                >
+                  <List className="h-4 w-4" />
+                </Button>
+              </div>
+              <ArrowUpDown className="hidden h-4 w-4 text-muted-foreground sm:block" />
+              <Select
+                value={sortMode}
+                onValueChange={(value) => setSortMode(value as ShopSortMode)}
+              >
+                <SelectTrigger className="w-full min-w-[180px] sm:w-[220px]">
+                  <SelectValue placeholder="Sortieren" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="price-asc">Preis: aufsteigend</SelectItem>
+                  <SelectItem value="price-desc">Preis: absteigend</SelectItem>
+                  <SelectItem value="popular">Beliebtheit</SelectItem>
+                  <SelectItem value="newest">Neueste zuerst</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
 
         <div className="flex flex-col gap-8 lg:flex-row lg:items-start">
           <ShopTagFilterPanel
-            className="w-full lg:sticky lg:top-24 lg:w-64 lg:shrink-0"
+            className="w-full lg:sticky lg:top-28 lg:w-64 lg:shrink-0"
             tags={visibleProductTags ?? []}
             selectedTagIds={selectedTagIds}
             onToggleTag={toggleTagFilter}
@@ -937,29 +1025,6 @@ export function PageShop({
           />
 
           <div className="min-w-0 flex-1">
-            <div className="mb-6 flex flex-col gap-4 border-b border-border/50 pb-6 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm text-muted-foreground">
-                {displayedProducts.length} Produkt{displayedProducts.length === 1 ? "" : "e"}
-              </p>
-              <div className="flex items-center justify-center gap-2 sm:justify-end">
-                <ArrowUpDown className="hidden h-4 w-4 text-muted-foreground sm:block" />
-                <Select
-                  value={sortMode}
-                  onValueChange={(value) => setSortMode(value as ShopSortMode)}
-                >
-                  <SelectTrigger className="w-full min-w-[220px] sm:w-[240px]">
-                    <SelectValue placeholder="Sortieren" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="price-asc">Preis: aufsteigend</SelectItem>
-                    <SelectItem value="price-desc">Preis: absteigend</SelectItem>
-                    <SelectItem value="popular">Beliebtheit</SelectItem>
-                    <SelectItem value="newest">Neueste zuerst</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
         {displayedProducts.length === 0 ? (
           <Card className="border-border/50 bg-card/50">
             <CardContent className="py-16 text-center">
@@ -967,7 +1032,15 @@ export function PageShop({
             </CardContent>
           </Card>
         ) : (
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          <div
+            className={cn(
+              "gap-6",
+              viewMode === "list" && "flex flex-col",
+              viewMode === "grid-sm" &&
+                "grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5",
+              viewMode === "grid-lg" && "grid sm:grid-cols-2 lg:grid-cols-3"
+            )}
+          >
             {displayedProducts.map((product) => {
               const cardImages = resolveProductImages(
                 product.id,
@@ -979,6 +1052,69 @@ export function PageShop({
                 cardImages[0] ||
                 "/filaments/printed-pla-schwarz.png"
               const salePercent = getSaleBadgePercent(product)
+              if (viewMode === "list") {
+                return (
+                  <Card
+                    key={product.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => openProduct(product)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault()
+                        openProduct(product)
+                      }
+                    }}
+                    className={cn(
+                      "cursor-pointer overflow-hidden border-border/50 bg-card/50 transition-colors hover:border-primary/50 hover:shadow-md",
+                      product.sale && "border-red-500/30 hover:border-red-500/60"
+                    )}
+                  >
+                    <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center">
+                      <div className="relative h-36 w-full shrink-0 overflow-hidden rounded-lg bg-secondary/50 sm:h-28 sm:w-36">
+                        {product.sale && salePercent != null && (
+                          <span className="absolute left-2 top-2 z-10 rounded-full bg-red-500 px-2 py-0.5 text-xs font-bold text-white">
+                            -{salePercent}%
+                          </span>
+                        )}
+                        <SafeProductImage
+                          src={coverSrc}
+                          alt={product.name}
+                          fill
+                          sizes="160px"
+                          className="object-contain p-2"
+                        />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
+                          {product.type === "3d" ? (
+                            <>
+                              <Printer className="h-3 w-3" />
+                              3D-Druck
+                            </>
+                          ) : (
+                            <>
+                              <Zap className="h-3 w-3" />
+                              Laser
+                            </>
+                          )}
+                        </div>
+                        <h3 className="font-bold">{product.name}</h3>
+                        <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                          {product.description}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 items-center justify-between gap-4 sm:flex-col sm:items-end">
+                        <ProductShopPrice product={product} />
+                        <span className="inline-flex items-center text-sm font-medium text-primary">
+                          Ansehen
+                          <ArrowRight className="ml-1 h-4 w-4" />
+                        </span>
+                      </div>
+                    </div>
+                  </Card>
+                )
+              }
               return (
               <Card
                 key={product.id}
@@ -996,7 +1132,12 @@ export function PageShop({
                   product.sale && "border-red-500/30 hover:border-red-500/60"
                 )}
               >
-                <div className="relative h-48 bg-secondary/50">
+                <div
+                  className={cn(
+                    "relative bg-secondary/50",
+                    viewMode === "grid-sm" ? "h-36" : "h-48"
+                  )}
+                >
                   {product.sale && salePercent != null && (
                     <span className="absolute left-3 top-3 z-10 rounded-full bg-red-500 px-2 py-0.5 text-xs font-bold text-white">
                       -{salePercent}%

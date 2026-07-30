@@ -2010,11 +2010,32 @@ function LaserDesignerPreview({
     if (!file) return
     const reader = new FileReader()
     reader.onload = (event) => {
-      const src = (event.target?.result as string) ?? null
+      const raw = event.target?.result
+      const src = typeof raw === "string" ? raw : null
       if (!src) return
       const current = stateRef.current
+      pushHistorySnapshot()
+      // Tools/Cutout zurücksetzen — neuer Layer darf keinen State vom aktiven Bild erben
+      deactivateImageTools()
+      setCutoutOpen(false)
+      setCutoutLive(null)
+      setMobileToolHint(null)
       const offset = nextLayerOffset(current.layers.length)
-      const layer = createImageLayer({ src, ...offset })
+      const layer = createImageLayer({
+        id:
+          typeof crypto !== "undefined" &&
+          typeof crypto.randomUUID === "function"
+            ? `img-${crypto.randomUUID()}`
+            : undefined,
+        src,
+        x: offset.x,
+        y: offset.y,
+        // Explizit frische Transform — kein Copy vom 1. Bild
+        scale: DEFAULT_IMAGE_LAYOUT.scale,
+        scaleX: DEFAULT_IMAGE_LAYOUT.scale,
+        scaleY: DEFAULT_IMAGE_LAYOUT.scale,
+        rotation: DEFAULT_IMAGE_LAYOUT.rotation,
+      })
       emitLayers([...current.layers, layer], layer.id)
     }
     reader.readAsDataURL(file)
@@ -2524,7 +2545,7 @@ function LaserDesignerPreview({
 
   return (
     <Card className="relative isolate rounded-xl border-cyan-500/20 bg-card/50 shadow-lg shadow-cyan-500/5">
-      <CardContent className="relative flex flex-col gap-0 p-6">
+      <CardContent className="relative flex flex-col gap-0 p-2 sm:p-4 md:p-6">
         <div className="mb-4 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <Layers className="h-4 w-4 text-cyan-400" />

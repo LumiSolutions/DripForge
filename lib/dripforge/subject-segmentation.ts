@@ -1,7 +1,7 @@
 /**
- * Universelle Vordergrund-/Subjekt-Segmentierung (Browser).
- * Primär: COCO-SSD (Mensch, Tier, Gegenstand) + Masken-Verfeinerung.
- * Fallback: MediaPipe Selfie (Personen) bzw. Rand-Flood.
+ * Universelle Multi-Objekt Vordergrund-Segmentierung (Browser).
+ * COCO-SSD erkennt ALLE Subjekte; Maske = Union gepolsterter Boxen +
+ * Rand-FloodFill (Pixel-Toleranz) und Trim innerhalb der Boxen — keine Ellipse.
  */
 
 import { applyPersonKeepMask } from "@/lib/dripforge/person-segmentation"
@@ -60,33 +60,16 @@ const PRIORITY_CLASSES = new Set([
   "potted plant",
   "bed",
   "dining table",
-  "toilet",
   "tv",
   "laptop",
-  "mouse",
-  "remote",
-  "keyboard",
   "cell phone",
-  "microwave",
-  "oven",
-  "toaster",
-  "sink",
-  "refrigerator",
   "book",
   "clock",
   "vase",
-  "scissors",
-  "teddy bear",
-  "hair drier",
-  "toothbrush",
   "sports ball",
   "frisbee",
   "skateboard",
-  "surfboard",
-  "tennis racket",
-  "kite",
-  "baseball bat",
-  "baseball glove",
+  "teddy bear",
 ])
 
 let cocoModelPromise: Promise<CocoModel> | null = null
@@ -145,91 +128,125 @@ async function loadCocoModel(): Promise<CocoModel> {
   return cocoModelPromise
 }
 
-function pickPrimarySubject(
+type ScoredPrediction = {
+  prediction: CocoPrediction
+  rank: number
+}
+
+/** Alle relevanten Detections (Multi-Objekt), nicht nur das Top-1. */
+function pickAllSubjects(
   predictions: CocoPrediction[],
   imgW: number,
   imgH: number
-): CocoPrediction | null {
+): CocoPrediction[] {
   const area = imgW * imgH
-  if (area <= 0) return null
+  if (area <= 0) return []
 
-  const scored = predictions
-    .filter((p) => p.score >= 0.35)
+  const scored: ScoredPrediction[] = predictions
+    .filter((p) => p.score >= 0.32)
     .map((p) => {
       const [, , bw, bh] = p.bbox
       const boxArea = Math.max(0, bw) * Math.max(0, bh)
       const areaRatio = boxArea / area
-      const priorityBoost = PRIORITY_CLASSES.has(p.class) ? 1.35 : 1
+      if (areaRatio < 0.004 || areaRatio > 0.96) {
+        return { prediction: p, rank: -1 }
+      }
+      const priorityBoost = PRIORITY_CLASSES.has(p.class) ? 1.4 : 1
       return {
         prediction: p,
         rank: p.score * Math.sqrt(Math.max(0.01, areaRatio)) * priorityBoost,
       }
     })
+    .filter((s) => s.rank > 0)
     .sort((a, b) => b.rank - a.rank)
 
-  return scored[0]?.prediction ?? null
+  if (scored.length === 0) return []
+
+  // Nimm alle Priority-Klassen + weitere starke Treffer (bis 8)
+  const selected: CocoPrediction[] = []
+  for (const item of scored) {
+    if (selected.length >= 8) break
+    const isPriority = PRIORITY_CLASSES.has(item.prediction.class)
+    if (isPriority || item.prediction.score >= 0.45 || selected.length === 0) {
+      selected.push(item.prediction)
+    }
+  }
+  return selected
 }
 
-/**
- * Soft keep-mask aus Bounding-Box (ellipseartig, weicher Rand).
- * 1 = behalten, 0 = entfernen.
- */
-function buildSoftBoxMask(
-  width: number,
-  height: number,
+function expandBBox(
   bbox: [number, number, number, number],
-  padRatio = 0.08
-): Float32Array {
+  padRatio: number,
+  width: number,
+  height: number
+): { x0: number; y0: number; x1: number; y1: number } {
   const [bx, by, bw, bh] = bbox
   const padX = bw * padRatio
   const padY = bh * padRatio
-  const x0 = bx - padX
-  const y0 = by - padY
-  const x1 = bx + bw + padX
-  const y1 = by + bh + padY
-  const cx = (x0 + x1) / 2
-  const cy = (y0 + y1) / 2
-  const rx = Math.max(1, (x1 - x0) / 2)
-  const ry = Math.max(1, (y1 - y0) / 2)
+  return {
+    x0: Math.max(0, Math.floor(bx - padX)),
+    y0: Math.max(0, Math.floor(by - padY)),
+    x1: Math.min(width - 1, Math.ceil(bx + bw + padX)),
+    y1: Math.min(height - 1, Math.ceil(by + bh + padY)),
+  }
+}
 
-  const mask = new Float32Array(width * height)
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const nx = (x - cx) / rx
-      const ny = (y - cy) / ry
-      const d = Math.hypot(nx, ny)
-      // Weicher Falloff ausserhalb der Ellipse
-      if (d <= 0.92) mask[y * width + x] = 1
-      else if (d >= 1.12) mask[y * width + x] = 0
-      else mask[y * width + x] = 1 - (d - 0.92) / 0.2
+/** Harte Rechteck-Union (keine Ellipse). 1 = Subjekt-Region. */
+function buildMultiRectKeepMask(
+  width: number,
+  height: number,
+  boxes: CocoPrediction[],
+  padRatio = 0.07
+): Uint8Array {
+  const keep = new Uint8Array(width * height)
+  for (const pred of boxes) {
+    const { x0, y0, x1, y1 } = expandBBox(pred.bbox, padRatio, width, height)
+    for (let y = y0; y <= y1; y++) {
+      const row = y * width
+      for (let x = x0; x <= x1; x++) {
+        keep[row + x] = 1
+      }
     }
   }
-  return mask
+  return keep
+}
+
+function colorDist2(
+  data: Uint8ClampedArray,
+  i: number,
+  r: number,
+  g: number,
+  b: number
+) {
+  const dr = data[i] - r
+  const dg = data[i + 1] - g
+  const db = data[i + 2] - b
+  return dr * dr + dg * dg + db * db
 }
 
 /**
- * Verfeinert Maske: Rand-Flood entfernt Hintergrund, schützt aber Subjekt-Kern.
+ * FloodFill vom Bildrand: entfernt Hintergrund ausserhalb der Keep-Rechtecke.
  */
-function refineWithBorderFlood(
+function floodRemoveOutsideKeep(
   data: Uint8ClampedArray,
   width: number,
   height: number,
-  keepSoft: Float32Array,
-  tolerance = 42
+  keep: Uint8Array,
+  tolerance = 38
 ): void {
   const visited = new Uint8Array(width * height)
   const queue: number[] = []
+  const tol2 = tolerance * tolerance
+
   const push = (x: number, y: number) => {
     if (x < 0 || y < 0 || x >= width || y >= height) return
     const idx = y * width + x
-    if (visited[idx]) return
-    // Subjekt-Kern nie als Hintergrund seed'en
-    if (keepSoft[idx] > 0.72) return
+    if (visited[idx] || keep[idx]) return
     visited[idx] = 1
     queue.push(idx)
   }
 
-  const step = Math.max(1, Math.floor(Math.min(width, height) / 90))
+  const step = Math.max(1, Math.floor(Math.min(width, height) / 100))
   for (let x = 0; x < width; x += step) {
     push(x, 0)
     push(x, height - 1)
@@ -239,7 +256,6 @@ function refineWithBorderFlood(
     push(width - 1, y)
   }
 
-  const tol2 = tolerance * tolerance
   let qi = 0
   while (qi < queue.length) {
     const idx = queue[qi++]
@@ -257,31 +273,103 @@ function refineWithBorderFlood(
     ]
     for (const n of neighbors) {
       if (n < 0 || n >= width * height) continue
-      if (visited[n]) continue
-      if (keepSoft[n] > 0.85) continue
-      const ni = n * 4
-      const dr = data[ni] - r
-      const dg = data[ni + 1] - g
-      const db = data[ni + 2] - b
-      if (dr * dr + dg * dg + db * db > tol2) continue
+      if (visited[n] || keep[n]) continue
+      if (colorDist2(data, n * 4, r, g, b) > tol2) continue
       visited[n] = 1
       queue.push(n)
     }
   }
 
   for (let idx = 0; idx < width * height; idx++) {
-    const keep = keepSoft[idx]
-    if (visited[idx] && keep < 0.55) {
-      data[idx * 4 + 3] = 0
-    } else if (keep < 0.12) {
-      data[idx * 4 + 3] = 0
-    } else if (keep < 1) {
-      data[idx * 4 + 3] = Math.round(data[idx * 4 + 3] * keep)
+    if (visited[idx]) data[idx * 4 + 3] = 0
+  }
+}
+
+/**
+ * Innerhalb jeder Detection-Box: Flood von den Box-Rändern nach innen
+ * (Pixel-Toleranz) → trimmt Hintergrund in der Box, folgt Konturen besser als Ellipse.
+ */
+function trimBackgroundInsideBoxes(
+  data: Uint8ClampedArray,
+  width: number,
+  height: number,
+  boxes: CocoPrediction[],
+  tolerance = 36
+): void {
+  const tol2 = tolerance * tolerance
+  const globalVisited = new Uint8Array(width * height)
+
+  for (const pred of boxes) {
+    const { x0, y0, x1, y1 } = expandBBox(pred.bbox, 0.04, width, height)
+    const queue: number[] = []
+    const pushEdge = (x: number, y: number) => {
+      if (x < x0 || y < y0 || x > x1 || y > y1) return
+      const idx = y * width + x
+      if (globalVisited[idx]) return
+      globalVisited[idx] = 1
+      queue.push(idx)
+    }
+
+    for (let x = x0; x <= x1; x++) {
+      pushEdge(x, y0)
+      pushEdge(x, y1)
+    }
+    for (let y = y0; y <= y1; y++) {
+      pushEdge(x0, y)
+      pushEdge(x1, y)
+    }
+
+    let qi = 0
+    while (qi < queue.length) {
+      const idx = queue[qi++]
+      const i = idx * 4
+      const r = data[i]
+      const g = data[i + 1]
+      const b = data[i + 2]
+      const x = idx % width
+      const y = (idx / width) | 0
+      const neighbors = [
+        x > x0 ? idx - 1 : -1,
+        x < x1 ? idx + 1 : -1,
+        y > y0 ? idx - width : -1,
+        y < y1 ? idx + width : -1,
+      ]
+      for (const n of neighbors) {
+        if (n < 0 || n >= width * height) continue
+        if (globalVisited[n]) continue
+        const nx = n % width
+        const ny = (n / width) | 0
+        if (nx < x0 || nx > x1 || ny < y0 || ny > y1) continue
+        if (colorDist2(data, n * 4, r, g, b) > tol2) continue
+        globalVisited[n] = 1
+        queue.push(n)
+      }
+    }
+  }
+
+  // Nur Pixel, die vom Box-Rand erreichbar waren (= Hintergrund-ähnliche Zonen)
+  // und nicht tief im Motiv-Zentrum liegen, werden transparent.
+  for (const pred of boxes) {
+    const { x0, y0, x1, y1 } = expandBBox(pred.bbox, 0.04, width, height)
+    const cx = (x0 + x1) / 2
+    const cy = (y0 + y1) / 2
+    const rx = Math.max(1, (x1 - x0) * 0.22)
+    const ry = Math.max(1, (y1 - y0) * 0.22)
+    for (let y = y0; y <= y1; y++) {
+      for (let x = x0; x <= x1; x++) {
+        const idx = y * width + x
+        if (!globalVisited[idx]) continue
+        const dx = (x - cx) / rx
+        const dy = (y - cy) / ry
+        // Kern der Box schützen (echte Kontur bleibt)
+        if (dx * dx + dy * dy < 1) continue
+        data[idx * 4 + 3] = 0
+      }
     }
   }
 }
 
-async function applyCocoSubjectMask(working: ImageData): Promise<boolean> {
+async function applyCocoMultiSubjectMask(working: ImageData): Promise<boolean> {
   const model = await loadCocoModel()
   const canvas = document.createElement("canvas")
   canvas.width = working.width
@@ -290,43 +378,49 @@ async function applyCocoSubjectMask(working: ImageData): Promise<boolean> {
   if (!ctx) return false
   ctx.putImageData(working, 0, 0)
 
-  const predictions = await model.detect(canvas, 12)
-  const subject = pickPrimarySubject(
-    predictions,
-    working.width,
-    working.height
-  )
-  if (!subject) return false
+  const predictions = await model.detect(canvas, 20)
+  const subjects = pickAllSubjects(predictions, working.width, working.height)
+  if (subjects.length === 0) return false
 
-  const soft = buildSoftBoxMask(
+  const keep = buildMultiRectKeepMask(
     working.width,
     working.height,
-    subject.bbox,
-    0.1
+    subjects,
+    0.08
   )
-  refineWithBorderFlood(
+
+  // 1) Alles ausserhalb der Union transparent (Rand-Flood)
+  floodRemoveOutsideKeep(
     working.data,
     working.width,
     working.height,
-    soft,
+    keep,
     40
   )
+
+  // 2) Hintergrund innerhalb der Boxen entlang Konturen trimmen
+  trimBackgroundInsideBoxes(
+    working.data,
+    working.width,
+    working.height,
+    subjects,
+    34
+  )
+
   return true
 }
 
 /**
- * Behält das Hauptmotiv (Mensch, Tier, Gegenstand) und setzt den Rest transparent.
- * Arbeitet auf unskalierten HD-ImageData.
+ * Behält ALLE erkannten Vordergrund-Objekte und setzt den Rest transparent.
  */
 export async function applySubjectKeepMask(working: ImageData): Promise<void> {
   try {
-    const ok = await applyCocoSubjectMask(working)
+    const ok = await applyCocoMultiSubjectMask(working)
     if (ok) return
   } catch (error) {
-    console.warn("COCO-SSD Subjekt-Maske fehlgeschlagen:", error)
+    console.warn("COCO-SSD Multi-Subjekt-Maske fehlgeschlagen:", error)
   }
 
-  // Fallback: Personen-Modell (hilft bei Portraits ohne COCO-Treffer)
   try {
     await applyPersonKeepMask(working)
     return

@@ -1,27 +1,27 @@
 "use client"
 
-import { Suspense, useEffect, useState } from "react"
-import { useSearchParams } from "next/navigation"
+import { Suspense, useEffect } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { PageShop } from "@/components/dripforge/views/page-shop"
 import { useCart } from "@/components/dripforge/cart-provider"
 import { useShopNavigate } from "@/hooks/use-shop-navigate"
 import { useServiceVisibility } from "@/hooks/use-service-visibility"
 import type { Product } from "@/lib/dripforge/types"
 import { normalizeShopProduct } from "@/lib/dripforge/normalize-shop-product"
+import { productHref } from "@/lib/dripforge/product-slug"
 
 function ShopPageInner() {
   const navigate = useShopNavigate()
+  const router = useRouter()
   const { addToCart } = useCart()
-  const { services, shopConfigurators, isLoaded: servicesLoaded } = useServiceVisibility()
+  const { services, shopConfigurators, isLoaded: servicesLoaded } =
+    useServiceVisibility()
   const searchParams = useSearchParams()
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
 
+  // Legacy ?product= → permanente Produkt-URL
   useEffect(() => {
     const productId = searchParams.get("product")?.trim()
-    if (!productId) {
-      setSelectedProduct(null)
-      return
-    }
+    if (!productId) return
 
     void fetch(`/api/products/${encodeURIComponent(productId)}`, {
       cache: "no-store",
@@ -29,19 +29,24 @@ function ShopPageInner() {
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data?.product) {
-          setSelectedProduct(normalizeShopProduct(data.product as Product))
+          const product = normalizeShopProduct(data.product as Product)
+          router.replace(productHref(product))
+          return
         }
+        router.replace(`/produkt/--${encodeURIComponent(productId)}`)
       })
       .catch(() => {
-        console.warn("Shop: Deep-Link-Produkt konnte nicht geladen werden.")
+        router.replace(`/produkt/--${encodeURIComponent(productId)}`)
       })
-  }, [searchParams])
+  }, [searchParams, router])
 
   return (
     <PageShop
       setCurrentView={navigate}
-      selectedProduct={selectedProduct}
-      setSelectedProduct={setSelectedProduct}
+      selectedProduct={null}
+      setSelectedProduct={(product) => {
+        if (product) router.push(productHref(product))
+      }}
       addToCart={addToCart}
       services={services}
       shopConfigurators={shopConfigurators}
