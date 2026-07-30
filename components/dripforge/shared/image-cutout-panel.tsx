@@ -28,7 +28,7 @@ export type CutoutTool = "erase" | "restore" | "pipette"
 
 const TOOL_HINTS: Record<CutoutTool, string> = {
   erase: "Radiergummi aktiv — Wische über Bereiche zum Löschen",
-  restore: "Wiederherstellen aktiv — Wische, um Originalpixel zurückzuholen",
+  restore: "Wiederherstellen-Pinsel aktiv — Wische über gelöschte Stellen zum Wiederherstellen",
   pipette: "Pipette aktiv — Tippe eine Farbe an, die entfernt werden soll",
 }
 

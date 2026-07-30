@@ -319,12 +319,37 @@ export async function smartRemoveBackground(
 }
 
 /**
- * „Personen beibehalten“: Auto-Hintergrund vom Rand entfernen
- * (zentrierte Vordergründe bleiben dank Edge-Stop erhalten).
+ * „Personen beibehalten“: MediaPipe Selfie Segmentation (HD).
+ * Fallback auf Rand-Flood, falls Segmentierung fehlschlägt.
  */
 export async function smartKeepSubjectRemoveBackground(
   dataUrlOrHttp: string,
   tolerance = 40
 ): Promise<SmartRemoveResult> {
-  return smartRemoveBackground(dataUrlOrHttp, tolerance)
+  try {
+    const { applyPersonKeepMask } = await import(
+      "@/lib/dripforge/person-segmentation"
+    )
+    const { canvas, ctx } = await loadImageToCanvas(dataUrlOrHttp)
+    const { width, height } = canvas
+    const original = ctx.getImageData(0, 0, width, height)
+    const working = new ImageData(
+      new Uint8ClampedArray(original.data),
+      width,
+      height
+    )
+    await applyPersonKeepMask(working)
+
+    const mask = new Uint8Array(width * height)
+    for (let idx = 0; idx < width * height; idx++) {
+      if (working.data[idx * 4 + 3] < 16) mask[idx] = 1
+    }
+    return buildOutputs(canvas, original.data, mask, width, height)
+  } catch (error) {
+    console.warn(
+      "Personen-Segmentierung fehlgeschlagen — Fallback auf Rand-Flood.",
+      error
+    )
+    return smartRemoveBackground(dataUrlOrHttp, tolerance)
+  }
 }

@@ -185,6 +185,13 @@ function ToolIconButton({
   onClick?: () => void
   children: React.ReactNode
 }) {
+  const touchHandledRef = useRef(false)
+
+  const activate = () => {
+    if (disabled) return
+    onClick?.()
+  }
+
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -193,12 +200,25 @@ function ToolIconButton({
           size="icon"
           variant={active ? "default" : "outline"}
           className={cn(
-            "h-9 w-9",
+            "h-11 w-11 min-h-11 min-w-11 touch-manipulation",
             active && "bg-cyan-600 text-white hover:bg-cyan-500"
           )}
           disabled={disabled}
           aria-label={label}
-          onClick={onClick}
+          onPointerDown={(e) => {
+            if (e.pointerType !== "touch" && e.pointerType !== "pen") return
+            e.preventDefault()
+            touchHandledRef.current = true
+            activate()
+          }}
+          onClick={(e) => {
+            e.preventDefault()
+            if (touchHandledRef.current) {
+              touchHandledRef.current = false
+              return
+            }
+            activate()
+          }}
         >
           {children}
         </Button>
@@ -1749,7 +1769,8 @@ function LaserDesignerPreview({
       if (mode === "resize") {
         const handle = session.resizeHandle ?? "se"
         const scales = computeResizeScales({
-          handle,          startLayout,
+          handle,
+          startLayout,
           centerClientX: session.centerClientX,
           centerClientY: session.centerClientY,
           startClientX: session.startClientX,
@@ -2461,7 +2482,15 @@ function LaserDesignerPreview({
               disabled={removingBg || !activeImageLayer}
               onClick={() => {
                 deactivateImageTools("eyedropper")
-                setEyedropperActive((v) => !v)
+                setEyedropperActive((v) => {
+                  const next = !v
+                  setMobileToolHint(
+                    next
+                      ? "Pipette aktiv — Tippe eine Farbe an, die entfernt werden soll"
+                      : null
+                  )
+                  return next
+                })
               }}
             >
               <Pipette className="h-4 w-4" />
@@ -2473,7 +2502,15 @@ function LaserDesignerPreview({
               disabled={!activeImageLayer}
               onClick={() => {
                 deactivateImageTools("eraser")
-                setEraserActive((v) => !v)
+                setEraserActive((v) => {
+                  const next = !v
+                  setMobileToolHint(
+                    next
+                      ? "Radiergummi aktiv — Wische über Bereiche zum Löschen"
+                      : null
+                  )
+                  return next
+                })
               }}
             >
               <Eraser className="h-4 w-4" />
@@ -2487,7 +2524,15 @@ function LaserDesignerPreview({
                 deactivateImageTools("lasso")
                 lassoPointsRef.current = []
                 setLassoPreviewPoints([])
-                setLassoActive((v) => !v)
+                setLassoActive((v) => {
+                  const next = !v
+                  setMobileToolHint(
+                    next
+                      ? "Lasso aktiv — Umschliesse den Bereich, der entfernt werden soll"
+                      : null
+                  )
+                  return next
+                })
               }}
             >
               <Lasso className="h-4 w-4" />
@@ -2529,7 +2574,7 @@ function LaserDesignerPreview({
             </ToolIconButton>
             <ToolIconButton
               label="Freistell-Studio"
-              description="Erweitertes Freistellen mit Restore-Pinsel, Personen-Erkennung, Live-Maske und Lupe."
+              description="Erweitertes Freistellen mit Wiederherstellen-Pinsel, Personen-Erkennung (MediaPipe), Live-Maske und Lupe."
               active={cutoutOpen}
               disabled={!activeImageLayer}
               onClick={() => {
@@ -2539,7 +2584,7 @@ function LaserDesignerPreview({
                   const next = !v
                   setMobileToolHint(
                     next
-                      ? "Freistellen aktiv — Werkzeuge unten nutzen"
+                      ? "Wiederherstellen-Pinsel aktiv — Wische über gelöschte Stellen zum Wiederherstellen"
                       : null
                   )
                   if (!next) setCutoutLive(null)
@@ -2608,10 +2653,11 @@ function LaserDesignerPreview({
           ref={assignPreviewSurfaceRef}
           {...{ [LEITBILD_LASER_PREVIEW_ATTR]: "true" }}
           className={cn(
-            "relative z-0 aspect-square min-w-0 flex-1 overflow-hidden rounded-xl border-2 border-cyan-500/25 shadow-inner",            CANVAS_TOUCH_LOCK_CLASS,
+            "relative z-0 mx-auto aspect-square w-full max-w-full min-w-0 flex-1 overflow-hidden rounded-xl border-2 border-cyan-500/25 shadow-inner",
+            CANVAS_TOUCH_LOCK_CLASS,
             canvasStyle.surface
           )}
-          style={{ ...CANVAS_TOUCH_LOCK_STYLE, height: "auto" }}
+          style={{ ...CANVAS_TOUCH_LOCK_STYLE, height: "auto", maxWidth: "100%" }}
           onPointerDown={(e) => {
             if (e.target === e.currentTarget) {
               onStateChange({ activeLayerId: null })
@@ -2987,7 +3033,8 @@ function LaserDesignerPreview({
                   smartRemoveBusy ||
                   (smartRemoveSeeds.length === 0 && !smartRemoveAutoMode)
                 }
-                onClick={clearSmartSeeds}              >
+                onClick={clearSmartSeeds}
+              >
                 Auswahl zurücksetzen
               </Button>
               <Button

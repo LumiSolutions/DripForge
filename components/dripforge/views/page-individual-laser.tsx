@@ -191,6 +191,7 @@ export function PageIndividualLaser({
     }
     try {
       const layer = await captureProductionLayerPng({
+        layers: ensureLaserLayers(laserDesign),
         textLayout,
         imageLayout,
         engravingText: gravurText,

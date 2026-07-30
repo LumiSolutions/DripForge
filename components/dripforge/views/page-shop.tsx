@@ -358,6 +358,7 @@ export function PageShop({
       }
       try {
         const layer = await captureProductionLayerPng({
+          layers: ensureLaserLayers(laserDesign),
           textLayout: laserDesign.textLayout,
           imageLayout: laserDesign.imageLayout,
           engravingText: laserDesign.engravingText,
