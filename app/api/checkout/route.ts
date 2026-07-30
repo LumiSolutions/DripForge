@@ -8,6 +8,9 @@ import {
   fulfillPaidShopOrder,
   processOrderPayload,
 } from "@/lib/shop/order-processing"
+import { claimInboundOrderEmailSend } from "@/lib/email/claim-inbound-emails"
+import { queueOrderEmails } from "@/lib/email/send-order-emails"
+import { getSettings } from "@/lib/admin/db"
 import {
   buildCheckoutDiscounts,
   buildCheckoutLineItems,
@@ -102,7 +105,13 @@ export async function POST(request: Request) {
           userId,
           totalChf: boundOrder.totals.total,
           saveAddressToAccount: false,
+          skipInboundEmails: true,
         })
+        const claimed = await claimInboundOrderEmailSend(orderId)
+        if (claimed) {
+          const settings = await getSettings()
+          queueOrderEmails(boundOrder, settings)
+        }
       } catch (fulfillError) {
         console.error(
           `Shop Checkout: Points-only Fulfillment fehlgeschlagen (${orderId}).`,

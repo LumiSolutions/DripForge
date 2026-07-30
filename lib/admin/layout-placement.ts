@@ -5,6 +5,7 @@ import {
   isPrintProductionFile,
   isViewerOnlyFile,
 } from "@/lib/dripforge/product-print-file"
+import { LASER_FONT_OPTIONS } from "@/lib/dripforge/laser-fonts"
 
 function axisLabel(
   value: number,
@@ -75,9 +76,18 @@ export function getLaserPlacementLines(item: StoredOrderItem): {
       } else if (layer.kind === "text") {
         textIndex += 1
         const snippet = (layer.text ?? "").trim().slice(0, 40)
+        const fontLabel =
+          typeof layer.fontId === "string" && layer.fontId
+            ? LASER_FONT_OPTIONS.find((f) => f.id === layer.fontId)?.label ??
+              layer.fontId
+            : null
         lines.push({
           label: `Text ${textIndex}-Position`,
-          value: `${formatLayoutPositionDetails(pos)}${snippet ? ` · „${snippet}${snippet.length >= 40 ? "…" : ""}“` : ""}`,
+          value: `${formatLayoutPositionDetails(pos)}${
+            snippet
+              ? ` · „${snippet}${snippet.length >= 40 ? "…" : ""}“`
+              : ""
+          }${fontLabel ? ` · Schrift: ${fontLabel}` : ""}`,
         })
       }
     }
