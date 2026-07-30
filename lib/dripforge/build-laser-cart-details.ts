@@ -39,6 +39,8 @@ export function buildLaserCartCustomDetails(
     uploadedImages: imageSrcs.length > 0 ? imageSrcs : undefined,
     hasText: Boolean(engravingText),
     hasImage: imageSrcs.length > 0 || Boolean(primaryImage),
+    productBackgroundUrl:
+      base.productBackgroundUrl ?? null,
     layoutCoordinates: {
       textPosition: {
         x: state.textLayout.x,

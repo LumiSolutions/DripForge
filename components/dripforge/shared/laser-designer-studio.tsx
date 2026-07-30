@@ -308,6 +308,8 @@ function InteractiveCanvasElement({
   onBringForward,
   onSendBackward,
   onEditText,
+  brushRadiusRel,
+  lassoPoints,
   children,
 }: {
   layerId: string
@@ -345,6 +347,8 @@ function InteractiveCanvasElement({
   onBringForward?: () => void
   onSendBackward?: () => void
   onEditText?: () => void
+  brushRadiusRel?: number
+  lassoPoints?: Array<{ relX: number; relY: number }>
   children: React.ReactNode
 }) {
   const localInnerRef = useRef<HTMLElement | null>(null)
@@ -354,6 +358,10 @@ function InteractiveCanvasElement({
     y: number
     w: number
     h: number
+  } | null>(null)
+  const [brushCursor, setBrushCursor] = useState<{
+    relX: number
+    relY: number
   } | null>(null)
 
   const setInnerRef = (el: HTMLElement | null) => {
@@ -418,6 +426,14 @@ function InteractiveCanvasElement({
     return Boolean(target.closest("[data-handle]"))
   }
 
+  const isResizeOrRotateHandle = (target: EventTarget | null) => {
+    if (!(target instanceof HTMLElement)) return false
+    const handle = target.closest("[data-handle]")
+    if (!(handle instanceof HTMLElement)) return false
+    const kind = handle.getAttribute("data-handle") ?? ""
+    return kind === "rotate" || kind.startsWith("resize-")
+  }
+
   const relFromEvent = (el: HTMLElement, clientX: number, clientY: number) => {
     const rect = el.getBoundingClientRect()
     if (rect.width <= 0 || rect.height <= 0) return null
@@ -478,7 +494,10 @@ function InteractiveCanvasElement({
           onEditText?.()
         }}
         onPointerDown={(e) => {
-          if (isHandleTarget(e.target)) return
+          if (isHandleTarget(e.target)) {
+            // Tool-/Scale-/Rotate-Handles starten eigenen Modus — kein Move
+            return
+          }
           if (eyedropperActive && kind === "image") {
             e.preventDefault()
             e.stopPropagation()
@@ -492,7 +511,10 @@ function InteractiveCanvasElement({
             e.stopPropagation()
             onSelect()
             const rel = relFromEvent(e.currentTarget, e.clientX, e.clientY)
-            if (rel) onEraserPaint?.(rel.relX, rel.relY)
+            if (rel) {
+              setBrushCursor(rel)
+              onEraserPaint?.(rel.relX, rel.relY)
+            }
             try {
               e.currentTarget.setPointerCapture(e.pointerId)
             } catch {
@@ -528,13 +550,18 @@ function InteractiveCanvasElement({
             }
             return
           }
+          // Nur Move — nie Scale beim Body-Drag
+          if (isResizeOrRotateHandle(e.target)) return
           e.stopPropagation()
           beginPointerDrag(e, "move")
         }}
         onPointerMove={(e) => {
-          if (eraserActive && kind === "image" && e.buttons !== 0) {
+          if (eraserActive && kind === "image") {
             const rel = relFromEvent(e.currentTarget, e.clientX, e.clientY)
-            if (rel) onEraserPaint?.(rel.relX, rel.relY)
+            if (rel) {
+              setBrushCursor(rel)
+              if (e.buttons !== 0) onEraserPaint?.(rel.relX, rel.relY)
+            }
             return
           }
           if (lassoActive && kind === "image" && e.buttons !== 0) {
@@ -553,6 +580,9 @@ function InteractiveCanvasElement({
             setCropPreview({ x, y, w, h })
             onCropDrag?.(start, rel)
           }
+        }}
+        onPointerLeave={() => {
+          if (eraserActive) setBrushCursor(null)
         }}
         onPointerUp={(e) => {
           if (lassoActive && kind === "image") {
@@ -575,6 +605,49 @@ function InteractiveCanvasElement({
       >
         {children}
 
+        {eraserActive &&
+        kind === "image" &&
+        isActive &&
+        brushCursor &&
+        brushRadiusRel ? (
+          <div
+            className="pointer-events-none absolute z-30 rounded-full border border-cyan-300/90 bg-cyan-400/15"
+            style={{
+              left: `${brushCursor.relX * 100}%`,
+              top: `${brushCursor.relY * 100}%`,
+              width: `${brushRadiusRel * 2 * 100}%`,
+              height: `${brushRadiusRel * 2 * 100}%`,
+              transform: "translate(-50%, -50%)",
+            }}
+            aria-hidden
+            {...{ [CAPTURE_HIDE_ATTR]: "true" }}
+          />
+        ) : null}
+
+        {lassoActive &&
+        kind === "image" &&
+        isActive &&
+        lassoPoints &&
+        lassoPoints.length > 1 ? (
+          <svg
+            className="pointer-events-none absolute inset-0 z-30 h-full w-full overflow-visible"
+            viewBox="0 0 100 100"
+            preserveAspectRatio="none"
+            aria-hidden
+            {...{ [CAPTURE_HIDE_ATTR]: "true" }}
+          >
+            <polyline
+              fill="rgba(34,211,238,0.08)"
+              stroke="rgb(34,211,238)"
+              strokeWidth={0.4}
+              strokeDasharray="1.2 1.2"
+              points={lassoPoints
+                .map((p) => `${p.relX * 100},${p.relY * 100}`)
+                .join(" ")}
+            />
+          </svg>
+        ) : null}
+
         {cropPreview && cropPreview.w > 0.01 && cropPreview.h > 0.01 ? (
           <div
             className="pointer-events-none absolute border-2 border-dashed border-amber-400 bg-amber-400/15"
@@ -592,45 +665,23 @@ function InteractiveCanvasElement({
         {showChrome && (
           <>
             <div
-              className="pointer-events-none absolute inset-0 rounded-sm border border-dashed border-cyan-400 shadow-[0_0_12px_rgba(34,211,238,0.35)]"
+              className="pointer-events-none absolute inset-0 rounded-sm border border-dashed border-cyan-400/90"
               aria-hidden
               {...{ [CAPTURE_HIDE_ATTR]: "true" }}
             />
 
+            {/* Rotationsgriff: frei schwebend oberhalb der Mitte */}
             <div
               {...{ [CAPTURE_HIDE_ATTR]: "true" }}
-              className="pointer-events-none absolute inset-0"
+              className="pointer-events-none absolute left-1/2 top-0 z-40 flex -translate-x-1/2 -translate-y-full flex-col items-center"
             >
-              <button
-                type="button"
-                data-handle="tool-delete"
-                aria-label="Löschen"
-                className={cn(
-                  "pointer-events-auto absolute -left-3 -top-3 z-40 flex h-7 w-7 items-center justify-center rounded-full",
-                  "border border-red-400/60 bg-background text-red-500 shadow-md hover:bg-red-500/15",
-                  CANVAS_TOUCH_LOCK_CLASS
-                )}
-                style={CANVAS_TOUCH_LOCK_STYLE}
-                onPointerDown={(e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                }}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onDelete?.()
-                }}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
-
-              {/* Rotation oben rechts (Word-Stil) */}
               <button
                 type="button"
                 data-handle="rotate"
                 aria-label="Drehen"
                 className={cn(
-                  "pointer-events-auto absolute -right-3 -top-8 z-40 flex h-7 w-7 items-center justify-center rounded-full",
-                  "border-2 border-cyan-400 bg-background text-cyan-500 shadow-md hover:bg-cyan-500/20",
+                  "pointer-events-auto mb-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full",
+                  "border border-cyan-400 bg-background text-cyan-500 shadow-sm hover:bg-cyan-500/20",
                   CANVAS_TOUCH_LOCK_CLASS
                 )}
                 style={CANVAS_TOUCH_LOCK_STYLE}
@@ -648,61 +699,28 @@ function InteractiveCanvasElement({
                   beginTouchDrag(e, "rotate")
                 }}
               >
-                <RotateCw className="h-3.5 w-3.5" />
+                <RotateCw className="h-2 w-2" />
               </button>
+              <span
+                className="block h-3 w-px bg-cyan-400/80"
+                aria-hidden
+              />
+            </div>
 
-              <button
-                type="button"
-                data-handle="tool-layers-back"
-                aria-label="Nach hinten senden"
-                className={cn(
-                  "pointer-events-auto absolute -bottom-3 -left-10 z-40 flex h-7 w-7 items-center justify-center rounded-full",
-                  "border border-cyan-400/60 bg-background text-cyan-500 shadow-md hover:bg-cyan-500/15",
-                  CANVAS_TOUCH_LOCK_CLASS
-                )}
-                style={CANVAS_TOUCH_LOCK_STYLE}
-                onPointerDown={(e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                }}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onSendBackward?.()
-                }}
-              >
-                <ArrowDown className="h-3.5 w-3.5" />
-              </button>
-
-              <button
-                type="button"
-                data-handle="tool-layers"
-                aria-label="Nach vorne bringen"
-                className={cn(
-                  "pointer-events-auto absolute -bottom-3 -left-3 z-40 flex h-7 w-7 items-center justify-center rounded-full",
-                  "border border-cyan-400/60 bg-background text-cyan-500 shadow-md hover:bg-cyan-500/15",
-                  CANVAS_TOUCH_LOCK_CLASS
-                )}
-                style={CANVAS_TOUCH_LOCK_STYLE}
-                onPointerDown={(e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                }}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onBringForward?.()
-                }}
-              >
-                <ArrowUp className="h-3.5 w-3.5" />
-              </button>
-
+            {/* Nur Scale-Handles an Ecken/Kanten — klein, ohne Aktions-Icons */}
+            <div
+              {...{ [CAPTURE_HIDE_ATTR]: "true" }}
+              className="pointer-events-none absolute inset-0"
+            >
               {RESIZE_HANDLES.map((handle) => (
                 <button
                   key={handle}
                   type="button"
                   data-handle={`resize-${handle}`}
+                  data-resize-handle={handle}
                   aria-label={`Grösse ändern (${handle})`}
                   className={cn(
-                    "pointer-events-auto absolute z-40 h-3.5 w-3.5 rounded-sm border-2 border-cyan-400 bg-cyan-400 shadow-md hover:scale-110",
+                    "pointer-events-auto absolute z-40 h-3 w-3 rounded-[2px] border border-cyan-400 bg-cyan-400 shadow-sm hover:scale-110",
                     resizeHandleClass(handle),
                     CANVAS_TOUCH_LOCK_CLASS
                   )}
@@ -726,16 +744,80 @@ function InteractiveCanvasElement({
               ))}
             </div>
 
+            {/* Aktions-Toolbar unter dem Element — nicht auf den Ecken */}
             <div
               {...{ [CAPTURE_HIDE_ATTR]: "true" }}
-              className="pointer-events-none absolute left-1/2 top-full z-40 mt-2 flex -translate-x-1/2 gap-1"
+              className="pointer-events-none absolute left-1/2 top-full z-40 mt-2 flex -translate-x-1/2 items-center gap-1"
             >
+              <button
+                type="button"
+                data-handle="tool-delete"
+                aria-label="Löschen"
+                className={cn(
+                  "pointer-events-auto flex h-6 w-6 items-center justify-center rounded-md",
+                  "border border-red-400/50 bg-background text-red-500 shadow-sm hover:bg-red-500/10",
+                  CANVAS_TOUCH_LOCK_CLASS
+                )}
+                style={CANVAS_TOUCH_LOCK_STYLE}
+                onPointerDown={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                }}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onDelete?.()
+                }}
+              >
+                <Trash2 className="h-3 w-3" />
+              </button>
+              <button
+                type="button"
+                data-handle="tool-layers-back"
+                aria-label="Nach hinten senden"
+                className={cn(
+                  "pointer-events-auto flex h-6 w-6 items-center justify-center rounded-md",
+                  "border border-cyan-400/50 bg-background text-cyan-500 shadow-sm hover:bg-cyan-500/10",
+                  CANVAS_TOUCH_LOCK_CLASS
+                )}
+                style={CANVAS_TOUCH_LOCK_STYLE}
+                onPointerDown={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                }}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onSendBackward?.()
+                }}
+              >
+                <ArrowDown className="h-3 w-3" />
+              </button>
+              <button
+                type="button"
+                data-handle="tool-layers"
+                aria-label="Nach vorne bringen"
+                className={cn(
+                  "pointer-events-auto flex h-6 w-6 items-center justify-center rounded-md",
+                  "border border-cyan-400/50 bg-background text-cyan-500 shadow-sm hover:bg-cyan-500/10",
+                  CANVAS_TOUCH_LOCK_CLASS
+                )}
+                style={CANVAS_TOUCH_LOCK_STYLE}
+                onPointerDown={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                }}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onBringForward?.()
+                }}
+              >
+                <ArrowUp className="h-3 w-3" />
+              </button>
               <button
                 type="button"
                 data-handle="tool-scale-down"
                 aria-label="Verkleinern"
                 className={cn(
-                  "pointer-events-auto flex h-6 w-6 items-center justify-center rounded-md border border-cyan-500/40 bg-background text-xs font-bold text-cyan-500 shadow",
+                  "pointer-events-auto flex h-6 w-6 items-center justify-center rounded-md border border-cyan-500/40 bg-background text-[10px] font-bold text-cyan-500 shadow-sm",
                   CANVAS_TOUCH_LOCK_CLASS
                 )}
                 style={CANVAS_TOUCH_LOCK_STYLE}
@@ -755,7 +837,7 @@ function InteractiveCanvasElement({
                 data-handle="tool-scale-up"
                 aria-label="Vergrössern"
                 className={cn(
-                  "pointer-events-auto flex h-6 w-6 items-center justify-center rounded-md border border-cyan-500/40 bg-background text-xs font-bold text-cyan-500 shadow",
+                  "pointer-events-auto flex h-6 w-6 items-center justify-center rounded-md border border-cyan-500/40 bg-background text-[10px] font-bold text-cyan-500 shadow-sm",
                   CANVAS_TOUCH_LOCK_CLASS
                 )}
                 style={CANVAS_TOUCH_LOCK_STYLE}
@@ -1339,14 +1421,18 @@ function LaserDesignerPreview({
     null
   )
   const [eraserRadius, setEraserRadius] = useState(0.045)
+  const [lassoPreviewPoints, setLassoPreviewPoints] = useState<
+    Array<{ relX: number; relY: number }>
+  >([])
   const [undoStack, setUndoStack] = useState<
-    Array<{ layerId: string; src: string }>
+    Array<{ layers: LaserDesignLayer[]; activeLayerId: string | null }>
   >([])
   const eraserBusyRef = useRef(false)
   const eraserSrcRef = useRef<string | null>(null)
   const lastBrushPointRef = useRef<{ relX: number; relY: number } | null>(null)
   const lassoPointsRef = useRef<Array<{ relX: number; relY: number }>>([])
   const lassoBusyRef = useRef(false)
+  const historyLockedRef = useRef(false)
   const canvasStyle = getMaterialCanvasStyle(material.id)
   const workAreaLabel = `${workAreaMm.widthMm} x ${workAreaMm.heightMm} mm`
 
@@ -1691,12 +1777,6 @@ function LaserDesignerPreview({
     }
   }, [endDragSession, processDragMove])
 
-  const startDragSession = useCallback((session: DragSession) => {
-    dragSessionRef.current = session
-    onStateChange({ activeLayerId: session.target })
-    setDragMode(session.mode)
-  }, [onStateChange])
-
   const assignPreviewSurfaceRef = useCallback(
     (node: HTMLDivElement | null) => {
       canvasRef.current = node
@@ -1723,9 +1803,24 @@ function LaserDesignerPreview({
     e.target.value = ""
   }
 
-  const pushImageUndo = useCallback((layerId: string, src: string) => {
-    setUndoStack((prev) => [...prev.slice(-19), { layerId, src }])
+  const pushHistorySnapshot = useCallback(() => {
+    if (historyLockedRef.current) return
+    const current = stateRef.current
+    setUndoStack((prev) => [
+      ...prev.slice(-29),
+      {
+        layers: current.layers.map((l) => ({ ...l })),
+        activeLayerId: current.activeLayerId,
+      },
+    ])
   }, [])
+
+  const pushImageUndo = useCallback(
+    (_layerId: string, _src: string) => {
+      pushHistorySnapshot()
+    },
+    [pushHistorySnapshot]
+  )
 
   const clearPipetteLiveChain = useCallback(() => {
     setEyedropperColor(null)
@@ -1748,15 +1843,25 @@ function LaserDesignerPreview({
       if (prev.length === 0) return prev
       const last = prev[prev.length - 1]
       const next = prev.slice(0, -1)
-      // Pipette-Live-Kette stoppen, sonst überschreibt der Effect das Undo
       clearPipetteLiveChain()
-      const layersNow = updateLayerById(stateRef.current.layers, last.layerId, {
-        src: last.src,
+      historyLockedRef.current = true
+      emitLayers(last.layers.map((l) => ({ ...l })), last.activeLayerId)
+      queueMicrotask(() => {
+        historyLockedRef.current = false
       })
-      emitLayers(layersNow, last.layerId)
       return next
     })
   }, [clearPipetteLiveChain, emitLayers])
+
+  const startDragSession = useCallback(
+    (session: DragSession) => {
+      pushHistorySnapshot()
+      dragSessionRef.current = session
+      onStateChange({ activeLayerId: session.target })
+      setDragMode(session.mode)
+    },
+    [onStateChange, pushHistorySnapshot]
+  )
 
   const handleRemoveBackground = async () => {
     if (!activeImageLayer?.src || removingBg) return
@@ -1910,12 +2015,14 @@ function LaserDesignerPreview({
       return
     }
     lassoPointsRef.current.push({ relX, relY })
+    setLassoPreviewPoints([...lassoPointsRef.current])
   }
 
   const handleLassoComplete = async () => {
     if (!activeImageLayer?.src || lassoBusyRef.current) return
     const points = lassoPointsRef.current
     lassoPointsRef.current = []
+    setLassoPreviewPoints([])
     if (points.length < 3) return
     lassoBusyRef.current = true
     try {
@@ -2282,7 +2389,10 @@ function LaserDesignerPreview({
                   isMoving={dragMode != null && isActive}
                   stackIndex={index}
                   canvasRef={canvasRef}
-                  onSelect={() => onStateChange({ activeLayerId: layer.id })}
+                  onSelect={() => {
+                    onStateChange({ activeLayerId: layer.id })
+                    setEditingTextLayerId(null)
+                  }}
                   onDragStart={startDragSession}
                   onInnerRef={(el) => setLayerInnerRef(layer.id, el)}
                   eyedropperActive={eyedropperActive}
@@ -2290,6 +2400,10 @@ function LaserDesignerPreview({
                   lassoActive={lassoActive}
                   cropActive={cropActive}
                   proportionalScale={proportionalScale}
+                  brushRadiusRel={eraserRadius}
+                  lassoPoints={
+                    isActive && lassoActive ? lassoPreviewPoints : undefined
+                  }
                   onEyedropperSample={(relX, relY, id) => {
                     void handleEyedropperSample(relX, relY, id)
                   }}
@@ -2301,13 +2415,18 @@ function LaserDesignerPreview({
                   onCropComplete={(start, end) => {
                     void handleCropComplete(start, end)
                   }}
-                  onDelete={() => handleDeleteLayer(layer.id)}
-                  onRotateStep={() =>
+                  onDelete={() => {
+                    pushHistorySnapshot()
+                    handleDeleteLayer(layer.id)
+                  }}
+                  onRotateStep={() => {
+                    pushHistorySnapshot()
                     patchLayerLayout(layer.id, {
                       rotation: normalizeRotation((layer.rotation ?? 0) + 15),
                     })
-                  }
+                  }}
                   onScaleStep={(delta) => {
+                    pushHistorySnapshot()
                     const max = maxScaleMap[layer.id] ?? FALLBACK_MAX_SCALE
                     const next = clampScale((layer.scale ?? 1) + delta, max)
                     patchLayerLayout(layer.id, {
@@ -2354,6 +2473,7 @@ function LaserDesignerPreview({
                   canvasRef={canvasRef}
                   onSelect={() => {
                     onStateChange({ activeLayerId: layer.id })
+                    setEditingTextLayerId(layer.id)
                   }}
                   onDragStart={startDragSession}
                   onInnerRef={(el) => setLayerInnerRef(layer.id, el)}
@@ -2370,13 +2490,18 @@ function LaserDesignerPreview({
                     textShadow: "0 1px 8px rgba(0,0,0,0.8)",
                   }}
                   proportionalScale={proportionalScale}
-                  onDelete={() => handleDeleteLayer(layer.id)}
-                  onRotateStep={() =>
+                  onDelete={() => {
+                    pushHistorySnapshot()
+                    handleDeleteLayer(layer.id)
+                  }}
+                  onRotateStep={() => {
+                    pushHistorySnapshot()
                     patchLayerLayout(layer.id, {
                       rotation: normalizeRotation((layer.rotation ?? 0) + 15),
                     })
-                  }
+                  }}
                   onScaleStep={(delta) => {
+                    pushHistorySnapshot()
                     const max = maxScaleMap[layer.id] ?? FALLBACK_MAX_SCALE
                     const next = clampScale((layer.scale ?? 1) + delta, max)
                     patchLayerLayout(layer.id, {
@@ -2472,12 +2597,9 @@ function LaserDesignerPreview({
         )}
 
         {(() => {
-          const textEditId = editingTextLayerId ?? (
-            activeLayer?.kind === "text" ? activeLayer.id : null
-          )
-          const textLayer = textEditId
-            ? layers.find((l) => l.id === textEditId && l.kind === "text")
-            : null
+          // Nur das aktuell aktive Text-Element (activeLayerId)
+          const textLayer =
+            activeLayer?.kind === "text" ? activeLayer : null
           if (!textLayer) return null
           const fontId = textLayer.fontId ?? selectedFont
           const inputFontStyle = {
@@ -2485,27 +2607,45 @@ function LaserDesignerPreview({
             fontFamily: getLaserFontFamily(fontId),
           }
           return (
-            <div className="relative z-0 mt-4 space-y-3 rounded-lg border border-cyan-500/30 bg-cyan-500/5 p-4">
+            <div
+              key={textLayer.id}
+              className="relative z-0 mt-4 space-y-3 rounded-lg border border-cyan-500/30 bg-cyan-500/5 p-4"
+            >
               <div className="flex items-center justify-between gap-2">
                 <p className="text-sm font-semibold text-cyan-400">
                   Text bearbeiten
+                  <span className="ml-2 font-normal text-muted-foreground">
+                    (
+                    {layers
+                      .filter((l) => l.kind === "text")
+                      .findIndex((l) => l.id === textLayer.id) + 1}
+                    )
+                  </span>
                 </p>
                 <Button
                   type="button"
                   size="sm"
                   variant="ghost"
                   className="h-7 px-2 text-xs"
-                  onClick={() => setEditingTextLayerId(null)}
+                  onClick={() => {
+                    setEditingTextLayerId(null)
+                    onStateChange({ activeLayerId: null })
+                  }}
                 >
                   Schliessen
                 </Button>
               </div>
               <Textarea
+                key={`text-content-${textLayer.id}`}
                 value={textLayer.text ?? ""}
                 onChange={(e) => {
-                  const next = updateLayerById(stateRef.current.layers, textLayer.id, {
-                    text: e.target.value,
-                  })
+                  const next = updateLayerById(
+                    stateRef.current.layers,
+                    textLayer.id,
+                    {
+                      text: e.target.value,
+                    }
+                  )
                   emitLayers(next, textLayer.id)
                 }}
                 onFocus={() => {
@@ -2516,17 +2656,21 @@ function LaserDesignerPreview({
                 rows={2}
                 style={inputFontStyle}
                 className="resize-none rounded-lg border-cyan-500/25 bg-background/60 text-sm"
-                autoFocus={editingTextLayerId === textLayer.id}
               />
               <div className="space-y-1.5">
                 <Label className="text-xs">Schriftart</Label>
                 <select
+                  key={`text-font-${textLayer.id}`}
                   value={fontId}
                   onChange={(e) => {
                     const nextFont = e.target.value as LaserFontId
-                    const next = updateLayerById(stateRef.current.layers, textLayer.id, {
-                      fontId: nextFont,
-                    })
+                    const next = updateLayerById(
+                      stateRef.current.layers,
+                      textLayer.id,
+                      {
+                        fontId: nextFont,
+                      }
+                    )
                     emitLayers(next, textLayer.id)
                     onStateChange({ selectedFont: nextFont })
                   }}
@@ -2534,7 +2678,11 @@ function LaserDesignerPreview({
                   className="w-full appearance-none rounded-lg border border-border/70 bg-card/90 py-2 pl-3 pr-8 text-sm"
                 >
                   {LASER_FONT_OPTIONS.map((font) => (
-                    <option key={font.id} value={font.id}>
+                    <option
+                      key={font.id}
+                      value={font.id}
+                      style={getLaserFontDropdownStyle(font.id)}
+                    >
                       {font.label}
                     </option>
                   ))}
@@ -2551,7 +2699,11 @@ function LaserDesignerPreview({
                   step={0.05}
                   value={Math.min(textLayer.scale ?? 1, activeMaxScale)}
                   onChange={(e) => {
-                    const next = clampScale(Number(e.target.value), activeMaxScale)
+                    const next = clampScale(
+                      Number(e.target.value),
+                      activeMaxScale
+                    )
+                    pushHistorySnapshot()
                     patchLayerLayout(textLayer.id, {
                       scale: next,
                       scaleX: next,

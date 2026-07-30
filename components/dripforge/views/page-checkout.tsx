@@ -54,6 +54,7 @@ import { cn } from "@/lib/utils"
 import { useCompanySettings } from "@/components/dripforge/company-settings-provider"
 import { submitOrder, startStripeCheckout, startTwintCheckout, type OrderPayload } from "@/lib/dripforge/submit-order"
 import { CheckoutSuccessModal } from "@/components/dripforge/checkout-success-modal"
+import { ensureCartLaserMockups } from "@/lib/dripforge/ensure-laser-mockup"
 
 type CheckoutForm = {
   firstName: string
@@ -575,12 +576,26 @@ export function PageCheckout({
           phone: billing.phone,
         }
 
+    setIsSubmitting(true)
+
+    // Combined Composite Mockups vor Absenden (Cockpit-Hauptvorschau)
+    let checkoutItems = cart
+    try {
+      checkoutItems = await ensureCartLaserMockups(cart)
+      applyMergedCart(checkoutItems)
+    } catch (err) {
+      console.warn(
+        "Checkout: Composite-Mockups konnten nicht erneuert werden.",
+        err
+      )
+    }
+
     const orderPayload: OrderPayload = {
       billing,
       delivery,
       shippingMethod,
       paymentMethod,
-      items: cart,
+      items: checkoutItems,
       couponCode: appliedCouponCode ?? undefined,
       pointsToRedeem: effectivePoints > 0 ? effectivePoints : undefined,
       pointsPurchase: pointsPurchaseSelection
@@ -604,8 +619,6 @@ export function PageCheckout({
         mwstAktiv: checkoutConfig.mwstAktiv,
       },
     }
-
-    setIsSubmitting(true)
 
     // Offizieller TWINT-Zahlungslink: Bestellung pending + Erfolgsseite mit Pay-Button/Redirect
     if (paymentMethod === "twint" && twintPaymentLinkConfigured) {
