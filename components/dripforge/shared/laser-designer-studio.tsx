@@ -7,7 +7,7 @@ import {
   ChevronDown,
   Crosshair,
   Eraser,
-  Image as ImageIcon,
+  Info,
   Layers,
   Maximize2,
   Plus,
@@ -16,6 +16,7 @@ import {
   Stamp,
   Trash2,
   Type,
+  Undo2,
   Upload,
   X,
 } from "lucide-react"
@@ -77,7 +78,9 @@ import {
   removeLightImageBackground,
   removeColorNearBackground,
   sampleImageColorAt,
+  type RgbColor,
 } from "@/lib/dripforge/remove-image-background"
+import { eraseImageBrushStroke } from "@/lib/dripforge/erase-image-brush"
 import {
   CAPTURE_HIDE_ATTR,
   LEITBILD_LASER_PREVIEW_ATTR,
@@ -163,6 +166,10 @@ type DragSession = {
   startDistance: number
   centerClientX: number
   centerClientY: number
+  /** Einmalig beim Drag-Start gemessen — verhindert Zittern */
+  halfWPercent: number
+  halfHPercent: number
+  maxScale: number
 }
 
 /** Sperrt Browser-Scroll/-Select/-Drag während Canvas-Gesten (Mobil + Desktop). */
@@ -209,9 +216,27 @@ function buildDragSession(
   mode: DragMode,
   pointerId: number,
   clientX: number,
-  clientY: number
+  clientY: number,
+  innerEl: HTMLElement | null
 ): DragSession {
   const center = getElementCenterPx(canvas, layout)
+  const canvasRect = canvas.getBoundingClientRect()
+  let halfWPercent = 12
+  let halfHPercent = 12
+  let maxScale = FALLBACK_MAX_SCALE
+
+  if (innerEl && canvasRect.width > 0 && canvasRect.height > 0) {
+    const elRect = innerEl.getBoundingClientRect()
+    halfWPercent = (elRect.width / canvasRect.width) * 50
+    halfHPercent = (elRect.height / canvasRect.height) * 50
+    maxScale = computeMaxScaleToFitBounds(
+      canvas,
+      innerEl,
+      layout,
+      ENGRAVING_FRAME_USABLE_FRACTION
+    )
+  }
+
   return {
     mode,
     target,
@@ -223,6 +248,9 @@ function buildDragSession(
     startDistance: Math.hypot(clientX - center.x, clientY - center.y) || 1,
     centerClientX: center.x,
     centerClientY: center.y,
+    halfWPercent,
+    halfHPercent,
+    maxScale,
   }
 }
 
@@ -240,14 +268,19 @@ function InteractiveCanvasElement({
   style,
   kind,
   eyedropperActive,
+  eraserActive,
   onEyedropperSample,
+  onEraserPaint,
+  onDelete,
+  onRotateStep,
+  onScaleStep,
+  onBringForward,
   children,
 }: {
   layerId: string
   layout: ElementLayout
   isActive: boolean
   isMoving: boolean
-  /** DOM-Stacking: höhere Werte liegen oben */
   stackIndex: number
   canvasRef: React.RefObject<HTMLDivElement | null>
   onSelect: () => void
@@ -257,9 +290,22 @@ function InteractiveCanvasElement({
   style?: React.CSSProperties
   kind: "text" | "image"
   eyedropperActive?: boolean
+  eraserActive?: boolean
   onEyedropperSample?: (relX: number, relY: number) => void
+  onEraserPaint?: (relX: number, relY: number) => void
+  onDelete?: () => void
+  onRotateStep?: () => void
+  onScaleStep?: (delta: number) => void
+  onBringForward?: () => void
   children: React.ReactNode
 }) {
+  const localInnerRef = useRef<HTMLElement | null>(null)
+
+  const setInnerRef = (el: HTMLElement | null) => {
+    localInnerRef.current = el
+    onInnerRef?.(el)
+  }
+
   const beginDragAt = (
     mode: DragMode,
     pointerId: number,
@@ -276,7 +322,8 @@ function InteractiveCanvasElement({
       mode,
       pointerId,
       clientX,
-      clientY
+      clientY,
+      localInnerRef.current
     )
     try {
       canvas.setPointerCapture(pointerId)
@@ -293,7 +340,6 @@ function InteractiveCanvasElement({
   }
 
   const beginTouchDrag = (e: React.TouchEvent, mode: DragMode) => {
-    // Moderne Browser: PointerEvents übernehmen Start; CSS touch-action sperrt Scroll.
     if (typeof window !== "undefined" && "PointerEvent" in window) return
     const touch = e.touches[0]
     if (!touch) return
@@ -307,7 +353,27 @@ function InteractiveCanvasElement({
     return Boolean(target.closest("[data-handle]"))
   }
 
+  const relFromEvent = (el: HTMLElement, clientX: number, clientY: number) => {
+    const rect = el.getBoundingClientRect()
+    if (rect.width <= 0 || rect.height <= 0) return null
+    return {
+      relX: (clientX - rect.left) / rect.width,
+      relY: (clientY - rect.top) / rect.height,
+    }
+  }
+
   const zIndex = isActive ? 40 + stackIndex : 10 + stackIndex
+  const toolCursor =
+    eyedropperActive && kind === "image" && isActive
+      ? "cursor-crosshair"
+      : eraserActive && kind === "image" && isActive
+        ? "cursor-cell"
+        : isMoving
+          ? "cursor-grabbing"
+          : "cursor-grab"
+
+  const showChrome =
+    isActive && !eyedropperActive && !eraserActive && !isMoving
 
   return (
     <div
@@ -320,47 +386,56 @@ function InteractiveCanvasElement({
       data-canvas-element={layerId}
     >
       <div
-        ref={onInnerRef}
+        ref={setInnerRef}
         data-drag-body={layerId}
         className={cn(
           "relative inline-block",
           CANVAS_TOUCH_LOCK_CLASS,
           kind === "text" ? "w-max max-w-none" : "max-w-full",
-          eyedropperActive && kind === "image" && isActive
-            ? "cursor-crosshair"
-            : isMoving && !eyedropperActive
-              ? "cursor-grabbing"
-              : "cursor-grab",
+          toolCursor,
           className
         )}
         style={{ ...CANVAS_TOUCH_LOCK_STYLE, ...style }}
         onPointerDown={(e) => {
           if (isHandleTarget(e.target)) return
-          // Pipette: Farbe aus Bild sampeln statt Drag
           if (eyedropperActive && kind === "image" && isActive) {
             e.preventDefault()
             e.stopPropagation()
             onSelect()
-            const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-            if (rect.width > 0 && rect.height > 0) {
-              const relX = (e.clientX - rect.left) / rect.width
-              const relY = (e.clientY - rect.top) / rect.height
-              onEyedropperSample?.(relX, relY)
+            const rel = relFromEvent(e.currentTarget, e.clientX, e.clientY)
+            if (rel) onEyedropperSample?.(rel.relX, rel.relY)
+            return
+          }
+          if (eraserActive && kind === "image" && isActive) {
+            e.preventDefault()
+            e.stopPropagation()
+            onSelect()
+            const rel = relFromEvent(e.currentTarget, e.clientX, e.clientY)
+            if (rel) onEraserPaint?.(rel.relX, rel.relY)
+            try {
+              e.currentTarget.setPointerCapture(e.pointerId)
+            } catch {
+              /* ignore */
             }
             return
           }
-          // Nur Body → Move (nie Resize)
           beginPointerDrag(e, "move")
+        }}
+        onPointerMove={(e) => {
+          if (!(eraserActive && kind === "image" && isActive)) return
+          if (e.buttons === 0) return
+          const rel = relFromEvent(e.currentTarget, e.clientX, e.clientY)
+          if (rel) onEraserPaint?.(rel.relX, rel.relY)
         }}
         onTouchStart={(e) => {
           if (isHandleTarget(e.target)) return
-          if (eyedropperActive && kind === "image" && isActive) return
+          if (eyedropperActive || eraserActive) return
           beginTouchDrag(e, "move")
         }}
       >
         {children}
 
-        {isActive && !eyedropperActive && !isMoving && (
+        {showChrome && (
           <>
             <div
               className="pointer-events-none absolute inset-0 rounded-sm border border-dashed border-cyan-400 shadow-[0_0_12px_rgba(34,211,238,0.35)]"
@@ -368,56 +443,150 @@ function InteractiveCanvasElement({
               {...{ [CAPTURE_HIDE_ATTR]: "true" }}
             />
 
-            <button
-              type="button"
-              data-handle="rotate"
-              aria-label="Drehen"
+            {/* Floating corner tools */}
+            <div
               {...{ [CAPTURE_HIDE_ATTR]: "true" }}
-              className={cn(
-                "absolute left-1/2 z-30 flex h-6 w-6 -translate-x-1/2 items-center justify-center rounded-full",
-                "border-2 border-cyan-400 bg-background shadow-md",
-                "cursor-grab active:cursor-grabbing hover:bg-cyan-500/20",
-                CANVAS_TOUCH_LOCK_CLASS
-              )}
-              style={{ top: "-2rem", ...CANVAS_TOUCH_LOCK_STYLE }}
-              onPointerDown={(e) => {
-                e.preventDefault()
-                e.stopPropagation()
-                beginPointerDrag(e, "rotate")
-              }}
-              onTouchStart={(e) => {
-                e.stopPropagation()
-                beginTouchDrag(e, "rotate")
-              }}
+              className="pointer-events-none absolute inset-0"
             >
-              <span className="block h-2 w-2 rounded-full bg-cyan-400" />
-            </button>
+              <button
+                type="button"
+                data-handle="tool-delete"
+                aria-label="Löschen"
+                className={cn(
+                  "pointer-events-auto absolute -left-3 -top-3 z-40 flex h-7 w-7 items-center justify-center rounded-full",
+                  "border border-red-400/60 bg-background text-red-500 shadow-md hover:bg-red-500/15",
+                  CANVAS_TOUCH_LOCK_CLASS
+                )}
+                style={CANVAS_TOUCH_LOCK_STYLE}
+                onPointerDown={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                }}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onDelete?.()
+                }}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
 
-            <button
-              type="button"
-              data-handle="resize"
-              aria-label="Grösse ändern"
+              <button
+                type="button"
+                data-handle="rotate"
+                aria-label="Drehen"
+                className={cn(
+                  "pointer-events-auto absolute -right-3 -top-3 z-40 flex h-7 w-7 items-center justify-center rounded-full",
+                  "border-2 border-cyan-400 bg-background shadow-md hover:bg-cyan-500/20",
+                  CANVAS_TOUCH_LOCK_CLASS
+                )}
+                style={CANVAS_TOUCH_LOCK_STYLE}
+                onPointerDown={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  beginPointerDrag(e, "rotate")
+                }}
+                onDoubleClick={(e) => {
+                  e.stopPropagation()
+                  onRotateStep?.()
+                }}
+                onTouchStart={(e) => {
+                  e.stopPropagation()
+                  beginTouchDrag(e, "rotate")
+                }}
+              >
+                <span className="block h-2 w-2 rounded-full bg-cyan-400" />
+              </button>
+
+              <button
+                type="button"
+                data-handle="tool-layers"
+                aria-label="Ebene nach vorne"
+                className={cn(
+                  "pointer-events-auto absolute -bottom-3 -left-3 z-40 flex h-7 w-7 items-center justify-center rounded-full",
+                  "border border-cyan-400/60 bg-background text-cyan-500 shadow-md hover:bg-cyan-500/15",
+                  CANVAS_TOUCH_LOCK_CLASS
+                )}
+                style={CANVAS_TOUCH_LOCK_STYLE}
+                onPointerDown={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                }}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onBringForward?.()
+                }}
+              >
+                <Layers className="h-3.5 w-3.5" />
+              </button>
+
+              <button
+                type="button"
+                data-handle="resize"
+                aria-label="Grösse ändern"
+                className={cn(
+                  "pointer-events-auto absolute -bottom-3 -right-3 z-40 h-4 w-4 rounded-sm border-2 border-cyan-400 bg-cyan-400 shadow-md",
+                  "cursor-se-resize hover:scale-110",
+                  CANVAS_TOUCH_LOCK_CLASS
+                )}
+                style={CANVAS_TOUCH_LOCK_STYLE}
+                onPointerDown={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  beginPointerDrag(e, "resize")
+                }}
+                onTouchStart={(e) => {
+                  e.stopPropagation()
+                  beginTouchDrag(e, "resize")
+                }}
+              />
+            </div>
+
+            {/* Quick scale +/- */}
+            <div
               {...{ [CAPTURE_HIDE_ATTR]: "true" }}
-              className={cn(
-                "absolute z-30 h-4 w-4 rounded-sm border-2 border-cyan-400 bg-cyan-400 shadow-md",
-                "cursor-se-resize hover:scale-110",
-                CANVAS_TOUCH_LOCK_CLASS
-              )}
-              style={{
-                right: "-0.5rem",
-                bottom: "-0.5rem",
-                ...CANVAS_TOUCH_LOCK_STYLE,
-              }}
-              onPointerDown={(e) => {
-                e.preventDefault()
-                e.stopPropagation()
-                beginPointerDrag(e, "resize")
-              }}
-              onTouchStart={(e) => {
-                e.stopPropagation()
-                beginTouchDrag(e, "resize")
-              }}
-            />
+              className="pointer-events-none absolute left-1/2 top-full z-40 mt-2 flex -translate-x-1/2 gap-1"
+            >
+              <button
+                type="button"
+                data-handle="tool-scale-down"
+                aria-label="Verkleinern"
+                className={cn(
+                  "pointer-events-auto flex h-6 w-6 items-center justify-center rounded-md border border-cyan-500/40 bg-background text-xs font-bold text-cyan-500 shadow",
+                  CANVAS_TOUCH_LOCK_CLASS
+                )}
+                style={CANVAS_TOUCH_LOCK_STYLE}
+                onPointerDown={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                }}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onScaleStep?.(-0.1)
+                }}
+              >
+                −
+              </button>
+              <button
+                type="button"
+                data-handle="tool-scale-up"
+                aria-label="Vergrössern"
+                className={cn(
+                  "pointer-events-auto flex h-6 w-6 items-center justify-center rounded-md border border-cyan-500/40 bg-background text-xs font-bold text-cyan-500 shadow",
+                  CANVAS_TOUCH_LOCK_CLASS
+                )}
+                style={CANVAS_TOUCH_LOCK_STYLE}
+                onPointerDown={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                }}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onScaleStep?.(0.1)
+                }}
+              >
+                +
+              </button>
+            </div>
           </>
         )}
       </div>
@@ -703,32 +872,32 @@ function LaserDesignerSettings({
       {showMaterialCard && (
         <Card className="overflow-hidden rounded-xl border-cyan-500/25 bg-gradient-to-br from-card/90 via-card/50 to-cyan-500/5 shadow-lg shadow-cyan-500/5">
           <CardContent className="p-0">
-            <div className="border-b border-border/50 bg-cyan-500/5 px-6 py-3">
-              <p className="text-xs font-semibold uppercase tracking-wider text-cyan-500">
+            <div className="border-b border-border/50 bg-cyan-500/5 px-4 py-2">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-cyan-500">
                 Wunsch-Material · {productName}
               </p>
             </div>
-            <div className="grid gap-4 p-6 sm:grid-cols-[auto_1fr]">
+            <div className="grid gap-3 p-3 sm:grid-cols-[auto_1fr]">
               <div
                 className={cn(
-                  "flex h-20 w-20 items-center justify-center rounded-xl text-4xl shadow-inner",
+                  "flex h-12 w-12 items-center justify-center rounded-lg text-2xl shadow-inner",
                   material.iconBg
                 )}
               >
                 {material.icon}
               </div>
               <div>
-                <h3 className={cn("text-xl font-bold", material.iconColor)}>
+                <h3 className={cn("text-base font-bold", material.iconColor)}>
                   {material.name}
                 </h3>
-                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
                   {material.description}
                 </p>
-                <div className="mt-4 flex flex-wrap gap-2">
+                <div className="mt-2 flex flex-wrap gap-1.5">
                   <FeatureTag label="Gravur erlaubt" allowed={material.canEngrave} />
                   <FeatureTag label="Schnitt erlaubt" allowed={material.canCut} />
                   {material.maxThickness && (
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-secondary/40 px-3 py-1 text-xs font-medium text-muted-foreground">
+                    <span className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-secondary/40 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
                       <Scissors className="h-3 w-3 text-cyan-500" />
                       Max. Dicke: {material.maxThickness}
                     </span>
@@ -742,12 +911,12 @@ function LaserDesignerSettings({
 
       {showVariantPicker && hasVarianten && (
         <Card className="rounded-xl border-border/50 bg-card/50">
-          <CardContent className="p-6">
-            <div className="mb-4 flex items-center gap-2">
-              <Stamp className="h-4 w-4 text-cyan-400" />
-              <h3 className="font-bold">Variante wählen</h3>
+          <CardContent className="p-3">
+            <div className="mb-2 flex items-center gap-2">
+              <Stamp className="h-3.5 w-3.5 text-cyan-400" />
+              <h3 className="text-sm font-bold">Variante wählen</h3>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-2">
               {varianten.map((varianteStichwort) => {
                 const isSelected = selectedVariant === varianteStichwort
                 return (
@@ -756,23 +925,23 @@ function LaserDesignerSettings({
                     type="button"
                     onClick={() => setVariant(varianteStichwort)}
                     className={cn(
-                      "relative rounded-xl border p-3 text-center transition-all duration-200",
+                      "relative rounded-lg border px-2 py-1.5 text-center transition-all duration-200",
                       isSelected
-                        ? "border-cyan-500 bg-cyan-500/10 shadow-md shadow-cyan-500/15"
+                        ? "border-cyan-500 bg-cyan-500/10 shadow-sm shadow-cyan-500/15"
                         : "border-border/60 bg-background/40 hover:border-cyan-500/40 hover:bg-cyan-500/5"
                     )}
                   >
                     <span
                       className={cn(
-                        "text-sm font-semibold",
+                        "text-xs font-semibold",
                         isSelected ? "text-cyan-400" : "text-foreground"
                       )}
                     >
                       {varianteStichwort}
                     </span>
                     {isSelected && (
-                      <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-cyan-500">
-                        <CheckCircle2 className="h-3 w-3 text-background" />
+                      <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-cyan-500">
+                        <CheckCircle2 className="h-2.5 w-2.5 text-background" />
                       </span>
                     )}
                   </button>
@@ -954,6 +1123,19 @@ function LaserDesignerPreview({
   const [removingBg, setRemovingBg] = useState(false)
   const [eyedropperActive, setEyedropperActive] = useState(false)
   const [eyedropperTolerance, setEyedropperTolerance] = useState(40)
+  const [eyedropperColor, setEyedropperColor] = useState<RgbColor | null>(null)
+  const [eyedropperBaseSrc, setEyedropperBaseSrc] = useState<string | null>(
+    null
+  )
+  const [eyedropperLayerId, setEyedropperLayerId] = useState<string | null>(
+    null
+  )
+  const [eraserActive, setEraserActive] = useState(false)
+  const [eraserRadius, setEraserRadius] = useState(0.045)
+  const [undoStack, setUndoStack] = useState<
+    Array<{ layerId: string; src: string }>
+  >([])
+  const eraserBusyRef = useRef(false)
   const canvasStyle = getMaterialCanvasStyle(material.id)
   const workAreaLabel = `${workAreaMm.widthMm} x ${workAreaMm.heightMm} mm`
 
@@ -1135,7 +1317,7 @@ function LaserDesignerPreview({
       if (!canvas) return
 
       const { startLayout, mode, target } = session
-      const innerEl = layerInnerRefs.current.get(target) ?? null
+      const pad = 2
 
       if (mode === "move") {
         const start = getCanvasPoint(
@@ -1146,8 +1328,12 @@ function LaserDesignerPreview({
         const now = getCanvasPoint(canvas, clientX, clientY)
         const rawX = startLayout.x + (now.percentX - start.percentX)
         const rawY = startLayout.y + (now.percentY - start.percentY)
-        const clamped = clampLayoutPosition(canvas, innerEl, rawX, rawY)
-        applyLayout(target, clamped)
+        const halfW = session.halfWPercent
+        const halfH = session.halfHPercent
+        applyLayout(target, {
+          x: Math.max(halfW + pad, Math.min(100 - halfW - pad, rawX)),
+          y: Math.max(halfH + pad, Math.min(100 - halfH - pad, rawY)),
+        })
         return
       }
 
@@ -1155,12 +1341,7 @@ function LaserDesignerPreview({
         const center = getElementCenterPx(canvas, startLayout)
         const dist = Math.hypot(clientX - center.x, clientY - center.y) || 1
         const rawScale = (dist / session.startDistance) * startLayout.scale
-        const scale = clampLayoutScaleToFit(
-          canvas,
-          innerEl,
-          startLayout,
-          rawScale
-        )
+        const scale = clampScale(rawScale, session.maxScale)
         applyLayout(target, { scale })
         return
       }
@@ -1195,13 +1376,31 @@ function LaserDesignerPreview({
     }
   }, [])
 
-  // Window-Listener: Drag bleibt aktiv auch ausserhalb des Canvas.
+  // Window-Listener: Drag bleibt aktiv auch ausserhalb des Canvas (rAF für Stabilität).
   useEffect(() => {
+    const pendingRef: {
+      current: { clientX: number; clientY: number; pointerId: number } | null
+    } = { current: null }
+    let rafId: number | null = null
+
+    const flush = () => {
+      rafId = null
+      const pending = pendingRef.current
+      if (!pending) return
+      processDragMove(pending.clientX, pending.clientY, pending.pointerId)
+    }
+
+    const schedule = (clientX: number, clientY: number, pointerId: number) => {
+      pendingRef.current = { clientX, clientY, pointerId }
+      if (rafId != null) return
+      rafId = requestAnimationFrame(flush)
+    }
+
     const onPointerMove = (e: PointerEvent) => {
       const session = dragSessionRef.current
       if (!session || session.pointerId !== e.pointerId) return
       e.preventDefault()
-      processDragMove(e.clientX, e.clientY, e.pointerId)
+      schedule(e.clientX, e.clientY, e.pointerId)
     }
 
     const onPointerUp = (e: PointerEvent) => {
@@ -1214,7 +1413,7 @@ function LaserDesignerPreview({
       const touch = e.touches[0]
       if (!touch) return
       if (typeof window !== "undefined" && "PointerEvent" in window) return
-      processDragMove(touch.clientX, touch.clientY, touch.identifier)
+      schedule(touch.clientX, touch.clientY, touch.identifier)
     }
 
     const onTouchEnd = (e: TouchEvent) => {
@@ -1236,6 +1435,7 @@ function LaserDesignerPreview({
     window.addEventListener("touchcancel", onTouchEnd)
 
     return () => {
+      if (rafId != null) cancelAnimationFrame(rafId)
       window.removeEventListener("pointermove", onPointerMove)
       window.removeEventListener("pointerup", onPointerUp)
       window.removeEventListener("pointercancel", onPointerUp)
@@ -1277,16 +1477,41 @@ function LaserDesignerPreview({
     e.target.value = ""
   }
 
+  const pushImageUndo = useCallback((layerId: string, src: string) => {
+    setUndoStack((prev) => [...prev.slice(-19), { layerId, src }])
+  }, [])
+
+  const handleUndoImageEdit = useCallback(() => {
+    setUndoStack((prev) => {
+      if (prev.length === 0) return prev
+      const last = prev[prev.length - 1]
+      const next = prev.slice(0, -1)
+      const layersNow = updateLayerById(stateRef.current.layers, last.layerId, {
+        src: last.src,
+      })
+      emitLayers(layersNow, last.layerId)
+      if (eyedropperLayerId === last.layerId) {
+        setEyedropperBaseSrc(last.src)
+      }
+      return next
+    })
+  }, [emitLayers, eyedropperLayerId])
+
   const handleRemoveBackground = async () => {
     if (!activeImageLayer?.src || removingBg) return
     setRemovingBg(true)
     setEyedropperActive(false)
+    setEraserActive(false)
     try {
+      pushImageUndo(activeImageLayer.id, activeImageLayer.src)
       const nextSrc = await removeLightImageBackground(activeImageLayer.src)
       const next = updateLayerById(stateRef.current.layers, activeImageLayer.id, {
         src: nextSrc,
       })
       emitLayers(next, activeImageLayer.id)
+      setEyedropperColor(null)
+      setEyedropperBaseSrc(null)
+      setEyedropperLayerId(null)
     } catch (err) {
       console.warn("Hintergrund entfernen fehlgeschlagen:", err)
     } finally {
@@ -1294,25 +1519,139 @@ function LaserDesignerPreview({
     }
   }
 
+  const applyEyedropperFilter = useCallback(
+    async (
+      layerId: string,
+      baseSrc: string,
+      color: RgbColor,
+      tolerance: number
+    ) => {
+      const nextSrc = await removeColorNearBackground(baseSrc, color, tolerance)
+      const next = updateLayerById(stateRef.current.layers, layerId, {
+        src: nextSrc,
+      })
+      emitLayers(next, layerId)
+    },
+    [emitLayers]
+  )
+
   const handleEyedropperSample = async (relX: number, relY: number) => {
     if (!activeImageLayer?.src || removingBg) return
     setRemovingBg(true)
     try {
-      const color = await sampleImageColorAt(activeImageLayer.src, relX, relY)
-      const nextSrc = await removeColorNearBackground(
-        activeImageLayer.src,
+      const baseSrc = activeImageLayer.src
+      const color = await sampleImageColorAt(baseSrc, relX, relY)
+      pushImageUndo(activeImageLayer.id, baseSrc)
+      setEyedropperColor(color)
+      setEyedropperBaseSrc(baseSrc)
+      setEyedropperLayerId(activeImageLayer.id)
+      await applyEyedropperFilter(
+        activeImageLayer.id,
+        baseSrc,
         color,
         eyedropperTolerance
       )
-      const next = updateLayerById(stateRef.current.layers, activeImageLayer.id, {
-        src: nextSrc,
-      })
-      emitLayers(next, activeImageLayer.id)
+      // Nach Farbwahl Pipette aus — sofort wieder verschieben
+      setEyedropperActive(false)
     } catch (err) {
       console.warn("Pipette-Hintergrund entfernen fehlgeschlagen:", err)
     } finally {
       setRemovingBg(false)
     }
+  }
+
+  // Live-Toleranz: gespeicherte Farbe neu anwenden (ohne removingBg-Deps → kein Loop)
+  useEffect(() => {
+    if (!eyedropperColor || !eyedropperBaseSrc || !eyedropperLayerId) {
+      return
+    }
+    let cancelled = false
+    const t = window.setTimeout(() => {
+      void (async () => {
+        try {
+          if (cancelled) return
+          await applyEyedropperFilter(
+            eyedropperLayerId,
+            eyedropperBaseSrc,
+            eyedropperColor,
+            eyedropperTolerance
+          )
+        } catch (err) {
+          console.warn("Toleranz-Update fehlgeschlagen:", err)
+        }
+      })()
+    }, 60)
+    return () => {
+      cancelled = true
+      window.clearTimeout(t)
+    }
+  }, [
+    eyedropperTolerance,
+    eyedropperColor,
+    eyedropperBaseSrc,
+    eyedropperLayerId,
+    applyEyedropperFilter,
+  ])
+
+  const handleEraserPaint = async (relX: number, relY: number) => {
+    if (!activeImageLayer?.src || eraserBusyRef.current) return
+    eraserBusyRef.current = true
+    try {
+      const current = activeImageLayer.src
+      // Erstes Stroke der Serie: Undo einmal pushen
+      if (!eraserActive) return
+      const nextSrc = await eraseImageBrushStroke(current, [
+        { relX, relY, radiusRel: eraserRadius },
+      ])
+      const next = updateLayerById(stateRef.current.layers, activeImageLayer.id, {
+        src: nextSrc,
+      })
+      emitLayers(next, activeImageLayer.id)
+    } catch (err) {
+      console.warn("Radierer fehlgeschlagen:", err)
+    } finally {
+      eraserBusyRef.current = false
+    }
+  }
+
+  const eraserStrokeStartedRef = useRef(false)
+  const handleEraserPaintSafe = (relX: number, relY: number) => {
+    if (!activeImageLayer?.src) return
+    // Radierer beendet live-Pipette-Kette
+    if (eyedropperColor) {
+      setEyedropperColor(null)
+      setEyedropperBaseSrc(null)
+      setEyedropperLayerId(null)
+    }
+    if (!eraserStrokeStartedRef.current) {
+      pushImageUndo(activeImageLayer.id, activeImageLayer.src)
+      eraserStrokeStartedRef.current = true
+    }
+    void handleEraserPaint(relX, relY)
+  }
+
+  useEffect(() => {
+    if (!eraserActive) {
+      eraserStrokeStartedRef.current = false
+    }
+  }, [eraserActive])
+
+  useEffect(() => {
+    const onUp = () => {
+      eraserStrokeStartedRef.current = false
+    }
+    window.addEventListener("pointerup", onUp)
+    return () => window.removeEventListener("pointerup", onUp)
+  }, [])
+
+  const bringLayerForward = (layerId: string) => {
+    const current = stateRef.current.layers
+    const idx = current.findIndex((l) => l.id === layerId)
+    if (idx < 0 || idx >= current.length - 1) return
+    const next = [...current]
+    const [item] = next.splice(idx, 1)
+    next.splice(idx + 1, 0, item)
+    emitLayers(next, layerId)
   }
 
   const handleFitToBounds = (layerId: string) => {
@@ -1415,16 +1754,36 @@ function LaserDesignerPreview({
               kind="image"
               layout={layerToElementLayout(layer)}
               isActive={activeLayerId === layer.id}
-              isMoving={dragMode === "move" && activeLayerId === layer.id}
+              isMoving={
+                dragMode != null && activeLayerId === layer.id
+              }
               stackIndex={index}
               canvasRef={canvasRef}
               onSelect={() => onStateChange({ activeLayerId: layer.id })}
               onDragStart={startDragSession}
               onInnerRef={(el) => setLayerInnerRef(layer.id, el)}
               eyedropperActive={eyedropperActive}
+              eraserActive={eraserActive}
               onEyedropperSample={(relX, relY) => {
                 void handleEyedropperSample(relX, relY)
               }}
+              onEraserPaint={handleEraserPaintSafe}
+              onDelete={() => handleDeleteLayer(layer.id)}
+              onRotateStep={() =>
+                patchLayerLayout(layer.id, {
+                  rotation: normalizeRotation(
+                    (layer.rotation ?? 0) + 15
+                  ),
+                })
+              }
+              onScaleStep={(delta) => {
+                const max =
+                  maxScaleMap[layer.id] ?? FALLBACK_MAX_SCALE
+                patchLayerLayout(layer.id, {
+                  scale: clampScale((layer.scale ?? 1) + delta, max),
+                })
+              }}
+              onBringForward={() => bringLayerForward(layer.id)}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -1451,7 +1810,9 @@ function LaserDesignerPreview({
                 kind="text"
                 layout={layerToElementLayout(layer)}
                 isActive={activeLayerId === layer.id}
-                isMoving={dragMode === "move" && activeLayerId === layer.id}
+                isMoving={
+                  dragMode != null && activeLayerId === layer.id
+                }
                 stackIndex={visibleImageLayers.length + index}
                 canvasRef={canvasRef}
                 onSelect={() => onStateChange({ activeLayerId: layer.id })}
@@ -1469,6 +1830,22 @@ function LaserDesignerPreview({
                   maxWidth: "none",
                   textShadow: "0 1px 8px rgba(0,0,0,0.8)",
                 }}
+                onDelete={() => handleDeleteLayer(layer.id)}
+                onRotateStep={() =>
+                  patchLayerLayout(layer.id, {
+                    rotation: normalizeRotation(
+                      (layer.rotation ?? 0) + 15
+                    ),
+                  })
+                }
+                onScaleStep={(delta) => {
+                  const max =
+                    maxScaleMap[layer.id] ?? FALLBACK_MAX_SCALE
+                  patchLayerLayout(layer.id, {
+                    scale: clampScale((layer.scale ?? 1) + delta, max),
+                  })
+                }}
+                onBringForward={() => bringLayerForward(layer.id)}
               >
                 {layer.text}
               </InteractiveCanvasElement>
@@ -1553,10 +1930,11 @@ function LaserDesignerPreview({
                 variant="outline"
                 size="sm"
                 className="w-full sm:w-auto"
-                onClick={() => handleDeleteLayer(activeImageLayer.id)}
+                disabled={undoStack.length === 0}
+                onClick={handleUndoImageEdit}
               >
-                <ImageIcon className="mr-2 h-4 w-4" />
-                Bild entfernen
+                <Undo2 className="mr-2 h-4 w-4" />
+                Rückgängig
               </Button>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -1592,7 +1970,10 @@ function LaserDesignerPreview({
                         : "border-cyan-500/30"
                     )}
                     disabled={removingBg}
-                    onClick={() => setEyedropperActive((v) => !v)}
+                    onClick={() => {
+                      setEraserActive(false)
+                      setEyedropperActive((v) => !v)
+                    }}
                   >
                     <Pipette className="mr-2 h-4 w-4" />
                     {eyedropperActive
@@ -1601,14 +1982,48 @@ function LaserDesignerPreview({
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="top" className="max-w-xs">
-                  Klicke im Bild auf die Farbe, die transparent werden soll.
-                  Toleranz unten einstellen.
+                  Klicke im Bild auf die Farbe. Danach Toleranz live anpassen —
+                  Pipette schaltet sich automatisch aus.
                 </TooltipContent>
               </Tooltip>
-              {eyedropperActive ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant={eraserActive ? "default" : "outline"}
+                    size="sm"
+                    className={cn(
+                      "w-full sm:w-auto",
+                      eraserActive
+                        ? "bg-cyan-600 text-white hover:bg-cyan-500"
+                        : "border-cyan-500/30"
+                    )}
+                    onClick={() => {
+                      setEyedropperActive(false)
+                      setEraserActive((v) => !v)
+                    }}
+                  >
+                    <Eraser className="mr-2 h-4 w-4" />
+                    {eraserActive ? "Radierer aktiv" : "Pinsel / Radierer"}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-xs">
+                  Wische verbliebene Schatten oder Flecken manuell weg.
+                </TooltipContent>
+              </Tooltip>
+              {(eyedropperColor || eyedropperActive) && (
                 <div className="flex w-full flex-col gap-1 sm:min-w-[12rem] sm:flex-1">
-                  <Label className="text-xs text-muted-foreground">
+                  <Label className="flex items-center gap-2 text-xs text-muted-foreground">
                     Toleranz: {eyedropperTolerance}
+                    {eyedropperColor ? (
+                      <span
+                        className="inline-block h-3 w-3 rounded-sm border border-border"
+                        style={{
+                          backgroundColor: `rgb(${eyedropperColor.r},${eyedropperColor.g},${eyedropperColor.b})`,
+                        }}
+                        title="Gewählte Farbe"
+                      />
+                    ) : null}
                   </Label>
                   <input
                     type="range"
@@ -1623,15 +2038,38 @@ function LaserDesignerPreview({
                     aria-label="Farb-Toleranz"
                   />
                 </div>
+              )}
+              {eraserActive ? (
+                <div className="flex w-full flex-col gap-1 sm:min-w-[10rem] sm:flex-1">
+                  <Label className="text-xs text-muted-foreground">
+                    Pinselgrösse
+                  </Label>
+                  <input
+                    type="range"
+                    min={0.015}
+                    max={0.12}
+                    step={0.005}
+                    value={eraserRadius}
+                    onChange={(e) =>
+                      setEraserRadius(Number(e.target.value))
+                    }
+                    className="w-full accent-cyan-500"
+                    aria-label="Pinselgrösse"
+                  />
+                </div>
               ) : null}
             </>
           ) : null}
         </div>
-        <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-          Tipp: Für das beste Gravur-Ergebnis verwende am besten ein Bild mit
-          transparentem Hintergrund (.png / .svg) — oder nutze «Hintergrund
-          entfernen» bzw. die Pipette für schwierige Fotos mit Schatten.
-        </p>
+        <div className="mt-3 flex items-start gap-3 rounded-xl border border-cyan-400/40 bg-cyan-500/10 px-4 py-3 text-sm text-cyan-950 dark:text-cyan-100">
+          <Info className="mt-0.5 h-5 w-5 shrink-0 text-cyan-600 dark:text-cyan-300" />
+          <p className="leading-relaxed">
+            <span className="font-semibold">Tipp für saubere Gravuren:</span>{" "}
+            Am besten ein Bild mit transparentem Hintergrund (.png / .svg)
+            hochladen — oder «Hintergrund entfernen», die Pipette bzw. den
+            Radierer nutzen.
+          </p>
+        </div>
       </CardContent>
     </Card>
   )

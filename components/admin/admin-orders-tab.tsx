@@ -54,6 +54,7 @@ import {
 } from "@/lib/admin/types"
 import { formatBelegDisplayId } from "@/lib/documents/beleg-number"
 import { LASER_FONT_OPTIONS } from "@/lib/dripforge/laser-fonts"
+import { getLaserFontFamily } from "@/lib/dripforge/laser-fonts"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
 import { cn } from "@/lib/utils"
 
@@ -248,12 +249,43 @@ function OrderDetailPanel({ order }: { order: StoredOrder }) {
                         item.customDetails.engravingText}
                     </li>
                   )}
-                  {item.customDetails?.userFont && (
+                  {item.customDetails?.userFont &&
+                    !(item.customDetails.layoutCoordinates?.layers ?? []).some(
+                      (l) => l.kind === "text"
+                    ) && (
                     <li>
                       <span className={adminUi.muted}>Schriftart:</span>{" "}
                       {fontLabel(item.customDetails.userFont)}
                     </li>
                   )}
+                  {(item.customDetails?.layoutCoordinates?.layers ?? [])
+                    .filter((l) => l.kind === "text" && (l.text ?? "").trim())
+                    .map((layer, index) => (
+                      <li key={layer.id}>
+                        <span className={adminUi.muted}>
+                          Text {index + 1} / Schrift:
+                        </span>{" "}
+                        <span
+                          style={{
+                            fontFamily: layer.fontId
+                              ? getLaserFontFamily(layer.fontId as never)
+                              : undefined,
+                          }}
+                        >
+                          {fontLabel(layer.fontId) || "Standard"}
+                        </span>
+                        <span className={adminUi.muted}> — </span>
+                        <span
+                          style={{
+                            fontFamily: layer.fontId
+                              ? getLaserFontFamily(layer.fontId as never)
+                              : undefined,
+                          }}
+                        >
+                          {(layer.text ?? "").trim()}
+                        </span>
+                      </li>
+                    ))}
                   {getLaserPlacementLines(item).map((line) => (
                     <li key={`${line.label}-${line.value}`}>
                       <span className={adminUi.muted}>{line.label}:</span>{" "}

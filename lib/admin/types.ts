@@ -91,6 +91,11 @@ export type OrderEmailNotifications = {
   /** Status «bereit für Versand / Abholbereit» */
   readyAt?: string
   shippedAt?: string
+  /**
+   * Claim-Flag bevor SMTP läuft — verhindert Doppelversand
+   * (Stripe-Webhook + Success-Page).
+   */
+  inboundQueuedAt?: string
 }
 
 export type CompanySettings = {

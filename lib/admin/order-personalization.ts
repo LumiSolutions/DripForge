@@ -1,9 +1,19 @@
 import type { StoredOrderItem } from "@/lib/admin/types"
 import { getLaserPlacementLines } from "@/lib/admin/layout-placement"
+import {
+  LASER_FONT_OPTIONS,
+} from "@/lib/dripforge/laser-fonts"
 
 export type PersonalizationLine = {
   label: string
   value: string
+}
+
+function fontDisplayLabel(fontId: string | undefined | null): string {
+  if (!fontId) return ""
+  return (
+    LASER_FONT_OPTIONS.find((f) => f.id === fontId)?.label ?? fontId
+  )
 }
 
 export function getItemPersonalizationLines(
@@ -34,9 +44,32 @@ export function getItemPersonalizationLines(
         value: d.variant ?? d.materialVariant ?? "",
       })
     }
-    const text = d.userText ?? d.engravingText
-    if (text?.trim()) lines.push({ label: "Gravurtext", value: text.trim() })
-    if (d.userFont) lines.push({ label: "Schrift", value: d.userFont })
+
+    const textLayers = (d.layoutCoordinates?.layers ?? []).filter(
+      (l) => l.kind === "text" && (l.text ?? "").trim()
+    )
+
+    if (textLayers.length > 0) {
+      textLayers.forEach((layer, index) => {
+        const n = index + 1
+        const text = (layer.text ?? "").trim()
+        const font = fontDisplayLabel(layer.fontId)
+        lines.push({
+          label: `Text ${n}`,
+          value: font ? `„${text}“ · ${font}` : `„${text}“`,
+        })
+        if (font) {
+          lines.push({ label: `Schrift ${n}`, value: font })
+        }
+      })
+    } else {
+      const text = d.userText ?? d.engravingText
+      if (text?.trim()) lines.push({ label: "Gravurtext", value: text.trim() })
+      if (d.userFont) {
+        lines.push({ label: "Schrift", value: fontDisplayLabel(d.userFont) })
+      }
+    }
+
     if (d.uploadedImage || d.hasImage) {
       lines.push({
         label: "Logo/Grafik",
@@ -50,12 +83,18 @@ export function getItemPersonalizationLines(
     const layerCount = d.layoutCoordinates?.layers?.length ?? 0
     if (layerCount > 0) {
       const imgCount =
-        d.layoutCoordinates?.layers?.filter((l) => l.kind === "image").length ?? 0
+        d.layoutCoordinates?.layers?.filter((l) => l.kind === "image").length ??
+        0
       const textCount =
-        d.layoutCoordinates?.layers?.filter((l) => l.kind === "text").length ?? 0
+        d.layoutCoordinates?.layers?.filter((l) => l.kind === "text").length ??
+        0
       lines.push({
         label: "Elemente",
-        value: `${layerCount} Layer${imgCount || textCount ? ` (${imgCount} Bild${imgCount === 1 ? "" : "er"}, ${textCount} Text${textCount === 1 ? "" : "e"})` : ""}`,
+        value: `${layerCount} Layer${
+          imgCount || textCount
+            ? ` (${imgCount} Bild${imgCount === 1 ? "" : "er"}, ${textCount} Text${textCount === 1 ? "" : "e"})`
+            : ""
+        }`,
       })
     }
     for (const placement of getLaserPlacementLines(item)) {

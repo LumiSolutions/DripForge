@@ -1,6 +1,7 @@
 import type Stripe from "stripe"
 import { getOrderById, getSettings } from "@/lib/admin/db"
 import type { StoredOrder } from "@/lib/admin/types"
+import { claimInboundOrderEmailSend } from "@/lib/email/claim-inbound-emails"
 import { queueOrderEmails } from "@/lib/email/send-order-emails"
 import { fulfillPaidShopOrder } from "@/lib/shop/order-processing"
 
@@ -17,6 +18,7 @@ export function resolveStripeCustomerEmail(
 
 /**
  * Kunden- + Admin-Mails nach Stripe — dieselbe Funktion wie Rechnung/TWINT.
+ * Genau einmal dank claimInboundOrderEmailSend.
  */
 export async function sendShopOrderEmailsAfterStripe(
   orderId: string,
@@ -35,6 +37,14 @@ export async function sendShopOrderEmailsAfterStripe(
   if (order.emailNotifications?.receivedAt) {
     console.info(
       `Stripe: Eingangsmails bereits versendet (${orderId}), überspringe.`
+    )
+    return { sent: false, skipped: true, customerSent: false, adminSent: false }
+  }
+
+  const claimed = await claimInboundOrderEmailSend(orderId)
+  if (!claimed) {
+    console.info(
+      `Stripe: Eingangsmails bereits geclaimed (${orderId}), überspringe Doppelversand.`
     )
     return { sent: false, skipped: true, customerSent: false, adminSent: false }
   }
@@ -58,7 +68,6 @@ export async function sendShopOrderEmailsAfterStripe(
 
   try {
     console.log("Sending order emails for order:", orderForEmail.orderId)
-    // Nicht blockieren — Stripe-Webhook/Success soll schnell 200 zurückgeben
     queueOrderEmails(orderForEmail, settings)
     return {
       sent: true,

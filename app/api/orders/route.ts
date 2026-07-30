@@ -11,6 +11,7 @@ import {
 } from "@/lib/konto/loyalty-points"
 import type { OrderPayload } from "@/lib/dripforge/submit-order"
 import { processOrderPayload } from "@/lib/shop/order-processing"
+import { claimInboundOrderEmailSend } from "@/lib/email/claim-inbound-emails"
 import { queueOrderEmails } from "@/lib/email/send-order-emails"
 import { bindOrderToCustomer } from "@/lib/shop/bind-order-to-account"
 import { applyInventoryReservationForOrder } from "@/lib/admin/order-inventory-hook"
@@ -54,8 +55,15 @@ export async function POST(request: Request) {
 
     // 2) E-Mails nicht-blockierend — Response sofort, SMTP im Hintergrund (Azure SWA)
     try {
-      console.log("Sending order emails for order:", order.orderId)
-      queueOrderEmails(order, settings)
+      const claimed = await claimInboundOrderEmailSend(order.orderId)
+      if (claimed) {
+        console.log("Sending order emails for order:", order.orderId)
+        queueOrderEmails(order, settings)
+      } else {
+        console.info(
+          `Bestell-API: Eingangsmails bereits geclaimed (${order.orderId}), überspringe.`
+        )
+      }
     } catch (error) {
       console.error("Bestell-Mail Fehler:", error)
       console.error("CRITICAL_SMTP_ERROR:", error)

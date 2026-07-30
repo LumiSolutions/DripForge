@@ -8,6 +8,7 @@ import type { OrderPayload } from "@/lib/dripforge/submit-order"
 import { getSessionEmailFromRequest } from "@/lib/konto/api-auth"
 import { bindOrderToCustomer } from "@/lib/shop/bind-order-to-account"
 import { processOrderPayload } from "@/lib/shop/order-processing"
+import { claimInboundOrderEmailSend } from "@/lib/email/claim-inbound-emails"
 import { queueOrderEmails } from "@/lib/email/send-order-emails"
 import {
   buildTwintPaymentUrl,
@@ -121,8 +122,15 @@ export async function POST(request: Request) {
 
     // E-Mails nicht-blockierend — Response sofort (Azure SWA Timeout-Schutz)
     try {
-      console.log("Sending order emails for order:", order.orderId)
-      queueOrderEmails(order, settings)
+      const claimed = await claimInboundOrderEmailSend(order.orderId)
+      if (claimed) {
+        console.log("Sending order emails for order:", order.orderId)
+        queueOrderEmails(order, settings)
+      } else {
+        console.info(
+          `TWINT: Eingangsmails bereits geclaimed (${order.orderId}), überspringe.`
+        )
+      }
     } catch (error) {
       console.error("Bestell-Mail Fehler:", error)
       console.error("CRITICAL_SMTP_ERROR:", error)
