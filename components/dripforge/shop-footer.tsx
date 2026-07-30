@@ -1,12 +1,8 @@
 "use client"
 
-import { useEffect, useState } from "react"
 import Link from "next/link"
-import { Mail, MapPin, Printer, Zap } from "lucide-react"
-import type { CompanySettings } from "@/lib/admin/types"
-import { DEFAULT_COMPANY_SETTINGS } from "@/lib/admin/types"
+import { Mail, MapPin, Phone, Printer, Zap } from "lucide-react"
 import {
-  filterNavItems,
   isShopNavVisible,
   normalizeServiceVisibility,
 } from "@/lib/dripforge/service-visibility"
@@ -14,27 +10,16 @@ import type { ServiceVisibilitySettings } from "@/lib/admin/types"
 import { shopViewHref } from "@/lib/dripforge/shop-routes"
 import { SiteText } from "@/components/dripforge/editable-site-text"
 import { SiteImage } from "@/components/dripforge/editable-site-image"
+import { useCompanySettings } from "@/components/dripforge/company-settings-provider"
+import { useEffect, useState } from "react"
 
 export function ShopFooter() {
-  const [companyFooter, setCompanyFooter] = useState<CompanySettings>(
-    DEFAULT_COMPANY_SETTINGS
-  )
+  const { company, mailtoHref, telHref } = useCompanySettings()
   const [services, setServices] = useState<ServiceVisibilitySettings>(
     normalizeServiceVisibility(null)
   )
 
   useEffect(() => {
-    void fetch("/api/settings/company")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data?.firmenname) {
-          setCompanyFooter({ ...DEFAULT_COMPANY_SETTINGS, ...data })
-        }
-      })
-      .catch(() => {
-        console.warn("Footer: Firmendaten konnten nicht geladen werden.")
-      })
-
     void fetch("/api/settings/services")
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
@@ -140,16 +125,28 @@ export function ShopFooter() {
             <h4 className="mb-4 font-semibold text-foreground"><SiteText k="footer_contact_heading" /></h4>
             <ul className="space-y-3 text-sm text-muted-foreground">
               <li className="flex items-center gap-2">
-                <Mail className="h-4 w-4 text-primary" />
-                drip-forge@outlook.com
+                <Mail className="h-4 w-4 shrink-0 text-primary" />
+                <a href={mailtoHref} className="hover:text-primary">
+                  {company.kontaktEmail}
+                </a>
               </li>
+              {company.telefonnummer ? (
+                <li className="flex items-center gap-2">
+                  <Phone className="h-4 w-4 shrink-0 text-primary" />
+                  {telHref ? (
+                    <a href={telHref} className="hover:text-primary">
+                      {company.telefonnummer}
+                    </a>
+                  ) : (
+                    <span>{company.telefonnummer}</span>
+                  )}
+                </li>
+              ) : null}
               <li className="flex items-start gap-2">
-                <MapPin className="mt-0.5 h-4 w-4 text-primary" />
+                <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                 <span className="whitespace-pre-line">
-                  {companyFooter.firmenname}
-                  {companyFooter.firmenAdresse
-                    ? `\n${companyFooter.firmenAdresse}`
-                    : ""}
+                  {company.firmenname}
+                  {company.firmenAdresse ? `\n${company.firmenAdresse}` : ""}
                 </span>
               </li>
             </ul>
@@ -157,7 +154,7 @@ export function ShopFooter() {
         </div>
         <div className="mt-8 flex flex-col items-center justify-between gap-4 border-t border-border pt-8 md:flex-row">
           <p className="text-sm text-muted-foreground">
-            © 2026 {companyFooter.firmenname || "DripForge"}. <SiteText k="footer_copyright_suffix" />
+            © 2026 {company.firmenname || "DripForge"}. <SiteText k="footer_copyright_suffix" />
           </p>
           <div className="flex gap-6 text-sm text-muted-foreground">
             <Link href="/datenschutz" className="hover:text-primary">

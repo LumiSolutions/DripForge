@@ -10,7 +10,8 @@
     "firmenAdresse": "Pfäffikon ZH\nSchweiz",
     "iban": "",
     "bankname": "",
-    "kontaktEmail": "drip-forge@outlook.com"
+    "kontaktEmail": "drip-forge@outlook.com",
+    "telefonnummer": ""
   },
   "launch": {
     "shopLive": false

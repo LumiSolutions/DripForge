@@ -11,6 +11,7 @@ import {
   shouldUseUnoptimizedCountdownHero,
   type PublicCountdownConfig,
 } from "@/lib/dripforge/countdown-settings"
+import { useCompanySettings } from "@/components/dripforge/company-settings-provider"
 import { cn } from "@/lib/utils"
 
 function EmberField({ variant }: { variant: PublicCountdownConfig["template"] }) {
@@ -89,6 +90,7 @@ export function ComingSoonPage({
   onAccessGranted?: () => void
 }) {
   const { showSupportOnCountdownPage: supportPageVisible } = useSupportPageSettings()
+  const { company } = useCompanySettings()
   const [countdownConfig, setCountdownConfig] = useState<PublicCountdownConfig>(
     buildPublicCountdownConfig(null)
   )
@@ -268,7 +270,12 @@ export function ComingSoonPage({
       </main>
 
       <footer className="relative z-30 mt-6 flex w-full max-w-xl flex-col items-center space-y-4 px-4 pb-2 text-center sm:mt-8">
-        <p className="text-[10px] text-zinc-700">© 2026 DripForge · Pfäffikon ZH</p>
+        <p className="text-[10px] text-zinc-700">
+          © 2026 {company.firmenname}
+          {company.firmenAdresse
+            ? ` · ${company.firmenAdresse.split("\n").map((l) => l.trim()).filter(Boolean).join(", ")}`
+            : ""}
+        </p>
 
         {testerFeedback && (
           <p

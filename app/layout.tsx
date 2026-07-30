@@ -17,6 +17,7 @@ import {
   SiteConfigPreviewProvider,
 } from "@/components/dripforge/site-config-preview-banner"
 import { SiteTextsProvider } from "@/components/dripforge/site-texts-provider"
+import { CompanySettingsProvider } from "@/components/dripforge/company-settings-provider"
 import { StorefrontFloatingActions } from "@/components/dripforge/storefront-floating-actions"
 import { LaunchGateShell } from "@/components/dripforge/launch-gate-shell"
 
@@ -91,10 +92,12 @@ export default function RootLayout({
         <div className="relative z-20 flex min-h-full flex-1 flex-col">
           <SiteConfigPreviewProvider>
             <SiteTextsProvider>
-              <SiteConfigPreviewBanner />
-              <LaunchGateShell>{children}</LaunchGateShell>
-              <GlobalShopFooter />
-              <StorefrontFloatingActions />
+              <CompanySettingsProvider>
+                <SiteConfigPreviewBanner />
+                <LaunchGateShell>{children}</LaunchGateShell>
+                <GlobalShopFooter />
+                <StorefrontFloatingActions />
+              </CompanySettingsProvider>
             </SiteTextsProvider>
           </SiteConfigPreviewProvider>
         </div>

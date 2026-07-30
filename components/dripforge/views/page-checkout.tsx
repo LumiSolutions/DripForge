@@ -48,10 +48,9 @@ import { useCustomerLoyaltyPoints } from "@/hooks/use-customer-loyalty-points"
 import { useRewardPointsEnabled } from "@/hooks/use-reward-points-enabled"
 import type { CartItem } from "@/lib/dripforge/types"
 import { cn } from "@/lib/utils"
+import { useCompanySettings } from "@/components/dripforge/company-settings-provider"
 import { submitOrder, startStripeCheckout, startTwintCheckout, type OrderPayload } from "@/lib/dripforge/submit-order"
 import { CheckoutSuccessModal } from "@/components/dripforge/checkout-success-modal"
-import type { CompanySettings } from "@/lib/admin/types"
-import { DEFAULT_COMPANY_SETTINGS } from "@/lib/admin/types"
 
 type CheckoutForm = {
   firstName: string
@@ -178,10 +177,10 @@ export function PageCheckout({
   onOrderComplete?: (orderId: string) => void
 }) {
   const { applyMergedCart, clearCart } = useCart()
+  const { company } = useCompanySettings()
   const [checkoutConfig, setCheckoutConfig] = useState<CheckoutRuntimeConfig>(
     DEFAULT_CHECKOUT_RUNTIME_CONFIG
   )
-  const [company, setCompany] = useState<CompanySettings>(DEFAULT_COMPANY_SETTINGS)
   const [form, setForm] = useState<CheckoutForm>(EMPTY_FORM)
   const [sameAsBilling, setSameAsBilling] = useState(true)
   const [saveAddressToAccount, setSaveAddressToAccount] = useState(true)
@@ -235,17 +234,6 @@ export function PageCheckout({
       })
       .catch(() => {
         console.warn("Checkout: Admin-Einstellungen konnten nicht geladen werden.")
-      })
-
-    void fetch("/api/settings/company")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data?.firmenname) {
-          setCompany({ ...DEFAULT_COMPANY_SETTINGS, ...data })
-        }
-      })
-      .catch(() => {
-        console.warn("Checkout: Firmendaten konnten nicht geladen werden.")
       })
 
     void fetch("/api/checkout")

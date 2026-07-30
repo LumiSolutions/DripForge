@@ -3,6 +3,7 @@
 import type { SiteTextKey } from "@/lib/admin/site-texts"
 import { SiteTextEditor } from "@/components/dripforge/editable-site-text"
 import { useSiteTexts } from "@/components/dripforge/site-texts-provider"
+import { useCompanySettings } from "@/components/dripforge/company-settings-provider"
 import { cn } from "@/lib/utils"
 
 function renderLegalBody(text: string, mode: "paragraphs" | "bullets" | "lines") {
@@ -53,7 +54,9 @@ export function SiteTextBlock({
   className,
 }: SiteTextBlockProps) {
   const { t, canInlineEdit } = useSiteTexts()
-  const value = t(k)
+  const { withCompany } = useCompanySettings()
+  const raw = t(k)
+  const value = withCompany(raw)
 
   const content = (
     <div className={cn("space-y-3 text-[0.9375rem] leading-relaxed text-muted-foreground md:text-base", className)}>
@@ -69,7 +72,7 @@ export function SiteTextBlock({
     <div className="group/site-text relative">
       {content}
       <div className="absolute -right-1 top-0">
-        <SiteTextEditor textKey={k} value={value} align="end" />
+        <SiteTextEditor textKey={k} value={raw} align="end" />
       </div>
     </div>
   )

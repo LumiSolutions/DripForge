@@ -94,6 +94,8 @@ export type CompanySettings = {
   iban: string
   bankname: string
   kontaktEmail: string
+  /** Kundensupport / WhatsApp / Footer (optional) */
+  telefonnummer: string
 }
 
 export const DEFAULT_COMPANY_SETTINGS: CompanySettings = {
@@ -102,6 +104,7 @@ export const DEFAULT_COMPANY_SETTINGS: CompanySettings = {
   iban: "",
   bankname: "",
   kontaktEmail: "drip-forge@outlook.com",
+  telefonnummer: "",
 }
 
 export type StoredCustomer = {
