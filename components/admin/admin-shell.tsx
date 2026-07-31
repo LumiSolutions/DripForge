@@ -266,14 +266,16 @@ function AdminShellFrame({ children }: { children: React.ReactNode }) {
                         key={item.id}
                         href={item.href}
                         className={cn(
-                          "flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-colors",
+                          "flex w-full min-w-0 items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-colors",
                           isAdminNavActive(pathname, item.href, { exact: true })
                             ? adminUi.navActive
                             : adminUi.navInactive
                         )}
                       >
                         <Icon className="h-4 w-4 shrink-0" />
-                        <span className="min-w-0 leading-snug">{item.label}</span>
+                        <span className="min-w-0 truncate leading-snug">
+                          {item.label}
+                        </span>
                       </Link>
                     )
                   }
@@ -284,13 +286,13 @@ function AdminShellFrame({ children }: { children: React.ReactNode }) {
                         type="button"
                         onClick={() => toggleGroup(item.id)}
                         className={cn(
-                          "flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-colors",
+                          "flex w-full min-w-0 items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-colors",
                           groupActive ? adminUi.navActive : adminUi.navInactive
                         )}
                         aria-expanded={open}
                       >
                         <Icon className="h-4 w-4 shrink-0" />
-                        <span className="min-w-0 flex-1 text-left leading-snug">
+                        <span className="min-w-0 flex-1 truncate text-left leading-snug">
                           {item.label}
                         </span>
                         <ChevronDown
@@ -301,13 +303,13 @@ function AdminShellFrame({ children }: { children: React.ReactNode }) {
                         />
                       </button>
                       {open && (
-                        <div className="ml-4 space-y-1 border-l border-border/60 pl-2">
+                        <div className="ml-4 min-w-0 space-y-1 border-l border-border/60 pl-2">
                           {item.children!.map((child) => (
                             <Link
                               key={child.id}
                               href={child.href}
                               className={cn(
-                                "flex w-full items-center rounded-lg px-3 py-2 text-sm transition-colors",
+                                "flex w-full min-w-0 items-center rounded-lg px-3 py-2 text-sm transition-colors",
                                 isAdminNavActive(pathname, child.href, {
                                   exact: true,
                                 })
@@ -315,7 +317,7 @@ function AdminShellFrame({ children }: { children: React.ReactNode }) {
                                   : adminUi.navInactive
                               )}
                             >
-                              {child.label}
+                              <span className="min-w-0 truncate">{child.label}</span>
                             </Link>
                           ))}
                         </div>
