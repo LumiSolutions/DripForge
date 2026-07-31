@@ -2,6 +2,10 @@ import {
   LEGAL_SITE_TEXT_DEFAULTS,
   LEGAL_SITE_TEXT_SECTIONS,
 } from "@/lib/admin/legal-site-text-defaults"
+import {
+  PAGE_CONTENT_SITE_TEXT_DEFAULTS,
+  PAGE_CONTENT_SITE_TEXT_SECTIONS,
+} from "@/lib/admin/page-content-site-text-defaults"
 
 export const SITE_TEXTS_DOC_ID = "site-texts"
 export const SITE_TEXT_DOC_TYPE = "site-texts"
@@ -15,7 +19,20 @@ export type SiteTextField = {
 }
 
 export type SiteTextSection = {
-  id: "landingpage" | "shop" | "konto" | "footer" | "chat" | "agb" | "impressum" | "datenschutz" | "faq"
+  id:
+    | "landingpage"
+    | "shop"
+    | "konto"
+    | "footer"
+    | "chat"
+    | "agb"
+    | "impressum"
+    | "datenschutz"
+    | "faq"
+    | "page_3d"
+    | "page_laser"
+    | "page_kontakt"
+    | "page_support"
   label: string
   fields: SiteTextField[]
 }
@@ -131,6 +148,7 @@ export const DEFAULT_SITE_TEXTS = {
   landingpage_feature_4_description: "PLA, PETG, ASA, Holz, Acryl, Leder und mehr.",
 
   ...LEGAL_SITE_TEXT_DEFAULTS,
+  ...PAGE_CONTENT_SITE_TEXT_DEFAULTS,
 } as const
 
 export type SiteTextKey = keyof typeof DEFAULT_SITE_TEXTS
@@ -295,6 +313,7 @@ export const SITE_TEXT_SECTIONS: SiteTextSection[] = [
     ],
   },
   ...LEGAL_SITE_TEXT_SECTIONS as SiteTextSection[],
+  ...(PAGE_CONTENT_SITE_TEXT_SECTIONS as unknown as SiteTextSection[]),
 ]
 
 export function getSiteTextFieldMeta(key: SiteTextKey): {

@@ -45,7 +45,6 @@ import {
   type CmsFaqItem,
 } from "@/lib/admin/cms-faq"
 import {
-  enableSiteConfigPreviewInSession,
   isSiteConfigPreviewEnabled,
   isSiteConfigReadonlyEnabled,
   SITE_CONFIG_PREVIEW_PARAM,
@@ -78,17 +77,17 @@ type SiteTextsContextValue = {
 
 const SiteTextsContext = createContext<SiteTextsContextValue | null>(null)
 
-function readPreviewFromBrowser(): boolean {
+function readPreviewFromBrowser(pathname?: string | null): boolean {
   if (typeof window === "undefined") return false
-  if (new URLSearchParams(window.location.search).get(SITE_CONFIG_PREVIEW_PARAM) === "true") {
-    enableSiteConfigPreviewInSession()
-  }
-  return isSiteConfigPreviewEnabled(window.location.search)
+  return isSiteConfigPreviewEnabled(window.location.search, pathname ?? window.location.pathname)
 }
 
-function readReadonlyFromBrowser(): boolean {
+function readReadonlyFromBrowser(pathname?: string | null): boolean {
   if (typeof window === "undefined") return false
-  return isSiteConfigReadonlyEnabled(window.location.search)
+  return isSiteConfigReadonlyEnabled(
+    window.location.search,
+    pathname ?? window.location.pathname
+  )
 }
 
 type BundlePayload = {
@@ -137,8 +136,8 @@ export function SiteTextsProvider({ children }: { children: ReactNode }) {
   const [staffRole, setStaffRole] = useState<"admin" | "tester" | null>(null)
 
   const refresh = useCallback(async () => {
-    const previewNow = readPreviewFromBrowser()
-    const readonlyNow = readReadonlyFromBrowser()
+    const previewNow = readPreviewFromBrowser(pathname)
+    const readonlyNow = readReadonlyFromBrowser(pathname)
     setPreview(previewNow)
     setReadonly(readonlyNow)
 
@@ -185,14 +184,14 @@ export function SiteTextsProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [pathname])
 
   useEffect(() => {
     void refresh()
-  }, [refresh, pathname])
+  }, [refresh])
 
   useEffect(() => {
-    setReadonly(readReadonlyFromBrowser())
+    setReadonly(readReadonlyFromBrowser(pathname))
   }, [pathname])
 
   useEffect(() => {

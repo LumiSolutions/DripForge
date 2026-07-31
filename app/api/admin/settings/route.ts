@@ -85,6 +85,15 @@ export async function PUT(request: Request) {
         showLogo?: boolean
         logoPosition?: "left" | "center" | "right"
         headerTitle?: string
+        logoUrl?: string
+        metaFields?: {
+          invoiceNumber?: boolean
+          orderRef?: boolean
+          date?: boolean
+          paymentMethod?: boolean
+          paymentStatus?: boolean
+          shippingMethod?: boolean
+        }
       }
       launch?: Partial<LaunchSettings>
     }

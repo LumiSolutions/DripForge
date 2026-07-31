@@ -55,7 +55,7 @@ export function SiteConfigPreviewProvider({ children }: { children: ReactNode })
   const [preview, setPreview] = useState(false)
 
   useEffect(() => {
-    setPreview(isSiteConfigPreviewEnabled(window.location.search))
+    setPreview(isSiteConfigPreviewEnabled(window.location.search, pathname ?? undefined))
   }, [pathname])
 
   const exitPreview = useCallback(() => {

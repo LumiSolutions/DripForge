@@ -28,9 +28,12 @@ import {
 } from "@/lib/email/order-email-templates"
 import {
   DEFAULT_ORDER_EMAIL_LAYOUT,
+  DEFAULT_ORDER_EMAIL_META_FIELDS,
+  ORDER_EMAIL_META_FIELD_LABELS,
   ORDER_EMAIL_SECTION_LABELS,
   type OrderEmailLayout,
   type OrderEmailLogoPosition,
+  type OrderEmailMetaFields,
   type OrderEmailSectionId,
 } from "@/lib/email/order-email-layout"
 import { renderOrderEmailPreviewHtml } from "@/lib/email/order-email-preview"
@@ -97,6 +100,7 @@ export function AdminEmailTemplateBuilder({
       ...DEFAULT_ORDER_EMAIL_LAYOUT,
       sectionOrder: [...DEFAULT_ORDER_EMAIL_LAYOUT.sectionOrder],
       logoUrl: "",
+      metaFields: { ...DEFAULT_ORDER_EMAIL_META_FIELDS },
     })
   }
 
@@ -182,6 +186,44 @@ export function AdminEmailTemplateBuilder({
               >
                 Logo-URL (optionaler Override)
               </Label>
+              {documentLogoUrl?.trim() ? (
+                <div className="flex items-center gap-3 rounded-lg border border-border/60 bg-muted/30 p-2">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={documentLogoUrl}
+                    alt="Dokumenten-Logo"
+                    className="h-10 w-auto max-w-[120px] object-contain"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className={cn("text-xs font-medium", adminUi.heading)}>
+                      Aktives Dokumenten-Logo
+                    </p>
+                    <p className={cn("truncate text-[11px]", adminUi.muted)}>
+                      Aus Belege / Dokumenten-Vorlagen
+                    </p>
+                  </div>
+                  {(layout.logoUrl?.trim() ?? "") ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className={cn("h-8 shrink-0 text-xs", adminUi.outlineBtn)}
+                      disabled={!layout.showLogo}
+                      onClick={() => {
+                        setLogoOverride("")
+                        onLayoutChange({ ...layout, logoUrl: "" })
+                      }}
+                    >
+                      Dokumenten-Logo nutzen
+                    </Button>
+                  ) : null}
+                </div>
+              ) : (
+                <p className={cn("text-xs", adminUi.muted)}>
+                  Noch kein Dokumenten-Logo hinterlegt — unter «Belege /
+                  Dokumenten-Vorlagen» hochladen.
+                </p>
+              )}
               <Input
                 id="orderEmailLogoUrl"
                 value={logoOverride}
@@ -302,6 +344,51 @@ export function AdminEmailTemplateBuilder({
                   </Button>
                 </li>
               ))}
+            </ul>
+          </div>
+
+          <div className={cn("space-y-3 rounded-xl border p-4", adminUi.section)}>
+            <div>
+              <p className={cn("text-sm font-semibold", adminUi.heading)}>
+                Datenfelder im Bestellblock
+              </p>
+              <p className={cn("text-xs", adminUi.muted)}>
+                Welche Werte in der Bestätigungs-E-Mail bei der Artikelliste
+                erscheinen (Rechnungsnummer, Datum, Versandart usw.)
+              </p>
+            </div>
+            <ul className="space-y-2">
+              {(
+                Object.keys(
+                  ORDER_EMAIL_META_FIELD_LABELS
+                ) as Array<keyof OrderEmailMetaFields>
+              ).map((fieldKey) => {
+                const meta =
+                  layout.metaFields ?? DEFAULT_ORDER_EMAIL_META_FIELDS
+                return (
+                  <li
+                    key={fieldKey}
+                    className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2"
+                  >
+                    <span className={cn("text-sm", adminUi.bodyText)}>
+                      {ORDER_EMAIL_META_FIELD_LABELS[fieldKey]}
+                    </span>
+                    <Switch
+                      checked={meta[fieldKey] !== false}
+                      onCheckedChange={(checked) =>
+                        onLayoutChange({
+                          ...layout,
+                          metaFields: {
+                            ...DEFAULT_ORDER_EMAIL_META_FIELDS,
+                            ...meta,
+                            [fieldKey]: checked,
+                          },
+                        })
+                      }
+                    />
+                  </li>
+                )
+              })}
             </ul>
           </div>
 

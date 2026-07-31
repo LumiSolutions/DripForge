@@ -1,6 +1,5 @@
 "use client"
 
-import Link from "next/link"
 import {
   Printer,
   Leaf,
@@ -16,6 +15,11 @@ import { cn } from "@/lib/utils"
 import { FilamentColorPicker } from "@/components/dripforge/shared/filament-color-picker"
 import { ProcessStepItem } from "@/components/dripforge/shared/process-step-item"
 import { SiteImage } from "@/components/dripforge/editable-site-image"
+import {
+  SiteEditableLink,
+  SiteText,
+} from "@/components/dripforge/editable-site-text"
+import { SiteTextPhrase } from "@/components/dripforge/site-text-phrase"
 import { materials3D, processSteps } from "@/lib/dripforge/data"
 import { SHOP_ROUTES } from "@/lib/dripforge/shop-routes"
 import { useFilamentCatalog } from "@/hooks/use-filament-catalog"
@@ -72,15 +76,22 @@ export function Page3DDruck({
           <div className="relative mx-auto max-w-7xl px-4">
             <Badge variant="outline" className="mb-6 border-primary/30 bg-primary/10 text-primary">
               <Printer className="mr-1 h-3 w-3" />
-              Additive Fertigung
+              <SiteText k="page_3d_hero_badge" />
             </Badge>
             <h1 className="text-4xl font-bold md:text-5xl">
-              <span className="text-foreground">Präzisions </span>
-              <span className="bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent">3D-Druck</span>
+              <SiteTextPhrase
+                parts={[
+                  { key: "page_3d_hero_title_prefix", className: "text-foreground" },
+                  {
+                    key: "page_3d_hero_title_highlight",
+                    className:
+                      "bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent",
+                  },
+                ]}
+              />
             </h1>
             <p className="mt-4 max-w-2xl text-lg text-muted-foreground">
-              Von der Konzeption zur Kreation - wir bringen Ihre Ideen mit industrietauglichem 3D-Druck 
-              zum Leben. Wählen Sie aus Premium-Materialien, die auf Ihre spezifischen Bedürfnisse zugeschnitten sind.
+              <SiteText k="page_3d_hero_subtitle" />
             </p>
             <div className="mt-8 flex flex-wrap gap-4">
               <Button
@@ -88,13 +99,16 @@ export function Page3DDruck({
                 size="lg"
                 className="bg-primary text-primary-foreground shadow-lg shadow-primary/20 hover:bg-primary/90"
               >
-                <Link href={configuratorHref} prefetch>
-                  Jetzt 3D-Druck konfigurieren
+                <SiteEditableLink
+                  href={configuratorHref}
+                  hrefKey="page_3d_hero_cta_primary"
+                >
+                  <SiteText k="page_3d_hero_cta_primary" />
                   <ArrowRight className="ml-2 h-4 w-4" />
-                </Link>
+                </SiteEditableLink>
               </Button>
               <Button variant="outline" onClick={() => setCurrentView("shop")}>
-                Produkte Entdecken
+                <SiteText k="page_3d_hero_cta_secondary" />
               </Button>
             </div>
           </div>
@@ -105,11 +119,19 @@ export function Page3DDruck({
         <div className="mx-auto max-w-7xl px-4">
           <div className="mb-8 text-center md:mb-12">
             <h2 className="text-3xl font-bold md:text-4xl">
-              <span className="text-foreground">Premium </span>
-              <span className="bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent">Materialien</span>
+              <SiteTextPhrase
+                parts={[
+                  { key: "page_3d_materials_heading_prefix", className: "text-foreground" },
+                  {
+                    key: "page_3d_materials_heading_highlight",
+                    className:
+                      "bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent",
+                  },
+                ]}
+              />
             </h2>
             <p className="mt-4 text-muted-foreground">
-              Wählen Sie das perfekte Filament für Ihr Projekt. Jedes Material bietet einzigartige Eigenschaften für verschiedene Anwendungen.
+              <SiteText k="page_3d_materials_subtitle" />
             </p>
           </div>
 
@@ -222,11 +244,19 @@ export function Page3DDruck({
         <div className="mx-auto max-w-7xl px-4">
           <div className="mb-8 text-center md:mb-16">
             <h2 className="text-3xl font-bold md:text-4xl">
-              <span className="text-foreground">Unser </span>
-              <span className="bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent">Prozess</span>
+              <SiteTextPhrase
+                parts={[
+                  { key: "page_3d_process_heading_prefix", className: "text-foreground" },
+                  {
+                    key: "page_3d_process_heading_highlight",
+                    className:
+                      "bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent",
+                  },
+                ]}
+              />
             </h2>
             <p className="mt-4 text-muted-foreground">
-              Von Ihrer Idee zum fertigen Produkt - so bringen wir Ihre Kreationen zum Leben.
+              <SiteText k="page_3d_process_subtitle" />
             </p>
           </div>
 
@@ -249,13 +279,10 @@ export function Page3DDruck({
             <CardContent className="p-12 text-center">
               <Package className="mx-auto mb-4 h-10 w-10 text-cyan-400" />
               <h2 className="mb-4 text-3xl font-bold">
-                <span className="text-foreground">Bereit Ihr Projekt zu </span>
-                <span className="bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent">starten</span>
-                <span className="text-foreground">?</span>
+                <SiteText k="page_3d_cta_title" />
               </h2>
               <p className="mb-8 text-muted-foreground">
-                Laden Sie Ihr 3D-Modell hoch und erhalten Sie einen unverbindlichen Richtpreis sowie ein exaktes Angebot. Unser Team ist bereit, 
-                Ihre Vision mit Präzision und Qualität umzusetzen.
+                <SiteText k="page_3d_cta_subtitle" />
               </p>
               <div className="flex flex-wrap justify-center gap-4">
                 <Button
@@ -263,10 +290,13 @@ export function Page3DDruck({
                   size="lg"
                   className="bg-primary text-primary-foreground shadow-lg shadow-primary/20 hover:bg-primary/90"
                 >
-                  <Link href={configuratorHref} prefetch>
-                    Jetzt 3D-Druck konfigurieren
+                  <SiteEditableLink
+                    href={configuratorHref}
+                    hrefKey="page_3d_cta_button"
+                  >
+                    <SiteText k="page_3d_cta_button" />
                     <ArrowRight className="ml-2 h-4 w-4" />
-                  </Link>
+                  </SiteEditableLink>
                 </Button>
                 <Button size="lg" variant="outline" onClick={() => setCurrentView("kontakt")}>
                   Beratung Anfragen
