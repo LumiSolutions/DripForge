@@ -15,6 +15,7 @@ import {
   DEFAULT_LOYALTY_POINT_VALUE_CHF,
 } from "@/lib/konto/loyalty-points-config"
 import { DEFAULT_ORDER_EMAIL_TEMPLATES } from "@/lib/email/order-email-templates"
+import { DEFAULT_ORDER_EMAIL_LAYOUT } from "@/lib/email/order-email-layout"
 import {
   DEFAULT_SHOW_TOP_PRODUCTS_ON_HOMEPAGE,
   DEFAULT_TOP_PRODUCTS_COUNT,
@@ -51,6 +52,10 @@ export function buildDefaultAdminSettings(): AdminSettings {
     showTopProductsOnHomepage: DEFAULT_SHOW_TOP_PRODUCTS_ON_HOMEPAGE,
     topProductsCount: DEFAULT_TOP_PRODUCTS_COUNT,
     orderEmailTemplates: { ...DEFAULT_ORDER_EMAIL_TEMPLATES },
+    orderEmailLayout: {
+      ...DEFAULT_ORDER_EMAIL_LAYOUT,
+      sectionOrder: [...DEFAULT_ORDER_EMAIL_LAYOUT.sectionOrder],
+    },
     updatedAt: new Date().toISOString(),
   }
 }

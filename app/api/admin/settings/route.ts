@@ -73,6 +73,19 @@ export async function PUT(request: Request) {
         receivedIntro?: string
         receivedFooter?: string
       }
+      orderEmailLayout?: {
+        sectionOrder?: Array<
+          | "header"
+          | "intro"
+          | "orderItems"
+          | "totals"
+          | "addressBlock"
+          | "footer"
+        >
+        showLogo?: boolean
+        logoPosition?: "left" | "center" | "right"
+        headerTitle?: string
+      }
       launch?: Partial<LaunchSettings>
     }
 
@@ -146,6 +159,7 @@ export async function PUT(request: Request) {
           ? normalizeTopProductsCount(body.topProductsCount)
           : undefined,
       orderEmailTemplates: body.orderEmailTemplates,
+      orderEmailLayout: body.orderEmailLayout,
       launch: body.launch,
     })
     return NextResponse.json(settings)

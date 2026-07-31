@@ -190,6 +190,7 @@ export function AdminStatsTab() {
           loyaltyPointValueChf: snapshot.loyaltyPointValueChf,
           loyaltyPointsExpiryMonths: snapshot.loyaltyPointsExpiryMonths,
           orderEmailTemplates: snapshot.orderEmailTemplates,
+          orderEmailLayout: snapshot.orderEmailLayout,
           launch: snapshot.launch,
           showTopProductsOnHomepage,
           topProductsCount: count,

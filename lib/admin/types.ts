@@ -231,6 +231,20 @@ export type AdminSettings = {
     receivedIntro: string
     receivedFooter: string
   }
+  /** Visuelles Layout der Kunden-Bestellbestätigung (Sektionsreihenfolge, Logo) */
+  orderEmailLayout?: {
+    sectionOrder: Array<
+      | "header"
+      | "intro"
+      | "orderItems"
+      | "totals"
+      | "addressBlock"
+      | "footer"
+    >
+    showLogo: boolean
+    logoPosition: "left" | "center" | "right"
+    headerTitle?: string
+  }
   updatedAt: string
 }
 

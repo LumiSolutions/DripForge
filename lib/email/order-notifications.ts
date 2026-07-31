@@ -12,6 +12,7 @@ import {
 import {
   renderDripForgeEmailHtml,
   renderEmailCtaButton,
+  renderOrderConfirmationEmailHtml,
   renderOrderItemsTableHtml,
   textToHtmlParagraphs,
 } from "@/lib/email/dripforge-email-layout"
@@ -73,43 +74,60 @@ async function markEmailSent(
   })
 }
 
-function renderOrderDetailsHtml(order: StoredOrder): string {
-  const delivery = order.delivery ?? order.billing
+function renderOrderMetaHtml(order: StoredOrder): string {
   const invoiceNumber = resolveOrderInvoiceNumber(order)
   const bestellRef = resolveOrderBestellRef(order)
   const hasInvoiceNumber =
     Boolean(order.invoiceNumber?.trim()) || invoiceNumber !== order.orderId
+  return textToHtmlParagraphs(
+    [
+      hasInvoiceNumber
+        ? `Rechnungsnummer: ${invoiceNumber}`
+        : `Bestellnummer: ${order.orderId}`,
+      bestellRef && hasInvoiceNumber ? `Bestell-Ref: ${bestellRef}` : null,
+      `Datum: ${formatInvoiceDate(order.createdAt)}`,
+      `Zahlungsart: ${order.paymentMethodLabel}`,
+      `Zahlungsstatus: ${resolvePaymentStatusLabel(order)}`,
+      `Versandart: ${resolveShippingLabel(order)}`,
+    ]
+      .filter((line) => line != null)
+      .join("\n")
+  )
+}
+
+function renderOrderItemsSectionHtml(order: StoredOrder): string {
   return (
-    textToHtmlParagraphs(
-      [
-        hasInvoiceNumber
-          ? `Rechnungsnummer: ${invoiceNumber}`
-          : `Bestellnummer: ${order.orderId}`,
-        bestellRef && hasInvoiceNumber ? `Bestell-Ref: ${bestellRef}` : null,
-        `Datum: ${formatInvoiceDate(order.createdAt)}`,
-        `Zahlungsart: ${order.paymentMethodLabel}`,
-        `Zahlungsstatus: ${resolvePaymentStatusLabel(order)}`,
-        `Versandart: ${resolveShippingLabel(order)}`,
-      ]
-        .filter((line) => line != null)
-        .join("\n")
-    ) +
+    renderOrderMetaHtml(order) +
     renderOrderItemsTableHtml(
       order.items.map((item) => ({
         name: item.name,
         quantity: item.quantity,
         price: item.price,
       }))
-    ) +
-    textToHtmlParagraphs(
-      [
-        formatOrderTotalsBlock(order),
-        "",
-        formatOrderAddressBlock("Rechnungsadresse:", order.billing),
-        "",
-        formatOrderAddressBlock("Lieferadresse:", delivery),
-      ].join("\n")
     )
+  )
+}
+
+function renderOrderTotalsSectionHtml(order: StoredOrder): string {
+  return textToHtmlParagraphs(formatOrderTotalsBlock(order))
+}
+
+function renderOrderAddressSectionHtml(order: StoredOrder): string {
+  const delivery = order.delivery ?? order.billing
+  return textToHtmlParagraphs(
+    [
+      formatOrderAddressBlock("Rechnungsadresse:", order.billing),
+      "",
+      formatOrderAddressBlock("Lieferadresse:", delivery),
+    ].join("\n")
+  )
+}
+
+function renderOrderDetailsHtml(order: StoredOrder): string {
+  return (
+    renderOrderItemsSectionHtml(order) +
+    renderOrderTotalsSectionHtml(order) +
+    renderOrderAddressSectionHtml(order)
   )
 }
 
@@ -336,15 +354,21 @@ export async function notifyOrderReceived(
       branding.companyName,
     ].join("\n")
 
-    const html = renderDripForgeEmailHtml({
+    const html = renderOrderConfirmationEmailHtml({
+      layout: adminSettings?.orderEmailLayout,
       title: prepaid ? "Bestelleingang" : "Bestellbestätigung",
-      bodyHtml:
-        textToHtmlParagraphs(introText) +
-        renderOrderDetailsHtml(workingOrder) +
+      sections: {
+        header: "",
+        intro: textToHtmlParagraphs(introText),
+        orderItems: renderOrderItemsSectionHtml(workingOrder),
+        totals: renderOrderTotalsSectionHtml(workingOrder),
+        addressBlock: renderOrderAddressSectionHtml(workingOrder),
+        footer: textToHtmlParagraphs(closingPlain),
+      },
+      extraHtml:
         (twintHint?.html ?? "") +
         (invoiceHint?.html ?? "") +
         (pdfPlainHint ? textToHtmlParagraphs(pdfPlainHint) : "") +
-        textToHtmlParagraphs(closingPlain) +
         renderEmailCtaButton(accountUrl, "Zu meinen Bestellungen"),
       footerLines: branding.footerLines,
       logoUrl: branding.logoUrl ?? undefined,
