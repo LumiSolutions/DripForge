@@ -25,6 +25,7 @@ export async function POST(request: Request) {
       inquiryType?: string
       subject?: string
       message?: string
+      extraFields?: Record<string, string>
     }
 
     const name = body.name?.trim() ?? ""
@@ -33,6 +34,16 @@ export async function POST(request: Request) {
     const subject = body.subject?.trim() ?? ""
     const message = body.message?.trim() ?? ""
     const inquiryType = parseKontaktInquiryType(body.inquiryType)
+    const extraFields =
+      body.extraFields && typeof body.extraFields === "object"
+        ? Object.fromEntries(
+            Object.entries(body.extraFields)
+              .filter(
+                ([, value]) => typeof value === "string" && value.trim().length > 0
+              )
+              .map(([key, value]) => [key, String(value).slice(0, 200_000)])
+          )
+        : undefined
 
     if (!name) {
       return NextResponse.json({ error: "Bitte geben Sie Ihren Namen an." }, { status: 400 })
@@ -76,6 +87,7 @@ export async function POST(request: Request) {
         inquiryType,
         subject,
         message,
+        extraFields,
       },
       createKontaktanfrageId()
     )

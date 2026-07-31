@@ -165,6 +165,13 @@ import {
   sanitizeCmsFaqItemsInput,
   type CmsFaqItem,
 } from "@/lib/admin/cms-faq"
+import {
+  getDefaultCmsPageContentLists,
+  mergeCmsPageContentLists,
+  type CmsContactField,
+  type CmsExpectItem,
+  type CmsProcessStep,
+} from "@/lib/admin/cms-page-content"
 import type { AdminFilament } from "@/lib/admin/filament-types"
 import {
   mergeLaserMaterialTypes,
@@ -849,6 +856,7 @@ function parseSiteConfigFile(
     const texts = mergeSiteTexts(
       (raw.texts as Partial<Record<string, string>> | undefined) ?? null
     )
+    const lists = mergeCmsPageContentLists(raw as Parameters<typeof mergeCmsPageContentLists>[0])
     return {
       texts,
       images: mergeSiteImages(
@@ -858,6 +866,7 @@ function parseSiteConfigFile(
       navItems: mergeCmsNavItems(raw.navItems),
       pages: mergeCmsPages(raw.pages),
       faqItems: mergeCmsFaqItems(raw.faqItems, texts),
+      ...lists,
     }
   }
   // Legacy: flache Text-Map ohne images
@@ -869,6 +878,7 @@ function parseSiteConfigFile(
     navItems: mergeCmsNavItems(null),
     pages: mergeCmsPages(null),
     faqItems: mergeCmsFaqItems(null, texts),
+    ...getDefaultCmsPageContentLists(),
   }
 }
 
@@ -893,6 +903,7 @@ export async function getSiteConfigProduction(): Promise<SiteConfigBundle> {
         navItems: mergeCmsNavItems(null),
         pages: mergeCmsPages(null),
         faqItems: mergeCmsFaqItems(null, texts),
+        ...getDefaultCmsPageContentLists(),
       }
     }
   )
@@ -919,10 +930,22 @@ export async function saveSiteConfigStaging(
     navItems?: CmsNavItem[]
     pages?: CmsPageEntry[]
     faqItems?: CmsFaqItem[]
+    processSteps3d?: CmsProcessStep[]
+    processStepsLaser?: CmsProcessStep[]
+    expectItems3d?: CmsExpectItem[]
+    expectItemsLaser?: CmsExpectItem[]
+    contactFormFields?: CmsContactField[]
   }
 ): Promise<SiteConfigBundle> {
   const existing = await getSiteConfigStaging()
   const texts = sanitizeSiteTextsInput(input.texts ?? existing.texts)
+  const lists = mergeCmsPageContentLists({
+    processSteps3d: input.processSteps3d ?? existing.processSteps3d,
+    processStepsLaser: input.processStepsLaser ?? existing.processStepsLaser,
+    expectItems3d: input.expectItems3d ?? existing.expectItems3d,
+    expectItemsLaser: input.expectItemsLaser ?? existing.expectItemsLaser,
+    contactFormFields: input.contactFormFields ?? existing.contactFormFields,
+  })
   const bundle: SiteConfigBundle = {
     texts,
     images: sanitizeSiteImagesInput(input.images ?? existing.images),
@@ -930,6 +953,7 @@ export async function saveSiteConfigStaging(
     navItems: sanitizeCmsNavItemsInput(input.navItems ?? existing.navItems),
     pages: mergeCmsPages(input.pages ?? existing.pages),
     faqItems: sanitizeCmsFaqItemsInput(input.faqItems ?? existing.faqItems),
+    ...lists,
   }
   return withCosmosFallback(
     "saveSiteConfigStaging",
@@ -947,6 +971,7 @@ export async function publishSiteConfig(): Promise<SiteConfigBundle> {
     async () => cosmosPublishSiteConfig(),
     async () => {
       const staging = await getSiteConfigStaging()
+      const lists = mergeCmsPageContentLists(staging)
       const published: SiteConfigBundle = {
         texts: sanitizeSiteTextsInput(staging.texts),
         images: sanitizeSiteImagesInput(staging.images),
@@ -954,6 +979,7 @@ export async function publishSiteConfig(): Promise<SiteConfigBundle> {
         navItems: sanitizeCmsNavItemsInput(staging.navItems),
         pages: mergeCmsPages(staging.pages),
         faqItems: sanitizeCmsFaqItemsInput(staging.faqItems),
+        ...lists,
       }
       await writeJsonFile(SITE_CONFIG_PRODUCTION_FILE, published)
       return published
