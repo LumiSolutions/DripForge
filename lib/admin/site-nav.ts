@@ -148,9 +148,58 @@ export function mergeCmsNavItems(input: unknown): CmsNavItem[] {
   return sanitizeCmsNavItemsInput(input)
 }
 
+function normalizeCmsPath(path: string): string {
+  if (!path || path === "/") return "/"
+  return path.replace(/\/+$/, "") || "/"
+}
+
+/**
+ * Merged Standard-Seiten mit gespeicherten Einträgen.
+ * System-Seiten bleiben immer vorhanden (auch wenn Staging unvollständig ist).
+ */
 export function mergeCmsPages(input: unknown): CmsPageEntry[] {
-  if (input == null) return getDefaultCmsPages()
-  return sanitizeCmsPagesInput(input)
+  const defaults = getDefaultCmsPages()
+  if (input == null) return defaults
+
+  const byId = new Map<string, CmsPageEntry>()
+  const pathToId = new Map<string, string>()
+  for (const page of defaults) {
+    byId.set(page.id, { ...page })
+    pathToId.set(normalizeCmsPath(page.path), page.id)
+  }
+
+  if (!Array.isArray(input)) {
+    return [...byId.values()]
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .map((page, index) => ({ ...page, sortOrder: index }))
+  }
+
+  input.forEach((raw, index) => {
+    const page = sanitizePageEntry(raw, index)
+    if (!page) return
+    const pathKey = normalizeCmsPath(page.path)
+    const existingId = byId.has(page.id)
+      ? page.id
+      : pathToId.get(pathKey)
+    if (existingId) {
+      const existing = byId.get(existingId)!
+      byId.set(existingId, {
+        ...existing,
+        title: page.title || existing.title,
+        path: existing.system ? existing.path : page.path,
+        enabled: page.enabled,
+        sortOrder: page.sortOrder,
+        system: existing.system || page.system,
+      })
+      return
+    }
+    byId.set(page.id, page)
+    pathToId.set(pathKey, page.id)
+  })
+
+  return [...byId.values()]
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .map((page, index) => ({ ...page, sortOrder: index }))
 }
 
 /** Enabled nav items sorted for storefront header. */
@@ -165,4 +214,9 @@ export function resolveVisibleCmsPages(pages: CmsPageEntry[] | null | undefined)
   return mergeCmsPages(pages)
     .filter((page) => page.enabled)
     .sort((a, b) => a.sortOrder - b.sortOrder)
+}
+
+/** Alle CMS-Seiten für den In-Context-Editor (auch deaktivierte). */
+export function resolveCmsEditorPages(pages: CmsPageEntry[] | null | undefined): CmsPageEntry[] {
+  return mergeCmsPages(pages).sort((a, b) => a.sortOrder - b.sortOrder)
 }

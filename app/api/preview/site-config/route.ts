@@ -27,6 +27,7 @@ export async function GET(request: Request) {
         links: bundle.links,
         navItems: bundle.navItems,
         pages: bundle.pages,
+        faqItems: bundle.faqItems,
         preview: true,
         role: auth.role,
       },

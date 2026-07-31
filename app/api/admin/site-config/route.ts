@@ -14,11 +14,15 @@ import {
 import { sanitizeSiteImagesInput } from "@/lib/admin/site-images"
 import { sanitizeSiteLinksInput, type SiteLinks } from "@/lib/admin/site-links"
 import {
+  mergeCmsPages,
   sanitizeCmsNavItemsInput,
-  sanitizeCmsPagesInput,
   type CmsNavItem,
   type CmsPageEntry,
 } from "@/lib/admin/site-nav"
+import {
+  sanitizeCmsFaqItemsInput,
+  type CmsFaqItem,
+} from "@/lib/admin/cms-faq"
 import { sanitizeSiteTextsInput } from "@/lib/admin/site-texts"
 import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
 import { sanitizeDocumentTemplateInput } from "@/lib/documents/document-template-types"
@@ -42,6 +46,7 @@ export async function GET(request: Request) {
       links: bundle.links,
       navItems: bundle.navItems,
       pages: bundle.pages,
+      faqItems: bundle.faqItems,
       meta,
       documentTemplate,
       environment: "staging",
@@ -69,6 +74,7 @@ export async function PUT(request: Request) {
       links?: Record<string, { href?: string }>
       navItems?: CmsNavItem[]
       pages?: CmsPageEntry[]
+      faqItems?: CmsFaqItem[]
       documentTemplate?: unknown
     }
     const hasTexts = body.texts && typeof body.texts === "object"
@@ -76,6 +82,7 @@ export async function PUT(request: Request) {
     const hasLinks = body.links && typeof body.links === "object"
     const hasNavItems = Array.isArray(body.navItems)
     const hasPages = Array.isArray(body.pages)
+    const hasFaqItems = Array.isArray(body.faqItems)
     const hasDocumentTemplate =
       body.documentTemplate && typeof body.documentTemplate === "object"
 
@@ -85,12 +92,13 @@ export async function PUT(request: Request) {
       !hasLinks &&
       !hasNavItems &&
       !hasPages &&
+      !hasFaqItems &&
       !hasDocumentTemplate
     ) {
       return NextResponse.json(
         {
           error:
-            "Text-, Bild-, Link-, Nav-, Seiten- oder Dokumenten-Daten fehlen.",
+            "Text-, Bild-, Link-, Nav-, Seiten-, FAQ- oder Dokumenten-Daten fehlen.",
         },
         { status: 400 }
       )
@@ -102,7 +110,7 @@ export async function PUT(request: Request) {
     ])
 
     const savedBundle =
-      hasTexts || hasImages || hasLinks || hasNavItems || hasPages
+      hasTexts || hasImages || hasLinks || hasNavItems || hasPages || hasFaqItems
         ? await saveSiteConfigStaging({
             texts: hasTexts
               ? sanitizeSiteTextsInput({ ...existing.texts, ...body.texts })
@@ -122,9 +130,10 @@ export async function PUT(request: Request) {
             navItems: hasNavItems
               ? sanitizeCmsNavItemsInput(body.navItems)
               : existing.navItems,
-            pages: hasPages
-              ? sanitizeCmsPagesInput(body.pages)
-              : existing.pages,
+            pages: hasPages ? mergeCmsPages(body.pages) : existing.pages,
+            faqItems: hasFaqItems
+              ? sanitizeCmsFaqItemsInput(body.faqItems)
+              : existing.faqItems,
           })
         : existing
 
@@ -140,6 +149,7 @@ export async function PUT(request: Request) {
       links: savedBundle.links,
       navItems: savedBundle.navItems,
       pages: savedBundle.pages,
+      faqItems: savedBundle.faqItems,
       meta,
       documentTemplate: savedDocumentTemplate,
       environment: "staging",

@@ -15,7 +15,7 @@ import { adminPortalPath } from "@/lib/admin/admin-portal-path"
 import { cmsPreviewHref } from "@/lib/admin/cms-preview-pages"
 import {
   mergeCmsPages,
-  resolveVisibleCmsPages,
+  resolveCmsEditorPages,
   type CmsPageEntry,
 } from "@/lib/admin/site-nav"
 import { cn } from "@/lib/utils"
@@ -30,7 +30,7 @@ export function AdminInContextEditor() {
   const [error, setError] = useState<string | null>(null)
   const [iframeKey, setIframeKey] = useState(0)
 
-  const visiblePages = useMemo(() => resolveVisibleCmsPages(pages), [pages])
+  const editorPages = useMemo(() => resolveCmsEditorPages(pages), [pages])
 
   const iframeSrc = useMemo(() => cmsPreviewHref(selectedPath), [selectedPath])
 
@@ -42,8 +42,11 @@ export function AdminInContextEditor() {
       if (!res.ok) throw new Error(data.error ?? "Laden fehlgeschlagen")
       const nextPages = mergeCmsPages(data.pages)
       setPages(nextPages)
-      const first = resolveVisibleCmsPages(nextPages)[0]
-      if (first) setSelectedPath(first.path)
+      const all = resolveCmsEditorPages(nextPages)
+      setSelectedPath((current) => {
+        if (all.some((page) => page.path === current)) return current
+        return all[0]?.path ?? "/"
+      })
     } catch (err) {
       setError(err instanceof Error ? err.message : "Seiten konnten nicht geladen werden.")
     } finally {
@@ -54,6 +57,12 @@ export function AdminInContextEditor() {
   useEffect(() => {
     void loadPages()
   }, [loadPages])
+
+  const selectPage = (path: string) => {
+    setSelectedPath(path)
+    setMessage(null)
+    setError(null)
+  }
 
   const publishLive = async () => {
     if (
@@ -120,9 +129,9 @@ export function AdminInContextEditor() {
           <select
             className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
             value={selectedPath}
-            onChange={(e) => setSelectedPath(e.target.value)}
+            onChange={(e) => selectPage(e.target.value)}
           >
-            {visiblePages.map((page) => (
+            {editorPages.map((page) => (
               <option key={page.id} value={page.path}>
                 {page.title}
               </option>
@@ -130,12 +139,12 @@ export function AdminInContextEditor() {
           </select>
         </label>
 
-        <div className="flex flex-wrap gap-1.5">
-          {visiblePages.map((page) => (
+        <div className="flex max-w-full flex-wrap gap-1.5 overflow-x-auto">
+          {editorPages.map((page) => (
             <button
               key={page.id}
               type="button"
-              onClick={() => setSelectedPath(page.path)}
+              onClick={() => selectPage(page.path)}
               className={cn(
                 "hidden rounded-md px-2 py-1 text-xs font-medium transition lg:inline-flex",
                 selectedPath === page.path
@@ -181,6 +190,11 @@ export function AdminInContextEditor() {
             <Link href={iframeSrc} target="_blank" rel="noopener noreferrer">
               <ExternalLink className="mr-1 h-3.5 w-3.5" />
               Neues Fenster
+            </Link>
+          </Button>
+          <Button type="button" size="sm" variant="outline" asChild>
+            <Link href={adminPortalPath("/test/preview")}>
+              Test-Vorschau
             </Link>
           </Button>
         </div>

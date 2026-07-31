@@ -157,10 +157,14 @@ import {
   mergeCmsNavItems,
   mergeCmsPages,
   sanitizeCmsNavItemsInput,
-  sanitizeCmsPagesInput,
   type CmsNavItem,
   type CmsPageEntry,
 } from "@/lib/admin/site-nav"
+import {
+  mergeCmsFaqItems,
+  sanitizeCmsFaqItemsInput,
+  type CmsFaqItem,
+} from "@/lib/admin/cms-faq"
 import type { AdminFilament } from "@/lib/admin/filament-types"
 import {
   mergeLaserMaterialTypes,
@@ -841,26 +845,30 @@ function parseSiteConfigFile(
 ): SiteConfigBundle | null {
   if (!stored || typeof stored !== "object") return null
   const raw = stored as Record<string, unknown>
-  if ("texts" in raw || "images" in raw || "links" in raw || "navItems" in raw || "pages" in raw) {
+  if ("texts" in raw || "images" in raw || "links" in raw || "navItems" in raw || "pages" in raw || "faqItems" in raw) {
+    const texts = mergeSiteTexts(
+      (raw.texts as Partial<Record<string, string>> | undefined) ?? null
+    )
     return {
-      texts: mergeSiteTexts(
-        (raw.texts as Partial<Record<string, string>> | undefined) ?? null
-      ),
+      texts,
       images: mergeSiteImages(
         (raw.images as Partial<Record<string, unknown>> | undefined) ?? null
       ),
       links: mergeSiteLinks((raw.links as SiteLinks | undefined) ?? null),
       navItems: mergeCmsNavItems(raw.navItems),
       pages: mergeCmsPages(raw.pages),
+      faqItems: mergeCmsFaqItems(raw.faqItems, texts),
     }
   }
   // Legacy: flache Text-Map ohne images
+  const texts = mergeSiteTexts(raw as Partial<Record<string, string>>)
   return {
-    texts: mergeSiteTexts(raw as Partial<Record<string, string>>),
+    texts,
     images: mergeSiteImages(null),
     links: mergeSiteLinks(null),
     navItems: mergeCmsNavItems(null),
     pages: mergeCmsPages(null),
+    faqItems: mergeCmsFaqItems(null, texts),
   }
 }
 
@@ -877,12 +885,14 @@ export async function getSiteConfigProduction(): Promise<SiteConfigBundle> {
         SITE_TEXTS_FILE,
         null
       )
+      const texts = mergeSiteTexts(legacy)
       return {
-        texts: mergeSiteTexts(legacy),
+        texts,
         images: mergeSiteImages(null),
         links: mergeSiteLinks(null),
         navItems: mergeCmsNavItems(null),
         pages: mergeCmsPages(null),
+        faqItems: mergeCmsFaqItems(null, texts),
       }
     }
   )
@@ -908,15 +918,18 @@ export async function saveSiteConfigStaging(
     links?: SiteLinks
     navItems?: CmsNavItem[]
     pages?: CmsPageEntry[]
+    faqItems?: CmsFaqItem[]
   }
 ): Promise<SiteConfigBundle> {
   const existing = await getSiteConfigStaging()
+  const texts = sanitizeSiteTextsInput(input.texts ?? existing.texts)
   const bundle: SiteConfigBundle = {
-    texts: sanitizeSiteTextsInput(input.texts ?? existing.texts),
+    texts,
     images: sanitizeSiteImagesInput(input.images ?? existing.images),
     links: sanitizeSiteLinksInput(input.links ?? existing.links),
     navItems: sanitizeCmsNavItemsInput(input.navItems ?? existing.navItems),
-    pages: sanitizeCmsPagesInput(input.pages ?? existing.pages),
+    pages: mergeCmsPages(input.pages ?? existing.pages),
+    faqItems: sanitizeCmsFaqItemsInput(input.faqItems ?? existing.faqItems),
   }
   return withCosmosFallback(
     "saveSiteConfigStaging",
@@ -939,7 +952,8 @@ export async function publishSiteConfig(): Promise<SiteConfigBundle> {
         images: sanitizeSiteImagesInput(staging.images),
         links: sanitizeSiteLinksInput(staging.links),
         navItems: sanitizeCmsNavItemsInput(staging.navItems),
-        pages: sanitizeCmsPagesInput(staging.pages),
+        pages: mergeCmsPages(staging.pages),
+        faqItems: sanitizeCmsFaqItemsInput(staging.faqItems),
       }
       await writeJsonFile(SITE_CONFIG_PRODUCTION_FILE, published)
       return published

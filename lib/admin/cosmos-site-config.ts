@@ -24,10 +24,14 @@ import {
   type SiteTexts,
 } from "@/lib/admin/site-texts"
 import {
+  mergeCmsFaqItems,
+  sanitizeCmsFaqItemsInput,
+  type CmsFaqItem,
+} from "@/lib/admin/cms-faq"
+import {
   mergeCmsNavItems,
   mergeCmsPages,
   sanitizeCmsNavItemsInput,
-  sanitizeCmsPagesInput,
   type CmsNavItem,
   type CmsPageEntry,
 } from "@/lib/admin/site-nav"
@@ -38,6 +42,7 @@ export type SiteConfigBundle = {
   links: SiteLinks
   navItems: CmsNavItem[]
   pages: CmsPageEntry[]
+  faqItems: CmsFaqItem[]
 }
 
 type SiteConfigCosmosDoc = {
@@ -49,6 +54,7 @@ type SiteConfigCosmosDoc = {
   links?: SiteLinks
   navItems?: CmsNavItem[]
   pages?: CmsPageEntry[]
+  faqItems?: CmsFaqItem[]
   updatedAt: string
 }
 
@@ -58,12 +64,14 @@ function docIdForEnvironment(environment: SiteConfigEnvironment): string {
 
 function bundleFromDoc(doc: SiteConfigCosmosDoc | null): SiteConfigBundle | null {
   if (!doc) return null
+  const texts = mergeSiteTexts(doc.texts)
   return {
-    texts: mergeSiteTexts(doc.texts),
+    texts,
     images: mergeSiteImages(doc.images),
     links: mergeSiteLinks(doc.links),
     navItems: mergeCmsNavItems(doc.navItems),
     pages: mergeCmsPages(doc.pages),
+    faqItems: mergeCmsFaqItems(doc.faqItems, texts),
   }
 }
 
@@ -113,7 +121,8 @@ async function upsertSiteConfigDoc(
   const images = sanitizeSiteImagesInput(bundle.images)
   const links = sanitizeSiteLinksInput(bundle.links)
   const navItems = sanitizeCmsNavItemsInput(bundle.navItems)
-  const pages = sanitizeCmsPagesInput(bundle.pages)
+  const pages = mergeCmsPages(bundle.pages)
+  const faqItems = sanitizeCmsFaqItemsInput(bundle.faqItems)
   const doc: SiteConfigCosmosDoc = {
     id: docIdForEnvironment(environment),
     docType: SITE_CONFIG_DOC_TYPE,
@@ -123,10 +132,11 @@ async function upsertSiteConfigDoc(
     links,
     navItems,
     pages,
+    faqItems,
     updatedAt: new Date().toISOString(),
   }
   await container.items.upsert(doc)
-  return { texts, images, links, navItems, pages }
+  return { texts, images, links, navItems, pages, faqItems }
 }
 
 export async function cosmosGetSiteConfigProduction(): Promise<SiteConfigBundle> {
@@ -136,23 +146,27 @@ export async function cosmosGetSiteConfigProduction(): Promise<SiteConfigBundle>
 
   const legacy = await readLegacySiteTextsDoc()
   if (legacy) {
+    const texts = mergeSiteTexts(legacy)
     const migrated: SiteConfigBundle = {
-      texts: mergeSiteTexts(legacy),
+      texts,
       images: mergeSiteImages(null),
       links: mergeSiteLinks(null),
       navItems: mergeCmsNavItems(null),
       pages: mergeCmsPages(null),
+      faqItems: mergeCmsFaqItems(null, texts),
     }
     await upsertSiteConfigDoc("production", migrated)
     return migrated
   }
 
+  const texts = mergeSiteTexts(null)
   return {
-    texts: mergeSiteTexts(null),
+    texts,
     images: mergeSiteImages(null),
     links: mergeSiteLinks(null),
     navItems: mergeCmsNavItems(null),
     pages: mergeCmsPages(null),
+    faqItems: mergeCmsFaqItems(null, texts),
   }
 }
 

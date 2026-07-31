@@ -20,6 +20,7 @@ export async function cosmosSaveSiteTexts(texts: SiteTexts): Promise<SiteTexts> 
     links: existing.links,
     navItems: existing.navItems,
     pages: existing.pages,
+    faqItems: existing.faqItems,
   })
   return saved.texts
 }

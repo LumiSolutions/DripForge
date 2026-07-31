@@ -5,13 +5,15 @@ import Link from "next/link"
 import { Loader2 } from "lucide-react"
 import {
   enableSiteConfigPreviewInSession,
+  enableSiteConfigReadonlyInSession,
   SITE_CONFIG_PREVIEW_PARAM,
+  SITE_CONFIG_READONLY_PARAM,
 } from "@/lib/admin/site-config"
 import { Button } from "@/components/ui/button"
 
 /**
  * Tester-/Admin-Einstieg in die Staging-Testumgebung.
- * Setzt den Preview-Flag und leitet auf die Startseite mit ?preview=true um.
+ * Setzt Preview + Readonly und leitet auf die Startseite um (ohne Edit-Overlays).
  */
 export default function TestPreviewPage() {
   const [status, setStatus] = useState<"checking" | "redirecting" | "denied">("checking")
@@ -35,8 +37,11 @@ export default function TestPreviewPage() {
           (data.role === "admin" || data.role === "tester")
         ) {
           enableSiteConfigPreviewInSession()
+          enableSiteConfigReadonlyInSession()
           setStatus("redirecting")
-          window.location.replace(`/?${SITE_CONFIG_PREVIEW_PARAM}=true`)
+          window.location.replace(
+            `/?${SITE_CONFIG_PREVIEW_PARAM}=true&${SITE_CONFIG_READONLY_PARAM}=1`
+          )
           return
         }
 
