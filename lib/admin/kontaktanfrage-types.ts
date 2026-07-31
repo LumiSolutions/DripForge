@@ -19,6 +19,8 @@ export type Kontaktanfrage = {
   inquiryType: KontaktInquiryType
   subject: string
   message: string
+  /** Zusätzliche Formularfelder aus dem CMS-Form-Builder */
+  extraFields?: Record<string, string>
   createdAt: string
   updatedAt: string
 }

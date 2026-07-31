@@ -13,14 +13,15 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { FilamentColorPicker } from "@/components/dripforge/shared/filament-color-picker"
-import { ProcessStepItem } from "@/components/dripforge/shared/process-step-item"
 import { SiteImage } from "@/components/dripforge/editable-site-image"
 import {
   SiteEditableLink,
   SiteText,
 } from "@/components/dripforge/editable-site-text"
 import { SiteTextPhrase } from "@/components/dripforge/site-text-phrase"
-import { materials3D, processSteps } from "@/lib/dripforge/data"
+import { EditableProcessSteps } from "@/components/dripforge/editable-process-steps"
+import { EditableExpectItems } from "@/components/dripforge/editable-expect-items"
+import { materials3D } from "@/lib/dripforge/data"
 import { SHOP_ROUTES } from "@/lib/dripforge/shop-routes"
 import { useFilamentCatalog } from "@/hooks/use-filament-catalog"
 import { findMaterialType, ratingToPercent } from "@/lib/admin/material-stats-types"
@@ -261,14 +262,33 @@ export function Page3DDruck({
           </div>
 
           {/* Timeline */}
-          <div className="relative">
-            <div className="absolute left-1/2 top-0 hidden h-full w-px -translate-x-1/2 bg-border md:block" />
-            <div className="space-y-12">
-              {processSteps.map((step, i) => (
-                <ProcessStepItem key={step.number} step={step} index={i} />
-              ))}
-            </div>
+          <EditableProcessSteps variant="3d" />
+        </div>
+      </section>
+
+      <section className="py-10 md:py-16">
+        <div className="mx-auto max-w-7xl px-4">
+          <div className="mb-8 text-center md:mb-12">
+            <h2 className="text-3xl font-bold md:text-4xl">
+              <SiteTextPhrase
+                parts={[
+                  {
+                    key: "page_3d_expect_heading_prefix",
+                    className: "text-foreground",
+                  },
+                  {
+                    key: "page_3d_expect_heading_highlight",
+                    className:
+                      "bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent",
+                  },
+                ]}
+              />
+            </h2>
+            <p className="mt-4 text-muted-foreground">
+              <SiteText k="page_3d_expect_subtitle" />
+            </p>
           </div>
+          <EditableExpectItems variant="3d" />
         </div>
       </section>
 

@@ -261,6 +261,7 @@ export function AdminMaterialStatsSection() {
     try {
       if (artenKind === "laser") {
         const payload = laserTypes.map((type, index) => ({
+          ...type,
           id: String(type.id ?? "").trim() || createMaterialTypeId(type.name || `laser-${index}`),
           name: String(type.name ?? "").trim() || "Neues Lasermaterial",
           sortOrder: Number(type.sortOrder) || index,
@@ -622,6 +623,98 @@ export function AdminMaterialStatsSection() {
                               />
                             </div>
                           )}
+                          <div className="space-y-1">
+                            <Label className="text-xs">Icon</Label>
+                            <Input
+                              value={type.icon}
+                              onChange={(e) =>
+                                updateLaser(type.id, { icon: e.target.value })
+                              }
+                              className="w-24"
+                              placeholder="🪵"
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Beschreibung</Label>
+                          <Textarea
+                            value={type.description ?? ""}
+                            onChange={(e) =>
+                              updateLaser(type.id, { description: e.target.value })
+                            }
+                            rows={3}
+                            className={adminUi.input}
+                            placeholder="Marketing-Text für die Laser-Seite"
+                          />
+                        </div>
+                        <div className="grid gap-3 md:grid-cols-2">
+                          <div className="space-y-1">
+                            <Label className="text-xs">
+                              Typen (kommagetrennt, z. B. Sperrholz, MDF)
+                            </Label>
+                            <Input
+                              value={(type.types ?? []).join(", ")}
+                              onChange={(e) =>
+                                updateLaser(type.id, {
+                                  types: e.target.value
+                                    .split(",")
+                                    .map((entry) => entry.trim())
+                                    .filter(Boolean),
+                                })
+                              }
+                              className={adminUi.input}
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">
+                              Anwendungen (kommagetrennt)
+                            </Label>
+                            <Input
+                              value={(type.applications ?? []).join(", ")}
+                              onChange={(e) =>
+                                updateLaser(type.id, {
+                                  applications: e.target.value
+                                    .split(",")
+                                    .map((entry) => entry.trim())
+                                    .filter(Boolean),
+                                })
+                              }
+                              className={adminUi.input}
+                            />
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-4">
+                          <label className="inline-flex items-center gap-2 text-sm">
+                            <Switch
+                              checked={type.canEngrave !== false}
+                              onCheckedChange={(checked) =>
+                                updateLaser(type.id, { canEngrave: checked })
+                              }
+                            />
+                            Gravur
+                          </label>
+                          <label className="inline-flex items-center gap-2 text-sm">
+                            <Switch
+                              checked={type.canCut !== false}
+                              onCheckedChange={(checked) =>
+                                updateLaser(type.id, { canCut: checked })
+                              }
+                            />
+                            Schnitt
+                          </label>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Max. Dicke</Label>
+                            <Input
+                              value={type.maxThickness ?? ""}
+                              onChange={(e) =>
+                                updateLaser(type.id, {
+                                  maxThickness: e.target.value.trim() || null,
+                                })
+                              }
+                              className="w-28"
+                              placeholder="12mm"
+                            />
+                          </div>
                         </div>
                       </div>
                     </CollapsibleContent>

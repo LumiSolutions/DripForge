@@ -19,6 +19,10 @@ export const PAGE_CONTENT_SITE_TEXT_DEFAULTS = {
   page_3d_cta_subtitle:
     "Laden Sie Ihre Datei hoch oder starten Sie den Konfigurator — wir kümmern uns um den Rest.",
   page_3d_cta_button: "Jetzt konfigurieren",
+  page_3d_expect_heading_prefix: "Was Sie ",
+  page_3d_expect_heading_highlight: "erwartet",
+  page_3d_expect_subtitle:
+    "Von Prototypen bis zu fertigen Produkten — so sieht Qualität bei DripForge aus.",
 
   page_laser_hero_badge: "Präzisions-Lasertechnologie",
   page_laser_hero_title_prefix: "Laser ",
@@ -40,6 +44,10 @@ export const PAGE_CONTENT_SITE_TEXT_DEFAULTS = {
   page_laser_cta_title: "Bereit für Ihre Lasergravur?",
   page_laser_cta_subtitle: "Gestalten Sie Ihr Motiv im Studio oder wählen Sie ein Produkt aus dem Shop.",
   page_laser_cta_button: "Jetzt gestalten",
+  page_laser_expect_heading_prefix: "Was Sie ",
+  page_laser_expect_heading_highlight: "erwartet",
+  page_laser_expect_subtitle:
+    "Sehen Sie die Qualität und Präzision unserer Laserarbeiten an verschiedenen Materialien.",
 
   page_kontakt_hero_badge: "Kontakt",
   page_kontakt_hero_title_prefix: "Schreib uns ",
@@ -86,6 +94,9 @@ export const PAGE_CONTENT_SITE_TEXT_SECTIONS = [
       { key: "page_3d_cta_title", label: "Abschluss-Titel" },
       { key: "page_3d_cta_subtitle", label: "Abschluss-Text", multiline: true },
       { key: "page_3d_cta_button", label: "Abschluss-Button", hrefEditable: true },
+      { key: "page_3d_expect_heading_prefix", label: "Erwartungen Prefix" },
+      { key: "page_3d_expect_heading_highlight", label: "Erwartungen Highlight" },
+      { key: "page_3d_expect_subtitle", label: "Erwartungen Untertitel", multiline: true },
     ],
   },
   {
@@ -110,6 +121,13 @@ export const PAGE_CONTENT_SITE_TEXT_SECTIONS = [
       { key: "page_laser_cta_title", label: "Abschluss-Titel" },
       { key: "page_laser_cta_subtitle", label: "Abschluss-Text", multiline: true },
       { key: "page_laser_cta_button", label: "Abschluss-Button", hrefEditable: true },
+      { key: "page_laser_expect_heading_prefix", label: "Erwartungen Prefix" },
+      { key: "page_laser_expect_heading_highlight", label: "Erwartungen Highlight" },
+      {
+        key: "page_laser_expect_subtitle",
+        label: "Erwartungen Untertitel",
+        multiline: true,
+      },
     ],
   },
   {

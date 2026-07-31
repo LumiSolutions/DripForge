@@ -5,22 +5,20 @@ import {
   Scissors,
   Stamp,
   CheckCircle2,
-  Package,
-  Layers,
   ArrowRight,
-  Image as ImageIcon,
+  Layers,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
-import { LaserProcessStep } from "@/components/dripforge/shared/laser-process-step"
 import {
   SiteEditableLink,
   SiteText,
 } from "@/components/dripforge/editable-site-text"
 import { SiteTextPhrase } from "@/components/dripforge/site-text-phrase"
-import { laserMaterials } from "@/lib/dripforge/data"
+import { EditableProcessSteps } from "@/components/dripforge/editable-process-steps"
+import { EditableExpectItems } from "@/components/dripforge/editable-expect-items"
 import { SHOP_ROUTES } from "@/lib/dripforge/shop-routes"
 import type { ServiceVisibilitySettings } from "@/lib/admin/types"
 import {
@@ -28,10 +26,11 @@ import {
   type LaserCapabilityId,
 } from "@/lib/dripforge/service-visibility"
 import {
-  DEFAULT_MANAGED_CATALOG,
   getEnabledCustomLaserCapabilities,
+  DEFAULT_MANAGED_CATALOG,
   type ManagedCatalogItem,
 } from "@/lib/dripforge/managed-catalog"
+import { useLaserMaterialsCatalog } from "@/hooks/use-laser-materials-catalog"
 
 export function PageLaser({
   setCurrentView,
@@ -43,6 +42,7 @@ export function PageLaser({
   managedCatalog?: ManagedCatalogItem[] | null
 }) {
   const configuratorHref = SHOP_ROUTES.konfiguratorLaser
+  const { materials: laserMaterials } = useLaserMaterialsCatalog()
   const customCapabilities = getEnabledCustomLaserCapabilities(managedCatalog)
   const catalogByBuiltin = new Map(
     (managedCatalog ?? [])
@@ -357,53 +357,7 @@ export function PageLaser({
             </p>
           </div>
 
-          <div className="relative">
-            {/* Connecting line */}
-            <div className="absolute left-0 right-0 top-10 hidden h-px bg-border md:block" />
-
-            <div className="grid gap-8 md:grid-cols-4">
-              {[
-                {
-                  icon: ImageIcon,
-                  step: "01",
-                  title: "Datei hochladen",
-                  desc: "Laden Sie ein Bild (PNG, SVG, JPG) hoch oder geben Sie Ihren Text ein. Vektordateien liefern die schärfsten Ergebnisse.",
-                  color: "text-cyan-400",
-                  bg: "bg-cyan-500/20",
-                  border: "border-cyan-500/30",
-                },
-                {
-                  icon: Layers,
-                  step: "02",
-                  title: "Material wählen",
-                  desc: "Wählen Sie aus Holz, Acryl, Leder oder Schiefer. Jedes Material reagiert anders auf den Laserstrahl.",
-                  color: "text-primary",
-                  bg: "bg-primary/20",
-                  border: "border-primary/30",
-                },
-                {
-                  icon: Zap,
-                  step: "03",
-                  title: "Laserpräzision",
-                  desc: "Unser Laser graviert mit bis zu 0.1mm Präzision. Die Intensität wird automatisch auf das gewählte Material abgestimmt.",
-                  color: "text-cyan-400",
-                  bg: "bg-cyan-500/20",
-                  border: "border-cyan-500/30",
-                },
-                {
-                  icon: Package,
-                  step: "04",
-                  title: "Versand",
-                  desc: "Jedes gravierte Stück wird sorgfältig geprüft, verpackt und innert 3–5 Werktagen zu Ihnen geliefert.",
-                  color: "text-primary",
-                  bg: "bg-primary/20",
-                  border: "border-primary/30",
-                },
-              ].map((item, index) => (
-                <LaserProcessStep key={item.step} item={item} index={index} />
-              ))}
-            </div>
-          </div>
+          <EditableProcessSteps variant="laser" />
         </div>
       </section>
 
@@ -412,34 +366,25 @@ export function PageLaser({
         <div className="mx-auto max-w-7xl px-4">
           <div className="mb-8 text-center md:mb-12">
             <h2 className="text-3xl font-bold md:text-4xl">
-              <span className="text-foreground">Was Sie </span>
-              <span className="bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent">erwartet</span>
+              <SiteTextPhrase
+                parts={[
+                  {
+                    key: "page_laser_expect_heading_prefix",
+                    className: "text-foreground",
+                  },
+                  {
+                    key: "page_laser_expect_heading_highlight",
+                    className:
+                      "bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent",
+                  },
+                ]}
+              />
             </h2>
             <p className="mt-4 text-muted-foreground">
-              Sehen Sie die Qualität und Präzision unserer Laserarbeiten an verschiedenen Materialien.
+              <SiteText k="page_laser_expect_subtitle" />
             </p>
           </div>
-
-          <div className="grid gap-6 md:grid-cols-3">
-            {[
-              { material: "Holz", title: "Individuelle Holzschilder", description: "Handgefertigte Schilder mit präziser Lasergravur" },
-              { material: "Acryl", title: "LED Edge-Lit Displays", description: "Moderne Acrylschilder mit atemberaubender Beleuchtung" },
-              { material: "Leder", title: "Personalisierte Accessoires", description: "Individuelle Lederartikel mit eleganten Gravuren" },
-            ].map((item) => (
-              <Card key={item.material} className="overflow-hidden border-border/50 bg-card/50">
-                <div className="relative flex h-48 items-center justify-center bg-secondary/50">
-                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-cyan-500/20">
-                    <Zap className="h-8 w-8 text-cyan-400" />
-                  </div>
-                  <Badge className="absolute right-4 top-4" variant="secondary">{item.material}</Badge>
-                </div>
-                <CardContent className="p-6">
-                  <h3 className="mb-2 font-bold">{item.title}</h3>
-                  <p className="text-sm text-muted-foreground">{item.description}</p>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+          <EditableExpectItems variant="laser" />
         </div>
       </section>
 
