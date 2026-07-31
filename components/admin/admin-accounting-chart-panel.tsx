@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { Loader2, MoreHorizontal, Plus } from "lucide-react"
+import { Download, Loader2, MoreHorizontal, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -13,6 +13,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import type { Account, AccountKind } from "@/lib/accounting/account-types"
 import { buildChartTreeItems, groupAccountsForSelect } from "@/lib/accounting/chart-tree"
+import { downloadCsv } from "@/lib/accounting/export-csv"
+import { downloadAccountingPdf } from "@/lib/accounting/export-pdf"
 import { resolveTaxRateFromCode } from "@/lib/accounting/tax-code-utils"
 import type { TaxCode } from "@/lib/accounting/tax-code-types"
 import { TaxCodeSelectField } from "@/components/admin/tax-code-select-field"
@@ -81,9 +83,68 @@ export function AdminAccountingChartPanel({
   const [type, setType] = useState<AccountKind>("Aktiv")
   const [vatBookable, setVatBookable] = useState(false)
   const [defaultTaxCode, setDefaultTaxCode] = useState("")
+  const [exportingPdf, setExportingPdf] = useState(false)
 
   const treeItems = useMemo(() => buildChartTreeItems(accounts), [accounts])
   const groupOptions = useMemo(() => groupAccountsForSelect(accounts), [accounts])
+
+  const exportChartCsv = () => {
+    downloadCsv(
+      "kontenplan.csv",
+      [
+        "Nummer",
+        "Name",
+        "Gruppe",
+        "Art",
+        "Aktiv",
+        "MWST buchbar",
+        "Standard MWST-Code",
+        "Standard MWST-Satz",
+      ],
+      accounts.map((account) => [
+        account.number,
+        account.name,
+        account.group ?? "",
+        account.type,
+        account.isActive === false ? "Nein" : "Ja",
+        account.vatBookable ? "Ja" : "Nein",
+        account.defaultTaxCode ?? "",
+        account.defaultVatRate,
+      ])
+    )
+  }
+
+  const exportChartPdf = async () => {
+    setExportingPdf(true)
+    try {
+      await downloadAccountingPdf({
+        title: "Kontenplan",
+        subtitle: `${accounts.length} Konten`,
+        filename: "kontenplan.pdf",
+        landscape: true,
+        columns: [
+          { key: "number", header: "Nummer", width: 1.1 },
+          { key: "name", header: "Name", width: 2.4 },
+          { key: "group", header: "Gruppe", width: 1 },
+          { key: "type", header: "Art", width: 1 },
+          { key: "active", header: "Aktiv", width: 0.7 },
+          { key: "vat", header: "MWST", width: 0.8 },
+          { key: "taxCode", header: "MWST-Code", width: 1 },
+        ],
+        rows: accounts.map((account) => ({
+          number: account.number,
+          name: account.name,
+          group: account.group ?? "",
+          type: account.type,
+          active: account.isActive === false ? "Nein" : "Ja",
+          vat: account.vatBookable ? "Ja" : "Nein",
+          taxCode: account.defaultTaxCode ?? "",
+        })),
+      })
+    } finally {
+      setExportingPdf(false)
+    }
+  }
 
   const openCreate = () => {
     setEditor({ mode: "create" })
@@ -130,10 +191,38 @@ export function AdminAccountingChartPanel({
             Hierarchische KMU-Struktur ({accounts.length} Konten)
           </p>
         </div>
-        <Button type="button" className="bg-blue-600 text-white hover:bg-blue-700" onClick={openCreate}>
-          <Plus className="mr-2 h-4 w-4" />
-          Konto hinzufügen
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className={adminUi.outlineBtn}
+            disabled={!accounts.length}
+            onClick={exportChartCsv}
+          >
+            <Download className="mr-2 h-4 w-4" />
+            Excel (CSV)
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className={adminUi.outlineBtn}
+            disabled={!accounts.length || exportingPdf}
+            onClick={() => void exportChartPdf()}
+          >
+            {exportingPdf ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Download className="mr-2 h-4 w-4" />
+            )}
+            PDF
+          </Button>
+          <Button type="button" className="bg-blue-600 text-white hover:bg-blue-700" onClick={openCreate}>
+            <Plus className="mr-2 h-4 w-4" />
+            Konto hinzufügen
+          </Button>
+        </div>
       </div>
 
       {editor && (

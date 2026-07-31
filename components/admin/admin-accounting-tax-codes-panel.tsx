@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { Loader2, Pencil, Plus, Trash2 } from "lucide-react"
+import { Download, Loader2, Pencil, Plus, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -13,6 +13,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { downloadCsv } from "@/lib/accounting/export-csv"
+import { downloadAccountingPdf } from "@/lib/accounting/export-pdf"
 import { formatTaxCodePercent } from "@/lib/accounting/tax-code-utils"
 import type { TaxCode, TaxCodeCategory } from "@/lib/accounting/tax-code-types"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
@@ -38,6 +40,7 @@ export function AdminAccountingTaxCodesPanel() {
   const [category, setCategory] = useState<TaxCodeCategory>("Umsatzsteuer")
   const [isActive, setIsActive] = useState(true)
   const [sortOrder, setSortOrder] = useState("100")
+  const [exportingPdf, setExportingPdf] = useState(false)
 
   const loadTaxCodes = useCallback(async () => {
     setLoading(true)
@@ -146,6 +149,51 @@ export function AdminAccountingTaxCodesPanel() {
     }
   }
 
+  const exportTaxCodesCsv = () => {
+    downloadCsv(
+      "mwst-saetze.csv",
+      ["Kürzel", "Systemcode", "Bezeichnung", "Satz %", "Typ", "Status", "Sortierung"],
+      taxCodes.map((taxCode) => [
+        taxCode.code,
+        taxCode.systemCode ?? "",
+        taxCode.name,
+        (taxCode.rate * 100).toFixed(1),
+        taxCode.category,
+        taxCode.isActive ? "Aktiv" : "Inaktiv",
+        taxCode.sortOrder,
+      ])
+    )
+  }
+
+  const exportTaxCodesPdf = async () => {
+    setExportingPdf(true)
+    try {
+      await downloadAccountingPdf({
+        title: "MWST-Sätze",
+        subtitle: `${taxCodes.length} Steuercodes`,
+        filename: "mwst-saetze.pdf",
+        columns: [
+          { key: "code", header: "Kürzel", width: 1 },
+          { key: "system", header: "Systemcode", width: 1.2 },
+          { key: "name", header: "Bezeichnung", width: 2.4 },
+          { key: "rate", header: "Satz", width: 0.8, align: "right" },
+          { key: "category", header: "Typ", width: 1.2 },
+          { key: "status", header: "Status", width: 0.8 },
+        ],
+        rows: taxCodes.map((taxCode) => ({
+          code: taxCode.code,
+          system: taxCode.systemCode ?? "",
+          name: taxCode.name,
+          rate: formatTaxCodePercent(taxCode.rate),
+          category: taxCode.category,
+          status: taxCode.isActive ? "Aktiv" : "Inaktiv",
+        })),
+      })
+    } finally {
+      setExportingPdf(false)
+    }
+  }
+
   return (
     <section className={cn("space-y-4 rounded-xl border p-4 sm:p-6", adminUi.card)}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -155,14 +203,42 @@ export function AdminAccountingTaxCodesPanel() {
             Schweizer Steuercodes für Buchungen und MWST-Abrechnung
           </p>
         </div>
-        <Button
-          type="button"
-          className="bg-blue-600 text-white hover:bg-blue-700"
-          onClick={openCreate}
-        >
-          <Plus className="mr-2 h-4 w-4" />
-          Steuercode hinzufügen
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className={adminUi.outlineBtn}
+            disabled={!taxCodes.length}
+            onClick={exportTaxCodesCsv}
+          >
+            <Download className="mr-2 h-4 w-4" />
+            Excel (CSV)
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className={adminUi.outlineBtn}
+            disabled={!taxCodes.length || exportingPdf}
+            onClick={() => void exportTaxCodesPdf()}
+          >
+            {exportingPdf ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Download className="mr-2 h-4 w-4" />
+            )}
+            PDF
+          </Button>
+          <Button
+            type="button"
+            className="bg-blue-600 text-white hover:bg-blue-700"
+            onClick={openCreate}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Steuercode hinzufügen
+          </Button>
+        </div>
       </div>
 
       {editor && (
