@@ -13,6 +13,7 @@ import {
 import { mergeSiteImages } from "@/lib/admin/site-images"
 import { mergeSiteLinks } from "@/lib/admin/site-links"
 import { mergeCmsNavItems, mergeCmsPages } from "@/lib/admin/site-nav"
+import { mergeCmsFaqItems } from "@/lib/admin/cms-faq"
 import { mergeSiteTexts, sanitizeSiteTextsInput } from "@/lib/admin/site-texts"
 import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
 
@@ -33,19 +34,22 @@ export async function GET(request: Request) {
         links: bundle.links,
         navItems: bundle.navItems,
         pages: bundle.pages,
+        faqItems: bundle.faqItems,
         preview,
       },
       { headers: { "Cache-Control": "no-store, max-age=0" } }
     )
   } catch (error) {
     console.error("Site-Texts API: Laden fehlgeschlagen.", error)
+    const texts = mergeSiteTexts(null)
     return NextResponse.json(
       {
-        texts: mergeSiteTexts(null),
+        texts,
         images: mergeSiteImages(null),
         links: mergeSiteLinks(null),
         navItems: mergeCmsNavItems(null),
         pages: mergeCmsPages(null),
+        faqItems: mergeCmsFaqItems(null, texts),
         preview: false,
       },
       { headers: { "Cache-Control": "no-store, max-age=0" } }
@@ -73,6 +77,7 @@ export async function PUT(request: Request) {
       links: saved.links,
       navItems: saved.navItems,
       pages: saved.pages,
+      faqItems: saved.faqItems,
       environment: "staging",
     })
   } catch (error) {

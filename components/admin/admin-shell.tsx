@@ -258,7 +258,7 @@ function AdminShellFrame({ children }: { children: React.ReactNode }) {
                       exact:
                         item.id === "produkte" ||
                         item.id === "edit" ||
-                        item.id === "edit-preview",
+                        item.id === "test",
                     }) && !childActive
                   const groupActive = Boolean(childActive) || selfActive
                   const open = hasChildren ? isGroupOpen(item.id) : false

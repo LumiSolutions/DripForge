@@ -23,6 +23,7 @@ export async function POST(request: Request) {
       links: published.links,
       navItems: published.navItems,
       pages: published.pages,
+      faqItems: published.faqItems,
       meta,
       environment: "production",
       message: "Staging-Inhalte wurden live veröffentlicht.",

@@ -24,11 +24,13 @@ import { Button } from "@/components/ui/button"
 import { useSiteTexts } from "@/components/dripforge/site-texts-provider"
 import {
   disableSiteConfigPreviewInSession,
+  disableSiteConfigReadonlyInSession,
   isSiteConfigPreviewEnabled,
   SITE_CONFIG_PREVIEW_PARAM,
+  SITE_CONFIG_READONLY_PARAM,
 } from "@/lib/admin/site-config"
-import { cmsPreviewHref } from "@/lib/admin/cms-preview-pages"
-import { resolveVisibleCmsPages } from "@/lib/admin/site-nav"
+import { cmsPreviewHref, cmsReadonlyPreviewHref } from "@/lib/admin/cms-preview-pages"
+import { resolveCmsEditorPages } from "@/lib/admin/site-nav"
 import { adminPortalPath } from "@/lib/admin/admin-portal-path"
 import { cn } from "@/lib/utils"
 
@@ -58,9 +60,11 @@ export function SiteConfigPreviewProvider({ children }: { children: ReactNode })
 
   const exitPreview = useCallback(() => {
     disableSiteConfigPreviewInSession()
+    disableSiteConfigReadonlyInSession()
     setPreview(false)
     const url = new URL(window.location.href)
     url.searchParams.delete(SITE_CONFIG_PREVIEW_PARAM)
+    url.searchParams.delete(SITE_CONFIG_READONLY_PARAM)
     window.location.href = url.toString()
   }, [])
 
@@ -78,12 +82,12 @@ export function SiteConfigPreviewProvider({ children }: { children: ReactNode })
 
 export function SiteConfigPreviewBanner() {
   const { preview, exitPreview } = useContext(SiteConfigPreviewContext)
-  const { canInlineEdit, refresh, pages } = useSiteTexts()
+  const { canInlineEdit, readonly, refresh, pages } = useSiteTexts()
   const pathname = usePathname() ?? "/"
   const [publishing, setPublishing] = useState(false)
   const [publishMessage, setPublishMessage] = useState<string | null>(null)
   const [collapsed, setCollapsed] = useState(false)
-  const previewPages = useMemo(() => resolveVisibleCmsPages(pages), [pages])
+  const previewPages = useMemo(() => resolveCmsEditorPages(pages), [pages])
 
   useEffect(() => {
     try {
@@ -153,7 +157,7 @@ export function SiteConfigPreviewBanner() {
           aria-label="Staging-Banner erweitern"
         >
           <span className="h-2 w-2 rounded-full bg-amber-950/80" />
-          Staging
+          {readonly ? "Test" : "Staging"}
           <ChevronUp className="h-3.5 w-3.5" />
         </button>
       </div>
@@ -164,7 +168,11 @@ export function SiteConfigPreviewBanner() {
     <div className="pointer-events-none fixed inset-x-0 top-0 z-[300] flex justify-center px-4 pt-[max(0.5rem,env(safe-area-inset-top))]">
       <div className="pointer-events-auto flex max-w-5xl flex-col gap-2 rounded-xl border border-amber-500/40 bg-amber-500/95 px-4 py-2 text-sm font-medium text-amber-950 shadow-lg backdrop-blur-sm">
         <div className="flex flex-wrap items-center justify-center gap-2">
-          <span>Staging-Vorschau — Besucher sehen diese Texte und Bilder noch nicht.</span>
+          <span>
+            {readonly
+              ? "Test-Vorschau (nur lesen) — Staging-Inhalte wie für Endnutzer, ohne Bearbeitungswerkzeuge."
+              : "Staging-Vorschau — Besucher sehen diese Texte und Bilder noch nicht."}
+          </span>
           {canInlineEdit && (
             <Button
               type="button"
@@ -181,12 +189,14 @@ export function SiteConfigPreviewBanner() {
               Live veröffentlichen
             </Button>
           )}
-          <Button type="button" size="sm" variant="secondary" className="h-8" asChild>
-            <Link href={adminPortalPath("/edit")}>
-              <Pencil className="mr-1 h-3.5 w-3.5" />
-              Zum CMS
-            </Link>
-          </Button>
+          {!readonly && (
+            <Button type="button" size="sm" variant="secondary" className="h-8" asChild>
+              <Link href={adminPortalPath("/edit")}>
+                <Pencil className="mr-1 h-3.5 w-3.5" />
+                Zum CMS
+              </Link>
+            </Button>
+          )}
           <Button type="button" size="sm" variant="secondary" className="h-8" onClick={exitPreview}>
             <EyeOff className="mr-1 h-3.5 w-3.5" />
             Vorschau beenden
@@ -219,10 +229,13 @@ export function SiteConfigPreviewBanner() {
               page.path === "/"
                 ? pathname === "/"
                 : pathname === page.path || pathname.startsWith(`${page.path}/`)
+            const href = readonly
+              ? cmsReadonlyPreviewHref(page.path)
+              : cmsPreviewHref(page.path)
             return (
               <Link
                 key={page.id}
-                href={cmsPreviewHref(page.path)}
+                href={href}
                 className={cn(
                   "rounded-md px-2 py-1 text-xs font-medium transition",
                   active
