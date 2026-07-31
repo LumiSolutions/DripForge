@@ -91,8 +91,8 @@ const SECTION_HEADERS: Record<
   { title: string; subtitle: string }
 > = {
   shop: {
-    title: "Shop-Status & Zugang",
-    subtitle: "Website-Status, Admin-Zugang und Checkout-Grundeinstellungen",
+    title: "Shop-Einstellungen",
+    subtitle: "Shop-Status, Admin-Zugang und Checkout-Grundeinstellungen",
   },
   countdown: {
     title: "Coming-Soon / Countdown",
@@ -533,12 +533,12 @@ export function AdminSettingsTab({
             <CardContent className="space-y-4 p-6">
               <div>
                 <h3 className={cn("text-lg font-bold", adminUi.heading)}>
-                  Website-Status
+                  Shop-Status (Aktiv / Inaktiv / Wartung)
                 </h3>
                 <p className={cn("mt-1 text-sm", adminUi.muted)}>
                   {shopLive
-                    ? "Die Website ist offiziell live. Alle Besucher sehen den vollen Shop."
-                    : "Vorschau-Modus aktiv: Besucher sehen die Coming-Soon-Seite bis zum Launch oder zur manuellen Freischaltung."}
+                    ? "Aktiv: Die Website ist offiziell live. Alle Besucher sehen den vollen Shop."
+                    : "Inaktiv / Wartung: Vorschau-Modus aktiv — Besucher sehen die Coming-Soon-Seite bis zum Launch oder zur manuellen Freischaltung."}
                 </p>
               </div>
 

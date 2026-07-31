@@ -14,8 +14,17 @@ import { cn } from "@/lib/utils"
 
 type AccountingSubview = "dashboard" | "manual" | "accounts" | "tax-codes" | "reports"
 
-export function AdminAccountingTab() {
-  const [view, setView] = useState<AccountingSubview>("dashboard")
+export function AdminAccountingTab({
+  initialView = "dashboard",
+  settingsOnly = false,
+}: {
+  initialView?: AccountingSubview
+  /** Nur Konten & Steuersätze (für Buchhaltungseinstellungen) */
+  settingsOnly?: boolean
+} = {}) {
+  const [view, setView] = useState<AccountingSubview>(
+    settingsOnly ? initialView === "tax-codes" ? "tax-codes" : "accounts" : initialView
+  )
   const [editEntryId, setEditEntryId] = useState<string | null>(null)
   const [accounts, setAccounts] = useState<Account[]>([])
   const [taxCodes, setTaxCodes] = useState<TaxCode[]>([])
@@ -173,28 +182,37 @@ export function AdminAccountingTab() {
     setView("manual")
   }, [])
 
+  const viewOptions = (
+    settingsOnly
+      ? ([
+          ["accounts", "Kontenplan"],
+          ["tax-codes", "MWST-Sätze"],
+        ] as const)
+      : ([
+          ["dashboard", "Dashboard / Übersicht"],
+          ["manual", "Manuelle Buchung"],
+          ["reports", "Berichte"],
+          ["accounts", "Kontenplan"],
+          ["tax-codes", "MWST-Sätze"],
+        ] as const)
+  )
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className={cn("text-2xl font-bold", adminUi.heading)}>
             <BookOpen className="mr-2 inline h-6 w-6 text-orange-500" />
-            Buchhaltung
+            {settingsOnly ? "Buchhaltungseinstellungen" : "Buchhaltung"}
           </h1>
           <p className={cn("mt-1 text-sm", adminUi.muted)}>
-            Schweizer KMU-Buchhaltung mit Journal, Buchungsmaske und Kontenplan
+            {settingsOnly
+              ? "Kontenplan, MWST-Sätze sowie Firmendaten und Checkout-MwSt."
+              : "Schweizer KMU-Buchhaltung mit Journal, Buchungsmaske und Kontenplan"}
           </p>
         </div>
         <div className={cn("flex flex-wrap gap-2 rounded-xl border p-2", adminUi.section)}>
-          {(
-            [
-              ["dashboard", "Dashboard / Übersicht"],
-              ["manual", "Manuelle Buchung"],
-              ["reports", "Berichte"],
-              ["accounts", "Kontenplan"],
-              ["tax-codes", "MWST-Sätze"],
-            ] as const
-          ).map(([id, label]) => (
+          {viewOptions.map(([id, label]) => (
             <button
               key={id}
               type="button"
