@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { getProductById, getSettings } from "@/lib/admin/db"
-import { isProductActive } from "@/lib/admin/normalize-product"
+import { isProductVisibleInShop } from "@/lib/admin/product-status"
 import { getSafeServiceVisibility } from "@/lib/admin/safe-defaults"
 import {
   isShopProductDocument,
@@ -36,7 +36,7 @@ export async function GET(_request: Request, context: RouteContext) {
       return NextResponse.json({ error: "Produkt nicht gefunden." }, { status: 404 })
     }
 
-    if (!isProductActive(raw)) {
+    if (!isProductVisibleInShop(raw)) {
       return NextResponse.json({ error: "Produkt nicht gefunden." }, { status: 404 })
     }
 

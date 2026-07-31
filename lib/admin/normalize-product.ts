@@ -8,9 +8,22 @@ import {
 import type { AdminProduct } from "@/lib/admin/types"
 import type { Product } from "@/lib/dripforge/types"
 import { normalizeProductTagIds } from "@/lib/admin/product-tags"
+import {
+  isProductActive,
+  isProductShopStatus,
+  productFieldsFromShopStatus,
+  type ProductShopStatus,
+} from "@/lib/admin/product-status"
+
+export { isProductActive }
 
 export function normalizeAdminProductInput(
-  input: Partial<AdminProduct> & { variantenText?: string; basisPreis?: number },
+  input: Partial<AdminProduct> & {
+    variantenText?: string
+    basisPreis?: number
+    /** Optionaler Kurzstatus — wird auf `istAktiv` / `sale` gemappt */
+    status?: ProductShopStatus
+  },
   existing?: AdminProduct
 ): AdminProduct {
   const varianten =
@@ -33,17 +46,28 @@ export function normalizeAdminProductInput(
     (input.individualisierungsBild ?? existing?.individualisierungsBild)?.trim() ||
     undefined
 
+  const statusFields = isProductShopStatus(input.status)
+    ? productFieldsFromShopStatus(input.status)
+    : null
+
   const istAktiv =
-    input.istAktiv !== undefined
-      ? Boolean(input.istAktiv)
-      : existing?.istAktiv !== false
+    statusFields != null
+      ? statusFields.istAktiv
+      : input.istAktiv !== undefined
+        ? Boolean(input.istAktiv)
+        : existing?.istAktiv !== false
 
   const isTopProduct =
     input.isTopProduct !== undefined
       ? Boolean(input.isTopProduct)
       : Boolean(existing?.isTopProduct)
 
-  const sale = input.sale !== undefined ? Boolean(input.sale) : Boolean(existing?.sale)
+  const sale =
+    statusFields != null && statusFields.sale !== undefined
+      ? statusFields.sale
+      : input.sale !== undefined
+        ? Boolean(input.sale)
+        : Boolean(existing?.sale)
 
   const basisPreis = roundChf(
     Number(
@@ -122,10 +146,6 @@ export function normalizeAdminProductInput(
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   }
-}
-
-export function isProductActive(product: Pick<Product, "istAktiv">): boolean {
-  return product.istAktiv !== false
 }
 
 export function resolveProductGallery(product: Product): string[] {

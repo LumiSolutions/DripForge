@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation"
 import { getProductById, getProducts } from "@/lib/admin/db"
-import { isProductActive } from "@/lib/admin/normalize-product"
+import { isProductVisibleInShop } from "@/lib/admin/product-status"
 import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
 import {
   isShopProductDocument,
@@ -29,7 +29,7 @@ export default async function ShopProductDeepLinkPage({ params }: PageProps) {
     if (
       !raw ||
       !isShopProductDocument(raw as Record<string, unknown>) ||
-      !isProductActive(raw)
+      !isProductVisibleInShop(raw)
     ) {
       notFound()
     }
@@ -39,7 +39,7 @@ export default async function ShopProductDeepLinkPage({ params }: PageProps) {
       .filter(
         (p) =>
           isShopProductDocument(p as Record<string, unknown>) &&
-          isProductActive(p)
+          isProductVisibleInShop(p)
       )
       .map(normalizeShopProduct)
 

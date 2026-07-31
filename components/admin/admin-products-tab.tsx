@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Loader2, Plus, Save, Trash2, X } from "lucide-react"
+import { Archive, Loader2, Plus, Save, Trash2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
@@ -50,6 +50,12 @@ import {
 } from "@/components/admin/admin-product-tags-section"
 import { AdminProductsListPanel } from "@/components/admin/admin-products-list-panel"
 import type { ProductTag } from "@/lib/admin/product-tags"
+import {
+  getProductShopStatus,
+  PRODUCT_SHOP_STATUS_OPTIONS,
+  productFieldsFromShopStatus,
+  type ProductShopStatus,
+} from "@/lib/admin/product-status"
 
 type ProductFormState = Partial<AdminProduct> & {
   variantenText?: string
@@ -145,6 +151,11 @@ export function AdminProductsTab() {
   const [materialCatalog, setMaterialCatalog] = useState<MaterialItem[]>([])
   const [productSort, setProductSort] = useState<ProductSortMode>("name-asc")
   const [productTags, setProductTags] = useState<ProductTag[]>([])
+
+  const archivedCount = useMemo(
+    () => products.filter((p) => getProductShopStatus(p) === "inactive").length,
+    [products]
+  )
 
   const loadMaterials = useCallback(async () => {
     try {
@@ -504,6 +515,15 @@ export function AdminProductsTab() {
         <TabsList>
           <TabsTrigger value="products">Produkte verwalten</TabsTrigger>
           <TabsTrigger value="tags">Produkt-Tags verwalten</TabsTrigger>
+          <TabsTrigger value="archive" className="gap-1.5">
+            <Archive className="h-3.5 w-3.5" />
+            Archiv
+            {archivedCount > 0 && (
+              <span className="rounded-full bg-muted px-1.5 text-[10px] font-medium text-muted-foreground">
+                {archivedCount}
+              </span>
+            )}
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="products" className="space-y-4">
@@ -520,6 +540,24 @@ export function AdminProductsTab() {
 
         <TabsContent value="tags">
           <AdminProductTagsSection onTagsChange={setProductTags} />
+        </TabsContent>
+
+        <TabsContent value="archive" className="space-y-4">
+          <p className={cn("text-sm", adminUi.muted)}>
+            Inaktive / archivierte Produkte sind im öffentlichen Shop nicht sichtbar und
+            nicht über Direktlinks erreichbar.
+          </p>
+          <AdminProductsListPanel
+            products={products}
+            productTags={productTags}
+            productSort={productSort}
+            onProductSortChange={setProductSort}
+            activeProductId={isEditing ? form.id : undefined}
+            onEdit={startEdit}
+            onRefresh={loadProducts}
+            lockedStatusFilter="inactive"
+            emptyMessage="Keine archivierten Produkte."
+          />
         </TabsContent>
       </Tabs>
 
@@ -588,20 +626,61 @@ export function AdminProductsTab() {
                   </select>
                 </div>
                 <div className="flex flex-col gap-4 sm:col-span-2">
-                  <div className="flex flex-wrap items-center gap-6">
-                    <div className="flex items-center gap-3">
-                      <Switch
-                        checked={Boolean(form.sale)}
-                        onCheckedChange={(checked) => updateField("sale", checked)}
-                      />
-                      <Label className={adminUi.label}>Im Sale</Label>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label className={adminUi.label}>Status</Label>
+                      <Select
+                        value={getProductShopStatus({
+                          istAktiv: form.istAktiv,
+                          sale: Boolean(form.sale),
+                        })}
+                        onValueChange={(value) => {
+                          const status = value as ProductShopStatus
+                          const fields = productFieldsFromShopStatus(status)
+                          setForm((prev) => ({
+                            ...prev,
+                            istAktiv: fields.istAktiv,
+                            sale:
+                              fields.sale !== undefined ? fields.sale : prev.sale,
+                          }))
+                        }}
+                      >
+                        <SelectTrigger className={adminUi.select}>
+                          <SelectValue placeholder="Status wählen" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {PRODUCT_SHOP_STATUS_OPTIONS.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className={cn("text-xs", adminUi.muted)}>
+                        Inaktiv / Archiviert: im Shop ausgeblendet (404 bei Direktlink).
+                      </p>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <Switch
-                        checked={form.istAktiv !== false}
-                        onCheckedChange={(checked) => updateField("istAktiv", checked)}
-                      />
-                      <Label className={adminUi.label}>Produkt aktiv</Label>
+                    <div className="flex flex-col justify-end gap-3 pb-1">
+                      <div className="flex items-center gap-3">
+                        <Switch
+                          checked={Boolean(form.sale)}
+                          onCheckedChange={(checked) => {
+                            updateField("sale", checked)
+                            if (checked) updateField("istAktiv", true)
+                          }}
+                          disabled={form.istAktiv === false}
+                        />
+                        <Label className={adminUi.label}>Im Sale</Label>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <Switch
+                          checked={form.istAktiv !== false}
+                          onCheckedChange={(checked) =>
+                            updateField("istAktiv", checked)
+                          }
+                        />
+                        <Label className={adminUi.label}>Produkt aktiv</Label>
+                      </div>
                     </div>
                   </div>
                   <div className="flex items-start gap-3 rounded-xl border border-border/60 px-4 py-3">

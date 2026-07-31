@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { getProducts, getSettings } from "@/lib/admin/db"
 import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
 import { formatCosmosError } from "@/lib/cosmos/log-error"
-import { isProductActive } from "@/lib/admin/normalize-product"
+import { isProductVisibleInShop } from "@/lib/admin/product-status"
 import { getSafeServiceVisibility } from "@/lib/admin/safe-defaults"
 import { normalizeShopProducts } from "@/lib/dripforge/normalize-shop-product"
 
@@ -13,8 +13,9 @@ export async function GET() {
     await warmCosmosInfrastructure()
     const [products, settings] = await Promise.all([getProducts(), getSettings()])
     const services = getSafeServiceVisibility(settings.services)
+    // Nur active / sale — inactive/archiviert nie an den Storefront ausliefern
     const activeProducts = products.filter((p) => {
-      if (!isProductActive(p)) return false
+      if (!isProductVisibleInShop(p)) return false
       if (p.type === "3d" && !services.druck3d) return false
       if (p.type === "laser" && !services.lasergravur) return false
       return true

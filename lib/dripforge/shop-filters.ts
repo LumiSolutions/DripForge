@@ -1,6 +1,7 @@
 import type { ServiceVisibilitySettings } from "@/lib/admin/types"
 import type { Product } from "@/lib/dripforge/types"
 import { getSaleBadgePercent } from "@/lib/dripforge/product-sale"
+import { isProductActive } from "@/lib/admin/product-status"
 
 export type ShopFilterId = "all" | "3d" | "laser" | "sale"
 
@@ -31,7 +32,7 @@ export function buildShopFilterOptions(
 ): ShopFilterOption[] {
   const label = (id: ShopFilterId) => labels[id]?.trim() || DEFAULT_FILTER_LABELS[id]
 
-  const activeProducts = (products ?? []).filter((p) => p?.istAktiv !== false)
+  const activeProducts = (products ?? []).filter((p) => isProductActive(p))
   const has3dProducts = activeProducts.some((p) => p.type === "3d")
   const hasLaserProducts = activeProducts.some((p) => p.type === "laser")
   const hasSaleProducts = activeProducts.some(isProductOnSale)
@@ -59,7 +60,7 @@ export function filterProductsByShopFilter(
   products: Product[],
   filterId: ShopFilterId
 ): Product[] {
-  const active = products.filter((p) => p.istAktiv !== false)
+  const active = products.filter((p) => isProductActive(p))
 
   switch (filterId) {
     case "3d":
