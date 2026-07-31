@@ -45,6 +45,7 @@ export function SiteImageEditor({
   const [draftAlt, setDraftAlt] = useState(value.alt)
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [uploadSuccess, setUploadSuccess] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -52,6 +53,7 @@ export function SiteImageEditor({
       setDraftUrl(value.url)
       setDraftAlt(value.alt)
       setError(null)
+      setUploadSuccess(null)
     }
   }, [open, value.alt, value.url])
 
@@ -89,6 +91,7 @@ export function SiteImageEditor({
 
     setUploading(true)
     setError(null)
+    setUploadSuccess(null)
     try {
       const formData = new FormData()
       formData.set("file", file)
@@ -108,6 +111,7 @@ export function SiteImageEditor({
         throw new Error(data?.error ?? "Upload fehlgeschlagen.")
       }
       setDraftUrl(data.url)
+      setUploadSuccess("Upload erfolgreich (Azure). Bitte Speichern klicken.")
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload fehlgeschlagen")
     } finally {
@@ -241,6 +245,9 @@ export function SiteImageEditor({
         )}
 
         {error && <p className="text-xs text-red-600">{error}</p>}
+        {uploadSuccess && !error && (
+          <p className="text-xs text-emerald-700 dark:text-emerald-300">{uploadSuccess}</p>
+        )}
 
         <div className="flex gap-2">
           <Button

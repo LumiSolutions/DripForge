@@ -808,7 +808,7 @@ function parseSiteConfigFile(
 ): SiteConfigBundle | null {
   if (!stored || typeof stored !== "object") return null
   const raw = stored as Record<string, unknown>
-  if ("texts" in raw || "images" in raw) {
+  if ("texts" in raw || "images" in raw || "links" in raw) {
     return {
       texts: mergeSiteTexts(
         (raw.texts as Partial<Record<string, string>> | undefined) ?? null
@@ -816,12 +816,14 @@ function parseSiteConfigFile(
       images: mergeSiteImages(
         (raw.images as Partial<Record<string, unknown>> | undefined) ?? null
       ),
+      links: mergeSiteLinks((raw.links as SiteLinks | undefined) ?? null),
     }
   }
   // Legacy: flache Text-Map ohne images
   return {
     texts: mergeSiteTexts(raw as Partial<Record<string, string>>),
     images: mergeSiteImages(null),
+    links: mergeSiteLinks(null),
   }
 }
 

@@ -12,6 +12,16 @@ import { Textarea } from "@/components/ui/textarea"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
 import { SITE_CONFIG_PREVIEW_PARAM } from "@/lib/admin/site-config"
 import {
+  CMS_PREVIEW_PAGES,
+  cmsPreviewHref,
+} from "@/lib/admin/cms-preview-pages"
+import {
+  getDefaultSiteLinkHref,
+  mergeSiteLinks,
+  type SiteLinks,
+} from "@/lib/admin/site-links"
+import {
+  getSiteTextFieldMeta,
   mergeSiteTexts,
   SITE_TEXT_SECTIONS,
   type SiteTextKey,
@@ -38,6 +48,7 @@ function formatTimestamp(value: string | null): string {
 
 export function AdminSiteContentDashboard() {
   const [texts, setTexts] = useState<SiteTexts>(mergeSiteTexts(null))
+  const [links, setLinks] = useState<SiteLinks>(mergeSiteLinks(null))
   const [meta, setMeta] = useState<SiteConfigMeta>({
     stagingUpdatedAt: null,
     productionUpdatedAt: null,
@@ -56,6 +67,7 @@ export function AdminSiteContentDashboard() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? "Laden fehlgeschlagen")
       setTexts(mergeSiteTexts(data.texts))
+      setLinks(mergeSiteLinks(data.links))
       if (data.meta) setMeta(data.meta)
     } catch (err) {
       console.warn("Admin: Site-Config konnte nicht geladen werden.", err)
@@ -75,6 +87,10 @@ export function AdminSiteContentDashboard() {
     setTexts((prev) => ({ ...prev, [key]: value }))
   }
 
+  const updateLink = (key: string, href: string) => {
+    setLinks((prev) => ({ ...prev, [key]: { href } }))
+  }
+
   const saveTexts = async () => {
     setSaving(true)
     setError(null)
@@ -84,13 +100,14 @@ export function AdminSiteContentDashboard() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ texts }),
+        body: JSON.stringify({ texts, links }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? "Speichern fehlgeschlagen")
       setTexts(mergeSiteTexts(data.texts))
+      setLinks(mergeSiteLinks(data.links))
       if (data.meta) setMeta(data.meta)
-      setSuccess("Entwurf gespeichert — noch nicht live. Vorschau testen oder veröffentlichen.")
+      setSuccess("Gespeichert (Staging) — noch nicht live. Vorschau testen oder veröffentlichen.")
     } catch (err) {
       console.warn("Admin: Site-Config konnte nicht gespeichert werden.", err)
       setError(
@@ -144,7 +161,7 @@ export function AdminSiteContentDashboard() {
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <div>
-        <h1 className={cn("text-2xl font-bold", adminUi.heading)}>Texte &amp; Inhalte</h1>
+        <h1 className={cn("text-2xl font-bold", adminUi.heading)}>Website bearbeiten</h1>
         <p className={cn("mt-2 text-sm", adminUi.muted)}>
           Änderungen werden als Entwurf (Staging) gespeichert. Erst nach dem Veröffentlichen sind
           sie für Besucher sichtbar.
@@ -155,25 +172,64 @@ export function AdminSiteContentDashboard() {
         </div>
       </div>
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <Button
-          type="button"
-          size="lg"
-          onClick={() => void publishTexts()}
-          disabled={publishing || saving}
-          className="bg-emerald-600 text-white hover:bg-emerald-500"
-        >
-          {publishing ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <Rocket className="mr-2 h-4 w-4" />
-          )}
-          Änderungen live veröffentlichen
-        </Button>
-        <Button type="button" variant="outline" asChild>
-          <Link href={`/?${SITE_CONFIG_PREVIEW_PARAM}=true`} target="_blank" rel="noopener noreferrer">
+      <Card className={adminUi.card}>
+        <CardContent className="space-y-3 p-4">
+          <p className={cn("text-sm font-medium", adminUi.heading)}>Seiten-Navigation (Vorschau)</p>
+          <div className="flex flex-wrap gap-2">
+            {CMS_PREVIEW_PAGES.map((page) => (
+              <Button key={page.id} type="button" size="sm" variant="outline" asChild>
+                <Link
+                  href={cmsPreviewHref(page.path)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {page.label}
+                </Link>
+              </Button>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            size="lg"
+            onClick={() => void saveTexts()}
+            disabled={saving || publishing}
+          >
+            {saving ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Save className="mr-2 h-4 w-4" />
+            )}
+            Speichern
+          </Button>
+          <Button
+            type="button"
+            size="lg"
+            variant="outline"
+            onClick={() => void publishTexts()}
+            disabled={publishing || saving}
+            className="border-emerald-600/40 text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-300"
+          >
+            {publishing ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Rocket className="mr-2 h-4 w-4" />
+            )}
+            Live veröffentlichen
+          </Button>
+        </div>
+        <Button type="button" size="lg" variant="secondary" asChild>
+          <Link
+            href={`/?${SITE_CONFIG_PREVIEW_PARAM}=true`}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
             <Eye className="mr-2 h-4 w-4" />
-            Vorschau (Staging) öffnen
+            Vorschau öffnen
           </Link>
         </Button>
       </div>
@@ -202,33 +258,54 @@ export function AdminSiteContentDashboard() {
           <TabsContent key={section.id} value={section.id}>
             <Card className={adminUi.card}>
               <CardContent className="space-y-5 p-6">
-                {section.fields.map((field) => (
-                  <div key={field.key} className="space-y-2">
-                    <Label htmlFor={field.key}>{field.label}</Label>
-                    {field.multiline ? (
+                {section.fields.map((field) => {
+                  const metaField = getSiteTextFieldMeta(field.key)
+                  const defaultHref = getDefaultSiteLinkHref(field.key) ?? ""
+                  return (
+                    <div key={field.key} className="space-y-2">
+                      <Label htmlFor={field.key}>{field.label}</Label>
                       <Textarea
                         id={field.key}
-                        rows={3}
+                        rows={field.multiline ? 4 : 3}
                         value={texts[field.key]}
                         onChange={(e) => updateField(field.key, e.target.value)}
                       />
-                    ) : (
-                      <Input
-                        id={field.key}
-                        value={texts[field.key]}
-                        onChange={(e) => updateField(field.key, e.target.value)}
-                      />
-                    )}
-                    <p className={cn("text-[11px]", adminUi.muted)}>Schlüssel: {field.key}</p>
-                  </div>
-                ))}
+                      {metaField.hrefEditable && (
+                        <div className="space-y-1">
+                          <Label htmlFor={`${field.key}-href`}>Ziel-URL</Label>
+                          <Input
+                            id={`${field.key}-href`}
+                            value={links[field.key]?.href ?? defaultHref}
+                            placeholder={defaultHref || "/…"}
+                            onChange={(e) => updateLink(field.key, e.target.value)}
+                          />
+                        </div>
+                      )}
+                      <p className={cn("text-[11px]", adminUi.muted)}>Schlüssel: {field.key}</p>
+                    </div>
+                  )
+                })}
               </CardContent>
             </Card>
           </TabsContent>
         ))}
       </Tabs>
 
-      <div className="sticky bottom-4 flex justify-end">
+      <div className="sticky bottom-4 flex flex-wrap justify-end gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => void publishTexts()}
+          disabled={saving || publishing}
+          className="shadow-lg"
+        >
+          {publishing ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <Rocket className="mr-2 h-4 w-4" />
+          )}
+          Live veröffentlichen
+        </Button>
         <Button
           type="button"
           onClick={() => void saveTexts()}
@@ -240,7 +317,7 @@ export function AdminSiteContentDashboard() {
           ) : (
             <Save className="mr-2 h-4 w-4" />
           )}
-          Entwurf speichern
+          Speichern
         </Button>
       </div>
     </div>

@@ -1,6 +1,12 @@
 "use client"
 
-import { useEffect, useState, type ReactNode } from "react"
+import Link, { type LinkProps } from "next/link"
+import {
+  useEffect,
+  useState,
+  type MouseEvent,
+  type ReactNode,
+} from "react"
 import { Loader2, Pencil } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -15,6 +21,7 @@ import {
   getSiteTextFieldMeta,
   type SiteTextKey,
 } from "@/lib/admin/site-texts"
+import { getDefaultSiteLinkHref } from "@/lib/admin/site-links"
 import { useSiteTexts } from "@/components/dripforge/site-texts-provider"
 import { cn } from "@/lib/utils"
 
@@ -23,6 +30,8 @@ type SiteTextEditorProps = {
   value: string
   className?: string
   align?: "start" | "center" | "end"
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }
 
 export function SiteTextEditor({
@@ -30,20 +39,32 @@ export function SiteTextEditor({
   value,
   className,
   align = "start",
+  open: openControlled,
+  onOpenChange,
 }: SiteTextEditorProps) {
-  const { saveText } = useSiteTexts()
-  const { label, multiline } = getSiteTextFieldMeta(textKey)
-  const [open, setOpen] = useState(false)
+  const { saveText, saveLink, linkHref } = useSiteTexts()
+  const { label, hrefEditable } = getSiteTextFieldMeta(textKey)
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false)
+  const open = openControlled ?? uncontrolledOpen
+  const setOpen = onOpenChange ?? setUncontrolledOpen
+  const defaultHref = getDefaultSiteLinkHref(textKey) ?? ""
+  const currentHref = linkHref(textKey, defaultHref || null)
   const [draft, setDraft] = useState(value)
+  const [draftHref, setDraftHref] = useState(currentHref)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (open) setDraft(value)
-  }, [open, value])
+    if (open) {
+      setDraft(value)
+      setDraftHref(currentHref)
+      setError(null)
+    }
+  }, [open, value, currentHref])
 
   const handleCancel = () => {
     setDraft(value)
+    setDraftHref(currentHref)
     setError(null)
     setOpen(false)
   }
@@ -53,6 +74,10 @@ export function SiteTextEditor({
     setError(null)
     try {
       await saveText(textKey, draft)
+      if (hrefEditable) {
+        const href = draftHref.trim() || defaultHref
+        if (href) await saveLink(textKey, href)
+      }
       setOpen(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Speichern fehlgeschlagen")
@@ -76,9 +101,11 @@ export function SiteTextEditor({
           )}
           aria-label={`${label} bearbeiten`}
           onPointerDown={(event) => {
+            event.preventDefault()
             event.stopPropagation()
           }}
           onClick={(event) => {
+            event.preventDefault()
             event.stopPropagation()
           }}
         >
@@ -90,33 +117,36 @@ export function SiteTextEditor({
         align={align}
         sideOffset={8}
         onOpenAutoFocus={(event) => event.preventDefault()}
+        onPointerDown={(event) => event.stopPropagation()}
+        onClick={(event) => event.stopPropagation()}
       >
         <div className="space-y-1">
           <Label htmlFor={`site-text-${textKey}`}>{label}</Label>
           <p className="text-[11px] text-muted-foreground">{textKey}</p>
         </div>
-        {multiline ? (
-          <Textarea
-            id={`site-text-${textKey}`}
-            rows={4}
-            value={draft}
-            autoFocus
-            onChange={(event) => setDraft(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Escape") handleCancel()
-            }}
-          />
-        ) : (
-          <Input
-            id={`site-text-${textKey}`}
-            value={draft}
-            autoFocus
-            onChange={(event) => setDraft(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Escape") handleCancel()
-              if (event.key === "Enter") void handleSave()
-            }}
-          />
+        <Textarea
+          id={`site-text-${textKey}`}
+          rows={3}
+          value={draft}
+          autoFocus
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") handleCancel()
+          }}
+        />
+        {hrefEditable && (
+          <div className="space-y-1">
+            <Label htmlFor={`site-text-href-${textKey}`}>Ziel-URL</Label>
+            <Input
+              id={`site-text-href-${textKey}`}
+              value={draftHref}
+              placeholder={defaultHref || "/…"}
+              onChange={(event) => setDraftHref(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") handleCancel()
+              }}
+            />
+          </div>
         )}
         {error && <p className="text-xs text-red-600">{error}</p>}
         <div className="flex gap-2">
@@ -158,15 +188,39 @@ export function SiteText({ k, className, as: Tag = "span", trim = false }: SiteT
   const { t, canInlineEdit } = useSiteTexts()
   const value = t(k)
   const displayValue = trim ? value.trim() : value
+  const [editorOpen, setEditorOpen] = useState(false)
 
   if (!canInlineEdit) {
-    return <Tag className={className}>{displayValue}</Tag>
+    return <Tag className={cn("whitespace-pre-line", className)}>{displayValue}</Tag>
+  }
+
+  const stopNav = (event: MouseEvent) => {
+    event.preventDefault()
+    event.stopPropagation()
   }
 
   return (
-    <span className={cn("group/site-text inline-flex max-w-full items-start gap-1", className)}>
-      <Tag className="min-w-0 flex-1">{displayValue}</Tag>
-      <SiteTextEditor textKey={k} value={value} />
+    <span
+      className={cn(
+        "group/site-text relative inline-flex max-w-full cursor-text items-start gap-1 rounded-sm",
+        "outline-offset-2 hover:outline hover:outline-1 hover:outline-amber-500/50",
+        className
+      )}
+      onClick={(event) => {
+        stopNav(event)
+        setEditorOpen(true)
+      }}
+      onPointerDown={(event) => {
+        event.stopPropagation()
+      }}
+    >
+      <Tag className="min-w-0 flex-1 whitespace-pre-line">{displayValue}</Tag>
+      <SiteTextEditor
+        textKey={k}
+        value={value}
+        open={editorOpen}
+        onOpenChange={setEditorOpen}
+      />
     </span>
   )
 }
@@ -191,7 +245,16 @@ export function EditableSiteTextField({
   }
 
   return (
-    <span className={cn("group/site-text relative inline-flex max-w-full items-center gap-1", className)}>
+    <span
+      className={cn("group/site-text relative inline-flex max-w-full items-center gap-1", className)}
+      onClick={(event) => {
+        event.preventDefault()
+        event.stopPropagation()
+      }}
+      onPointerDown={(event) => {
+        event.stopPropagation()
+      }}
+    >
       {children}
       <SiteTextEditor textKey={textKey} value={value} align="end" />
     </span>
@@ -201,4 +264,48 @@ export function EditableSiteTextField({
 export function useSiteTextValue(key: SiteTextKey): string {
   const { t } = useSiteTexts()
   return t(key)
+}
+
+type SiteEditableLinkProps = LinkProps & {
+  children: ReactNode
+  className?: string
+  /** Site-text key whose configured href should be used when present. */
+  hrefKey?: SiteTextKey | string
+}
+
+/**
+ * Link that uses editable site-config href when available and blocks navigation
+ * while inline edit mode is active.
+ */
+export function SiteEditableLink({
+  href,
+  hrefKey,
+  children,
+  className,
+  onClick,
+  ...rest
+}: SiteEditableLinkProps) {
+  const { canInlineEdit, linkHref } = useSiteTexts()
+  const resolvedHref = hrefKey
+    ? linkHref(String(hrefKey), typeof href === "string" ? href : "/")
+    : typeof href === "string"
+      ? href
+      : "/"
+
+  return (
+    <Link
+      href={resolvedHref}
+      className={className}
+      {...rest}
+      onClick={(event) => {
+        if (canInlineEdit) {
+          event.preventDefault()
+          event.stopPropagation()
+        }
+        onClick?.(event)
+      }}
+    >
+      {children}
+    </Link>
+  )
 }

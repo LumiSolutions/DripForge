@@ -12,6 +12,7 @@ import {
   requireAdminSession,
 } from "@/lib/admin/require-admin-session"
 import { sanitizeSiteImagesInput } from "@/lib/admin/site-images"
+import { sanitizeSiteLinksInput, type SiteLinks } from "@/lib/admin/site-links"
 import { sanitizeSiteTextsInput } from "@/lib/admin/site-texts"
 import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
 import { sanitizeDocumentTemplateInput } from "@/lib/documents/document-template-types"
@@ -32,6 +33,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       texts: bundle.texts,
       images: bundle.images,
+      links: bundle.links,
       meta,
       documentTemplate,
       environment: "staging",
@@ -56,16 +58,18 @@ export async function PUT(request: Request) {
     const body = (await request.json()) as {
       texts?: Partial<Record<string, string>>
       images?: Partial<Record<string, unknown>>
+      links?: Record<string, { href?: string }>
       documentTemplate?: unknown
     }
     const hasTexts = body.texts && typeof body.texts === "object"
     const hasImages = body.images && typeof body.images === "object"
+    const hasLinks = body.links && typeof body.links === "object"
     const hasDocumentTemplate =
       body.documentTemplate && typeof body.documentTemplate === "object"
 
-    if (!hasTexts && !hasImages && !hasDocumentTemplate) {
+    if (!hasTexts && !hasImages && !hasLinks && !hasDocumentTemplate) {
       return NextResponse.json(
-        { error: "Text-, Bild- oder Dokumenten-Daten fehlen." },
+        { error: "Text-, Bild-, Link- oder Dokumenten-Daten fehlen." },
         { status: 400 }
       )
     }
@@ -76,7 +80,7 @@ export async function PUT(request: Request) {
     ])
 
     const savedBundle =
-      hasTexts || hasImages
+      hasTexts || hasImages || hasLinks
         ? await saveSiteConfigStaging({
             texts: hasTexts
               ? sanitizeSiteTextsInput({ ...existing.texts, ...body.texts })
@@ -87,6 +91,12 @@ export async function PUT(request: Request) {
                   ...body.images,
                 })
               : existing.images,
+            links: hasLinks
+              ? sanitizeSiteLinksInput({
+                  ...existing.links,
+                  ...(body.links as SiteLinks),
+                })
+              : existing.links,
           })
         : existing
 
@@ -99,6 +109,7 @@ export async function PUT(request: Request) {
     return NextResponse.json({
       texts: savedBundle.texts,
       images: savedBundle.images,
+      links: savedBundle.links,
       meta,
       documentTemplate: savedDocumentTemplate,
       environment: "staging",
