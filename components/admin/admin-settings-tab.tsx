@@ -13,8 +13,6 @@ import { adminUi } from "@/lib/admin/admin-ui-classes"
 import type {
   CompanySettings,
   LaunchSettings,
-  ServiceVisibilitySettings,
-  ShopConfiguratorSettings,
 } from "@/lib/admin/types"
 import {
   DEFAULT_COMPANY_SETTINGS,
@@ -24,8 +22,12 @@ import {
 } from "@/lib/admin/types"
 import { AdminTesterPasswordSection } from "@/components/admin/admin-tester-password-section"
 import { AdminTwoFactorSection } from "@/components/admin/admin-two-factor-section"
-import { SERVICE_TOGGLE_OPTIONS } from "@/lib/dripforge/service-visibility"
-import { SHOP_CONFIGURATOR_TOGGLE_OPTIONS } from "@/lib/dripforge/shop-configurators"
+import { AdminManagedCatalogSection } from "@/components/admin/admin-managed-catalog-section"
+import {
+  applyManagedCatalogToSettings,
+  normalizeManagedCatalog,
+  type ManagedCatalogItem,
+} from "@/lib/dripforge/managed-catalog"
 import type { LaserConfiguratorSettings } from "@/lib/admin/laser-configurator-types"
 import { createDefaultLaserConfiguratorSettings } from "@/lib/admin/laser-configurator-types"
 import type { CheckoutRuntimeConfig } from "@/lib/dripforge/checkout-config"
@@ -132,11 +134,9 @@ export function AdminSettingsTab({
     DEFAULT_CHECKOUT_RUNTIME_CONFIG
   )
   const [company, setCompany] = useState<CompanySettings>(DEFAULT_COMPANY_SETTINGS)
-  const [services, setServices] = useState<ServiceVisibilitySettings>(
-    DEFAULT_SERVICE_VISIBILITY
+  const [managedCatalog, setManagedCatalog] = useState<ManagedCatalogItem[]>(() =>
+    normalizeManagedCatalog(null, DEFAULT_SERVICE_VISIBILITY, DEFAULT_SHOP_CONFIGURATORS)
   )
-  const [shopConfigurators, setShopConfigurators] =
-    useState<ShopConfiguratorSettings>(DEFAULT_SHOP_CONFIGURATORS)
   const [laserConfigurator, setLaserConfigurator] = useState<LaserConfiguratorSettings>(
     createDefaultLaserConfiguratorSettings()
   )
@@ -221,11 +221,13 @@ export function AdminSettingsTab({
       setThemeInboundTourImageUrl(
         normalizeThemeInboundTourImageUrl(data.themeInboundTourImageUrl)
       )
-      setServices({ ...DEFAULT_SERVICE_VISIBILITY, ...data.services })
-      setShopConfigurators({
-        ...DEFAULT_SHOP_CONFIGURATORS,
-        ...data.shopConfigurators,
-      })
+      setManagedCatalog(
+        normalizeManagedCatalog(
+          data.managedCatalog,
+          data.services,
+          data.shopConfigurators
+        )
+      )
       if (laserData && !laserData.error) {
         setLaserConfigurator({
           ...createDefaultLaserConfiguratorSettings(),
@@ -253,14 +255,18 @@ export function AdminSettingsTab({
     setError(null)
     setSuccess(null)
     try {
+      const applied = applyManagedCatalogToSettings(managedCatalog)
+      setManagedCatalog(applied.managedCatalog)
+
       const res = await fetch("/api/admin/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           checkout,
           company,
-          services,
-          shopConfigurators,
+          services: applied.services,
+          shopConfigurators: applied.shopConfigurators,
+          managedCatalog: applied.managedCatalog,
           showSupportOnMainSite,
           showSupportOnCountdownPage,
           enableOnboardingTour,
@@ -333,6 +339,13 @@ export function AdminSettingsTab({
       )
       setThemeInboundTourImageUrl(
         normalizeThemeInboundTourImageUrl(data.themeInboundTourImageUrl)
+      )
+      setManagedCatalog(
+        normalizeManagedCatalog(
+          data.managedCatalog,
+          data.services,
+          data.shopConfigurators
+        )
       )
       if (laserData && !laserData.error) {
         setLaserConfigurator({
@@ -976,74 +989,10 @@ export function AdminSettingsTab({
         {show("services") && (
           <Card className={adminUi.card}>
             <CardContent className="space-y-6 p-6">
-              <div>
-                <h3 className={cn("text-base font-semibold", adminUi.accentTitle)}>
-                  Dienstleistungen auf der Website
-                </h3>
-                <p className={cn("mt-1 text-sm", adminUi.muted)}>
-                  Steuert Navigation, Startseite und Kacheln. Deaktivierte Services bleiben im Code
-                  erhalten und können später aktiviert werden.
-                </p>
-              </div>
-
-              <div className="space-y-3">
-                {SERVICE_TOGGLE_OPTIONS.map((option) => (
-                  <div
-                    key={option.key}
-                    className={cn(
-                      "flex items-start justify-between gap-4 rounded-xl border p-4",
-                      adminUi.section
-                    )}
-                  >
-                    <div className="space-y-1 pr-2">
-                      <Label className={cn("text-sm font-semibold", adminUi.heading)}>
-                        {option.label}
-                      </Label>
-                      <p className={cn("text-xs", adminUi.muted)}>{option.description}</p>
-                    </div>
-                    <Switch
-                      checked={services[option.key]}
-                      onCheckedChange={(checked) =>
-                        setServices((prev) => ({ ...prev, [option.key]: checked }))
-                      }
-                    />
-                  </div>
-                ))}
-              </div>
-
-              <div className="space-y-3 border-t pt-6">
-                <div>
-                  <h4 className={cn("text-sm font-semibold", adminUi.heading)}>
-                    Konfigurator-Karten im Shop
-                  </h4>
-                  <p className={cn("mt-1 text-xs", adminUi.muted)}>
-                    Steuert die Sichtbarkeit der Karten unter «Erschaffen Sie etwas Einzigartiges» auf
-                    der Startseite und im Shop.
-                  </p>
-                </div>
-                {SHOP_CONFIGURATOR_TOGGLE_OPTIONS.map((option) => (
-                  <div
-                    key={option.key}
-                    className={cn(
-                      "flex items-start justify-between gap-4 rounded-xl border p-4",
-                      adminUi.section
-                    )}
-                  >
-                    <div className="space-y-1 pr-2">
-                      <Label className={cn("text-sm font-semibold", adminUi.heading)}>
-                        {option.label}
-                      </Label>
-                      <p className={cn("text-xs", adminUi.muted)}>{option.description}</p>
-                    </div>
-                    <Switch
-                      checked={shopConfigurators[option.key]}
-                      onCheckedChange={(checked) =>
-                        setShopConfigurators((prev) => ({ ...prev, [option.key]: checked }))
-                      }
-                    />
-                  </div>
-                ))}
-              </div>
+              <AdminManagedCatalogSection
+                catalog={managedCatalog}
+                onChange={setManagedCatalog}
+              />
             </CardContent>
           </Card>
         )}
