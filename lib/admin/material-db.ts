@@ -15,6 +15,7 @@ import {
 } from "@/lib/admin/material-types"
 import { withCosmosFallback } from "@/lib/admin/storage-bridge"
 import { logCosmosError } from "@/lib/cosmos/log-error"
+import { buildDefaultLaserStockMaterials } from "@/lib/admin/seed-laser-materials"
 
 const DATA_DIR = path.join(process.cwd(), "data", "admin")
 const MATERIALS_FILE = "materials.json"
@@ -46,12 +47,47 @@ export async function getMaterials(
       () => cosmosGetMaterials(category),
       readMaterialsFile
     )
-    return category ? all.filter((m) => m.category === category) : all
+    const filtered = category
+      ? all.filter((m) => m.category === category)
+      : all
+
+    // Leeres Lasermaterial-Lager: Katalog-Stammdaten einmalig anlegen
+    if (category === "lasermaterial" && filtered.length === 0) {
+      const seeded = await ensureLaserStockMaterialsSeeded()
+      if (seeded.length > 0) return seeded
+    }
+
+    return filtered
   } catch (error) {
     logCosmosError("getMaterials:total-failure", error)
     const all = await readMaterialsFile().catch(() => [])
     return category ? all.filter((m) => m.category === category) : all
   }
+}
+
+/** Legt fehlende Standard-Lasermaterialien an (nur wenn Lager leer). */
+export async function ensureLaserStockMaterialsSeeded(): Promise<MaterialItem[]> {
+  const existing = await withCosmosFallback(
+    "ensureLaserStock:list",
+    () => cosmosGetMaterials("lasermaterial"),
+    async () => {
+      const all = await readMaterialsFile()
+      return all.filter((m) => m.category === "lasermaterial")
+    }
+  ).catch(() => [] as MaterialItem[])
+
+  if (existing.length > 0) return existing
+
+  const defaults = buildDefaultLaserStockMaterials()
+  const saved: MaterialItem[] = []
+  for (const item of defaults) {
+    try {
+      saved.push(await upsertMaterial(item))
+    } catch (error) {
+      logCosmosError(`ensureLaserStock:upsert:${item.id}`, error)
+    }
+  }
+  return saved
 }
 
 export async function getMaterialById(id: string): Promise<MaterialItem | null> {

@@ -8,9 +8,11 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { KontoShell } from "@/components/konto/konto-shell"
+import { LoadSavedDesignButton } from "@/components/konto/load-saved-design-button"
 import { SafeProductImage } from "@/components/dripforge/shared/safe-product-image"
 import { useCart } from "@/components/dripforge/cart-provider"
 import { productHref } from "@/lib/dripforge/product-slug"
+import type { SavedCustomerDesign } from "@/lib/konto/account-types"
 import type { CartItem } from "@/lib/dripforge/types"
 
 type Suggestion = {
@@ -117,12 +119,51 @@ function buildCartItem(
   }
 }
 
+function buildCartFromSavedDesign(
+  design: SavedCustomerDesign,
+  product?: Suggestion | null
+): CartItem {
+  const config = design.config ?? {}
+  const name =
+    product?.name ||
+    (typeof config.material === "string" ? config.material : null) ||
+    design.label
+  const type = design.designType === "3d" ? "3d" : "laser"
+  const price = product?.price ?? (Number(config.price) || 0)
+
+  return buildCartItem(
+    {
+      productId: product?.productId || `design-${design.id}`,
+      name,
+      type,
+      price,
+      imageUrl: design.previewUrl ?? product?.imageUrl ?? null,
+      lastOrderedAt: design.updatedAt,
+      orderCount: 1,
+      hasDesign: true,
+      engravingText:
+        typeof config.engravingText === "string"
+          ? config.engravingText
+          : typeof config.userText === "string"
+            ? config.userText
+            : null,
+      designPreviewUrl: design.previewUrl ?? null,
+      designConfig: config,
+      savedDesignId: design.id,
+      savedDesignLabel: design.label,
+    },
+    true
+  )
+}
+
 export function KontoReorderPage() {
   const { addToCart } = useCart()
   const router = useRouter()
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
   const [loading, setLoading] = useState(true)
   const [feedback, setFeedback] = useState<string | null>(null)
+  const [designPickerOpen, setDesignPickerOpen] = useState(false)
+  const [designTarget, setDesignTarget] = useState<Suggestion | null>(null)
 
   useEffect(() => {
     void fetch("/api/konto/reorder-suggestions", {
@@ -152,18 +193,48 @@ export function KontoReorderPage() {
     }, 400)
   }
 
+  const reorderWithSavedDesign = (design: SavedCustomerDesign) => {
+    addToCart(buildCartFromSavedDesign(design, designTarget))
+    setFeedback(`Design «${design.label}» erneut bestellt — im Warenkorb.`)
+    setDesignTarget(null)
+    window.setTimeout(() => {
+      router.push("/warenkorb")
+    }, 400)
+  }
+
   return (
     <KontoShell>
       <div className="space-y-6">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-bold">
-            <RefreshCw className="h-6 w-6 text-primary" />
-            Bestellvorschlag
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Produkte aus früheren Bestellungen — mit einem Klick nachbestellen.
-          </p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="flex items-center gap-2 text-2xl font-bold">
+              <RefreshCw className="h-6 w-6 text-primary" />
+              Bestellvorschlag
+            </h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Produkte aus früheren Bestellungen — mit einem Klick nachbestellen.
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              setDesignTarget(null)
+              setDesignPickerOpen(true)
+            }}
+          >
+            <Palette className="mr-2 h-4 w-4" />
+            Erneut bestellen
+          </Button>
         </div>
+
+        <LoadSavedDesignButton
+          designType="all"
+          hideTrigger
+          open={designPickerOpen}
+          onOpenChange={setDesignPickerOpen}
+          onSelect={reorderWithSavedDesign}
+        />
 
         {feedback ? (
           <p className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300">
@@ -269,6 +340,17 @@ export function KontoReorderPage() {
                             Nachbestellen
                           </Button>
                         )}
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setDesignTarget(item)
+                            setDesignPickerOpen(true)
+                          }}
+                        >
+                          Design wählen
+                        </Button>
                         <Button type="button" size="sm" variant="outline" asChild>
                           <Link
                             href={productHref({

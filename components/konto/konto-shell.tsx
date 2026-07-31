@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import {
+  ChevronDown,
   Coins,
   FileText,
   Heart,
@@ -14,6 +15,13 @@ import {
   RefreshCw,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 import { useRewardPointsEnabled } from "@/hooks/use-reward-points-enabled"
 
@@ -46,6 +54,11 @@ export function KontoShell({
     (item) => !item.rewardPoints || rewardPointsEnabled !== false
   )
 
+  const activeItem =
+    navItems.find((item) =>
+      item.exact ? pathname === item.href : pathname.startsWith(item.href)
+    ) ?? navItems[0]
+
   const handleLogout = async () => {
     await fetch("/api/konto/logout", { method: "POST" })
     router.push("/konto/login")
@@ -60,35 +73,61 @@ export function KontoShell({
       )}
     >
       {!authMode && (
-        <nav
-          className={cn(
-            "-mx-4 flex shrink-0 flex-nowrap gap-2 overflow-x-auto px-4 whitespace-nowrap",
-            "[scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden",
-            "md:mx-0 md:w-52 md:flex-col md:overflow-visible md:whitespace-normal md:px-0"
-          )}
-        >
-          {navItems.map((item) => {
-            const Icon = item.icon
-            const active = item.exact
-              ? pathname === item.href
-              : pathname.startsWith(item.href)
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  "flex shrink-0 items-center gap-2 rounded-xl px-4 py-3 text-sm font-medium transition-colors",
-                  active
-                    ? "bg-primary/15 text-primary ring-1 ring-primary/30"
-                    : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-                )}
-              >
-                <Icon className="h-4 w-4 shrink-0" />
-                {item.label}
-              </Link>
-            )
-          })}
-        </nav>
+        <>
+          {/* Mobile: sticky Dropdown */}
+          <div className="sticky top-[var(--header-height,4rem)] z-50 -mx-4 border-b border-border/60 bg-background/95 px-4 py-3 shadow-sm backdrop-blur-md md:hidden">
+            <Select
+              value={activeItem?.href ?? "/konto"}
+              onValueChange={(href) => router.push(href)}
+            >
+              <SelectTrigger className="h-11 w-full rounded-xl border-border/70 bg-card shadow-sm">
+                <SelectValue placeholder="Bereich wählen" />
+              </SelectTrigger>
+              <SelectContent>
+                {navItems.map((item) => {
+                  const Icon = item.icon
+                  return (
+                    <SelectItem key={item.href} value={item.href}>
+                      <span className="inline-flex items-center gap-2">
+                        <Icon className="h-4 w-4" />
+                        {item.label}
+                      </span>
+                    </SelectItem>
+                  )
+                })}
+              </SelectContent>
+            </Select>
+            <p className="mt-1.5 flex items-center gap-1 text-[11px] text-muted-foreground">
+              <ChevronDown className="h-3 w-3" />
+              Bereich wechseln — bleibt beim Scrollen sichtbar
+            </p>
+          </div>
+
+          {/* Desktop: Seitenmenü */}
+          <nav className="hidden shrink-0 md:flex md:w-52 md:flex-col md:gap-2">
+            {navItems.map((item) => {
+              const Icon = item.icon
+              const active = item.exact
+                ? pathname === item.href
+                : pathname.startsWith(item.href)
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    "flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-medium transition-colors",
+                    active
+                      ? "bg-primary/15 text-primary ring-1 ring-primary/30"
+                      : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                  )}
+                >
+                  <Icon className="h-4 w-4 shrink-0" />
+                  {item.label}
+                </Link>
+              )
+            })}
+          </nav>
+        </>
       )}
 
       <div className="min-w-0 flex-1 space-y-6">

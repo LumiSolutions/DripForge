@@ -1,0 +1,67 @@
+[
+  {
+    "id": "mat-holz-seed",
+    "docType": "material",
+    "category": "lasermaterial",
+    "name": "Holz",
+    "materialType": "wood",
+    "typ": "Sperrholz",
+    "stockUnit": "piece",
+    "stockAvailable": 0,
+    "stockReserved": 0,
+    "bemerkungen": "Natürliche Holzoberfläche für warme Gravuren.",
+    "updatedAt": "2026-01-01T00:00:00.000Z"
+  },
+  {
+    "id": "mat-acryl-seed",
+    "docType": "material",
+    "category": "lasermaterial",
+    "name": "Acryl",
+    "materialType": "acrylic",
+    "typ": "Klar",
+    "stockUnit": "piece",
+    "stockAvailable": 0,
+    "stockReserved": 0,
+    "bemerkungen": "Acrylglas für präzise Schnitte und Gravuren.",
+    "updatedAt": "2026-01-01T00:00:00.000Z"
+  },
+  {
+    "id": "mat-schiefer-seed",
+    "docType": "material",
+    "category": "lasermaterial",
+    "name": "Schiefer & Stein",
+    "materialType": "stone",
+    "typ": "Schiefer",
+    "stockUnit": "piece",
+    "stockAvailable": 0,
+    "stockReserved": 0,
+    "bemerkungen": "Steinige Oberflächen für kontrastreiche Gravuren.",
+    "updatedAt": "2026-01-01T00:00:00.000Z"
+  },
+  {
+    "id": "mat-leder-seed",
+    "docType": "material",
+    "category": "lasermaterial",
+    "name": "Leder",
+    "materialType": "leather",
+    "typ": "Echtleder",
+    "stockUnit": "piece",
+    "stockAvailable": 0,
+    "stockReserved": 0,
+    "bemerkungen": "Leder für Accessoires und personalisierte Gravuren.",
+    "updatedAt": "2026-01-01T00:00:00.000Z"
+  },
+  {
+    "id": "mat-edelstahl-seed",
+    "docType": "material",
+    "category": "lasermaterial",
+    "name": "Edelstahl",
+    "materialType": "edelstahl",
+    "typ": "Anhänger",
+    "stockUnit": "piece",
+    "stockAvailable": 0,
+    "stockReserved": 0,
+    "bemerkungen": "Metallische Oberflächen für langlebige Gravuren.",
+    "updatedAt": "2026-01-01T00:00:00.000Z"
+  }
+]

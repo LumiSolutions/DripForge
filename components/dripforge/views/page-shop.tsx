@@ -92,6 +92,8 @@ import { SiteText } from "@/components/dripforge/editable-site-text"
 import { SiteTextPhrase } from "@/components/dripforge/site-text-phrase"
 import { useSiteTexts } from "@/components/dripforge/site-texts-provider"
 import { captureProductionLayerPng } from "@/lib/dripforge/capture-production-layer"
+import { LoadSavedDesignButton } from "@/components/konto/load-saved-design-button"
+import { hydrateLaserDesignerFromConfig } from "@/lib/konto/hydrate-laser-design"
 
 const Product3DPreview = dynamic(
   () =>
@@ -636,6 +638,19 @@ export function PageShop({
                       )
                     }
                   />
+                  <LoadSavedDesignButton
+                    designType="laser"
+                    className="w-full justify-center"
+                    onSelect={(design) => {
+                      setLaserDesign(
+                        hydrateLaserDesignerFromConfig(
+                          design.config ?? {},
+                          shopLaserMaterial,
+                          shopProductVarianten
+                        )
+                      )
+                    }}
+                  />
                 </div>
 
                 {/* Spalte 2: Preis / Varianten / Warenkorb — auf Mobile unter der Vorschau */}
@@ -689,26 +704,27 @@ export function PageShop({
                       </Button>
                     </CardContent>
                   </Card>
-
-                  <LaserDesignerStudio
-                    column="settings"
-                    material={shopLaserMaterial}
-                    productName={detailProduct.name}
-                    state={laserDesign}
-                    varianten={shopProductVarianten}
-                    showMaterialCard={false}
-                    showVariantPicker
-                    showTextLayers={false}
-                    onStateChange={(patch) =>
-                      setLaserDesign((prev) =>
-                        prev ? { ...prev, ...patch } : prev
-                      )
-                    }
-                  />
                 </div>
 
-                {/* Spalte 3: Live-Vorschau — mobil direkt über dem Warenkorb */}
+                {/* Spalte 3: Varianten oberhalb der Live-Vorschau */}
                 <div className="order-2 flex min-w-0 max-w-full flex-col gap-4 xl:order-3 xl:col-span-4 xl:sticky xl:top-[calc(var(--header-height,4rem)+1rem)]">
+                  {shopProductVarianten.length > 0 && (
+                    <LaserDesignerStudio
+                      column="settings"
+                      material={shopLaserMaterial}
+                      productName={detailProduct.name}
+                      state={laserDesign}
+                      varianten={shopProductVarianten}
+                      showMaterialCard={false}
+                      showVariantPicker
+                      showTextLayers={false}
+                      onStateChange={(patch) =>
+                        setLaserDesign((prev) =>
+                          prev ? { ...prev, ...patch } : prev
+                        )
+                      }
+                    />
+                  )}
                   <LaserDesignerStudio
                     column="preview"
                     material={shopLaserMaterial}

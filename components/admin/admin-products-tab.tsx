@@ -53,6 +53,8 @@ import {
   AdminProductTagsSection,
 } from "@/components/admin/admin-product-tags-section"
 import { AdminProductsListPanel } from "@/components/admin/admin-products-list-panel"
+import { AdminGallerySortable } from "@/components/admin/admin-gallery-sortable"
+import { AdminImageCropDialog } from "@/components/admin/admin-image-crop-dialog"
 import type { ProductTag } from "@/lib/admin/product-tags"
 import {
   getProductShopStatus,
@@ -417,10 +419,26 @@ export function AdminProductsTab() {
     }
   }
 
-  const removeGalleryImage = (index: number) => {
-    const next = [...(form.galerieBilder ?? [])]
-    next.splice(index, 1)
-    updateField("galerieBilder", next)
+  const applyCustomizationCrop = async (dataUrl: string) => {
+    if (!form.id) return
+    setUploadingMedia("customization")
+    setError(null)
+    try {
+      const res = await fetch(dataUrl)
+      const blob = await res.blob()
+      const file = new File([blob], `customization-crop-${Date.now()}.jpg`, {
+        type: "image/jpeg",
+      })
+      const url = await uploadAdminFile(form.id, "customization", file)
+      updateField("individualisierungsBild", url)
+    } catch (err) {
+      console.warn("Admin: Zuschnitt-Upload fehlgeschlagen.", err)
+      setError(
+        err instanceof Error ? err.message : "Zuschnitt konnte nicht gespeichert werden."
+      )
+    } finally {
+      setUploadingMedia(null)
+    }
   }
 
   const addImageUrl = () => {
@@ -1418,32 +1436,10 @@ export function AdminProductsTab() {
                     </p>
                   )}
                   {(form.galerieBilder?.length ?? 0) > 0 && (
-                    <div className="flex flex-wrap gap-2 pt-1">
-                      {form.galerieBilder!.map((url, index) => (
-                        <div
-                          key={`${url}-${index}`}
-                          className={cn(
-                            "group relative h-16 w-16 shrink-0 overflow-hidden rounded-lg border",
-                            adminUi.thumbnail
-                          )}
-                        >
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={url}
-                            alt={`Galerie ${index + 1}`}
-                            className="h-full w-full object-cover"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => removeGalleryImage(index)}
-                            className="absolute right-0.5 top-0.5 rounded bg-black/70 p-0.5 text-zinc-200 opacity-0 transition-opacity group-hover:opacity-100"
-                            aria-label="Bild entfernen"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
+                    <AdminGallerySortable
+                      images={form.galerieBilder!}
+                      onChange={(next) => updateField("galerieBilder", next)}
+                    />
                   )}
                 </div>
 
@@ -1465,7 +1461,7 @@ export function AdminProductsTab() {
                     </p>
                   )}
                   {form.individualisierungsBild && (
-                    <div className="flex items-start gap-3 pt-1">
+                    <div className="flex flex-wrap items-start gap-3 pt-1">
                       <div className={cn("h-16 w-16 shrink-0 overflow-hidden rounded-lg border", adminUi.thumbnail)}>
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
@@ -1474,16 +1470,22 @@ export function AdminProductsTab() {
                           className="h-full w-full object-cover"
                         />
                       </div>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        className={cn("hover:text-red-300", adminUi.muted)}
-                        onClick={() => updateField("individualisierungsBild", "")}
-                      >
-                        <X className="mr-1 h-3 w-3" />
-                        Entfernen
-                      </Button>
+                      <div className="flex flex-wrap gap-2">
+                        <AdminImageCropDialog
+                          imageUrl={form.individualisierungsBild}
+                          onCropped={applyCustomizationCrop}
+                        />
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className={cn("hover:text-red-300", adminUi.muted)}
+                          onClick={() => updateField("individualisierungsBild", "")}
+                        >
+                          <X className="mr-1 h-3 w-3" />
+                          Entfernen
+                        </Button>
+                      </div>
                     </div>
                   )}
                 </div>

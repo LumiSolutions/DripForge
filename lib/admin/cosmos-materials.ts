@@ -112,26 +112,40 @@ export async function cosmosGetMaterials(
   category?: MaterialCategory
 ): Promise<MaterialItem[]> {
   const container = await getInventoryContainer()
-  const query =
+  const baseParams =
     category != null
-      ? {
-          query:
-            "SELECT * FROM c WHERE c.docType = @docType AND c.category = @category ORDER BY c.name ASC",
-          parameters: [
-            { name: "@docType", value: MATERIAL_DOC_TYPE },
-            { name: "@category", value: category },
-          ],
-        }
-      : {
-          query: "SELECT * FROM c WHERE c.docType = @docType ORDER BY c.name ASC",
-          parameters: [{ name: "@docType", value: MATERIAL_DOC_TYPE }],
-        }
+      ? [
+          { name: "@docType", value: MATERIAL_DOC_TYPE },
+          { name: "@category", value: category },
+        ]
+      : [{ name: "@docType", value: MATERIAL_DOC_TYPE }]
 
-  const { resources } = await container.items
-    .query<CosmosMaterialDoc>(query)
-    .fetchAll()
+  const where =
+    category != null
+      ? "c.docType = @docType AND c.category = @category"
+      : "c.docType = @docType"
 
-  return resources.map((doc) => normalizeMaterialItem(doc))
+  try {
+    const { resources } = await container.items
+      .query<CosmosMaterialDoc>({
+        query: `SELECT * FROM c WHERE ${where} ORDER BY c.name ASC`,
+        parameters: baseParams,
+      })
+      .fetchAll()
+    return resources.map((doc) => normalizeMaterialItem(doc))
+  } catch (orderedError) {
+    // ORDER BY kann ohne Composite-Index scheitern — ohne Sortierung erneut versuchen
+    logCosmosError("cosmosGetMaterials:orderBy", orderedError)
+    const { resources } = await container.items
+      .query<CosmosMaterialDoc>({
+        query: `SELECT * FROM c WHERE ${where}`,
+        parameters: baseParams,
+      })
+      .fetchAll()
+    return resources
+      .map((doc) => normalizeMaterialItem(doc))
+      .sort((a, b) => a.name.localeCompare(b.name, "de"))
+  }
 }
 
 export async function cosmosGetMaterialById(id: string): Promise<MaterialItem | null> {

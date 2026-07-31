@@ -24,11 +24,22 @@ export async function GET(request: Request) {
     await warmCosmosInfrastructure()
     const { searchParams } = new URL(request.url)
     const category = searchParams.get("category") as MaterialCategory | null
+    const seed = searchParams.get("seed") === "1"
     const materials = await getMaterials(
       category && ["filament", "lasermaterial", "sonstiges"].includes(category)
         ? category
         : undefined
     )
+
+    // Manuelles Wiederherstellen der Lasermaterial-Stammdaten
+    if (seed && category === "lasermaterial" && materials.length === 0) {
+      const { ensureLaserStockMaterialsSeeded } = await import(
+        "@/lib/admin/material-db"
+      )
+      const seeded = await ensureLaserStockMaterialsSeeded()
+      return NextResponse.json({ materials: seeded, seeded: true })
+    }
+
     return NextResponse.json({ materials })
   } catch (error) {
     console.error("Admin-API: Materialien konnten nicht geladen werden.", error)

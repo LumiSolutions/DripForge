@@ -238,6 +238,13 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
     void load()
   }, [load])
 
+  // Beim Tab-Wechsel Filament ↔ Lasermaterial Filter zurücksetzen
+  // (sonst bleiben z. B. Filament-Art-IDs aktiv und blenden alle Laser-Artikel aus)
+  useEffect(() => {
+    setSearchQuery("")
+    setArtFilter("all")
+  }, [category])
+
   const openCreate = () => {
     setDraft({
       id: "",
@@ -485,11 +492,57 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
       {error && <p className={adminUi.errorLg}>{error}</p>}
 
       {displayedMaterials.length === 0 ? (
-        <p className={cn("rounded-xl border p-8 text-center text-sm", adminUi.section, adminUi.muted)}>
-          {materials.length === 0
-            ? `Noch keine Lagerartikel in «${categoryLabel}».`
-            : "Keine Treffer für die aktuelle Suche/Filter."}
-        </p>
+        <div className={cn("space-y-4 rounded-xl border p-8 text-center", adminUi.section)}>
+          <p className={cn("text-sm", adminUi.muted)}>
+            {materials.length === 0
+              ? `Noch keine Lagerartikel in «${categoryLabel}».`
+              : "Keine Treffer für die aktuelle Suche/Filter."}
+          </p>
+          {category === "lasermaterial" && materials.length === 0 && (
+            <Button
+              type="button"
+              variant="outline"
+              className={adminUi.outlineBtn}
+              onClick={() => {
+                void (async () => {
+                  setLoading(true)
+                  try {
+                    const res = await fetch(
+                      "/api/admin/materials?category=lasermaterial&seed=1",
+                      { cache: "no-store", credentials: "include" }
+                    )
+                    const data = await res.json()
+                    if (res.ok) setMaterials(data.materials ?? [])
+                    else throw new Error(data.error ?? "Seed fehlgeschlagen")
+                  } catch (err) {
+                    setError(
+                      err instanceof Error
+                        ? err.message
+                        : "Lasermaterialien konnten nicht wiederhergestellt werden."
+                    )
+                  } finally {
+                    setLoading(false)
+                  }
+                })()
+              }}
+            >
+              Standard-Lasermaterialien wiederherstellen
+            </Button>
+          )}
+          {materials.length > 0 && (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                setSearchQuery("")
+                setArtFilter("all")
+              }}
+            >
+              Filter zurücksetzen
+            </Button>
+          )}
+        </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {displayedMaterials.map((material) => (

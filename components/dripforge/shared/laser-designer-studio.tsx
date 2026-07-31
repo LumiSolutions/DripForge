@@ -2718,9 +2718,9 @@ function LaserDesignerPreview({
         </div>
 
         <div className="relative box-border flex w-full min-w-0 max-w-full flex-col gap-2 overflow-hidden md:flex-row md:items-start">
-          {/* Mobile: horizontal über dem Canvas · Desktop: vertikal links */}
+          {/* Mobile: horizontal · Desktop: 2-Spalten-Grid statt langer Spalte */}
           <div
-            className="order-1 flex w-full max-w-full shrink-0 flex-row gap-1.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] md:order-none md:w-11 md:flex-col md:overflow-visible md:pb-0 [&::-webkit-scrollbar]:hidden"
+            className="order-1 grid w-full max-w-full shrink-0 grid-cols-4 gap-1.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] sm:grid-cols-5 md:order-none md:w-[5.75rem] md:grid-cols-2 md:overflow-visible md:pb-0 [&::-webkit-scrollbar]:hidden"
             {...{ [CAPTURE_HIDE_ATTR]: "true" }}
           >
             <ToolIconButton
@@ -2913,7 +2913,7 @@ function LaserDesignerPreview({
           ref={assignPreviewSurfaceRef}
           {...{ [LEITBILD_LASER_PREVIEW_ATTR]: "true" }}
           className={cn(
-            "relative z-0 order-2 mx-auto aspect-square min-w-0 w-full max-w-full flex-1 overflow-hidden rounded-xl border-2 border-cyan-500/25 shadow-inner [contain:layout_paint]",
+            "relative z-0 order-2 mx-auto aspect-square min-h-[min(100%,22rem)] min-w-0 w-full max-w-full flex-1 overflow-hidden rounded-xl border-2 border-cyan-500/25 shadow-inner [contain:layout_paint] sm:min-h-[26rem] lg:min-h-[30rem]",
             CANVAS_TOUCH_LOCK_CLASS,
             canvasStyle.surface
           )}
@@ -2923,7 +2923,7 @@ function LaserDesignerPreview({
             width: "100%",
             maxWidth: "100%",
             height: "auto",
-            maxHeight: "100%",
+            maxHeight: "min(92vw, 40rem)",
             boxSizing: "border-box",
             overscrollBehavior: "none",
             WebkitOverflowScrolling: "auto",
