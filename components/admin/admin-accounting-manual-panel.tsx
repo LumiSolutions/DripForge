@@ -201,6 +201,8 @@ export function AdminAccountingManualPanel({
 }: AdminAccountingManualPanelProps) {
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [belegNummer, setBelegNummer] = useState("")
+  const [suggestedBelegNummer, setSuggestedBelegNummer] = useState("")
+  const lastAppliedBelegRef = useRef("")
   const [rows, setRows] = useState<ManualBookingRow[]>([emptyManualBookingRow()])
   const [editingId, setEditingId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -242,6 +244,7 @@ export function AdminAccountingManualPanel({
       })
       const data = (await res.json()) as {
         entries?: JournalEntry[]
+        nextBelegNummer?: string
         error?: string
         warning?: string
       }
@@ -258,6 +261,10 @@ export function AdminAccountingManualPanel({
       if (data.warning) {
         console.warn(data.warning)
       }
+      const next = String(data.nextBelegNummer ?? "").trim()
+      if (next) {
+        setSuggestedBelegNummer(next)
+      }
       setHistory(flattenManualHistory(data.entries ?? [], taxCodes))
     } catch (err) {
       console.error("Historie laden fehlgeschlagen:", err)
@@ -272,14 +279,28 @@ export function AdminAccountingManualPanel({
     void loadHistory()
   }, [loadHistory])
 
+  // Prefill Belegnummer for new bookings when suggestion arrives / updates
+  useEffect(() => {
+    if (!suggestedBelegNummer || editingId) return
+    setBelegNummer((current) => {
+      if (!current.trim() || current === lastAppliedBelegRef.current) {
+        lastAppliedBelegRef.current = suggestedBelegNummer
+        return suggestedBelegNummer
+      }
+      return current
+    })
+  }, [suggestedBelegNummer, editingId])
+
   const resetForm = useCallback(() => {
     setEditingId(null)
     setDate(new Date().toISOString().slice(0, 10))
-    setBelegNummer("")
+    lastAppliedBelegRef.current = suggestedBelegNummer
+    setBelegNummer(suggestedBelegNummer)
     setRows([emptyManualBookingRow()])
     setFieldErrors({})
     setError(null)
-  }, [])
+    void loadHistory()
+  }, [suggestedBelegNummer, loadHistory])
 
   const loadEntryIntoForm = useCallback(
     async (entryId: string) => {
@@ -607,9 +628,12 @@ export function AdminAccountingManualPanel({
             <Input
               value={belegNummer}
               onChange={(e) => setBelegNummer(e.target.value)}
-              placeholder="z. B. 89 (optional)"
+              placeholder={suggestedBelegNummer || "BU-2026-0001"}
               className={adminUi.input}
             />
+            <p className={cn("text-xs", adminUi.muted)}>
+              Wird automatisch vergeben, kann überschrieben werden.
+            </p>
           </div>
         </div>
 

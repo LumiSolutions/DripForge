@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import {
@@ -16,20 +16,29 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import { products } from "@/lib/dripforge/data"
 import {
   filterNavItems,
+  isLaserNavVisible,
+  isShopNavVisible,
   normalizeServiceVisibility,
 } from "@/lib/dripforge/service-visibility"
 import type { ServiceVisibilitySettings } from "@/lib/admin/types"
 import { shopCartHref, shopNavHref } from "@/lib/dripforge/shop-routes"
 import { HEADER_ICON_BTN_CLASS } from "@/components/dripforge/support-nav-link"
 import { SiteImage } from "@/components/dripforge/editable-site-image"
+import { EditableCmsNavLabel } from "@/components/dripforge/editable-cms-nav-label"
+import { useSiteTexts } from "@/components/dripforge/site-texts-provider"
+import { cmsPreviewHref, cmsReadonlyPreviewHref } from "@/lib/admin/cms-preview-pages"
 import {
   ThemeInboundTour,
   useThemeInboundTourVisible,
 } from "@/components/dripforge/theme-inbound-tour"
 import { markThemeInboundTourSeen } from "@/lib/dripforge/theme-inbound-tour-settings"
+import { resolveCmsNavIcon } from "@/lib/admin/cms-nav-icons"
+import { resolveVisibleCmsNavItems, type CmsNavItem } from "@/lib/admin/site-nav"
+import type { Product } from "@/lib/dripforge/types"
+import { normalizeShopProduct } from "@/lib/dripforge/normalize-shop-product"
+import { productHref } from "@/lib/dripforge/product-slug"
 
 type SpaNavProps = {
   mode: "spa"
@@ -46,9 +55,27 @@ type LinkNavProps = {
 
 export type ShopHeaderProps = SpaNavProps | LinkNavProps
 
+function applyServiceVisibilityToCmsNav(
+  items: CmsNavItem[],
+  services: ServiceVisibilitySettings
+): CmsNavItem[] {
+  return items.filter((item) => {
+    if (item.id === "3d-druck") return services.druck3d
+    if (item.id === "laser") return isLaserNavVisible(services)
+    if (item.id === "shop") return isShopNavVisible(services)
+    return true
+  })
+}
+
 export function ShopHeader(props: ShopHeaderProps) {
   const pathname = usePathname()
   const router = useRouter()
+  const { navItems: cmsNavItems, preview, readonly } = useSiteTexts()
+
+  const withPreviewHref = (href: string) => {
+    if (!preview) return href
+    return readonly ? cmsReadonlyPreviewHref(href) : cmsPreviewHref(href)
+  }
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
@@ -57,6 +84,8 @@ export function ShopHeader(props: ShopHeaderProps) {
     normalizeServiceVisibility(null)
   )
   const [kontoLoggedIn, setKontoLoggedIn] = useState(false)
+  const [catalogProducts, setCatalogProducts] = useState<Product[]>([])
+  const [catalogLoaded, setCatalogLoaded] = useState(false)
   const searchRef = useRef<HTMLDivElement>(null)
   const themeButtonRef = useRef<HTMLButtonElement>(null)
   const themeTourVisible = useThemeInboundTourVisible()
@@ -96,6 +125,30 @@ export function ShopHeader(props: ShopHeaderProps) {
   }, [pathname])
 
   useEffect(() => {
+    if (!searchOpen || catalogLoaded) return
+    let cancelled = false
+    void fetch("/api/products", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelled) return
+        const list = Array.isArray(data?.products)
+          ? (data.products as Product[]).map(normalizeShopProduct)
+          : []
+        setCatalogProducts(list)
+        setCatalogLoaded(true)
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCatalogProducts([])
+          setCatalogLoaded(true)
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [searchOpen, catalogLoaded])
+
+  useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
         setSearchOpen(false)
@@ -117,22 +170,31 @@ export function ShopHeader(props: ShopHeaderProps) {
     })
   }
 
-  const visibleNavItems = filterNavItems(services)
+  const visibleCmsNav = useMemo(() => {
+    const fromConfig = resolveVisibleCmsNavItems(cmsNavItems)
+    return applyServiceVisibilityToCmsNav(fromConfig, services)
+  }, [cmsNavItems, services])
 
-  const searchResults =
-    searchQuery.trim().length > 0
-      ? products.filter(
-          (p) =>
-            p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            p.description.toLowerCase().includes(searchQuery.toLowerCase())
-        )
-      : []
+  const fallbackNavItems = filterNavItems(services)
+  const useCmsNav = visibleCmsNav.length > 0
 
-  const isNavActive = (viewId: string) => {
+  const searchResults = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    if (!q) return []
+    // /api/products liefert nur active/sale — inaktive sind nie enthalten
+    return catalogProducts.filter(
+      (p) =>
+        p.istAktiv !== false &&
+        (p.name.toLowerCase().includes(q) ||
+          p.description.toLowerCase().includes(q))
+    )
+  }, [catalogProducts, searchQuery])
+
+  const isNavActive = (viewId: string, href?: string) => {
     if (props.mode === "spa") return props.currentView === viewId
-    const href = shopNavHref(viewId)
-    if (href === "/") return pathname === "/"
-    return pathname === href || pathname.startsWith(`${href}/`)
+    const target = href ?? shopNavHref(viewId)
+    if (target === "/") return pathname === "/"
+    return pathname === target || pathname.startsWith(`${target}/`)
   }
 
   const handleSpaNav = (viewId: string) => {
@@ -189,7 +251,7 @@ export function ShopHeader(props: ShopHeaderProps) {
           </button>
         ) : (
           <Link
-            href="/"
+            href={withPreviewHref("/")}
             prefetch
             className="relative z-20 flex min-w-0 shrink items-center gap-2 pr-1 sm:shrink-0 sm:pr-4"
           >
@@ -198,29 +260,58 @@ export function ShopHeader(props: ShopHeaderProps) {
         )}
 
         <nav className="hidden min-w-0 flex-1 items-center justify-center gap-0.5 md:flex">
-          {visibleNavItems.map((item) =>
-            props.mode === "spa" ? (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => handleSpaNav(item.id)}
-                className={navLinkClass(isNavActive(item.id))}
-              >
-                <item.icon className="h-4 w-4 shrink-0" />
-                {item.label}
-              </button>
-            ) : (
-              <Link
-                key={item.id}
-                href={shopNavHref(item.id)}
-                prefetch
-                className={navLinkClass(isNavActive(item.id))}
-              >
-                <item.icon className="h-4 w-4 shrink-0" />
-                {item.label}
-              </Link>
-            )
-          )}
+          {useCmsNav
+            ? visibleCmsNav.map((item) => {
+                const Icon = resolveCmsNavIcon(item.icon)
+                const href = withPreviewHref(item.href || shopNavHref(item.id))
+                if (props.mode === "spa") {
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => handleSpaNav(item.id)}
+                      className={navLinkClass(isNavActive(item.id, href))}
+                    >
+                      <Icon className="h-4 w-4 shrink-0" />
+                      <EditableCmsNavLabel navId={item.id} label={item.label} />
+                    </button>
+                  )
+                }
+                return (
+                  <Link
+                    key={item.id}
+                    href={href}
+                    prefetch
+                    className={navLinkClass(isNavActive(item.id, href))}
+                  >
+                    <Icon className="h-4 w-4 shrink-0" />
+                    <EditableCmsNavLabel navId={item.id} label={item.label} />
+                  </Link>
+                )
+              })
+            : fallbackNavItems.map((item) =>
+                props.mode === "spa" ? (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => handleSpaNav(item.id)}
+                    className={navLinkClass(isNavActive(item.id))}
+                  >
+                    <item.icon className="h-4 w-4 shrink-0" />
+                    {item.label}
+                  </button>
+                ) : (
+                  <Link
+                    key={item.id}
+                    href={withPreviewHref(shopNavHref(item.id))}
+                    prefetch
+                    className={navLinkClass(isNavActive(item.id))}
+                  >
+                    <item.icon className="h-4 w-4 shrink-0" />
+                    {item.label}
+                  </Link>
+                )
+              )}
         </nav>
 
         <div className="ml-auto flex shrink-0 flex-nowrap items-center gap-1.5 sm:gap-3 md:gap-5">
@@ -294,9 +385,7 @@ export function ShopHeader(props: ShopHeaderProps) {
                                 if (props.mode === "spa") {
                                   props.onNavigate("shop")
                                 } else {
-                                  router.push(
-                                    `/shop?product=${encodeURIComponent(p.id)}`
-                                  )
+                                  router.push(productHref(p, catalogProducts))
                                 }
                                 setSearchOpen(false)
                                 setSearchQuery("")
@@ -422,40 +511,80 @@ export function ShopHeader(props: ShopHeaderProps) {
       {mobileMenuOpen && (
         <div className="max-h-[min(70vh,calc(100dvh-4rem))] overflow-y-auto border-t border-border bg-background/98 p-4 shadow-md backdrop-blur-md md:hidden">
           <nav className="flex flex-col gap-2">
-            {visibleNavItems.map((item) =>
-              props.mode === "spa" ? (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => handleSpaNav(item.id)}
-                  className={cn(
-                    "flex min-h-11 items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors touch-manipulation",
-                    isNavActive(item.id)
-                      ? "bg-secondary text-foreground"
-                      : "text-muted-foreground hover:bg-secondary/50"
-                  )}
-                >
-                  <item.icon className="h-5 w-5" />
-                  {item.label}
-                </button>
-              ) : (
-                <Link
-                  key={item.id}
-                  href={shopNavHref(item.id)}
-                  prefetch
-                  onClick={() => setMobileMenuOpen(false)}
-                  className={cn(
-                    "inline-flex min-h-11 items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors touch-manipulation",
-                    isNavActive(item.id)
-                      ? "bg-secondary text-foreground"
-                      : "text-muted-foreground hover:bg-secondary/50"
-                  )}
-                >
-                  <item.icon className="h-5 w-5" />
-                  {item.label}
-                </Link>
-              )
-            )}
+            {useCmsNav
+              ? visibleCmsNav.map((item) => {
+                  const Icon = resolveCmsNavIcon(item.icon)
+                  const href = item.href || shopNavHref(item.id)
+                  if (props.mode === "spa") {
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => handleSpaNav(item.id)}
+                        className={cn(
+                          "flex min-h-11 items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors touch-manipulation",
+                          isNavActive(item.id, href)
+                            ? "bg-secondary text-foreground"
+                            : "text-muted-foreground hover:bg-secondary/50"
+                        )}
+                      >
+                        <Icon className="h-5 w-5" />
+                        <EditableCmsNavLabel navId={item.id} label={item.label} />
+                      </button>
+                    )
+                  }
+                  return (
+                    <Link
+                      key={item.id}
+                      href={href}
+                      prefetch
+                      onClick={() => setMobileMenuOpen(false)}
+                      className={cn(
+                        "inline-flex min-h-11 items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors touch-manipulation",
+                        isNavActive(item.id, href)
+                          ? "bg-secondary text-foreground"
+                          : "text-muted-foreground hover:bg-secondary/50"
+                      )}
+                    >
+                      <Icon className="h-5 w-5" />
+                      <EditableCmsNavLabel navId={item.id} label={item.label} />
+                    </Link>
+                  )
+                })
+              : fallbackNavItems.map((item) =>
+                  props.mode === "spa" ? (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => handleSpaNav(item.id)}
+                      className={cn(
+                        "flex min-h-11 items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors touch-manipulation",
+                        isNavActive(item.id)
+                          ? "bg-secondary text-foreground"
+                          : "text-muted-foreground hover:bg-secondary/50"
+                      )}
+                    >
+                      <item.icon className="h-5 w-5" />
+                      {item.label}
+                    </button>
+                  ) : (
+                    <Link
+                      key={item.id}
+                      href={shopNavHref(item.id)}
+                      prefetch
+                      onClick={() => setMobileMenuOpen(false)}
+                      className={cn(
+                        "inline-flex min-h-11 items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors touch-manipulation",
+                        isNavActive(item.id)
+                          ? "bg-secondary text-foreground"
+                          : "text-muted-foreground hover:bg-secondary/50"
+                      )}
+                    >
+                      <item.icon className="h-5 w-5" />
+                      {item.label}
+                    </Link>
+                  )
+                )}
             <Link
               href={kontoHref}
               prefetch

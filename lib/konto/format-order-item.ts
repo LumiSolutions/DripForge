@@ -7,6 +7,7 @@ import {
   formatLayoutPositionDetails,
   getItemLogoPreviewSrc,
 } from "@/lib/admin/layout-placement"
+import { buildDesignConfigFromOrderItem } from "@/lib/konto/order-item-design-config"
 
 export type CustomerOrderItemView = {
   id: string
@@ -23,6 +24,10 @@ export type CustomerOrderItemView = {
   placementSummary: string | null
   options: string[]
   downloads: CustomerItemDownload[]
+  /** true, wenn Motiv/Design nachträglich in «Meine Designs» speicherbar ist */
+  canSaveDesign: boolean
+  /** Config für SaveDesignButton / Nachbestellen mit Design */
+  designConfig: Record<string, unknown> | null
 }
 
 function pushOption(options: string[], label: string, value?: string | null) {
@@ -71,6 +76,8 @@ export function mapOrderItemToCustomerView(
     details?.colorReferenceImage ??
     null
 
+  const designConfig = buildDesignConfigFromOrderItem(item)
+
   return {
     id: item.id,
     name: item.name,
@@ -87,5 +94,7 @@ export function mapOrderItemToCustomerView(
     placementSummary,
     options,
     downloads: getCustomerItemDownloadLinks(orderId, item),
+    canSaveDesign: designConfig != null,
+    designConfig,
   }
 }

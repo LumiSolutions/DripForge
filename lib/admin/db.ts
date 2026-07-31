@@ -1,7 +1,10 @@
 import { promises as fs } from "fs"
 import path from "path"
 import { products as seedProducts } from "@/lib/dripforge/data"
-import { DEFAULT_CHECKOUT_RUNTIME_CONFIG } from "@/lib/dripforge/checkout-config"
+import {
+  DEFAULT_CHECKOUT_RUNTIME_CONFIG,
+  normalizeCheckoutRuntimeConfig,
+} from "@/lib/dripforge/checkout-config"
 import { reconcilePortalAccounts } from "@/lib/konto/crm-sync"
 import type {
   AdminProduct,
@@ -15,14 +18,24 @@ import type {
 import {
   DEFAULT_LAUNCH_SETTINGS,
   DEFAULT_SERVICE_VISIBILITY,
+  DEFAULT_SHOP_CONFIGURATORS,
 } from "@/lib/admin/types"
 import { normalizeShopConfigurators } from "@/lib/dripforge/shop-configurators"
 import { normalizeServiceVisibility } from "@/lib/dripforge/service-visibility"
+import {
+  applyManagedCatalogToSettings,
+  normalizeManagedCatalog,
+  type ManagedCatalogItem,
+} from "@/lib/dripforge/managed-catalog"
 import {
   buildDefaultAdminSettings,
   normalizeSupportFlag,
 } from "@/lib/admin/safe-defaults"
 import { buildSupportPageSettings } from "@/lib/dripforge/support-page-settings"
+import {
+  normalizeSupportFeatures,
+  normalizeSupportMilestones,
+} from "@/lib/dripforge/support-page-settings"
 import {
   normalizeEnableOnboardingTour,
   normalizeOnboardingTourText,
@@ -41,6 +54,7 @@ import {
   normalizeLoyaltyPointValueChf,
 } from "@/lib/konto/loyalty-points-config"
 import { normalizeOrderEmailTemplates } from "@/lib/email/order-email-templates"
+import { normalizeOrderEmailLayout } from "@/lib/email/order-email-layout"
 import {
   DEFAULT_SHOW_TOP_PRODUCTS_ON_HOMEPAGE,
   DEFAULT_TOP_PRODUCTS_COUNT,
@@ -92,8 +106,10 @@ import {
   cosmosGetFilamentMaterials,
 } from "@/lib/admin/cosmos-filaments"
 import {
+  cosmosGetLaserMaterialTypes,
   cosmosGetMaterialStats,
   cosmosGetMaterialTypes,
+  cosmosSaveLaserMaterialTypes,
   cosmosSaveMaterialStats,
   cosmosSaveMaterialTypes,
 } from "@/lib/admin/cosmos-material-stats"
@@ -132,7 +148,35 @@ import {
   sanitizeSiteImagesInput,
   type SiteImages,
 } from "@/lib/admin/site-images"
+import {
+  mergeSiteLinks,
+  sanitizeSiteLinksInput,
+  type SiteLinks,
+} from "@/lib/admin/site-links"
+import {
+  mergeCmsNavItems,
+  mergeCmsPages,
+  sanitizeCmsNavItemsInput,
+  type CmsNavItem,
+  type CmsPageEntry,
+} from "@/lib/admin/site-nav"
+import {
+  mergeCmsFaqItems,
+  sanitizeCmsFaqItemsInput,
+  type CmsFaqItem,
+} from "@/lib/admin/cms-faq"
+import {
+  getDefaultCmsPageContentLists,
+  mergeCmsPageContentLists,
+  type CmsContactField,
+  type CmsExpectItem,
+  type CmsProcessStep,
+} from "@/lib/admin/cms-page-content"
 import type { AdminFilament } from "@/lib/admin/filament-types"
+import {
+  mergeLaserMaterialTypes,
+  type LaserMaterialTypeDefinition,
+} from "@/lib/admin/laser-material-types"
 import {
   mergeMaterialStats,
   mergeMaterialTypes,
@@ -524,16 +568,24 @@ async function getSettingsFromFile(): Promise<AdminSettings> {
   const stored = await readJsonFile<AdminSettings | null>(SETTINGS_FILE, null)
   if (stored?.checkout) {
     const services = normalizeServiceVisibility(stored.services)
+    const shopConfigurators = normalizeShopConfigurators(
+      stored.shopConfigurators,
+      services
+    )
     return {
-      checkout: stored.checkout,
+      checkout: normalizeCheckoutRuntimeConfig(stored.checkout),
       company: normalizeCompanySettings(stored.company),
     launch: normalizeLaunchSettings(stored.launch),
       services,
-      shopConfigurators: normalizeShopConfigurators(
-        stored.shopConfigurators,
-        services
+      shopConfigurators,
+      managedCatalog: normalizeManagedCatalog(
+        stored.managedCatalog,
+        services,
+        shopConfigurators
       ),
       ...buildSupportPageSettings(stored),
+      supportMilestones: normalizeSupportMilestones(stored.supportMilestones),
+      supportFeatures: normalizeSupportFeatures(stored.supportFeatures),
       enableOnboardingTour: normalizeEnableOnboardingTour(
         stored.enableOnboardingTour ??
           (stored as { enableThemeInboundTour?: boolean }).enableThemeInboundTour
@@ -563,6 +615,7 @@ async function getSettingsFromFile(): Promise<AdminSettings> {
       orderEmailTemplates: normalizeOrderEmailTemplates(
         stored.orderEmailTemplates
       ),
+      orderEmailLayout: normalizeOrderEmailLayout(stored.orderEmailLayout),
       updatedAt: stored.updatedAt,
     }
   }
@@ -572,8 +625,15 @@ async function getSettingsFromFile(): Promise<AdminSettings> {
     launch: { ...DEFAULT_LAUNCH_SETTINGS },
     services: { ...DEFAULT_SERVICE_VISIBILITY },
     shopConfigurators: normalizeShopConfigurators(null, DEFAULT_SERVICE_VISIBILITY),
+    managedCatalog: normalizeManagedCatalog(
+      null,
+      DEFAULT_SERVICE_VISIBILITY,
+      DEFAULT_SHOP_CONFIGURATORS
+    ),
     showSupportOnMainSite: false,
     showSupportOnCountdownPage: false,
+    supportMilestones: normalizeSupportMilestones(undefined),
+    supportFeatures: normalizeSupportFeatures(undefined),
     enableOnboardingTour: true,
     onboardingTourText: DEFAULT_ONBOARDING_TOUR_TEXT,
     themeInboundTourImageUrl: null,
@@ -584,6 +644,7 @@ async function getSettingsFromFile(): Promise<AdminSettings> {
     showTopProductsOnHomepage: DEFAULT_SHOW_TOP_PRODUCTS_ON_HOMEPAGE,
     topProductsCount: DEFAULT_TOP_PRODUCTS_COUNT,
     orderEmailTemplates: normalizeOrderEmailTemplates(undefined),
+    orderEmailLayout: normalizeOrderEmailLayout(undefined),
     updatedAt: new Date().toISOString(),
   }
   try {
@@ -612,8 +673,11 @@ export async function saveSettings(input: {
   launch?: Partial<LaunchSettings>
   services?: Partial<AdminSettings["services"]>
   shopConfigurators?: Partial<AdminSettings["shopConfigurators"]>
+  managedCatalog?: ManagedCatalogItem[] | null
   showSupportOnMainSite?: boolean
   showSupportOnCountdownPage?: boolean
+  supportMilestones?: AdminSettings["supportMilestones"]
+  supportFeatures?: AdminSettings["supportFeatures"]
   enableOnboardingTour?: boolean
   onboardingTourText?: string | null
   themeInboundTourImageUrl?: string | null
@@ -627,14 +691,37 @@ export async function saveSettings(input: {
     receivedIntro?: string
     receivedFooter?: string
   }
+  orderEmailLayout?: unknown
 }): Promise<AdminSettings> {
   const current = await getSettings()
-  const services = normalizeServiceVisibility({
-    ...current.services,
-    ...input.services,
-  })
+
+  let services: AdminSettings["services"]
+  let shopConfigurators: AdminSettings["shopConfigurators"]
+  let managedCatalog: ManagedCatalogItem[]
+
+  if (input.managedCatalog !== undefined && input.managedCatalog !== null) {
+    const applied = applyManagedCatalogToSettings(input.managedCatalog)
+    services = applied.services
+    shopConfigurators = applied.shopConfigurators
+    managedCatalog = applied.managedCatalog
+  } else {
+    services = normalizeServiceVisibility({
+      ...current.services,
+      ...input.services,
+    })
+    shopConfigurators = normalizeShopConfigurators(
+      { ...current.shopConfigurators, ...input.shopConfigurators },
+      services
+    )
+    managedCatalog = normalizeManagedCatalog(
+      current.managedCatalog,
+      services,
+      shopConfigurators
+    )
+  }
+
   const next: AdminSettings = {
-    checkout: input.checkout,
+    checkout: normalizeCheckoutRuntimeConfig(input.checkout),
     company: normalizeCompanySettings({
       ...current.company,
       ...input.company,
@@ -644,10 +731,8 @@ export async function saveSettings(input: {
       ...input.launch,
     }),
     services,
-    shopConfigurators: normalizeShopConfigurators(
-      { ...current.shopConfigurators, ...input.shopConfigurators },
-      services
-    ),
+    shopConfigurators,
+    managedCatalog,
     showSupportOnMainSite:
       input.showSupportOnMainSite !== undefined
         ? normalizeSupportFlag(input.showSupportOnMainSite)
@@ -656,6 +741,14 @@ export async function saveSettings(input: {
       input.showSupportOnCountdownPage !== undefined
         ? normalizeSupportFlag(input.showSupportOnCountdownPage)
         : current.showSupportOnCountdownPage === true,
+    supportMilestones:
+      input.supportMilestones !== undefined
+        ? normalizeSupportMilestones(input.supportMilestones)
+        : normalizeSupportMilestones(current.supportMilestones),
+    supportFeatures:
+      input.supportFeatures !== undefined
+        ? normalizeSupportFeatures(input.supportFeatures)
+        : normalizeSupportFeatures(current.supportFeatures),
     enableOnboardingTour:
       input.enableOnboardingTour !== undefined
         ? normalizeEnableOnboardingTour(input.enableOnboardingTour)
@@ -707,6 +800,16 @@ export async function saveSettings(input: {
             ...input.orderEmailTemplates,
           })
         : normalizeOrderEmailTemplates(current.orderEmailTemplates),
+    orderEmailLayout:
+      input.orderEmailLayout !== undefined
+        ? normalizeOrderEmailLayout({
+            ...normalizeOrderEmailLayout(current.orderEmailLayout),
+            ...(typeof input.orderEmailLayout === "object" &&
+            input.orderEmailLayout !== null
+              ? input.orderEmailLayout
+              : {}),
+          })
+        : normalizeOrderEmailLayout(current.orderEmailLayout),
     updatedAt: new Date().toISOString(),
   }
   await withCosmosFallback(
@@ -749,20 +852,33 @@ function parseSiteConfigFile(
 ): SiteConfigBundle | null {
   if (!stored || typeof stored !== "object") return null
   const raw = stored as Record<string, unknown>
-  if ("texts" in raw || "images" in raw) {
+  if ("texts" in raw || "images" in raw || "links" in raw || "navItems" in raw || "pages" in raw || "faqItems" in raw) {
+    const texts = mergeSiteTexts(
+      (raw.texts as Partial<Record<string, string>> | undefined) ?? null
+    )
+    const lists = mergeCmsPageContentLists(raw as Parameters<typeof mergeCmsPageContentLists>[0])
     return {
-      texts: mergeSiteTexts(
-        (raw.texts as Partial<Record<string, string>> | undefined) ?? null
-      ),
+      texts,
       images: mergeSiteImages(
         (raw.images as Partial<Record<string, unknown>> | undefined) ?? null
       ),
+      links: mergeSiteLinks((raw.links as SiteLinks | undefined) ?? null),
+      navItems: mergeCmsNavItems(raw.navItems),
+      pages: mergeCmsPages(raw.pages),
+      faqItems: mergeCmsFaqItems(raw.faqItems, texts),
+      ...lists,
     }
   }
   // Legacy: flache Text-Map ohne images
+  const texts = mergeSiteTexts(raw as Partial<Record<string, string>>)
   return {
-    texts: mergeSiteTexts(raw as Partial<Record<string, string>>),
+    texts,
     images: mergeSiteImages(null),
+    links: mergeSiteLinks(null),
+    navItems: mergeCmsNavItems(null),
+    pages: mergeCmsPages(null),
+    faqItems: mergeCmsFaqItems(null, texts),
+    ...getDefaultCmsPageContentLists(),
   }
 }
 
@@ -779,9 +895,15 @@ export async function getSiteConfigProduction(): Promise<SiteConfigBundle> {
         SITE_TEXTS_FILE,
         null
       )
+      const texts = mergeSiteTexts(legacy)
       return {
-        texts: mergeSiteTexts(legacy),
+        texts,
         images: mergeSiteImages(null),
+        links: mergeSiteLinks(null),
+        navItems: mergeCmsNavItems(null),
+        pages: mergeCmsPages(null),
+        faqItems: mergeCmsFaqItems(null, texts),
+        ...getDefaultCmsPageContentLists(),
       }
     }
   )
@@ -804,12 +926,34 @@ export async function saveSiteConfigStaging(
   input: {
     texts?: SiteTexts
     images?: SiteImages
+    links?: SiteLinks
+    navItems?: CmsNavItem[]
+    pages?: CmsPageEntry[]
+    faqItems?: CmsFaqItem[]
+    processSteps3d?: CmsProcessStep[]
+    processStepsLaser?: CmsProcessStep[]
+    expectItems3d?: CmsExpectItem[]
+    expectItemsLaser?: CmsExpectItem[]
+    contactFormFields?: CmsContactField[]
   }
 ): Promise<SiteConfigBundle> {
   const existing = await getSiteConfigStaging()
+  const texts = sanitizeSiteTextsInput(input.texts ?? existing.texts)
+  const lists = mergeCmsPageContentLists({
+    processSteps3d: input.processSteps3d ?? existing.processSteps3d,
+    processStepsLaser: input.processStepsLaser ?? existing.processStepsLaser,
+    expectItems3d: input.expectItems3d ?? existing.expectItems3d,
+    expectItemsLaser: input.expectItemsLaser ?? existing.expectItemsLaser,
+    contactFormFields: input.contactFormFields ?? existing.contactFormFields,
+  })
   const bundle: SiteConfigBundle = {
-    texts: sanitizeSiteTextsInput(input.texts ?? existing.texts),
+    texts,
     images: sanitizeSiteImagesInput(input.images ?? existing.images),
+    links: sanitizeSiteLinksInput(input.links ?? existing.links),
+    navItems: sanitizeCmsNavItemsInput(input.navItems ?? existing.navItems),
+    pages: mergeCmsPages(input.pages ?? existing.pages),
+    faqItems: sanitizeCmsFaqItemsInput(input.faqItems ?? existing.faqItems),
+    ...lists,
   }
   return withCosmosFallback(
     "saveSiteConfigStaging",
@@ -827,9 +971,15 @@ export async function publishSiteConfig(): Promise<SiteConfigBundle> {
     async () => cosmosPublishSiteConfig(),
     async () => {
       const staging = await getSiteConfigStaging()
+      const lists = mergeCmsPageContentLists(staging)
       const published: SiteConfigBundle = {
         texts: sanitizeSiteTextsInput(staging.texts),
         images: sanitizeSiteImagesInput(staging.images),
+        links: sanitizeSiteLinksInput(staging.links),
+        navItems: sanitizeCmsNavItemsInput(staging.navItems),
+        pages: mergeCmsPages(staging.pages),
+        faqItems: sanitizeCmsFaqItemsInput(staging.faqItems),
+        ...lists,
       }
       await writeJsonFile(SITE_CONFIG_PRODUCTION_FILE, published)
       return published
@@ -858,18 +1008,45 @@ export async function saveSiteTexts(texts: SiteTexts): Promise<SiteTexts> {
   return saved.texts
 }
 
+type MaterialStatsFileDoc = {
+  types?: MaterialTypeDefinition[]
+  laserTypes?: LaserMaterialTypeDefinition[]
+  categories?: Partial<MaterialStatsMap>
+}
+
+function isMaterialStatsFileDoc(stored: unknown): stored is MaterialStatsFileDoc {
+  return Boolean(
+    stored &&
+      typeof stored === "object" &&
+      !Array.isArray(stored) &&
+      ("types" in stored || "laserTypes" in stored)
+  )
+}
+
+function filamentTypesFromFile(stored: unknown): MaterialTypeDefinition[] {
+  if (!stored) return mergeMaterialTypes(null)
+  if (Array.isArray(stored)) return mergeMaterialTypes(stored as MaterialTypeDefinition[])
+  if (isMaterialStatsFileDoc(stored)) {
+    if (Array.isArray(stored.types)) return mergeMaterialTypes(stored.types)
+    return mergeMaterialTypes(stored.categories ?? null)
+  }
+  return mergeMaterialTypes(stored as Partial<MaterialStatsMap>)
+}
+
+function laserTypesFromFile(stored: unknown): LaserMaterialTypeDefinition[] {
+  if (isMaterialStatsFileDoc(stored)) {
+    return mergeLaserMaterialTypes(stored.laserTypes)
+  }
+  return mergeLaserMaterialTypes(null)
+}
+
 export async function getMaterialStats(): Promise<MaterialStatsMap> {
   return withCosmosFallback(
     "getMaterialStats",
     cosmosGetMaterialStats,
     async () => {
-      const stored = await readJsonFile<
-        | Partial<MaterialStatsMap>
-        | MaterialTypeDefinition[]
-        | null
-      >(MATERIAL_STATS_FILE, null)
-      if (Array.isArray(stored)) return typesToLegacyMap(mergeMaterialTypes(stored))
-      return mergeMaterialStats(stored)
+      const stored = await readJsonFile<unknown>(MATERIAL_STATS_FILE, null)
+      return typesToLegacyMap(filamentTypesFromFile(stored))
     }
   )
 }
@@ -879,12 +1056,19 @@ export async function getMaterialTypes(): Promise<MaterialTypeDefinition[]> {
     "getMaterialTypes",
     cosmosGetMaterialTypes,
     async () => {
-      const stored = await readJsonFile<
-        | Partial<MaterialStatsMap>
-        | MaterialTypeDefinition[]
-        | null
-      >(MATERIAL_STATS_FILE, null)
-      return mergeMaterialTypes(stored)
+      const stored = await readJsonFile<unknown>(MATERIAL_STATS_FILE, null)
+      return filamentTypesFromFile(stored)
+    }
+  )
+}
+
+export async function getLaserMaterialTypes(): Promise<LaserMaterialTypeDefinition[]> {
+  return withCosmosFallback(
+    "getLaserMaterialTypes",
+    cosmosGetLaserMaterialTypes,
+    async () => {
+      const stored = await readJsonFile<unknown>(MATERIAL_STATS_FILE, null)
+      return laserTypesFromFile(stored)
     }
   )
 }
@@ -893,6 +1077,14 @@ export async function saveMaterialTypes(
   types: MaterialTypeDefinition[]
 ): Promise<MaterialTypeDefinition[]> {
   return withCosmosRequired("saveMaterialTypes", () => cosmosSaveMaterialTypes(types))
+}
+
+export async function saveLaserMaterialTypes(
+  laserTypes: LaserMaterialTypeDefinition[]
+): Promise<LaserMaterialTypeDefinition[]> {
+  return withCosmosRequired("saveLaserMaterialTypes", () =>
+    cosmosSaveLaserMaterialTypes(laserTypes)
+  )
 }
 
 export async function saveMaterialStats(

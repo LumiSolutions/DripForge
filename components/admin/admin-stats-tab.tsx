@@ -1,11 +1,12 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   BarChart3,
   Clock,
   Loader2,
   RefreshCw,
+  Save,
   ShoppingCart,
   TrendingUp,
   Wallet,
@@ -25,6 +26,9 @@ import {
 } from "recharts"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 import {
   Table,
   TableBody,
@@ -34,8 +38,17 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import type { AdminAnalytics } from "@/lib/admin/analytics-types"
+import type { AdminSettings } from "@/lib/admin/types"
 import { formatChf } from "@/lib/admin/format-chf"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
+import {
+  DEFAULT_SHOW_TOP_PRODUCTS_ON_HOMEPAGE,
+  DEFAULT_TOP_PRODUCTS_COUNT,
+  MAX_TOP_PRODUCTS_COUNT,
+  MIN_TOP_PRODUCTS_COUNT,
+  normalizeShowTopProductsOnHomepage,
+  normalizeTopProductsCount,
+} from "@/lib/dripforge/top-products-settings"
 import { cn } from "@/lib/utils"
 
 const PIE_COLORS = [
@@ -92,6 +105,19 @@ export function AdminStatsTab() {
   const [data, setData] = useState<AdminAnalytics | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [showTopProductsOnHomepage, setShowTopProductsOnHomepage] = useState(
+    DEFAULT_SHOW_TOP_PRODUCTS_ON_HOMEPAGE
+  )
+  const [topProductsCount, setTopProductsCount] = useState(DEFAULT_TOP_PRODUCTS_COUNT)
+  const [topProductsSettingsLoading, setTopProductsSettingsLoading] = useState(true)
+  const [topProductsSettingsSaving, setTopProductsSettingsSaving] = useState(false)
+  const [topProductsSettingsError, setTopProductsSettingsError] = useState<string | null>(
+    null
+  )
+  const [topProductsSettingsSuccess, setTopProductsSettingsSuccess] = useState<
+    string | null
+  >(null)
+  const settingsSnapshotRef = useRef<AdminSettings | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -111,9 +137,92 @@ export function AdminStatsTab() {
     }
   }, [])
 
+  const loadTopProductsSettings = useCallback(async () => {
+    setTopProductsSettingsLoading(true)
+    setTopProductsSettingsError(null)
+    try {
+      const res = await fetch("/api/admin/settings", { cache: "no-store" })
+      const json = (await res.json()) as AdminSettings & { error?: string }
+      if (!res.ok) throw new Error(json.error ?? "Einstellungen nicht verfügbar")
+      settingsSnapshotRef.current = json
+      setShowTopProductsOnHomepage(
+        normalizeShowTopProductsOnHomepage(json.showTopProductsOnHomepage)
+      )
+      setTopProductsCount(normalizeTopProductsCount(json.topProductsCount))
+    } catch (err) {
+      console.warn("Admin: Top-Produkte-Einstellungen konnten nicht geladen werden.", err)
+      setTopProductsSettingsError(
+        err instanceof Error
+          ? err.message
+          : "Top-Produkte-Einstellungen konnten nicht geladen werden."
+      )
+    } finally {
+      setTopProductsSettingsLoading(false)
+    }
+  }, [])
+
+  const saveTopProductsSettings = useCallback(async () => {
+    const snapshot = settingsSnapshotRef.current
+    if (!snapshot?.checkout) {
+      setTopProductsSettingsError("Einstellungen noch nicht geladen.")
+      return
+    }
+    setTopProductsSettingsSaving(true)
+    setTopProductsSettingsError(null)
+    setTopProductsSettingsSuccess(null)
+    try {
+      const count = normalizeTopProductsCount(topProductsCount)
+      const res = await fetch("/api/admin/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          checkout: snapshot.checkout,
+          company: snapshot.company,
+          services: snapshot.services,
+          shopConfigurators: snapshot.shopConfigurators,
+          showSupportOnMainSite: snapshot.showSupportOnMainSite,
+          showSupportOnCountdownPage: snapshot.showSupportOnCountdownPage,
+          enableOnboardingTour: snapshot.enableOnboardingTour,
+          onboardingTourText: snapshot.onboardingTourText,
+          themeInboundTourImageUrl: snapshot.themeInboundTourImageUrl,
+          enableRewardPointsSystem: snapshot.enableRewardPointsSystem,
+          loyaltyEarnPercent: snapshot.loyaltyEarnPercent,
+          loyaltyPointValueChf: snapshot.loyaltyPointValueChf,
+          loyaltyPointsExpiryMonths: snapshot.loyaltyPointsExpiryMonths,
+          orderEmailTemplates: snapshot.orderEmailTemplates,
+          orderEmailLayout: snapshot.orderEmailLayout,
+          launch: snapshot.launch,
+          showTopProductsOnHomepage,
+          topProductsCount: count,
+        }),
+      })
+      const json = (await res.json()) as AdminSettings & { error?: string }
+      if (!res.ok) throw new Error(json.error ?? "Speichern fehlgeschlagen")
+      settingsSnapshotRef.current = json
+      setShowTopProductsOnHomepage(
+        normalizeShowTopProductsOnHomepage(json.showTopProductsOnHomepage)
+      )
+      setTopProductsCount(normalizeTopProductsCount(json.topProductsCount))
+      setTopProductsSettingsSuccess("Gespeichert")
+    } catch (err) {
+      console.warn("Admin: Top-Produkte-Einstellungen konnten nicht gespeichert werden.", err)
+      setTopProductsSettingsError(
+        err instanceof Error
+          ? err.message
+          : "Top-Produkte-Einstellungen konnten nicht gespeichert werden."
+      )
+    } finally {
+      setTopProductsSettingsSaving(false)
+    }
+  }, [showTopProductsOnHomepage, topProductsCount])
+
   useEffect(() => {
     void load()
   }, [load])
+
+  useEffect(() => {
+    void loadTopProductsSettings()
+  }, [loadTopProductsSettings])
 
   const chartData = useMemo(
     () =>
@@ -286,20 +395,88 @@ export function AdminStatsTab() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-3">
         <Card className={adminUi.card}>
           <CardHeader>
             <CardTitle className={cn("text-base", adminUi.heading)}>Top-Produkte</CardTitle>
             <p className={cn("text-sm", adminUi.muted)}>Nach Umsatz und Stueckzahl</p>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            <div
+              className={cn(
+                "flex flex-col gap-2 rounded-xl border p-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between",
+                adminUi.section
+              )}
+            >
+              <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
+                <Label
+                  htmlFor="top-products-homepage-switch"
+                  className={cn("text-sm font-medium leading-snug", adminUi.heading)}
+                >
+                  Top Produkte auf Startseite anzeigen
+                </Label>
+                <Switch
+                  id="top-products-homepage-switch"
+                  checked={showTopProductsOnHomepage}
+                  disabled={topProductsSettingsLoading || topProductsSettingsSaving}
+                  onCheckedChange={setShowTopProductsOnHomepage}
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <Label
+                  htmlFor="top-products-count"
+                  className={cn("shrink-0 text-sm", adminUi.label)}
+                >
+                  Anzahl
+                </Label>
+                <Input
+                  id="top-products-count"
+                  type="number"
+                  min={MIN_TOP_PRODUCTS_COUNT}
+                  max={MAX_TOP_PRODUCTS_COUNT}
+                  value={topProductsCount}
+                  disabled={
+                    topProductsSettingsLoading ||
+                    topProductsSettingsSaving ||
+                    !showTopProductsOnHomepage
+                  }
+                  onChange={(e) =>
+                    setTopProductsCount(normalizeTopProductsCount(e.target.value))
+                  }
+                  className={cn("h-9 w-16 tabular-nums", adminUi.input)}
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => void saveTopProductsSettings()}
+                  disabled={topProductsSettingsLoading || topProductsSettingsSaving}
+                  className={cn("shrink-0", adminUi.primaryBtn)}
+                >
+                  {topProductsSettingsSaving ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Save className="h-3.5 w-3.5" />
+                  )}
+                  <span className="ml-1.5">Speichern</span>
+                </Button>
+              </div>
+              {topProductsSettingsError && (
+                <p className={cn("w-full text-xs", adminUi.error)}>{topProductsSettingsError}</p>
+              )}
+              {topProductsSettingsSuccess && !topProductsSettingsError && (
+                <p className={cn("w-full text-xs text-emerald-600 dark:text-emerald-400")}>
+                  {topProductsSettingsSuccess}
+                </p>
+              )}
+            </div>
+
             {pieProducts.length === 0 ? (
               <p className={cn("py-8 text-center text-sm", adminUi.muted)}>
                 Keine Produktdaten vorhanden.
               </p>
             ) : (
-              <div className="flex flex-col gap-6 md:flex-row md:items-center">
-                <div className="mx-auto h-[220px] w-full max-w-[240px]">
+              <div className="flex flex-col gap-4">
+                <div className="mx-auto h-[160px] w-full max-w-[180px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
@@ -308,8 +485,8 @@ export function AdminStatsTab() {
                         nameKey="name"
                         cx="50%"
                         cy="50%"
-                        innerRadius={48}
-                        outerRadius={80}
+                        innerRadius={36}
+                        outerRadius={60}
                         paddingAngle={2}
                       >
                         {pieProducts.map((_, index) => (
@@ -334,33 +511,43 @@ export function AdminStatsTab() {
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
-                <div className={cn("min-w-0 flex-1", adminUi.tableWrap)}>
+                <div className={cn("min-w-0", adminUi.tableWrap)}>
                   <Table>
                     <TableHeader>
                       <TableRow className={adminUi.tableHeadRow}>
-                        <TableHead className={adminUi.tableHead}>Produkt</TableHead>
-                        <TableHead className={cn("text-right", adminUi.tableHead)}>
+                        <TableHead className={cn("py-1.5", adminUi.tableHead)}>
+                          Produkt
+                        </TableHead>
+                        <TableHead className={cn("py-1.5 text-right", adminUi.tableHead)}>
                           Stk.
                         </TableHead>
-                        <TableHead className={cn("text-right", adminUi.tableHead)}>
+                        <TableHead className={cn("py-1.5 text-right", adminUi.tableHead)}>
                           Umsatz
                         </TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {(data?.topProducts ?? []).map((row) => (
-                        <TableRow key={row.name} className={adminUi.tableRow}>
-                          <TableCell className={cn("max-w-[200px] truncate", adminUi.tableCell)}>
+                        <TableRow key={row.name} className={cn("py-1.5", adminUi.tableRow)}>
+                          <TableCell
+                            className={cn(
+                              "max-w-[140px] truncate py-1.5",
+                              adminUi.tableCell
+                            )}
+                          >
                             {row.name}
                           </TableCell>
                           <TableCell
-                            className={cn("text-right tabular-nums", adminUi.bodyText)}
+                            className={cn(
+                              "py-1.5 text-right tabular-nums",
+                              adminUi.bodyText
+                            )}
                           >
                             {row.quantity}
                           </TableCell>
                           <TableCell
                             className={cn(
-                              "text-right font-medium tabular-nums",
+                              "py-1.5 text-right font-medium tabular-nums",
                               adminUi.accentTitle
                             )}
                           >
@@ -395,9 +582,13 @@ export function AdminStatsTab() {
                 <Table>
                   <TableHeader>
                     <TableRow className={adminUi.tableHeadRow}>
-                      <TableHead className={adminUi.tableHead}>Kategorie</TableHead>
-                      <TableHead className={adminUi.tableHead}>Option</TableHead>
-                      <TableHead className={cn("text-right", adminUi.tableHead)}>
+                      <TableHead className={cn("py-1.5", adminUi.tableHead)}>
+                        Kategorie
+                      </TableHead>
+                      <TableHead className={cn("py-1.5", adminUi.tableHead)}>
+                        Option
+                      </TableHead>
+                      <TableHead className={cn("py-1.5 text-right", adminUi.tableHead)}>
                         Häufigkeit
                       </TableHead>
                     </TableRow>
@@ -408,12 +599,17 @@ export function AdminStatsTab() {
                         key={`${row.category}-${row.label}`}
                         className={adminUi.tableRow}
                       >
-                        <TableCell className={cn("text-sm", adminUi.muted)}>
+                        <TableCell className={cn("py-1.5 text-sm", adminUi.muted)}>
                           {row.category}
                         </TableCell>
-                        <TableCell className={adminUi.tableCell}>{row.label}</TableCell>
+                        <TableCell className={cn("py-1.5", adminUi.tableCell)}>
+                          {row.label}
+                        </TableCell>
                         <TableCell
-                          className={cn("text-right font-semibold tabular-nums", adminUi.accentTitle)}
+                          className={cn(
+                            "py-1.5 text-right font-semibold tabular-nums",
+                            adminUi.accentTitle
+                          )}
                         >
                           {row.count}
                         </TableCell>
@@ -425,70 +621,78 @@ export function AdminStatsTab() {
             )}
           </CardContent>
         </Card>
-      </div>
 
-      <Card className={adminUi.card}>
-        <CardHeader>
-          <CardTitle className={cn("text-base", adminUi.heading)}>
-            Top-Käufer (Top 10)
-          </CardTitle>
-          <p className={cn("text-sm", adminUi.muted)}>
-            Nach Gesamtumsatz ohne stornierte Bestellungen
-          </p>
-        </CardHeader>
-        <CardContent>
-          {(data?.topBuyers ?? []).length === 0 ? (
-            <p className={cn("py-8 text-center text-sm", adminUi.muted)}>
-              Noch keine Kundendaten vorhanden.
+        <Card className={adminUi.card}>
+          <CardHeader>
+            <CardTitle className={cn("text-base", adminUi.heading)}>
+              Top Käufer (Top 10)
+            </CardTitle>
+            <p className={cn("text-sm", adminUi.muted)}>
+              Nach Gesamtumsatz ohne stornierte Bestellungen
             </p>
-          ) : (
-            <div className={adminUi.tableWrap}>
-              <Table>
-                <TableHeader>
-                  <TableRow className={adminUi.tableHeadRow}>
-                    <TableHead className={cn("w-14", adminUi.tableHead)}>Rang</TableHead>
-                    <TableHead className={adminUi.tableHead}>Kunde</TableHead>
-                    <TableHead className={cn("text-right", adminUi.tableHead)}>
-                      Bestellungen
-                    </TableHead>
-                    <TableHead className={cn("text-right", adminUi.tableHead)}>
-                      Gesamtumsatz
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {data?.topBuyers.map((row, index) => (
-                    <TableRow key={row.email} className={adminUi.tableRow}>
-                      <TableCell
-                        className={cn("font-semibold tabular-nums", adminUi.accentTitle)}
-                      >
-                        #{index + 1}
-                      </TableCell>
-                      <TableCell className={adminUi.tableCell}>
-                        <p className="font-medium">{row.name}</p>
-                        <p className={cn("text-xs", adminUi.muted)}>{row.email}</p>
-                      </TableCell>
-                      <TableCell
-                        className={cn("text-right tabular-nums", adminUi.bodyText)}
-                      >
-                        {row.orderCount}
-                      </TableCell>
-                      <TableCell
-                        className={cn(
-                          "text-right font-medium tabular-nums",
-                          adminUi.accentTitle
-                        )}
-                      >
-                        {formatChf(row.revenueChf)}
-                      </TableCell>
+          </CardHeader>
+          <CardContent>
+            {(data?.topBuyers ?? []).length === 0 ? (
+              <p className={cn("py-8 text-center text-sm", adminUi.muted)}>
+                Noch keine Kundendaten vorhanden.
+              </p>
+            ) : (
+              <div className={adminUi.tableWrap}>
+                <Table>
+                  <TableHeader>
+                    <TableRow className={adminUi.tableHeadRow}>
+                      <TableHead className={cn("w-10 py-1.5", adminUi.tableHead)}>
+                        Rang
+                      </TableHead>
+                      <TableHead className={cn("py-1.5", adminUi.tableHead)}>Kunde</TableHead>
+                      <TableHead className={cn("py-1.5 text-right", adminUi.tableHead)}>
+                        Bestellungen
+                      </TableHead>
+                      <TableHead className={cn("py-1.5 text-right", adminUi.tableHead)}>
+                        Gesamtumsatz
+                      </TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                  </TableHeader>
+                  <TableBody>
+                    {data?.topBuyers.map((row, index) => (
+                      <TableRow key={row.email} className={adminUi.tableRow}>
+                        <TableCell
+                          className={cn(
+                            "py-1.5 font-semibold tabular-nums",
+                            adminUi.accentTitle
+                          )}
+                        >
+                          #{index + 1}
+                        </TableCell>
+                        <TableCell className={cn("py-1.5", adminUi.tableCell)}>
+                          <p className="truncate font-medium">{row.name}</p>
+                          <p className={cn("truncate text-xs", adminUi.muted)}>{row.email}</p>
+                        </TableCell>
+                        <TableCell
+                          className={cn(
+                            "py-1.5 text-right tabular-nums",
+                            adminUi.bodyText
+                          )}
+                        >
+                          {row.orderCount}
+                        </TableCell>
+                        <TableCell
+                          className={cn(
+                            "py-1.5 text-right font-medium tabular-nums",
+                            adminUi.accentTitle
+                          )}
+                        >
+                          {formatChf(row.revenueChf)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
 }

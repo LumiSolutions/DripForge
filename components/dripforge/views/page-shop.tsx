@@ -90,6 +90,7 @@ import { SHOP_ROUTES } from "@/lib/dripforge/shop-routes"
 import { ProductDetailErrorBoundary } from "@/components/dripforge/product-detail-error-boundary"
 import { SiteText } from "@/components/dripforge/editable-site-text"
 import { SiteTextPhrase } from "@/components/dripforge/site-text-phrase"
+import { useSiteTexts } from "@/components/dripforge/site-texts-provider"
 import { captureProductionLayerPng } from "@/lib/dripforge/capture-production-layer"
 
 const Product3DPreview = dynamic(
@@ -169,6 +170,7 @@ export function PageShop({
   productCatalog,
 }: PageShopProps) {
   const router = useRouter()
+  const { canInlineEdit } = useSiteTexts()
   const { materials: filamentMaterials, loading: filamentsLoading } =
     useFilamentCatalog()
 
@@ -336,6 +338,7 @@ export function PageShop({
   }, [selectedProduct?.id])
 
   const openProduct = (product: Product) => {
+    if (canInlineEdit) return
     const initial = normalizeShopProduct(product)
     const catalog = productCatalog?.length ? productCatalog : shopProducts
     router.push(productHref(initial, catalog))
@@ -1184,6 +1187,7 @@ export function PageShop({
                   coverSrc={coverSrc}
                   viewMode={viewMode}
                   surface={cardSurface}
+                  canInlineEdit={canInlineEdit}
                   onOpen={() => openProduct(product)}
                 />
               )

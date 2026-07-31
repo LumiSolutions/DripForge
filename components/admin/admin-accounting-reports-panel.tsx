@@ -22,6 +22,7 @@ import {
 import type { Account } from "@/lib/accounting/account-types"
 import { confirmJournalEntryDeletion } from "@/lib/accounting/confirm-journal-delete"
 import { downloadCsv } from "@/lib/accounting/export-csv"
+import { downloadAccountingPdf } from "@/lib/accounting/export-pdf"
 import {
   emptyBalanceSheetLayout,
   emptyIncomeStatementLayout,
@@ -66,25 +67,46 @@ function formatDate(iso: string): string {
   )
 }
 
-function ExportButton({
-  onClick,
+function ExportButtons({
+  onCsv,
+  onPdf,
   disabled,
+  exportingPdf,
 }: {
-  onClick: () => void
+  onCsv: () => void
+  onPdf: () => void
   disabled?: boolean
+  exportingPdf?: boolean
 }) {
   return (
-    <Button
-      type="button"
-      variant="outline"
-      size="sm"
-      className={adminUi.outlineBtn}
-      disabled={disabled}
-      onClick={onClick}
-    >
-      <Download className="mr-2 h-4 w-4" />
-      Excel exportieren
-    </Button>
+    <>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className={adminUi.outlineBtn}
+        disabled={disabled}
+        onClick={onCsv}
+      >
+        <Download className="mr-2 h-4 w-4" />
+        Excel (CSV)
+      </Button>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className={adminUi.outlineBtn}
+        disabled={disabled || exportingPdf}
+        onClick={onPdf}
+      >
+        {exportingPdf ? (
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+        ) : (
+          <Download className="mr-2 h-4 w-4" />
+        )}
+        PDF
+      </Button>
+    </>
   )
 }
 
@@ -150,9 +172,24 @@ export function AdminAccountingReportsPanel({
     emptyReportsPayload(`${year}-01-01`, `${year}-12-31`)
   )
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
+  const [exportingPdf, setExportingPdf] = useState(false)
 
   const toggleExpanded = (id: string) => {
     setExpanded((current) => ({ ...current, [id]: !current[id] }))
+  }
+
+  const runPdfExport = async (fn: () => Promise<void>) => {
+    setExportingPdf(true)
+    setActionError(null)
+    try {
+      await fn()
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "PDF-Export fehlgeschlagen."
+      setActionError(message)
+    } finally {
+      setExportingPdf(false)
+    }
   }
 
   const loadReports = useCallback(async () => {
@@ -260,7 +297,7 @@ export function AdminAccountingReportsPanel({
   const balanceSheet =
     data.balanceSheet.length > 0 ? data.balanceSheet : emptyBalanceSheetLayout()
 
-  const exportLedger = () => {
+  const exportLedgerCsv = () => {
     downloadCsv(
       `kontenblatt-${from}-${to}.csv`,
       ["Datum", "Beleg-Nr", "Buchungstext", "Gegenkonto", "Soll (+)", "Haben (-)", "Saldo"],
@@ -276,7 +313,35 @@ export function AdminAccountingReportsPanel({
     )
   }
 
-  const exportJournal = () => {
+  const exportLedgerPdf = () =>
+    runPdfExport(() =>
+      downloadAccountingPdf({
+        title: "Kontenblatt",
+        subtitle: `${from} – ${to}${account ? ` · Konto ${account}` : ""}`,
+        filename: `kontenblatt-${from}-${to}.pdf`,
+        landscape: true,
+        columns: [
+          { key: "date", header: "Datum", width: 1.2 },
+          { key: "beleg", header: "Beleg-Nr", width: 1.2 },
+          { key: "text", header: "Buchungstext", width: 2.5 },
+          { key: "gegen", header: "Gegenkonto", width: 1.5 },
+          { key: "soll", header: "Soll (+)", width: 1, align: "right" },
+          { key: "haben", header: "Haben (-)", width: 1, align: "right" },
+          { key: "saldo", header: "Saldo", width: 1, align: "right" },
+        ],
+        rows: ledgerRows.map((row) => ({
+          date: formatDate(row.date),
+          beleg: row.belegNummer,
+          text: row.description,
+          gegen: row.gegenkonto,
+          soll: row.soll ? formatChf(row.soll) : "",
+          haben: row.haben ? formatChf(row.haben) : "",
+          saldo: formatChf(row.saldo),
+        })),
+      })
+    )
+
+  const exportJournalCsv = () => {
     downloadCsv(
       `journal-${from}-${to}.csv`,
       ["Beleg-Nr", "Datum", "Soll-Konto", "Haben-Konto", "Beschreibung", "MWST-Code", "Betrag"],
@@ -292,7 +357,35 @@ export function AdminAccountingReportsPanel({
     )
   }
 
-  const exportIncome = () => {
+  const exportJournalPdf = () =>
+    runPdfExport(() =>
+      downloadAccountingPdf({
+        title: "Journal",
+        subtitle: `${from} – ${to}`,
+        filename: `journal-${from}-${to}.pdf`,
+        landscape: true,
+        columns: [
+          { key: "beleg", header: "Beleg-Nr", width: 1.2 },
+          { key: "date", header: "Datum", width: 1.2 },
+          { key: "soll", header: "Soll-Konto", width: 1.4 },
+          { key: "haben", header: "Haben-Konto", width: 1.4 },
+          { key: "text", header: "Beschreibung", width: 2.4 },
+          { key: "tax", header: "MWST", width: 0.8 },
+          { key: "amount", header: "Betrag", width: 1, align: "right" },
+        ],
+        rows: journalRows.map((row) => ({
+          beleg: row.belegNummer,
+          date: formatDate(row.date),
+          soll: row.sollKonto,
+          haben: row.habenKonto,
+          text: row.description,
+          tax: row.taxCode,
+          amount: formatChf(row.amount),
+        })),
+      })
+    )
+
+  const exportIncomeCsv = () => {
     downloadCsv(
       `erfolgsrechnung-${from}-${to}.csv`,
       ["Position", "Betrag CHF"],
@@ -300,13 +393,49 @@ export function AdminAccountingReportsPanel({
     )
   }
 
-  const exportBalance = () => {
+  const exportIncomePdf = () =>
+    runPdfExport(() =>
+      downloadAccountingPdf({
+        title: "Erfolgsrechnung",
+        subtitle: `${from} – ${to}`,
+        filename: `erfolgsrechnung-${from}-${to}.pdf`,
+        columns: [
+          { key: "label", header: "Position", width: 3 },
+          { key: "amount", header: "Betrag CHF", width: 1.2, align: "right" },
+        ],
+        rows: incomeStatement.map((line) => ({
+          label: `${"  ".repeat(line.level)}${line.label}`,
+          amount: formatChf(line.amount),
+        })),
+      })
+    )
+
+  const exportBalanceCsv = () => {
     downloadCsv(
       `bilanz-${to}.csv`,
       ["Bereich", "Position", "Betrag CHF"],
       balanceSheet.map((line) => [line.section, line.label, line.amount])
     )
   }
+
+  const exportBalancePdf = () =>
+    runPdfExport(() =>
+      downloadAccountingPdf({
+        title: "Bilanz",
+        subtitle: `Stichtag ${to}`,
+        filename: `bilanz-${to}.pdf`,
+        columns: [
+          { key: "section", header: "Bereich", width: 1 },
+          { key: "label", header: "Position", width: 3 },
+          { key: "amount", header: "Betrag CHF", width: 1.2, align: "right" },
+        ],
+        rows: balanceSheet.map((line) => ({
+          section: line.section === "aktiven" ? "Aktiven" : "Passiven",
+          label: `${"  ".repeat(line.level)}${line.label}`,
+          amount: formatChf(line.amount),
+        })),
+      })
+    )
 
   return (
     <section className="space-y-4">
@@ -397,14 +526,40 @@ export function AdminAccountingReportsPanel({
               </div>
             )}
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button type="button" variant="outline" size="sm" className={adminUi.outlineBtn} onClick={() => void loadReports()}>
               Aktualisieren
             </Button>
-            {view === "kontenblatt" && <ExportButton onClick={exportLedger} disabled={!ledgerRows.length} />}
-            {view === "journal" && <ExportButton onClick={exportJournal} disabled={!journalRows.length} />}
-            {view === "erfolgsrechnung" && <ExportButton onClick={exportIncome} />}
-            {view === "bilanz" && <ExportButton onClick={exportBalance} />}
+            {view === "kontenblatt" && (
+              <ExportButtons
+                onCsv={exportLedgerCsv}
+                onPdf={() => void exportLedgerPdf()}
+                disabled={!ledgerRows.length}
+                exportingPdf={exportingPdf}
+              />
+            )}
+            {view === "journal" && (
+              <ExportButtons
+                onCsv={exportJournalCsv}
+                onPdf={() => void exportJournalPdf()}
+                disabled={!journalRows.length}
+                exportingPdf={exportingPdf}
+              />
+            )}
+            {view === "erfolgsrechnung" && (
+              <ExportButtons
+                onCsv={exportIncomeCsv}
+                onPdf={() => void exportIncomePdf()}
+                exportingPdf={exportingPdf}
+              />
+            )}
+            {view === "bilanz" && (
+              <ExportButtons
+                onCsv={exportBalanceCsv}
+                onPdf={() => void exportBalancePdf()}
+                exportingPdf={exportingPdf}
+              />
+            )}
           </div>
         </div>
 

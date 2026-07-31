@@ -7,6 +7,7 @@ import {
 } from "@/lib/admin/types"
 import { normalizeServiceVisibility } from "@/lib/dripforge/service-visibility"
 import { normalizeShopConfigurators } from "@/lib/dripforge/shop-configurators"
+import { normalizeManagedCatalog } from "@/lib/dripforge/managed-catalog"
 import { normalizeCompanySettings } from "@/lib/dripforge/company-settings"
 import {
   DEFAULT_LOYALTY_EARN_PERCENT,
@@ -14,10 +15,15 @@ import {
   DEFAULT_LOYALTY_POINT_VALUE_CHF,
 } from "@/lib/konto/loyalty-points-config"
 import { DEFAULT_ORDER_EMAIL_TEMPLATES } from "@/lib/email/order-email-templates"
+import { DEFAULT_ORDER_EMAIL_LAYOUT } from "@/lib/email/order-email-layout"
 import {
   DEFAULT_SHOW_TOP_PRODUCTS_ON_HOMEPAGE,
   DEFAULT_TOP_PRODUCTS_COUNT,
 } from "@/lib/dripforge/top-products-settings"
+import {
+  DEFAULT_SUPPORT_FEATURES,
+  DEFAULT_SUPPORT_MILESTONES,
+} from "@/lib/dripforge/support-page-settings"
 
 /** Sichere Standard-Einstellungen wenn Cosmos/Datei nicht erreichbar sind. */
 export function buildDefaultAdminSettings(): AdminSettings {
@@ -27,8 +33,15 @@ export function buildDefaultAdminSettings(): AdminSettings {
     launch: { ...DEFAULT_LAUNCH_SETTINGS },
     services: { ...DEFAULT_SERVICE_VISIBILITY },
     shopConfigurators: { ...DEFAULT_SHOP_CONFIGURATORS },
+    managedCatalog: normalizeManagedCatalog(
+      null,
+      DEFAULT_SERVICE_VISIBILITY,
+      DEFAULT_SHOP_CONFIGURATORS
+    ),
     showSupportOnMainSite: false,
     showSupportOnCountdownPage: false,
+    supportMilestones: DEFAULT_SUPPORT_MILESTONES.map((m) => ({ ...m })),
+    supportFeatures: DEFAULT_SUPPORT_FEATURES.map((f) => ({ ...f })),
     enableOnboardingTour: true,
     onboardingTourText: "Tag-\noder\nNachtmodus?",
     themeInboundTourImageUrl: null,
@@ -39,6 +52,10 @@ export function buildDefaultAdminSettings(): AdminSettings {
     showTopProductsOnHomepage: DEFAULT_SHOW_TOP_PRODUCTS_ON_HOMEPAGE,
     topProductsCount: DEFAULT_TOP_PRODUCTS_COUNT,
     orderEmailTemplates: { ...DEFAULT_ORDER_EMAIL_TEMPLATES },
+    orderEmailLayout: {
+      ...DEFAULT_ORDER_EMAIL_LAYOUT,
+      sectionOrder: [...DEFAULT_ORDER_EMAIL_LAYOUT.sectionOrder],
+    },
     updatedAt: new Date().toISOString(),
   }
 }

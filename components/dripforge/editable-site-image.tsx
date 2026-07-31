@@ -29,22 +29,29 @@ type SiteImageEditorProps = {
   imageKey: SiteImageKey
   value: SiteImageEntry
   align?: "start" | "center" | "end"
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }
 
 export function SiteImageEditor({
   imageKey,
   value,
   align = "end",
+  open: openControlled,
+  onOpenChange,
 }: SiteImageEditorProps) {
   const { saveImage, mediaLibrary } = useSiteTexts()
   const { label } = getSiteImageFieldMeta(imageKey)
   const fileInputId = useId()
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [open, setOpen] = useState(false)
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false)
+  const open = openControlled ?? uncontrolledOpen
+  const setOpen = onOpenChange ?? setUncontrolledOpen
   const [draftUrl, setDraftUrl] = useState(value.url)
   const [draftAlt, setDraftAlt] = useState(value.alt)
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [uploadSuccess, setUploadSuccess] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -52,6 +59,7 @@ export function SiteImageEditor({
       setDraftUrl(value.url)
       setDraftAlt(value.alt)
       setError(null)
+      setUploadSuccess(null)
     }
   }, [open, value.alt, value.url])
 
@@ -89,6 +97,7 @@ export function SiteImageEditor({
 
     setUploading(true)
     setError(null)
+    setUploadSuccess(null)
     try {
       const formData = new FormData()
       formData.set("file", file)
@@ -108,6 +117,7 @@ export function SiteImageEditor({
         throw new Error(data?.error ?? "Upload fehlgeschlagen.")
       }
       setDraftUrl(data.url)
+      setUploadSuccess("Upload erfolgreich (Azure). Bitte Speichern klicken.")
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload fehlgeschlagen")
     } finally {
@@ -132,7 +142,10 @@ export function SiteImageEditor({
           )}
           aria-label={`${label} ändern`}
           onPointerDown={(event) => event.stopPropagation()}
-          onClick={(event) => event.stopPropagation()}
+          onClick={(event) => {
+            event.stopPropagation()
+            setOpen(true)
+          }}
         >
           <Camera className="h-4 w-4" />
         </button>
@@ -241,6 +254,9 @@ export function SiteImageEditor({
         )}
 
         {error && <p className="text-xs text-red-600">{error}</p>}
+        {uploadSuccess && !error && (
+          <p className="text-xs text-emerald-700 dark:text-emerald-300">{uploadSuccess}</p>
+        )}
 
         <div className="flex gap-2">
           <Button
@@ -297,6 +313,7 @@ export function SiteImage({
 }: SiteImageProps) {
   const { image, canInlineEdit } = useSiteTexts()
   const entry = image(imageKey)
+  const [editorOpen, setEditorOpen] = useState(false)
 
   const img = (
     <Image
@@ -331,11 +348,17 @@ export function SiteImage({
   return (
     <span
       className={cn(
-        "group/site-image relative block",
+        "group/site-image relative block cursor-pointer",
         fill && "absolute inset-0",
         wrapperClassName,
         className
       )}
+      onClick={(event) => {
+        event.preventDefault()
+        event.stopPropagation()
+        setEditorOpen(true)
+      }}
+      onPointerDown={(event) => event.stopPropagation()}
     >
       {img}
       <div
@@ -353,7 +376,12 @@ export function SiteImage({
           Bild ändern
         </span>
       </div>
-      <SiteImageEditor imageKey={imageKey} value={entry} />
+      <SiteImageEditor
+        imageKey={imageKey}
+        value={entry}
+        open={editorOpen}
+        onOpenChange={setEditorOpen}
+      />
     </span>
   )
 }

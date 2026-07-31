@@ -1,3 +1,9 @@
+import type { SupportMilestoneConfig } from "@/lib/dripforge/support-page-settings"
+import {
+  DEFAULT_SUPPORT_MILESTONES,
+  getActiveSupportMilestones,
+} from "@/lib/dripforge/support-page-settings"
+
 export const SUPPORTER_DOC_TYPE = "project-supporter"
 
 export type SupportCategoryId = "general" | "materials" | "printer" | "laser"
@@ -20,7 +26,7 @@ export type ProjectSupporter = {
 }
 
 export type SupportMilestone = {
-  id: MilestoneId
+  id: string
   title: string
   description: string
   goalChf: number
@@ -100,35 +106,75 @@ export function milestoneIdToCategory(milestoneId: string): SupportCategoryId {
   return match?.categoryId ?? "general"
 }
 
+function isKnownCategoryMilestone(
+  id: string
+): id is Exclude<SupportCategoryId, "general"> {
+  return id === "materials" || id === "printer" || id === "laser"
+}
+
+/**
+ * Berechnet Fortschritt für Meilensteine.
+ * Nutzt konfigurierte Meilensteine (Admin), Fallback auf Defaults.
+ * Archivierte Meilensteine werden ausgeschlossen.
+ */
 export function computeMilestoneProgress(
-  totals: SupportCategoryTotals = emptyCategoryTotals()
+  totals: SupportCategoryTotals = emptyCategoryTotals(),
+  configs?: SupportMilestoneConfig[] | null
 ): SupportMilestone[] {
-  const raisedByMilestone: Record<MilestoneId, number> = {
-    materials: totals.materials,
-    printer: totals.printer,
-    laser: totals.laser,
+  const source =
+    Array.isArray(configs) && configs.length > 0
+      ? getActiveSupportMilestones(configs)
+      : getActiveSupportMilestones(DEFAULT_SUPPORT_MILESTONES)
+
+  const raisedByMilestone: Record<string, number> = {}
+  for (const milestone of source) {
+    raisedByMilestone[milestone.id] = isKnownCategoryMilestone(milestone.id)
+      ? totals[milestone.id]
+      : 0
   }
 
   let generalPool = totals.general
-  for (const milestone of SUPPORT_MILESTONES) {
-    const gap = Math.max(0, milestone.goalChf - raisedByMilestone[milestone.id])
+  for (const milestone of source) {
+    const gap = Math.max(
+      0,
+      milestone.goalChf - (raisedByMilestone[milestone.id] ?? 0)
+    )
     if (gap > 0 && generalPool > 0) {
       const allocated = Math.min(gap, generalPool)
-      raisedByMilestone[milestone.id] += allocated
+      raisedByMilestone[milestone.id] =
+        (raisedByMilestone[milestone.id] ?? 0) + allocated
       generalPool -= allocated
     }
   }
 
   let previousUnlocked = true
 
-  return SUPPORT_MILESTONES.map((milestone) => {
-    const raisedChf = Math.min(raisedByMilestone[milestone.id], milestone.goalChf)
-    const unlocked = previousUnlocked
-    previousUnlocked = previousUnlocked && raisedChf >= milestone.goalChf
+  return source.map((milestone) => {
+    const raisedRaw = Math.min(
+      raisedByMilestone[milestone.id] ?? 0,
+      milestone.goalChf
+    )
+    let unlocked = previousUnlocked
+    let completed = unlocked && raisedRaw >= milestone.goalChf
+
+    if (milestone.status === "erreicht") {
+      unlocked = true
+      completed = true
+    } else if (milestone.status === "in_arbeit") {
+      unlocked = true
+    }
+
+    previousUnlocked = previousUnlocked && completed
+
+    const raisedChf = completed ? milestone.goalChf : raisedRaw
     const progressPercent = unlocked
-      ? Math.min(100, Math.round((raisedChf / milestone.goalChf) * 100))
+      ? completed
+        ? 100
+        : Math.min(
+            100,
+            Math.round((raisedRaw / Math.max(1, milestone.goalChf)) * 100)
+          )
       : 0
-    const completed = unlocked && raisedChf >= milestone.goalChf
 
     return {
       id: milestone.id,

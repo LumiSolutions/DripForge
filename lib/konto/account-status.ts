@@ -1,13 +1,19 @@
-export type CustomerAccountStatus = "aktiv" | "gelöscht"
+export type CustomerAccountStatus = "aktiv" | "inaktiv" | "gelöscht"
 
 export const DEFAULT_CUSTOMER_ACCOUNT_STATUS: CustomerAccountStatus = "aktiv"
 
 export function normalizeAccountStatus(value: unknown): CustomerAccountStatus {
-  return value === "gelöscht" ? "gelöscht" : "aktiv"
+  if (value === "gelöscht") return "gelöscht"
+  if (value === "inaktiv") return "inaktiv"
+  return "aktiv"
 }
 
 export function isAccountDeleted(status: unknown): boolean {
   return normalizeAccountStatus(status) === "gelöscht"
+}
+
+export function isAccountActive(status: unknown): boolean {
+  return normalizeAccountStatus(status) === "aktiv"
 }
 
 export function buildDeletedPlaceholderEmail(kundennummer?: string, fallbackId?: string): string {

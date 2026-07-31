@@ -1,5 +1,7 @@
 import { laserMaterials } from "@/lib/dripforge/data"
 import type { LaserMaterial, LaserMaterialId } from "@/lib/dripforge/types"
+import type { LaserMaterialTypeDefinition } from "@/lib/admin/laser-material-types"
+import { getActiveLaserMaterialTypes } from "@/lib/admin/laser-material-types"
 
 export const CORE_LASER_MATERIAL_IDS = [
   "wood",
@@ -75,19 +77,50 @@ export function resolveLaserMaterialIdFromStockItem(item: {
   return slugifyLaserMaterialId(slugSource)
 }
 
-/** Katalog + dynamische Lagermaterialien → Admin-Dropdown. */
+function formatLaserStockMaterialLabel(item: {
+  name: string
+  farbe?: string | null
+  dicke?: string | null
+  materialType?: string | null
+  typ?: string | null
+}): string {
+  const name = item.name.trim()
+  const farbe = item.farbe?.trim()
+  if (farbe) return `${name} — ${farbe}`
+  const art = item.materialType?.trim()
+  if (art) return `${name} · ${art}`
+  const dicke = item.dicke?.trim()
+  return dicke ? `${name} (${dicke})` : name
+}
+
+/**
+ * Aktive Laser-Materialarten (Katalog) + dynamische Lagermaterialien → Admin-Dropdown.
+ * Preferiert den verwaltbaren Katalog; fällt auf hardcodierte Kernmaterialien zurück.
+ */
 export function buildLaserMaterialSelectOptions(
   stockMaterials: Array<{
     id: string
     name: string
     category: string
+    farbe?: string | null
     dicke?: string | null
     materialType?: string | null
     typ?: string | null
-  }>
+  }>,
+  laserTypes?: LaserMaterialTypeDefinition[] | null
 ): Array<{ value: LaserMaterialId; label: string }> {
-  const options: Array<{ value: LaserMaterialId; label: string }> =
-    laserMaterials.map((m) => ({ value: m.id, label: m.name }))
+  const catalog = laserTypes?.length
+    ? getActiveLaserMaterialTypes(laserTypes)
+    : laserMaterials.map((m, index) => ({
+        id: m.id,
+        name: m.name,
+        isActive: true,
+        sortOrder: index,
+      }))
+
+  const options: Array<{ value: LaserMaterialId; label: string }> = catalog.map(
+    (m) => ({ value: m.id, label: m.name })
+  )
   const seen = new Set(options.map((o) => o.value))
 
   for (const item of stockMaterials) {
@@ -95,25 +128,23 @@ export function buildLaserMaterialSelectOptions(
     const name = item.name?.trim()
     if (!name) continue
 
-    const artHint = [item.materialType, item.typ, name]
-      .filter(Boolean)
-      .join(" ")
+    const typedRef = String(item.materialType ?? "").trim()
+    if (typedRef && seen.has(typedRef)) continue
+
+    const artHint = [item.materialType, item.typ, name].filter(Boolean).join(" ")
     const core = matchCoreLaserMaterialId(artHint)
-    if (core) {
-      // Kernmaterial bereits im Katalog — Label ggf. mit Dicke ergänzen nicht nötig
+    if (core && seen.has(core)) {
       continue
     }
 
-    const value = slugifyLaserMaterialId(item.materialType?.trim() || name)
+    const value =
+      typedRef ||
+      slugifyLaserMaterialId(item.farbe?.trim() ? `${name}-${item.farbe}` : name)
     if (seen.has(value)) continue
     seen.add(value)
-    const dicke = item.dicke?.trim()
-    const labelBase = item.materialType?.trim()
-      ? `${name} · ${item.materialType.trim()}`
-      : name
     options.push({
       value,
-      label: dicke ? `${labelBase} (${dicke})` : labelBase,
+      label: formatLaserStockMaterialLabel(item),
     })
   }
 

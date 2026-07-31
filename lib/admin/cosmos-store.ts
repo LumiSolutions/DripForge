@@ -24,8 +24,15 @@ import {
 import { logCosmosError, formatCosmosError } from "@/lib/cosmos/log-error"
 import { normalizeOrderForPersistence } from "@/lib/admin/normalize-order"
 import { products as seedProducts } from "@/lib/dripforge/data"
-import { DEFAULT_CHECKOUT_RUNTIME_CONFIG } from "@/lib/dripforge/checkout-config"
+import {
+  DEFAULT_CHECKOUT_RUNTIME_CONFIG,
+  normalizeCheckoutRuntimeConfig,
+} from "@/lib/dripforge/checkout-config"
 import { buildSupportPageSettings } from "@/lib/dripforge/support-page-settings"
+import {
+  normalizeSupportFeatures,
+  normalizeSupportMilestones,
+} from "@/lib/dripforge/support-page-settings"
 import {
   normalizeEnableOnboardingTour,
   normalizeOnboardingTourText,
@@ -44,6 +51,7 @@ import {
   normalizeLoyaltyPointValueChf,
 } from "@/lib/konto/loyalty-points-config"
 import { normalizeOrderEmailTemplates } from "@/lib/email/order-email-templates"
+import { normalizeOrderEmailLayout } from "@/lib/email/order-email-layout"
 import {
   DEFAULT_SHOW_TOP_PRODUCTS_ON_HOMEPAGE,
   DEFAULT_TOP_PRODUCTS_COUNT,
@@ -62,9 +70,10 @@ import type {
   StoredCustomer,
   StoredOrder,
 } from "@/lib/admin/types"
-import { DEFAULT_LAUNCH_SETTINGS, DEFAULT_SERVICE_VISIBILITY } from "@/lib/admin/types"
+import { DEFAULT_LAUNCH_SETTINGS, DEFAULT_SERVICE_VISIBILITY, DEFAULT_SHOP_CONFIGURATORS } from "@/lib/admin/types"
 import { normalizeServiceVisibility } from "@/lib/dripforge/service-visibility"
 import { normalizeShopConfigurators } from "@/lib/dripforge/shop-configurators"
+import { normalizeManagedCatalog } from "@/lib/dripforge/managed-catalog"
 
 export { isCosmosConfigured }
 
@@ -412,16 +421,24 @@ export async function cosmosGetSettings(): Promise<AdminSettings> {
       .read<AdminSettings & { id: string }>()
     if (resource?.checkout) {
       const services = normalizeServiceVisibility(resource.services)
+      const shopConfigurators = normalizeShopConfigurators(
+        resource.shopConfigurators,
+        services
+      )
       return {
-        checkout: resource.checkout,
+        checkout: normalizeCheckoutRuntimeConfig(resource.checkout),
         company: normalizeCompanySettings(resource.company),
         launch: normalizeLaunchSettings(resource.launch),
         services,
-        shopConfigurators: normalizeShopConfigurators(
-          resource.shopConfigurators,
-          services
+        shopConfigurators,
+        managedCatalog: normalizeManagedCatalog(
+          resource.managedCatalog,
+          services,
+          shopConfigurators
         ),
         ...buildSupportPageSettings(resource),
+        supportMilestones: normalizeSupportMilestones(resource.supportMilestones),
+        supportFeatures: normalizeSupportFeatures(resource.supportFeatures),
         enableOnboardingTour: normalizeEnableOnboardingTour(
           resource.enableOnboardingTour ??
             (resource as { enableThemeInboundTour?: boolean }).enableThemeInboundTour
@@ -451,6 +468,7 @@ export async function cosmosGetSettings(): Promise<AdminSettings> {
         orderEmailTemplates: normalizeOrderEmailTemplates(
           resource.orderEmailTemplates
         ),
+        orderEmailLayout: normalizeOrderEmailLayout(resource.orderEmailLayout),
         updatedAt: resource.updatedAt,
       }
     }
@@ -468,8 +486,15 @@ export async function cosmosGetSettings(): Promise<AdminSettings> {
     launch: { ...DEFAULT_LAUNCH_SETTINGS },
     services: { ...DEFAULT_SERVICE_VISIBILITY },
     shopConfigurators: normalizeShopConfigurators(null, DEFAULT_SERVICE_VISIBILITY),
+    managedCatalog: normalizeManagedCatalog(
+      null,
+      DEFAULT_SERVICE_VISIBILITY,
+      DEFAULT_SHOP_CONFIGURATORS
+    ),
     showSupportOnMainSite: false,
     showSupportOnCountdownPage: false,
+    supportMilestones: normalizeSupportMilestones(undefined),
+    supportFeatures: normalizeSupportFeatures(undefined),
     enableOnboardingTour: true,
     onboardingTourText: DEFAULT_ONBOARDING_TOUR_TEXT,
     themeInboundTourImageUrl: null,
@@ -480,6 +505,7 @@ export async function cosmosGetSettings(): Promise<AdminSettings> {
     showTopProductsOnHomepage: DEFAULT_SHOW_TOP_PRODUCTS_ON_HOMEPAGE,
     topProductsCount: DEFAULT_TOP_PRODUCTS_COUNT,
     orderEmailTemplates: normalizeOrderEmailTemplates(undefined),
+    orderEmailLayout: normalizeOrderEmailLayout(undefined),
     updatedAt: new Date().toISOString(),
   }
   try {

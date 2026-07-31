@@ -193,6 +193,10 @@ export function AdminBelegeTab() {
   const [error, setError] = useState<string | null>(null)
   const [query, setQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
+  const [dateFrom, setDateFrom] = useState("")
+  const [dateTo, setDateTo] = useState("")
+  const [amountFrom, setAmountFrom] = useState("")
+  const [amountTo, setAmountTo] = useState("")
   const [editorOpen, setEditorOpen] = useState(false)
   const [editor, setEditor] = useState<EditorState>(emptyEditor("offerte"))
   const [revenueAccounts, setRevenueAccounts] = useState<Account[]>([])
@@ -243,11 +247,51 @@ export function AdminBelegeTab() {
     }
   }, [editorOpen])
 
+  const filtersActive =
+    query.trim() !== "" ||
+    statusFilter !== "all" ||
+    dateFrom !== "" ||
+    dateTo !== "" ||
+    amountFrom !== "" ||
+    amountTo !== ""
+
+  const resetFilters = () => {
+    setQuery("")
+    setStatusFilter("all")
+    setDateFrom("")
+    setDateTo("")
+    setAmountFrom("")
+    setAmountTo("")
+  }
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
+    const minAmount = amountFrom.trim() === "" ? null : Number(amountFrom)
+    const maxAmount = amountTo.trim() === "" ? null : Number(amountTo)
+    const fromTs = dateFrom ? new Date(`${dateFrom}T00:00:00`).getTime() : null
+    const toTs = dateTo ? new Date(`${dateTo}T23:59:59.999`).getTime() : null
+
     return belege
       .filter((b) => b.type === activeType)
       .filter((b) => (statusFilter === "all" ? true : b.status === statusFilter))
+      .filter((b) => {
+        if (fromTs == null && toTs == null) return true
+        const created = new Date(b.createdAt).getTime()
+        if (Number.isNaN(created)) return false
+        if (fromTs != null && created < fromTs) return false
+        if (toTs != null && created > toTs) return false
+        return true
+      })
+      .filter((b) => {
+        if (minAmount == null && maxAmount == null) return true
+        if (minAmount != null && !Number.isNaN(minAmount) && b.total < minAmount) {
+          return false
+        }
+        if (maxAmount != null && !Number.isNaN(maxAmount) && b.total > maxAmount) {
+          return false
+        }
+        return true
+      })
       .filter((b) => {
         if (!q) return true
         const hay = [
@@ -265,7 +309,16 @@ export function AdminBelegeTab() {
           .toLowerCase()
         return hay.includes(q)
       })
-  }, [activeType, belege, query, statusFilter])
+  }, [
+    activeType,
+    amountFrom,
+    amountTo,
+    belege,
+    dateFrom,
+    dateTo,
+    query,
+    statusFilter,
+  ])
 
   const openCreate = () => {
     setEditor(emptyEditor(activeType === "lieferschein" ? "offerte" : activeType))
@@ -501,30 +554,92 @@ export function AdminBelegeTab() {
         {(["offerte", "rechnung", "lieferschein"] as BelegType[]).map((type) => (
           <TabsContent key={type} value={type} className="space-y-4">
             <Card className={adminUi.section}>
-              <CardContent className="flex flex-wrap items-end gap-3 p-4">
-                <div className="relative min-w-[220px] flex-1">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Suche nach Nummer, Kunde, Status…"
-                    className="pl-9"
-                  />
+              <CardContent className="space-y-3 p-4">
+                <div className="flex flex-wrap items-end gap-3">
+                  <div className="min-w-[220px] flex-1 space-y-1">
+                    <Label className={cn("text-xs", adminUi.label)}>Suche</Label>
+                    <div className="relative">
+                      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        value={query}
+                        onChange={(e) => setQuery(e.target.value)}
+                        placeholder="Suche nach Nummer, Kunde, Status…"
+                        className={cn("pl-9", adminUi.input)}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className={cn("text-xs", adminUi.label)}>Status</Label>
+                    <select
+                      value={statusFilter}
+                      onChange={(e) => setStatusFilter(e.target.value)}
+                      className={cn("h-10 rounded-md border px-3 text-sm", adminUi.select)}
+                    >
+                      <option value="all">Alle</option>
+                      {statusesForType(type).map((status) => (
+                        <option key={status} value={status}>
+                          {status}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  {filtersActive ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className={cn("h-10 text-xs", adminUi.muted)}
+                      onClick={resetFilters}
+                    >
+                      Filter zurücksetzen
+                    </Button>
+                  ) : null}
                 </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Status</Label>
-                  <select
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    className={cn("h-10 rounded-md border px-3 text-sm", adminUi.select)}
-                  >
-                    <option value="all">Alle</option>
-                    {statusesForType(type).map((status) => (
-                      <option key={status} value={status}>
-                        {status}
-                      </option>
-                    ))}
-                  </select>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <div className="space-y-1">
+                    <Label className={cn("text-xs", adminUi.label)}>Datum von</Label>
+                    <Input
+                      type="date"
+                      value={dateFrom}
+                      onChange={(e) => setDateFrom(e.target.value)}
+                      className={adminUi.input}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className={cn("text-xs", adminUi.label)}>Datum bis</Label>
+                    <Input
+                      type="date"
+                      value={dateTo}
+                      onChange={(e) => setDateTo(e.target.value)}
+                      className={adminUi.input}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className={cn("text-xs", adminUi.label)}>Betrag von (CHF)</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      step={0.05}
+                      inputMode="decimal"
+                      value={amountFrom}
+                      onChange={(e) => setAmountFrom(e.target.value)}
+                      placeholder="0.00"
+                      className={adminUi.input}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className={cn("text-xs", adminUi.label)}>Betrag bis (CHF)</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      step={0.05}
+                      inputMode="decimal"
+                      value={amountTo}
+                      onChange={(e) => setAmountTo(e.target.value)}
+                      placeholder="0.00"
+                      className={adminUi.input}
+                    />
+                  </div>
                 </div>
               </CardContent>
             </Card>

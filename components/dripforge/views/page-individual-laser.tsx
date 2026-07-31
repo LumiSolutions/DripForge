@@ -1,12 +1,19 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Minus, Package, Plus, ShoppingCart, Loader2 } from "lucide-react"
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+} from "react"
+import { ImagePlus, Loader2, Minus, Package, Plus, ShoppingCart, X } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
-import { laserMaterials } from "@/lib/dripforge/data"
 import { calculateLaserPrice } from "@/lib/dripforge/calculate-laser-price"
 import { isCustomerShippingOptionEnabled } from "@/lib/dripforge/customer-shipping-visibility"
 import { getIndividualLaserBasePrice } from "@/lib/dripforge/laser-individual-config"
@@ -14,6 +21,9 @@ import {
   CUSTOMER_INBOUND_MATERIAL_ID,
   CUSTOMER_INBOUND_MATERIAL_LABEL,
   isCustomerInboundMaterial,
+  isOtherMaterial,
+  OTHER_MATERIAL_ID,
+  OTHER_MATERIAL_LABEL,
   type IndividualLaserMaterialSelection,
 } from "@/lib/dripforge/laser-customer-inbound"
 import {
@@ -29,15 +39,13 @@ import {
   DEFAULT_LASER_PRICING_CONFIG,
   type LaserPricingConfig,
 } from "@/lib/dripforge/laser-pricing-config"
-import {
-  getWorkAreaForSizeId,
-  INDIVIDUAL_LASER_SIZES,
-} from "@/lib/dripforge/laser-work-area"
+import { DEFAULT_WORK_AREA_MM } from "@/lib/dripforge/laser-work-area"
 import {
   LaserDesignerStudio,
   type LaserDesignerState,
   type LaserEngravingMetrics,
 } from "@/components/dripforge/shared/laser-designer-studio"
+import { SaveDesignButton } from "@/components/konto/save-design-button"
 import { IndividualProcessBar } from "@/components/dripforge/shared/individual-process-bar"
 import {
   buildLaserCartCustomDetails,
@@ -46,7 +54,10 @@ import {
 import { buildLaserCombinedMockup } from "@/lib/dripforge/ensure-laser-mockup"
 import { ensureLaserLayers } from "@/lib/dripforge/laser-layers"
 import { captureProductionLayerPng } from "@/lib/dripforge/capture-production-layer"
+import { useLaserMaterialsCatalog } from "@/hooks/use-laser-materials-catalog"
 import type { CartItem } from "@/lib/dripforge/types"
+
+const PRICE_ON_REQUEST_LABEL = "Auf Anfrage / gemäss Offerte"
 
 export function PageIndividualLaser({
   setCurrentView,
@@ -55,6 +66,7 @@ export function PageIndividualLaser({
   setCurrentView: (view: string) => void
   addToCart: (item: CartItem) => void
 }) {
+  const { materials: laserMaterials } = useLaserMaterialsCatalog()
   const defaultMaterial = laserMaterials[0]
 
   /** Material-unabhaengig — bleibt beim Wechsel von Holz/Acryl/etc. erhalten */
@@ -73,7 +85,10 @@ export function PageIndividualLaser({
 
   const [selectedMaterialId, setSelectedMaterialId] =
     useState<IndividualLaserMaterialSelection>(defaultMaterial.id)
-  const [selectedSizeId, setSelectedSizeId] = useState("medium")
+  const [customMaterialNote, setCustomMaterialNote] = useState("")
+  const [productBackgroundUrl, setProductBackgroundUrl] = useState<
+    string | null
+  >(null)
   const [quantity, setQuantity] = useState(1)
   const [engravingMetrics, setEngravingMetrics] =
     useState<LaserEngravingMetrics | null>(null)
@@ -85,6 +100,7 @@ export function PageIndividualLaser({
     useState("")
   const [cartCapturing, setCartCapturing] = useState(false)
   const laserPreviewRef = useRef<HTMLDivElement>(null)
+  const productFileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     void fetch("/api/settings/laser-configurator", { cache: "no-store" })
@@ -106,20 +122,29 @@ export function PageIndividualLaser({
       })
   }, [])
 
+  // Katalog kann asynchron laden — Default-Material nachziehen, wenn noch keines gewählt
+  useEffect(() => {
+    if (
+      laserMaterials.length > 0 &&
+      !isCustomerInboundMaterial(selectedMaterialId) &&
+      !isOtherMaterial(selectedMaterialId) &&
+      !laserMaterials.some((m) => m.id === selectedMaterialId)
+    ) {
+      setSelectedMaterialId(laserMaterials[0].id)
+    }
+  }, [laserMaterials, selectedMaterialId])
+
   const showCustomerShippingOption =
     isCustomerShippingOptionEnabled(allowCustomerShipping)
   const isCustomerInbound = isCustomerInboundMaterial(selectedMaterialId)
+  const isOther = isOtherMaterial(selectedMaterialId)
+  const isPriceOnRequest = isCustomerInbound || isOther
 
   const material =
     laserMaterials.find((m) => m.id === selectedMaterialId) ?? defaultMaterial
-  const previewMaterial = isCustomerInbound ? defaultMaterial : material
-  const sizePreset =
-    INDIVIDUAL_LASER_SIZES.find((s) => s.id === selectedSizeId) ??
-    INDIVIDUAL_LASER_SIZES[1]
-  const workAreaMm = useMemo(
-    () => getWorkAreaForSizeId(selectedSizeId),
-    [selectedSizeId]
-  )
+  const previewMaterial =
+    isCustomerInbound || isOther ? defaultMaterial : material
+  const workAreaMm = DEFAULT_WORK_AREA_MM
 
   const laserDesign: LaserDesignerState = useMemo(
     () => ({
@@ -160,17 +185,54 @@ export function PageIndividualLaser({
     if (patch.activeLayerId !== undefined) setActiveLayerId(patch.activeLayerId)
   }, [])
 
-  const materialBase = isCustomerInbound
+  const handleProductBackgroundUpload = useCallback(
+    (event: ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0]
+      event.target.value = ""
+      if (!file || !file.type.startsWith("image/")) return
+      const reader = new FileReader()
+      reader.onload = () => {
+        if (typeof reader.result === "string") {
+          setProductBackgroundUrl(reader.result)
+        }
+      }
+      reader.readAsDataURL(file)
+    },
+    []
+  )
+
+  const materialBase = isPriceOnRequest
     ? 0
     : getIndividualLaserBasePrice(selectedMaterialId)
-  const basePrice = materialBase * sizePreset.priceMultiplier
+  // Kein Grössen-Multiplikator — feste Medium-Arbeitsfläche
+  const basePrice = materialBase
 
   const priceBreakdown = useMemo(() => {
+    if (isPriceOnRequest) {
+      return {
+        basePrice: 0,
+        areaSurcharge: 0,
+        unitPrice: 0,
+        totalPrice: 0,
+      }
+    }
     const area = engravingMetrics?.maxAreaMm2 ?? 0
     return calculateLaserPrice(basePrice, area, quantity, pricingConfig)
-  }, [basePrice, engravingMetrics, quantity, pricingConfig])
+  }, [
+    isPriceOnRequest,
+    basePrice,
+    engravingMetrics,
+    quantity,
+    pricingConfig,
+  ])
 
   const hasDesign = laserDesignHasContent(laserDesign)
+
+  const materialLabel = isCustomerInbound
+    ? CUSTOMER_INBOUND_MATERIAL_LABEL
+    : isOther
+      ? customMaterialNote.trim() || OTHER_MATERIAL_LABEL
+      : material.name
 
   const handleAddToCart = async () => {
     if (!hasDesign || cartCapturing) return
@@ -196,7 +258,7 @@ export function PageIndividualLaser({
       try {
         previewMockup = await buildLaserCombinedMockup({
           layers,
-          backgroundUrl: null,
+          backgroundUrl: productBackgroundUrl,
           previewRoot: laserPreviewRef.current,
         })
       } catch {
@@ -220,24 +282,23 @@ export function PageIndividualLaser({
         id: `custom-laser-${Date.now()}`,
         name: isCustomerInbound
           ? "Personalisierte Laserkreation (Kunden-Einsendung)"
-          : "Personalisierte Laserkreation",
-        price: priceBreakdown.unitPrice,
+          : isOther
+            ? "Personalisierte Laserkreation (Anderes Material)"
+            : "Personalisierte Laserkreation",
+        price: isPriceOnRequest ? 0 : priceBreakdown.unitPrice,
         quantity,
         type: "laser",
         leitbild: previewMockup,
         previewMockup,
         productionLayer,
         customDetails: buildLaserCartCustomDetails(designSnapshot, {
-          material: isCustomerInbound
-            ? CUSTOMER_INBOUND_MATERIAL_LABEL
-            : material.name,
-          productBackgroundUrl: null,
+          material: materialLabel,
+          productBackgroundUrl,
           materialVariant: designSnapshot.selectedVariant,
-          size: sizePreset.dimensionsLabel,
           isCustomerInbound,
           dimensions: gravurSize
             ? `${gravurSize.widthMm.toFixed(1)} x ${gravurSize.heightMm.toFixed(1)} mm`
-            : sizePreset.dimensionsLabel,
+            : undefined,
         }),
       })
 
@@ -247,11 +308,11 @@ export function PageIndividualLaser({
     }
   }
 
-  const activeStep = hasDesign
-    ? selectedMaterialId
-      ? 3
-      : 2
-    : 0
+  const activeStep = !hasDesign
+    ? 0
+    : selectedMaterialId
+      ? 2
+      : 1
 
   return (
     <div className="space-y-8 py-8">
@@ -273,12 +334,7 @@ export function PageIndividualLaser({
 
       <div className="mx-auto max-w-3xl px-4">
         <IndividualProcessBar
-          steps={[
-            "Bild / Text",
-            "Material wählen",
-            "Grösse & Menge",
-            "Warenkorb",
-          ]}
+          steps={["Design", "Produkt & Material", "Warenkorb"]}
           activeStep={activeStep}
         />
       </div>
@@ -294,6 +350,7 @@ export function PageIndividualLaser({
               onStateChange={handleDesignChange}
               showMaterialCard={false}
               showVariantPicker={false}
+              customizationBackgroundUrl={productBackgroundUrl ?? undefined}
             />
 
             <Card className="rounded-2xl border-border/50 bg-card/50 shadow-sm">
@@ -320,6 +377,22 @@ export function PageIndividualLaser({
                       </p>
                     </button>
                   ))}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedMaterialId(OTHER_MATERIAL_ID)}
+                    className={cn(
+                      "rounded-xl border p-4 text-left transition-colors",
+                      isOther
+                        ? "border-cyan-500 bg-cyan-500/10"
+                        : "border-border/60 hover:border-cyan-500/40"
+                    )}
+                  >
+                    <span className="text-2xl">✨</span>
+                    <p className="mt-2 font-bold">{OTHER_MATERIAL_LABEL}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {PRICE_ON_REQUEST_LABEL}
+                    </p>
+                  </button>
                   {showCustomerShippingOption && (
                     <button
                       type="button"
@@ -336,15 +409,34 @@ export function PageIndividualLaser({
                       <div className="flex items-start gap-3">
                         <Package className="mt-0.5 h-6 w-6 shrink-0 text-amber-500" />
                         <div>
-                          <p className="font-bold">{CUSTOMER_INBOUND_MATERIAL_LABEL}</p>
+                          <p className="font-bold">
+                            {CUSTOMER_INBOUND_MATERIAL_LABEL}
+                          </p>
                           <p className="mt-1 text-xs text-muted-foreground">
-                            Materialpreis CHF 0.00 — nur Gravur & Arbeitszeit
+                            {PRICE_ON_REQUEST_LABEL}
                           </p>
                         </div>
                       </div>
                     </button>
                   )}
                 </div>
+
+                {isOther && (
+                  <div className="mt-4 space-y-2">
+                    <label
+                      htmlFor="custom-material-note"
+                      className="text-sm font-medium"
+                    >
+                      Materialbeschreibung
+                    </label>
+                    <Input
+                      id="custom-material-note"
+                      value={customMaterialNote}
+                      onChange={(e) => setCustomMaterialNote(e.target.value)}
+                      placeholder="z. B. Bambus, Glas, Keramik …"
+                    />
+                  </div>
+                )}
 
                 {isCustomerInbound && (
                   <div className="mt-4 space-y-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
@@ -364,35 +456,38 @@ export function PageIndividualLaser({
                 )}
               </CardContent>
             </Card>
-
-            <Card className="rounded-2xl border-border/50 bg-card/50 shadow-sm">
-              <CardContent className="p-6">
-                <h3 className="mb-4 font-bold">Grösse wählen</h3>
-                <div className="grid gap-3 sm:grid-cols-3">
-                  {INDIVIDUAL_LASER_SIZES.map((s) => (
-                    <button
-                      key={s.id}
-                      type="button"
-                      onClick={() => setSelectedSizeId(s.id)}
-                      className={cn(
-                        "rounded-xl border p-4 text-center transition-colors",
-                        selectedSizeId === s.id
-                          ? "border-cyan-500 bg-cyan-500/10"
-                          : "border-border/60 hover:border-cyan-500/40"
-                      )}
-                    >
-                      <p className="font-bold">{s.name}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {s.dimensionsLabel}
-                      </p>
-                    </button>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
           </div>
 
           <div className="flex min-w-0 flex-col gap-6">
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                ref={productFileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleProductBackgroundUpload}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => productFileInputRef.current?.click()}
+              >
+                <ImagePlus className="mr-2 h-4 w-4" />
+                Produkt hochladen
+              </Button>
+              {productBackgroundUrl && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setProductBackgroundUrl(null)}
+                >
+                  <X className="mr-1 h-4 w-4" />
+                  Produktbild entfernen
+                </Button>
+              )}
+            </div>
+
             <LaserDesignerStudio
               column="preview"
               material={previewMaterial}
@@ -402,6 +497,7 @@ export function PageIndividualLaser({
               onStateChange={handleDesignChange}
               workAreaMm={workAreaMm}
               onEngravingMetricsChange={setEngravingMetrics}
+              customizationBackgroundUrl={productBackgroundUrl ?? undefined}
             />
           </div>
         </div>
@@ -415,61 +511,57 @@ export function PageIndividualLaser({
                   <div className="flex justify-between gap-3">
                     <span className="text-muted-foreground">Material</span>
                     <span className="text-right font-medium">
-                      {isCustomerInbound
-                        ? CUSTOMER_INBOUND_MATERIAL_LABEL
-                        : material.name}
+                      {materialLabel}
                     </span>
                   </div>
-                  {isCustomerInbound && (
-                    <div className="flex justify-between gap-3">
-                      <span className="text-muted-foreground">Materialpreis</span>
-                      <span className="font-medium">CHF 0.00</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between gap-3">
-                    <span className="text-muted-foreground">Grösse</span>
-                    <span className="text-right font-medium">
-                      {sizePreset.dimensionsLabel}
-                    </span>
-                  </div>
-                  {engravingMetrics && engravingMetrics.maxAreaMm2 > 0 && (
-                    <div className="flex justify-between gap-3">
-                      <span className="text-muted-foreground">
-                        Gravurfläche (ca.)
-                      </span>
-                      <span className="font-medium">
-                        {engravingMetrics.maxAreaMm2.toFixed(0)} mm²
-                      </span>
-                    </div>
-                  )}
-                  <div className="flex justify-between gap-3">
-                    <span className="text-muted-foreground">Basispreis</span>
-                    <span className="font-medium">
-                      CHF {priceBreakdown.basePrice.toFixed(2)}
-                    </span>
-                  </div>
-                  {priceBreakdown.areaSurcharge > 0 && (
-                    <div className="flex justify-between gap-3">
-                      <span className="text-muted-foreground">
-                        Aufschlag Grossfläche
-                      </span>
-                      <span className="font-medium">
-                        CHF {priceBreakdown.areaSurcharge.toFixed(2)}
-                      </span>
-                    </div>
-                  )}
-                  {quantity > 1 && (
+                  {isPriceOnRequest ? (
+                    <p className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-sm font-medium text-amber-800 dark:text-amber-200">
+                      {PRICE_ON_REQUEST_LABEL}
+                    </p>
+                  ) : (
                     <>
+                      {engravingMetrics && engravingMetrics.maxAreaMm2 > 0 && (
+                        <div className="flex justify-between gap-3">
+                          <span className="text-muted-foreground">
+                            Gravurfläche (ca.)
+                          </span>
+                          <span className="font-medium">
+                            {engravingMetrics.maxAreaMm2.toFixed(0)} mm²
+                          </span>
+                        </div>
+                      )}
                       <div className="flex justify-between gap-3">
-                        <span className="text-muted-foreground">Stueckpreis</span>
+                        <span className="text-muted-foreground">Basispreis</span>
                         <span className="font-medium">
-                          CHF {priceBreakdown.unitPrice.toFixed(2)}
+                          CHF {priceBreakdown.basePrice.toFixed(2)}
                         </span>
                       </div>
-                      <div className="flex justify-between gap-3">
-                        <span className="text-muted-foreground">Anzahl</span>
-                        <span className="font-medium">x{quantity}</span>
-                      </div>
+                      {priceBreakdown.areaSurcharge > 0 && (
+                        <div className="flex justify-between gap-3">
+                          <span className="text-muted-foreground">
+                            Aufschlag Grossfläche
+                          </span>
+                          <span className="font-medium">
+                            CHF {priceBreakdown.areaSurcharge.toFixed(2)}
+                          </span>
+                        </div>
+                      )}
+                      {quantity > 1 && (
+                        <>
+                          <div className="flex justify-between gap-3">
+                            <span className="text-muted-foreground">
+                              Stueckpreis
+                            </span>
+                            <span className="font-medium">
+                              CHF {priceBreakdown.unitPrice.toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between gap-3">
+                            <span className="text-muted-foreground">Anzahl</span>
+                            <span className="font-medium">x{quantity}</span>
+                          </div>
+                        </>
+                      )}
                     </>
                   )}
                 </div>
@@ -478,7 +570,9 @@ export function PageIndividualLaser({
                   <div className="flex justify-between gap-3 text-lg font-bold">
                     <span>Gesamtpreis</span>
                     <span className="text-cyan-600 dark:text-cyan-400">
-                      CHF {priceBreakdown.totalPrice.toFixed(2)}
+                      {isPriceOnRequest
+                        ? PRICE_ON_REQUEST_LABEL
+                        : `CHF ${priceBreakdown.totalPrice.toFixed(2)}`}
                     </span>
                   </div>
                 </div>
@@ -512,11 +606,13 @@ export function PageIndividualLaser({
                   </Button>
                 </div>
                 <p className="mt-4 text-sm text-muted-foreground">
-                  Stueckpreis: CHF {priceBreakdown.unitPrice.toFixed(2)}
+                  {isPriceOnRequest
+                    ? PRICE_ON_REQUEST_LABEL
+                    : `Stueckpreis: CHF ${priceBreakdown.unitPrice.toFixed(2)}`}
                 </p>
               </div>
 
-              <div className="mt-6">
+              <div className="mt-6 space-y-2">
                 <Button
                   onClick={() => void handleAddToCart()}
                   disabled={!hasDesign || cartCapturing}
@@ -532,6 +628,21 @@ export function PageIndividualLaser({
                     ? "Design wird gespeichert…"
                     : "In den Warenkorb"}
                 </Button>
+                <SaveDesignButton
+                  designType="laser"
+                  defaultLabel={`Laser-Design ${new Date().toLocaleDateString("de-CH")}`}
+                  previewUrl={laserDesign.imageLayout?.src || null}
+                  config={{
+                    materialId: selectedMaterialId,
+                    engravingText: laserDesign.engravingText,
+                    selectedFont: laserDesign.selectedFont,
+                    selectedVariant: laserDesign.selectedVariant,
+                    layers: laserDesign.layers,
+                    textLayout: laserDesign.textLayout,
+                    imageLayout: laserDesign.imageLayout,
+                  }}
+                  className="w-full"
+                />
                 {!hasDesign && (
                   <p className="mt-3 text-center text-sm text-muted-foreground">
                     Bitte Gravur-Text eingeben oder ein Logo hochladen.

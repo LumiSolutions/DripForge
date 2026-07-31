@@ -63,7 +63,7 @@ export async function cosmosAllocateJournalBelegNummer(
       }
 
       await container.items.upsert(nextDoc)
-      return `${year}-${String(nextSequence).padStart(4, "0")}`
+      return formatJournalBelegNummer(year, nextSequence)
     } catch (error) {
       const code = cosmosErrorCode(error)
       if (code === 409 || code === 412 || code === 449) continue
@@ -73,6 +73,37 @@ export async function cosmosAllocateJournalBelegNummer(
   }
 
   throw new Error("Belegnummer konnte nicht vergeben werden.")
+}
+
+export function formatJournalBelegNummer(year: number, sequence: number): string {
+  return `BU-${year}-${String(sequence).padStart(4, "0")}`
+}
+
+/** Nächste Belegnummer vorschlagen, ohne den Zähler zu erhöhen. */
+export async function cosmosPeekNextJournalBelegNummer(
+  dateIso?: string
+): Promise<string> {
+  const year =
+    Number((dateIso ?? new Date().toISOString()).slice(0, 4)) ||
+    new Date().getFullYear()
+  const container = await getSettingsContainer()
+
+  try {
+    const { resource } = await container
+      .item(JOURNAL_COUNTER_DOC_ID, JOURNAL_COUNTER_DOC_ID)
+      .read<JournalCounterDoc>()
+    const nextSequence =
+      resource?.year === year
+        ? Math.max(1, Math.floor(Number(resource.lastSequence) || 0) + 1)
+        : 1
+    return formatJournalBelegNummer(year, nextSequence)
+  } catch (error) {
+    if (cosmosErrorCode(error) === 404) {
+      return formatJournalBelegNummer(year, 1)
+    }
+    logCosmosError("cosmosPeekNextJournalBelegNummer", error)
+    throw error
+  }
 }
 
 export async function cosmosGetJournalEntries(options?: {

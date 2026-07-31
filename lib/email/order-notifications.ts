@@ -12,6 +12,7 @@ import {
 import {
   renderDripForgeEmailHtml,
   renderEmailCtaButton,
+  renderOrderConfirmationEmailHtml,
   renderOrderItemsTableHtml,
   textToHtmlParagraphs,
 } from "@/lib/email/dripforge-email-layout"
@@ -29,6 +30,10 @@ import {
   resolveOrderEmailFooter,
   resolveOrderEmailIntro,
 } from "@/lib/email/order-email-templates"
+import {
+  normalizeOrderEmailLayout,
+  type OrderEmailMetaFields,
+} from "@/lib/email/order-email-layout"
 import { generateAndStoreOrderInvoice } from "@/lib/invoices/process-order-invoice"
 import { ensureOrderInvoiceNumber } from "@/lib/invoices/order-invoice-number"
 import {
@@ -73,43 +78,80 @@ async function markEmailSent(
   })
 }
 
-function renderOrderDetailsHtml(order: StoredOrder): string {
-  const delivery = order.delivery ?? order.billing
+function renderOrderMetaHtml(
+  order: StoredOrder,
+  metaFields?: OrderEmailMetaFields
+): string {
+  const fields = metaFields ?? normalizeOrderEmailLayout(undefined).metaFields!
   const invoiceNumber = resolveOrderInvoiceNumber(order)
   const bestellRef = resolveOrderBestellRef(order)
   const hasInvoiceNumber =
     Boolean(order.invoiceNumber?.trim()) || invoiceNumber !== order.orderId
+  const lines: Array<string | null> = []
+
+  if (fields.invoiceNumber) {
+    lines.push(
+      hasInvoiceNumber
+        ? `Rechnungsnummer: ${invoiceNumber}`
+        : `Bestellnummer: ${order.orderId}`
+    )
+  }
+  if (fields.orderRef && bestellRef && hasInvoiceNumber) {
+    lines.push(`Bestell-Ref: ${bestellRef}`)
+  }
+  if (fields.date) {
+    lines.push(`Datum: ${formatInvoiceDate(order.createdAt)}`)
+  }
+  if (fields.paymentMethod) {
+    lines.push(`Zahlungsart: ${order.paymentMethodLabel}`)
+  }
+  if (fields.paymentStatus) {
+    lines.push(`Zahlungsstatus: ${resolvePaymentStatusLabel(order)}`)
+  }
+  if (fields.shippingMethod) {
+    lines.push(`Versandart: ${resolveShippingLabel(order)}`)
+  }
+
+  if (lines.length === 0) return ""
+  return textToHtmlParagraphs(lines.filter((line) => line != null).join("\n"))
+}
+
+function renderOrderItemsSectionHtml(
+  order: StoredOrder,
+  metaFields?: OrderEmailMetaFields
+): string {
   return (
-    textToHtmlParagraphs(
-      [
-        hasInvoiceNumber
-          ? `Rechnungsnummer: ${invoiceNumber}`
-          : `Bestellnummer: ${order.orderId}`,
-        bestellRef && hasInvoiceNumber ? `Bestell-Ref: ${bestellRef}` : null,
-        `Datum: ${formatInvoiceDate(order.createdAt)}`,
-        `Zahlungsart: ${order.paymentMethodLabel}`,
-        `Zahlungsstatus: ${resolvePaymentStatusLabel(order)}`,
-        `Versandart: ${resolveShippingLabel(order)}`,
-      ]
-        .filter((line) => line != null)
-        .join("\n")
-    ) +
+    renderOrderMetaHtml(order, metaFields) +
     renderOrderItemsTableHtml(
       order.items.map((item) => ({
         name: item.name,
         quantity: item.quantity,
         price: item.price,
       }))
-    ) +
-    textToHtmlParagraphs(
-      [
-        formatOrderTotalsBlock(order),
-        "",
-        formatOrderAddressBlock("Rechnungsadresse:", order.billing),
-        "",
-        formatOrderAddressBlock("Lieferadresse:", delivery),
-      ].join("\n")
     )
+  )
+}
+
+function renderOrderTotalsSectionHtml(order: StoredOrder): string {
+  return textToHtmlParagraphs(formatOrderTotalsBlock(order))
+}
+
+function renderOrderAddressSectionHtml(order: StoredOrder): string {
+  const delivery = order.delivery ?? order.billing
+  return textToHtmlParagraphs(
+    [
+      formatOrderAddressBlock("Rechnungsadresse:", order.billing),
+      "",
+      formatOrderAddressBlock("Lieferadresse:", delivery),
+    ].join("\n")
+  )
+}
+
+function renderOrderDetailsHtml(order: StoredOrder): string {
+  return (
+    renderOrderItemsSectionHtml(order) +
+    renderOrderTotalsSectionHtml(order) +
+    renderOrderAddressSectionHtml(order)
   )
 }
 
@@ -336,15 +378,26 @@ export async function notifyOrderReceived(
       branding.companyName,
     ].join("\n")
 
-    const html = renderDripForgeEmailHtml({
+    const emailLayout = normalizeOrderEmailLayout(adminSettings?.orderEmailLayout)
+
+    const html = renderOrderConfirmationEmailHtml({
+      layout: emailLayout,
       title: prepaid ? "Bestelleingang" : "Bestellbestätigung",
-      bodyHtml:
-        textToHtmlParagraphs(introText) +
-        renderOrderDetailsHtml(workingOrder) +
+      sections: {
+        header: "",
+        intro: textToHtmlParagraphs(introText),
+        orderItems: renderOrderItemsSectionHtml(
+          workingOrder,
+          emailLayout.metaFields
+        ),
+        totals: renderOrderTotalsSectionHtml(workingOrder),
+        addressBlock: renderOrderAddressSectionHtml(workingOrder),
+        footer: textToHtmlParagraphs(closingPlain),
+      },
+      extraHtml:
         (twintHint?.html ?? "") +
         (invoiceHint?.html ?? "") +
         (pdfPlainHint ? textToHtmlParagraphs(pdfPlainHint) : "") +
-        textToHtmlParagraphs(closingPlain) +
         renderEmailCtaButton(accountUrl, "Zu meinen Bestellungen"),
       footerLines: branding.footerLines,
       logoUrl: branding.logoUrl ?? undefined,

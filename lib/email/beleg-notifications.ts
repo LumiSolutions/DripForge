@@ -18,8 +18,7 @@ import { formatChf, formatInvoiceDate } from "@/lib/invoices/invoice-format"
 import { resolveSiteOrigin } from "@/lib/site/site-origin"
 
 function buildAdminBelegDetailUrl(belegId: string): string {
-  const params = new URLSearchParams({ tab: "belege", beleg: belegId })
-  return `${resolveSiteOrigin()}${adminPortalPath()}?${params.toString()}`
+  return `${resolveSiteOrigin()}${adminPortalPath("/belege")}?beleg=${encodeURIComponent(belegId)}`
 }
 
 function customerNameFromBeleg(beleg: Beleg): string {

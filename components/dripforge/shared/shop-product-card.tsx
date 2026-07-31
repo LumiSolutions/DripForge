@@ -4,6 +4,7 @@ import { ArrowRight, Printer, Zap } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { SafeProductImage } from "@/components/dripforge/shared/safe-product-image"
 import { ProductShopPrice } from "@/components/dripforge/shared/product-shop-price"
+import { WishlistButton } from "@/components/konto/wishlist-button"
 import { getSaleBadgePercent } from "@/lib/dripforge/product-sale"
 import type { Product } from "@/lib/dripforge/types"
 import { cn } from "@/lib/utils"
@@ -16,6 +17,8 @@ type ShopProductCardProps = {
   viewMode: "grid3" | "grid5" | "list"
   surface?: ShopCardSurface
   onOpen: () => void
+  /** CMS-Inline-Edit: Karte nicht klickbar, Badge anzeigen */
+  canInlineEdit?: boolean
 }
 
 export function ShopProductCard({
@@ -24,6 +27,7 @@ export function ShopProductCard({
   viewMode,
   surface = "brand",
   onOpen,
+  canInlineEdit = false,
 }: ShopProductCardProps) {
   const salePercent = getSaleBadgePercent(product)
   const isList = viewMode === "list"
@@ -31,24 +35,47 @@ export function ShopProductCard({
   if (isList) {
     return (
       <Card
-        role="button"
-        tabIndex={0}
-        onClick={onOpen}
+        role={canInlineEdit ? undefined : "button"}
+        tabIndex={canInlineEdit ? undefined : 0}
+        onClick={() => {
+          if (!canInlineEdit) onOpen()
+        }}
         onKeyDown={(e) => {
+          if (canInlineEdit) return
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault()
             onOpen()
           }
         }}
         className={cn(
-          "cursor-pointer overflow-hidden border-border/50 transition-colors hover:border-primary/50 hover:shadow-md",
+          "relative overflow-hidden border-border/50 transition-colors",
+          canInlineEdit
+            ? "cursor-default"
+            : "cursor-pointer hover:border-primary/50 hover:shadow-md",
           surface === "brand"
             ? "bg-gradient-to-br from-orange-500/20 via-card to-cyan-500/20"
             : "bg-card/50",
           product.sale && "border-red-500/30 hover:border-red-500/60"
         )}
       >
-        <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center">
+        {canInlineEdit && (
+          <span className="absolute right-2 top-2 z-20 rounded-md border border-amber-500/40 bg-amber-500/90 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-950">
+            Dynamisch aus Shop
+          </span>
+        )}
+        {!canInlineEdit && (
+          <WishlistButton
+            productId={product.id}
+            size="sm"
+            className="absolute right-2 top-2 z-20"
+          />
+        )}
+        <div
+          className={cn(
+            "flex flex-col gap-4 p-4 sm:flex-row sm:items-center",
+            canInlineEdit && "pointer-events-none select-none"
+          )}
+        >
           <div className="relative h-36 w-full shrink-0 overflow-hidden rounded-lg bg-secondary/40 sm:h-28 sm:w-36">
             {product.sale && salePercent != null && (
               <span className="absolute left-2 top-2 z-10 rounded-full bg-red-500 px-2 py-0.5 text-xs font-bold text-white">
@@ -96,27 +123,46 @@ export function ShopProductCard({
 
   return (
     <Card
-      role="button"
-      tabIndex={0}
-      onClick={onOpen}
+      role={canInlineEdit ? undefined : "button"}
+      tabIndex={canInlineEdit ? undefined : 0}
+      onClick={() => {
+        if (!canInlineEdit) onOpen()
+      }}
       onKeyDown={(e) => {
+        if (canInlineEdit) return
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault()
           onOpen()
         }
       }}
       className={cn(
-        "group cursor-pointer overflow-hidden border-border/50 p-0 transition-colors hover:border-primary/50 hover:shadow-md",
+        "group relative overflow-hidden border-border/50 p-0 transition-colors",
+        canInlineEdit
+          ? "cursor-default"
+          : "cursor-pointer hover:border-primary/50 hover:shadow-md",
         product.sale && "border-red-500/30 hover:border-red-500/60"
       )}
     >
+      {canInlineEdit && (
+        <span className="absolute right-2 top-2 z-20 rounded-md border border-amber-500/40 bg-amber-500/90 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-950">
+          Dynamisch aus Shop
+        </span>
+      )}
+      {!canInlineEdit && (
+        <WishlistButton
+          productId={product.id}
+          size="sm"
+          className="absolute right-2 top-2 z-20"
+        />
+      )}
       <div
         className={cn(
           "relative aspect-[4/5] w-full overflow-hidden",
           viewMode === "grid5" ? "min-h-[11rem]" : "min-h-[14rem]",
           surface === "brand"
             ? "bg-gradient-to-br from-orange-500 via-amber-600 to-cyan-600"
-            : "bg-secondary/60"
+            : "bg-secondary/60",
+          canInlineEdit && "pointer-events-none select-none"
         )}
       >
         <SafeProductImage

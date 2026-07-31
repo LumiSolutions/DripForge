@@ -69,9 +69,14 @@ export function SiteTextBlock({
   }
 
   return (
-    <div className="group/site-text relative">
+    <div
+      className="group/site-text relative cursor-text rounded-sm outline-offset-2 hover:outline hover:outline-1 hover:outline-amber-500/50"
+      onClick={() => {
+        /* click on body opens via editor button; ensure pencil stays reachable */
+      }}
+    >
       {content}
-      <div className="absolute -right-1 top-0">
+      <div className="absolute -right-1 top-0 z-20">
         <SiteTextEditor textKey={k} value={raw} align="end" />
       </div>
     </div>

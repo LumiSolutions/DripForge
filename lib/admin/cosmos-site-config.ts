@@ -13,15 +13,49 @@ import {
   type SiteImages,
 } from "@/lib/admin/site-images"
 import {
+  mergeSiteLinks,
+  sanitizeSiteLinksInput,
+  type SiteLinks,
+} from "@/lib/admin/site-links"
+import {
   mergeSiteTexts,
   sanitizeSiteTextsInput,
   SITE_TEXT_DOC_TYPE,
   type SiteTexts,
 } from "@/lib/admin/site-texts"
+import {
+  mergeCmsFaqItems,
+  sanitizeCmsFaqItemsInput,
+  type CmsFaqItem,
+} from "@/lib/admin/cms-faq"
+import {
+  getDefaultCmsPageContentLists,
+  mergeCmsPageContentLists,
+  type CmsContactField,
+  type CmsExpectItem,
+  type CmsPageContentLists,
+  type CmsProcessStep,
+} from "@/lib/admin/cms-page-content"
+import {
+  mergeCmsNavItems,
+  mergeCmsPages,
+  sanitizeCmsNavItemsInput,
+  type CmsNavItem,
+  type CmsPageEntry,
+} from "@/lib/admin/site-nav"
 
 export type SiteConfigBundle = {
   texts: SiteTexts
   images: SiteImages
+  links: SiteLinks
+  navItems: CmsNavItem[]
+  pages: CmsPageEntry[]
+  faqItems: CmsFaqItem[]
+  processSteps3d: CmsProcessStep[]
+  processStepsLaser: CmsProcessStep[]
+  expectItems3d: CmsExpectItem[]
+  expectItemsLaser: CmsExpectItem[]
+  contactFormFields: CmsContactField[]
 }
 
 type SiteConfigCosmosDoc = {
@@ -30,6 +64,15 @@ type SiteConfigCosmosDoc = {
   environment: SiteConfigEnvironment
   texts: Partial<Record<string, string>>
   images?: Partial<Record<string, unknown>>
+  links?: SiteLinks
+  navItems?: CmsNavItem[]
+  pages?: CmsPageEntry[]
+  faqItems?: CmsFaqItem[]
+  processSteps3d?: CmsProcessStep[]
+  processStepsLaser?: CmsProcessStep[]
+  expectItems3d?: CmsExpectItem[]
+  expectItemsLaser?: CmsExpectItem[]
+  contactFormFields?: CmsContactField[]
   updatedAt: string
 }
 
@@ -39,9 +82,16 @@ function docIdForEnvironment(environment: SiteConfigEnvironment): string {
 
 function bundleFromDoc(doc: SiteConfigCosmosDoc | null): SiteConfigBundle | null {
   if (!doc) return null
+  const texts = mergeSiteTexts(doc.texts)
+  const lists = mergeCmsPageContentLists(doc)
   return {
-    texts: mergeSiteTexts(doc.texts),
+    texts,
     images: mergeSiteImages(doc.images),
+    links: mergeSiteLinks(doc.links),
+    navItems: mergeCmsNavItems(doc.navItems),
+    pages: mergeCmsPages(doc.pages),
+    faqItems: mergeCmsFaqItems(doc.faqItems, texts),
+    ...lists,
   }
 }
 
@@ -89,16 +139,26 @@ async function upsertSiteConfigDoc(
   const container = await getSettingsContainer()
   const texts = sanitizeSiteTextsInput(bundle.texts)
   const images = sanitizeSiteImagesInput(bundle.images)
+  const links = sanitizeSiteLinksInput(bundle.links)
+  const navItems = sanitizeCmsNavItemsInput(bundle.navItems)
+  const pages = mergeCmsPages(bundle.pages)
+  const faqItems = sanitizeCmsFaqItemsInput(bundle.faqItems)
+  const lists = mergeCmsPageContentLists(bundle)
   const doc: SiteConfigCosmosDoc = {
     id: docIdForEnvironment(environment),
     docType: SITE_CONFIG_DOC_TYPE,
     environment,
     texts,
     images,
+    links,
+    navItems,
+    pages,
+    faqItems,
+    ...lists,
     updatedAt: new Date().toISOString(),
   }
   await container.items.upsert(doc)
-  return { texts, images }
+  return { texts, images, links, navItems, pages, faqItems, ...lists }
 }
 
 export async function cosmosGetSiteConfigProduction(): Promise<SiteConfigBundle> {
@@ -108,17 +168,30 @@ export async function cosmosGetSiteConfigProduction(): Promise<SiteConfigBundle>
 
   const legacy = await readLegacySiteTextsDoc()
   if (legacy) {
+    const texts = mergeSiteTexts(legacy)
+    const lists = getDefaultCmsPageContentLists()
     const migrated: SiteConfigBundle = {
-      texts: mergeSiteTexts(legacy),
+      texts,
       images: mergeSiteImages(null),
+      links: mergeSiteLinks(null),
+      navItems: mergeCmsNavItems(null),
+      pages: mergeCmsPages(null),
+      faqItems: mergeCmsFaqItems(null, texts),
+      ...lists,
     }
     await upsertSiteConfigDoc("production", migrated)
     return migrated
   }
 
+  const texts = mergeSiteTexts(null)
   return {
-    texts: mergeSiteTexts(null),
+    texts,
     images: mergeSiteImages(null),
+    links: mergeSiteLinks(null),
+    navItems: mergeCmsNavItems(null),
+    pages: mergeCmsPages(null),
+    faqItems: mergeCmsFaqItems(null, texts),
+    ...getDefaultCmsPageContentLists(),
   }
 }
 

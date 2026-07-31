@@ -6,6 +6,7 @@ import {
 } from "@/lib/admin/require-admin-session"
 import { DEFAULT_COMPANY_SETTINGS } from "@/lib/admin/types"
 import type { CheckoutRuntimeConfig } from "@/lib/dripforge/checkout-config"
+import { normalizeCheckoutRuntimeConfig } from "@/lib/dripforge/checkout-config"
 import type {
   CompanySettings,
   LaunchSettings,
@@ -14,6 +15,15 @@ import type {
 } from "@/lib/admin/types"
 import { normalizeServiceVisibility } from "@/lib/dripforge/service-visibility"
 import { normalizeShopConfigurators } from "@/lib/dripforge/shop-configurators"
+import {
+  applyManagedCatalogToSettings,
+  normalizeManagedCatalog,
+  type ManagedCatalogItem,
+} from "@/lib/dripforge/managed-catalog"
+import type {
+  SupportFeatureItem,
+  SupportMilestoneConfig,
+} from "@/lib/dripforge/support-page-settings"
 import { buildDefaultAdminSettings } from "@/lib/admin/safe-defaults"
 import {
   normalizeShowTopProductsOnHomepage,
@@ -45,8 +55,11 @@ export async function PUT(request: Request) {
       company?: Partial<CompanySettings>
       services?: Partial<ServiceVisibilitySettings>
       shopConfigurators?: Partial<ShopConfiguratorSettings>
+      managedCatalog?: ManagedCatalogItem[] | null
       showSupportOnMainSite?: boolean
       showSupportOnCountdownPage?: boolean
+      supportMilestones?: SupportMilestoneConfig[]
+      supportFeatures?: SupportFeatureItem[]
       enableOnboardingTour?: boolean
       onboardingTourText?: string | null
       themeInboundTourImageUrl?: string | null
@@ -60,6 +73,28 @@ export async function PUT(request: Request) {
         receivedIntro?: string
         receivedFooter?: string
       }
+      orderEmailLayout?: {
+        sectionOrder?: Array<
+          | "header"
+          | "intro"
+          | "orderItems"
+          | "totals"
+          | "addressBlock"
+          | "footer"
+        >
+        showLogo?: boolean
+        logoPosition?: "left" | "center" | "right"
+        headerTitle?: string
+        logoUrl?: string
+        metaFields?: {
+          invoiceNumber?: boolean
+          orderRef?: boolean
+          date?: boolean
+          paymentMethod?: boolean
+          paymentStatus?: boolean
+          shippingMethod?: boolean
+        }
+      }
       launch?: Partial<LaunchSettings>
     }
 
@@ -70,13 +105,14 @@ export async function PUT(request: Request) {
       )
     }
 
-    const checkout: CheckoutRuntimeConfig = {
+    const checkout: CheckoutRuntimeConfig = normalizeCheckoutRuntimeConfig({
       mwstAktiv: Boolean(body.checkout.mwstAktiv),
       mwstSatz: Number(body.checkout.mwstSatz) || 8.1,
+      mwstNummer: body.checkout.mwstNummer,
       twintGatewayAktiv: Boolean(body.checkout.twintGatewayAktiv),
       twintTelefonnummer:
         body.checkout.twintTelefonnummer?.trim() || "+41 79 000 00 00",
-    }
+    })
 
     const company: CompanySettings = {
       firmenname:
@@ -92,14 +128,30 @@ export async function PUT(request: Request) {
       telefonnummer: body.company?.telefonnummer?.trim() ?? "",
     }
 
-    const services = normalizeServiceVisibility(body.services)
+    const catalogApplied =
+      body.managedCatalog !== undefined && body.managedCatalog !== null
+        ? applyManagedCatalogToSettings(body.managedCatalog)
+        : null
+    const services = catalogApplied
+      ? catalogApplied.services
+      : normalizeServiceVisibility(body.services)
+    const shopConfigurators = catalogApplied
+      ? catalogApplied.shopConfigurators
+      : normalizeShopConfigurators(body.shopConfigurators, services)
+    const managedCatalog = catalogApplied
+      ? catalogApplied.managedCatalog
+      : normalizeManagedCatalog(body.managedCatalog, services, shopConfigurators)
+
     const settings = await saveSettings({
       checkout,
       company,
       services,
-      shopConfigurators: normalizeShopConfigurators(body.shopConfigurators, services),
+      shopConfigurators,
+      managedCatalog,
       showSupportOnMainSite: body.showSupportOnMainSite,
       showSupportOnCountdownPage: body.showSupportOnCountdownPage,
+      supportMilestones: body.supportMilestones,
+      supportFeatures: body.supportFeatures,
       enableOnboardingTour: body.enableOnboardingTour,
       onboardingTourText: body.onboardingTourText,
       themeInboundTourImageUrl: body.themeInboundTourImageUrl,
@@ -116,6 +168,7 @@ export async function PUT(request: Request) {
           ? normalizeTopProductsCount(body.topProductsCount)
           : undefined,
       orderEmailTemplates: body.orderEmailTemplates,
+      orderEmailLayout: body.orderEmailLayout,
       launch: body.launch,
     })
     return NextResponse.json(settings)

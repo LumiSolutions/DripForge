@@ -5,6 +5,11 @@ import type {
 } from "@/lib/dripforge/submit-order"
 import type { CartItem, Product } from "@/lib/dripforge/types"
 import type { PaymentMethodId, ShippingMethodId } from "@/lib/dripforge/checkout-config"
+import type { ManagedCatalogItem } from "@/lib/dripforge/managed-catalog"
+import type {
+  SupportFeatureItem,
+  SupportMilestoneConfig,
+} from "@/lib/dripforge/support-page-settings"
 
 export type OrderStatus =
   | "ausstehend"
@@ -193,10 +198,16 @@ export type AdminSettings = {
   launch: LaunchSettings
   services: ServiceVisibilitySettings
   shopConfigurators: ShopConfiguratorSettings
+  /** Dynamischer Katalog: Dienstleistungen & Konfigurator-Kacheln (System + Custom) */
+  managedCatalog?: ManagedCatalogItem[]
   /** Support-Kampagne auf der normalen Website (Header, Mobile, /support) */
   showSupportOnMainSite: boolean
   /** Support-Link/Button auf der Countdown-Landingpage */
   showSupportOnCountdownPage: boolean
+  /** Konfigurierbare Meilensteine / Ziele der Support-Kampagne */
+  supportMilestones?: SupportMilestoneConfig[]
+  /** Unterstützte Produkte / Features (Storefront-Liste) */
+  supportFeatures?: SupportFeatureItem[]
   /** Onboarding-Tropfen für Erstbesucher neben Sonne/Mond-Icon */
   enableOnboardingTour: boolean
   /** Frage-Text im Tropfen (Zeilenumbrüche via \\n); leer = kein Text im Tropfen */
@@ -219,6 +230,29 @@ export type AdminSettings = {
   orderEmailTemplates?: {
     receivedIntro: string
     receivedFooter: string
+  }
+  /** Visuelles Layout der Kunden-Bestellbestätigung (Sektionsreihenfolge, Logo) */
+  orderEmailLayout?: {
+    sectionOrder: Array<
+      | "header"
+      | "intro"
+      | "orderItems"
+      | "totals"
+      | "addressBlock"
+      | "footer"
+    >
+    showLogo: boolean
+    logoPosition: "left" | "center" | "right"
+    headerTitle?: string
+    logoUrl?: string
+    metaFields?: {
+      invoiceNumber: boolean
+      orderRef: boolean
+      date: boolean
+      paymentMethod: boolean
+      paymentStatus: boolean
+      shippingMethod: boolean
+    }
   }
   updatedAt: string
 }
