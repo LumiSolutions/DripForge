@@ -18,6 +18,8 @@ export async function cosmosSaveSiteTexts(texts: SiteTexts): Promise<SiteTexts> 
     texts,
     images: existing.images,
     links: existing.links,
+    navItems: existing.navItems,
+    pages: existing.pages,
   })
   return saved.texts
 }

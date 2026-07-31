@@ -33,6 +33,14 @@ import {
   type SiteLinks,
 } from "@/lib/admin/site-links"
 import {
+  mergeCmsNavItems,
+  mergeCmsPages,
+  sanitizeCmsNavItemsInput,
+  sanitizeCmsPagesInput,
+  type CmsNavItem,
+  type CmsPageEntry,
+} from "@/lib/admin/site-nav"
+import {
   enableSiteConfigPreviewInSession,
   isSiteConfigPreviewEnabled,
   SITE_CONFIG_PREVIEW_PARAM,
@@ -42,6 +50,8 @@ type SiteTextsContextValue = {
   texts: SiteTexts
   images: SiteImages
   links: SiteLinks
+  navItems: CmsNavItem[]
+  pages: CmsPageEntry[]
   loading: boolean
   preview: boolean
   canInlineEdit: boolean
@@ -53,6 +63,9 @@ type SiteTextsContextValue = {
   saveText: (key: SiteTextKey, value: string) => Promise<void>
   saveImage: (key: SiteImageKey, entry: SiteImageEntry) => Promise<void>
   saveLink: (key: string, href: string) => Promise<void>
+  saveNavItems: (items: CmsNavItem[]) => Promise<void>
+  savePages: (pages: CmsPageEntry[]) => Promise<void>
+  updateNavItemLabel: (id: string, label: string) => Promise<void>
 }
 
 const SiteTextsContext = createContext<SiteTextsContextValue | null>(null)
@@ -70,6 +83,8 @@ export function SiteTextsProvider({ children }: { children: ReactNode }) {
   const [texts, setTexts] = useState<SiteTexts>(mergeSiteTexts(null))
   const [images, setImages] = useState<SiteImages>(mergeSiteImages(null))
   const [links, setLinks] = useState<SiteLinks>(mergeSiteLinks(null))
+  const [navItems, setNavItems] = useState<CmsNavItem[]>(mergeCmsNavItems(null))
+  const [pages, setPages] = useState<CmsPageEntry[]>(mergeCmsPages(null))
   const [loading, setLoading] = useState(true)
   const [preview, setPreview] = useState(false)
   const [staffRole, setStaffRole] = useState<"admin" | "tester" | null>(null)
@@ -91,12 +106,16 @@ export function SiteTextsProvider({ children }: { children: ReactNode }) {
             texts?: Partial<Record<string, string>>
             images?: Partial<Record<string, unknown>>
             links?: SiteLinks
+            navItems?: CmsNavItem[]
+            pages?: CmsPageEntry[]
             preview?: boolean
             role?: "admin" | "tester"
           } | null
           setTexts(mergeSiteTexts(data?.texts))
           setImages(mergeSiteImages(data?.images))
           setLinks(mergeSiteLinks(data?.links))
+          setNavItems(mergeCmsNavItems(data?.navItems))
+          setPages(mergeCmsPages(data?.pages))
           if (typeof data?.preview === "boolean") setPreview(data.preview)
           if (data?.role === "admin" || data?.role === "tester") {
             setStaffRole(data.role)
@@ -112,11 +131,15 @@ export function SiteTextsProvider({ children }: { children: ReactNode }) {
           texts?: Partial<Record<string, string>>
           images?: Partial<Record<string, unknown>>
           links?: SiteLinks
+          navItems?: CmsNavItem[]
+          pages?: CmsPageEntry[]
           preview?: boolean
         } | null
         setTexts(mergeSiteTexts(data?.texts))
         setImages(mergeSiteImages(data?.images))
         setLinks(mergeSiteLinks(data?.links))
+        setNavItems(mergeCmsNavItems(data?.navItems))
+        setPages(mergeCmsPages(data?.pages))
         if (typeof data?.preview === "boolean") {
           setPreview(data.preview)
         }
@@ -126,6 +149,8 @@ export function SiteTextsProvider({ children }: { children: ReactNode }) {
       setTexts(mergeSiteTexts(null))
       setImages(mergeSiteImages(null))
       setLinks(mergeSiteLinks(null))
+      setNavItems(mergeCmsNavItems(null))
+      setPages(mergeCmsPages(null))
     } finally {
       setLoading(false)
     }
@@ -183,6 +208,8 @@ export function SiteTextsProvider({ children }: { children: ReactNode }) {
       texts?: Partial<Record<string, string>>
       images?: Partial<Record<string, unknown>>
       links?: SiteLinks
+      navItems?: CmsNavItem[]
+      pages?: CmsPageEntry[]
     } | null
     if (!res.ok) {
       if (previousTexts) setTexts(previousTexts)
@@ -191,6 +218,8 @@ export function SiteTextsProvider({ children }: { children: ReactNode }) {
     setTexts(mergeSiteTexts(data?.texts))
     if (data?.images) setImages(mergeSiteImages(data.images))
     if (data?.links) setLinks(mergeSiteLinks(data.links))
+    if (data?.navItems) setNavItems(mergeCmsNavItems(data.navItems))
+    if (data?.pages) setPages(mergeCmsPages(data.pages))
   }, [])
 
   const saveImage = useCallback(async (key: SiteImageKey, entry: SiteImageEntry) => {
@@ -211,6 +240,8 @@ export function SiteTextsProvider({ children }: { children: ReactNode }) {
       texts?: Partial<Record<string, string>>
       images?: Partial<Record<string, unknown>>
       links?: SiteLinks
+      navItems?: CmsNavItem[]
+      pages?: CmsPageEntry[]
     } | null
     if (!res.ok) {
       if (previousImages) setImages(previousImages)
@@ -219,6 +250,8 @@ export function SiteTextsProvider({ children }: { children: ReactNode }) {
     setImages(mergeSiteImages(data?.images))
     if (data?.texts) setTexts(mergeSiteTexts(data.texts))
     if (data?.links) setLinks(mergeSiteLinks(data.links))
+    if (data?.navItems) setNavItems(mergeCmsNavItems(data.navItems))
+    if (data?.pages) setPages(mergeCmsPages(data.pages))
   }, [])
 
   const saveLink = useCallback(async (key: string, href: string) => {
@@ -239,6 +272,8 @@ export function SiteTextsProvider({ children }: { children: ReactNode }) {
       texts?: Partial<Record<string, string>>
       images?: Partial<Record<string, unknown>>
       links?: SiteLinks
+      navItems?: CmsNavItem[]
+      pages?: CmsPageEntry[]
     } | null
     if (!res.ok) {
       if (previousLinks) setLinks(previousLinks)
@@ -247,7 +282,71 @@ export function SiteTextsProvider({ children }: { children: ReactNode }) {
     setLinks(mergeSiteLinks(data?.links))
     if (data?.texts) setTexts(mergeSiteTexts(data.texts))
     if (data?.images) setImages(mergeSiteImages(data.images))
+    if (data?.navItems) setNavItems(mergeCmsNavItems(data.navItems))
+    if (data?.pages) setPages(mergeCmsPages(data.pages))
   }, [])
+
+  const saveNavItems = useCallback(async (items: CmsNavItem[]) => {
+    let previous: CmsNavItem[] | null = null
+    const next = sanitizeCmsNavItemsInput(items)
+    setNavItems((prev) => {
+      previous = prev
+      return next
+    })
+
+    const res = await fetch("/api/admin/site-config", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ navItems: next }),
+    })
+    const data = (await res.json().catch(() => null)) as {
+      error?: string
+      navItems?: CmsNavItem[]
+    } | null
+    if (!res.ok) {
+      if (previous) setNavItems(previous)
+      throw new Error(data?.error ?? "Navigation konnte nicht gespeichert werden.")
+    }
+    setNavItems(mergeCmsNavItems(data?.navItems ?? next))
+  }, [])
+
+  const savePages = useCallback(async (nextPages: CmsPageEntry[]) => {
+    let previous: CmsPageEntry[] | null = null
+    const next = sanitizeCmsPagesInput(nextPages)
+    setPages((prev) => {
+      previous = prev
+      return next
+    })
+
+    const res = await fetch("/api/admin/site-config", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ pages: next }),
+    })
+    const data = (await res.json().catch(() => null)) as {
+      error?: string
+      pages?: CmsPageEntry[]
+    } | null
+    if (!res.ok) {
+      if (previous) setPages(previous)
+      throw new Error(data?.error ?? "Seiten konnten nicht gespeichert werden.")
+    }
+    setPages(mergeCmsPages(data?.pages ?? next))
+  }, [])
+
+  const updateNavItemLabel = useCallback(
+    async (id: string, label: string) => {
+      const trimmed = label.trim()
+      if (!trimmed) return
+      const next = navItems.map((item) =>
+        item.id === id ? { ...item, label: trimmed } : item
+      )
+      await saveNavItems(next)
+    },
+    [navItems, saveNavItems]
+  )
 
   const canInlineEdit = preview && staffRole === "admin"
   const mediaLibrary = useMemo(() => collectSiteImageLibrary(images), [images])
@@ -257,6 +356,8 @@ export function SiteTextsProvider({ children }: { children: ReactNode }) {
       texts,
       images,
       links,
+      navItems,
+      pages,
       loading,
       preview,
       canInlineEdit,
@@ -268,11 +369,16 @@ export function SiteTextsProvider({ children }: { children: ReactNode }) {
       saveText,
       saveImage,
       saveLink,
+      saveNavItems,
+      savePages,
+      updateNavItemLabel,
     }),
     [
       texts,
       images,
       links,
+      navItems,
+      pages,
       loading,
       preview,
       canInlineEdit,
@@ -281,6 +387,9 @@ export function SiteTextsProvider({ children }: { children: ReactNode }) {
       saveText,
       saveImage,
       saveLink,
+      saveNavItems,
+      savePages,
+      updateNavItemLabel,
     ]
   )
 
@@ -296,6 +405,8 @@ export function useSiteTexts(): SiteTextsContextValue {
       texts: mergeSiteTexts(null),
       images: mergeSiteImages(null),
       links: mergeSiteLinks(null),
+      navItems: mergeCmsNavItems(null),
+      pages: mergeCmsPages(null),
       loading: false,
       preview: false,
       canInlineEdit: false,
@@ -307,6 +418,9 @@ export function useSiteTexts(): SiteTextsContextValue {
       saveText: async () => {},
       saveImage: async () => {},
       saveLink: async () => {},
+      saveNavItems: async () => {},
+      savePages: async () => {},
+      updateNavItemLabel: async () => {},
     }
   }
   return ctx

@@ -3,13 +3,17 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { Loader2 } from "lucide-react"
-import { enableSiteConfigPreviewInSession } from "@/lib/admin/site-config"
+import {
+  enableSiteConfigPreviewInSession,
+  SITE_CONFIG_PREVIEW_PARAM,
+} from "@/lib/admin/site-config"
 import { Button } from "@/components/ui/button"
 
 /**
- * Legacy Tester-/Admin-Einstieg — leitet auf /test/preview um (gleiche Staging-Logik).
+ * Tester-/Admin-Einstieg in die Staging-Testumgebung.
+ * Setzt den Preview-Flag und leitet auf die Startseite mit ?preview=true um.
  */
-export default function VorschauPage() {
+export default function TestPreviewPage() {
   const [status, setStatus] = useState<"checking" | "redirecting" | "denied">("checking")
 
   useEffect(() => {
@@ -32,7 +36,7 @@ export default function VorschauPage() {
         ) {
           enableSiteConfigPreviewInSession()
           setStatus("redirecting")
-          window.location.replace(`/test/preview`)
+          window.location.replace(`/?${SITE_CONFIG_PREVIEW_PARAM}=true`)
           return
         }
 
@@ -50,7 +54,7 @@ export default function VorschauPage() {
   if (status === "denied") {
     return (
       <div className="mx-auto flex min-h-[50vh] max-w-lg flex-col items-center justify-center gap-4 px-4 py-16 text-center">
-        <h1 className="text-2xl font-bold">Vorschau-Zugang</h1>
+        <h1 className="text-2xl font-bold">Test-Umgebung</h1>
         <p className="text-sm text-muted-foreground">
           Für die Staging-Vorschau ist eine angemeldete Tester- oder Admin-Session erforderlich.
           Bitte zuerst über die Coming-Soon-Seite als Tester anmelden.
@@ -65,7 +69,7 @@ export default function VorschauPage() {
   return (
     <div className="flex min-h-[40vh] items-center justify-center gap-2 text-sm text-muted-foreground">
       <Loader2 className="h-4 w-4 animate-spin" />
-      Staging-Vorschau wird geladen…
+      Test-Vorschau wird geladen…
     </div>
   )
 }

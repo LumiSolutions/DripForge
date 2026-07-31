@@ -1,32 +1,29 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
-import { Eye, Loader2, Rocket, Save } from "lucide-react"
+import {
+  Eye,
+  Loader2,
+  MousePointerClick,
+  Rocket,
+  Save,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Textarea } from "@/components/ui/textarea"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
-import { SITE_CONFIG_PREVIEW_PARAM } from "@/lib/admin/site-config"
+import { adminPortalPath } from "@/lib/admin/admin-portal-path"
+import { cmsPreviewHref } from "@/lib/admin/cms-preview-pages"
 import {
-  CMS_PREVIEW_PAGES,
-  cmsPreviewHref,
-} from "@/lib/admin/cms-preview-pages"
-import {
-  getDefaultSiteLinkHref,
-  mergeSiteLinks,
-  type SiteLinks,
-} from "@/lib/admin/site-links"
-import {
-  getSiteTextFieldMeta,
-  mergeSiteTexts,
-  SITE_TEXT_SECTIONS,
-  type SiteTextKey,
-  type SiteTexts,
-} from "@/lib/admin/site-texts"
+  mergeCmsNavItems,
+  mergeCmsPages,
+  resolveVisibleCmsPages,
+  type CmsNavItem,
+  type CmsPageEntry,
+} from "@/lib/admin/site-nav"
+import { mergeSiteLinks, type SiteLinks } from "@/lib/admin/site-links"
+import { mergeSiteTexts, type SiteTexts } from "@/lib/admin/site-texts"
+import { AdminCmsPagesNavPanel } from "@/components/admin/admin-cms-pages-nav-panel"
 import { cn } from "@/lib/utils"
 
 type SiteConfigMeta = {
@@ -49,6 +46,8 @@ function formatTimestamp(value: string | null): string {
 export function AdminSiteContentDashboard() {
   const [texts, setTexts] = useState<SiteTexts>(mergeSiteTexts(null))
   const [links, setLinks] = useState<SiteLinks>(mergeSiteLinks(null))
+  const [navItems, setNavItems] = useState<CmsNavItem[]>(mergeCmsNavItems(null))
+  const [pages, setPages] = useState<CmsPageEntry[]>(mergeCmsPages(null))
   const [meta, setMeta] = useState<SiteConfigMeta>({
     stagingUpdatedAt: null,
     productionUpdatedAt: null,
@@ -59,7 +58,9 @@ export function AdminSiteContentDashboard() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
-  const loadTexts = useCallback(async () => {
+  const previewPages = useMemo(() => resolveVisibleCmsPages(pages), [pages])
+
+  const loadConfig = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
@@ -68,6 +69,8 @@ export function AdminSiteContentDashboard() {
       if (!res.ok) throw new Error(data.error ?? "Laden fehlgeschlagen")
       setTexts(mergeSiteTexts(data.texts))
       setLinks(mergeSiteLinks(data.links))
+      setNavItems(mergeCmsNavItems(data.navItems))
+      setPages(mergeCmsPages(data.pages))
       if (data.meta) setMeta(data.meta)
     } catch (err) {
       console.warn("Admin: Site-Config konnte nicht geladen werden.", err)
@@ -80,18 +83,10 @@ export function AdminSiteContentDashboard() {
   }, [])
 
   useEffect(() => {
-    void loadTexts()
-  }, [loadTexts])
+    void loadConfig()
+  }, [loadConfig])
 
-  const updateField = (key: SiteTextKey, value: string) => {
-    setTexts((prev) => ({ ...prev, [key]: value }))
-  }
-
-  const updateLink = (key: string, href: string) => {
-    setLinks((prev) => ({ ...prev, [key]: { href } }))
-  }
-
-  const saveTexts = async () => {
+  const saveConfig = async () => {
     setSaving(true)
     setError(null)
     setSuccess(null)
@@ -100,14 +95,18 @@ export function AdminSiteContentDashboard() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ texts, links }),
+        body: JSON.stringify({ texts, links, navItems, pages }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? "Speichern fehlgeschlagen")
       setTexts(mergeSiteTexts(data.texts))
       setLinks(mergeSiteLinks(data.links))
+      setNavItems(mergeCmsNavItems(data.navItems))
+      setPages(mergeCmsPages(data.pages))
       if (data.meta) setMeta(data.meta)
-      setSuccess("Gespeichert (Staging) — noch nicht live. Vorschau testen oder veröffentlichen.")
+      setSuccess(
+        "Gespeichert (Staging) — noch nicht live. In-Context Editor testen oder veröffentlichen."
+      )
     } catch (err) {
       console.warn("Admin: Site-Config konnte nicht gespeichert werden.", err)
       setError(
@@ -118,10 +117,10 @@ export function AdminSiteContentDashboard() {
     }
   }
 
-  const publishTexts = async () => {
+  const publishConfig = async () => {
     if (
       !window.confirm(
-        "Staging-Texte wirklich live veröffentlichen? Besucher sehen danach sofort die Entwurfsversion."
+        "Staging-Inhalte wirklich live veröffentlichen? Besucher sehen danach sofort die Entwurfsversion."
       )
     ) {
       return
@@ -153,7 +152,7 @@ export function AdminSiteContentDashboard() {
     return (
       <div className={cn("flex items-center gap-2 py-16", adminUi.muted)}>
         <Loader2 className="h-5 w-5 animate-spin" />
-        Texte werden geladen…
+        Website-Inhalte werden geladen…
       </div>
     )
   }
@@ -163,8 +162,8 @@ export function AdminSiteContentDashboard() {
       <div>
         <h1 className={cn("text-2xl font-bold", adminUi.heading)}>Website bearbeiten</h1>
         <p className={cn("mt-2 text-sm", adminUi.muted)}>
-          Änderungen werden als Entwurf (Staging) gespeichert. Erst nach dem Veröffentlichen sind
-          sie für Besucher sichtbar.
+          Texte und Bilder bearbeitest du direkt auf der Website (In-Context). Änderungen landen
+          zuerst in Staging und werden erst nach dem Veröffentlichen live.
         </p>
         <div className={cn("mt-3 flex flex-wrap gap-4 text-xs", adminUi.muted)}>
           <span>Entwurf zuletzt: {formatTimestamp(meta.stagingUpdatedAt)}</span>
@@ -173,17 +172,36 @@ export function AdminSiteContentDashboard() {
       </div>
 
       <Card className={adminUi.card}>
+        <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className={cn("text-base font-semibold", adminUi.heading)}>
+              In-Context Editor
+            </p>
+            <p className={cn("mt-1 text-sm", adminUi.muted)}>
+              Öffne die Storefront im Bearbeitungsmodus — klicke Texte und Bilder direkt an.
+            </p>
+          </div>
+          <Button type="button" size="lg" asChild>
+            <Link href={adminPortalPath("/edit/preview")}>
+              <MousePointerClick className="mr-2 h-4 w-4" />
+              In-Context Editor öffnen
+            </Link>
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card className={adminUi.card}>
         <CardContent className="space-y-3 p-4">
           <p className={cn("text-sm font-medium", adminUi.heading)}>Seiten-Navigation (Vorschau)</p>
           <div className="flex flex-wrap gap-2">
-            {CMS_PREVIEW_PAGES.map((page) => (
+            {previewPages.map((page) => (
               <Button key={page.id} type="button" size="sm" variant="outline" asChild>
                 <Link
                   href={cmsPreviewHref(page.path)}
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  {page.label}
+                  {page.title}
                 </Link>
               </Button>
             ))}
@@ -196,7 +214,7 @@ export function AdminSiteContentDashboard() {
           <Button
             type="button"
             size="lg"
-            onClick={() => void saveTexts()}
+            onClick={() => void saveConfig()}
             disabled={saving || publishing}
           >
             {saving ? (
@@ -210,7 +228,7 @@ export function AdminSiteContentDashboard() {
             type="button"
             size="lg"
             variant="outline"
-            onClick={() => void publishTexts()}
+            onClick={() => void publishConfig()}
             disabled={publishing || saving}
             className="border-emerald-600/40 text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-300"
           >
@@ -224,12 +242,12 @@ export function AdminSiteContentDashboard() {
         </div>
         <Button type="button" size="lg" variant="secondary" asChild>
           <Link
-            href={`/?${SITE_CONFIG_PREVIEW_PARAM}=true`}
+            href={cmsPreviewHref("/")}
             target="_blank"
             rel="noopener noreferrer"
           >
             <Eye className="mr-2 h-4 w-4" />
-            Vorschau öffnen
+            Staging-Vorschau öffnen
           </Link>
         </Button>
       </div>
@@ -245,57 +263,32 @@ export function AdminSiteContentDashboard() {
         </div>
       )}
 
-      <Tabs defaultValue="landingpage" className="space-y-6">
-        <TabsList className="flex h-auto flex-wrap gap-1 bg-muted/60 p-1">
-          {SITE_TEXT_SECTIONS.map((section) => (
-            <TabsTrigger key={section.id} value={section.id} className="text-xs sm:text-sm">
-              {section.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-
-        {SITE_TEXT_SECTIONS.map((section) => (
-          <TabsContent key={section.id} value={section.id}>
-            <Card className={adminUi.card}>
-              <CardContent className="space-y-5 p-6">
-                {section.fields.map((field) => {
-                  const metaField = getSiteTextFieldMeta(field.key)
-                  const defaultHref = getDefaultSiteLinkHref(field.key) ?? ""
-                  return (
-                    <div key={field.key} className="space-y-2">
-                      <Label htmlFor={field.key}>{field.label}</Label>
-                      <Textarea
-                        id={field.key}
-                        rows={field.multiline ? 4 : 3}
-                        value={texts[field.key]}
-                        onChange={(e) => updateField(field.key, e.target.value)}
-                      />
-                      {metaField.hrefEditable && (
-                        <div className="space-y-1">
-                          <Label htmlFor={`${field.key}-href`}>Ziel-URL</Label>
-                          <Input
-                            id={`${field.key}-href`}
-                            value={links[field.key]?.href ?? defaultHref}
-                            placeholder={defaultHref || "/…"}
-                            onChange={(e) => updateLink(field.key, e.target.value)}
-                          />
-                        </div>
-                      )}
-                      <p className={cn("text-[11px]", adminUi.muted)}>Schlüssel: {field.key}</p>
-                    </div>
-                  )
-                })}
-              </CardContent>
-            </Card>
-          </TabsContent>
-        ))}
-      </Tabs>
+      <Card className={adminUi.card}>
+        <CardContent className="space-y-4 p-5">
+          <div>
+            <h2 className={cn("text-lg font-semibold", adminUi.heading)}>
+              Seiten & Navigation verwalten
+            </h2>
+            <p className={cn("mt-1 text-sm", adminUi.muted)}>
+              Seiten für den Editor hinzufügen, Navigation sortieren, Icons wählen und Einträge
+              aktivieren oder deaktivieren. Mit «Speichern» in Staging schreiben.
+            </p>
+          </div>
+          <AdminCmsPagesNavPanel
+            pages={pages}
+            navItems={navItems}
+            onPagesChange={setPages}
+            onNavItemsChange={setNavItems}
+            disabled={saving || publishing}
+          />
+        </CardContent>
+      </Card>
 
       <div className="sticky bottom-4 flex flex-wrap justify-end gap-2">
         <Button
           type="button"
           variant="outline"
-          onClick={() => void publishTexts()}
+          onClick={() => void publishConfig()}
           disabled={saving || publishing}
           className="shadow-lg"
         >
@@ -308,7 +301,7 @@ export function AdminSiteContentDashboard() {
         </Button>
         <Button
           type="button"
-          onClick={() => void saveTexts()}
+          onClick={() => void saveConfig()}
           disabled={saving || publishing}
           className="shadow-lg"
         >

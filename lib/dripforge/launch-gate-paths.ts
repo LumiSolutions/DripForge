@@ -10,6 +10,7 @@ export const LAUNCH_GATE_BYPASS_PREFIXES = [
   "/konfigurator/ai",
   "/vorschau",
   "/staging",
+  "/test",
 ]
 
 export function isLaunchGateBypassPath(pathname: string): boolean {

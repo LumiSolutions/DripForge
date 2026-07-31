@@ -25,6 +25,8 @@ export async function GET(request: Request) {
         texts: bundle.texts,
         images: bundle.images,
         links: bundle.links,
+        navItems: bundle.navItems,
+        pages: bundle.pages,
         preview: true,
         role: auth.role,
       },
