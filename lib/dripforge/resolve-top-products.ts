@@ -1,5 +1,5 @@
 import type { AdminProduct, StoredOrder } from "@/lib/admin/types"
-import { isProductActive } from "@/lib/admin/normalize-product"
+import { isProductVisibleInShop } from "@/lib/admin/product-status"
 import type { ServiceVisibilitySettings } from "@/lib/admin/types"
 import { normalizeTopProductsCount } from "@/lib/dripforge/top-products-settings"
 
@@ -18,7 +18,7 @@ function isVisibleForServices(
   product: AdminProduct,
   services: ServiceVisibilitySettings
 ): boolean {
-  if (!isProductActive(product)) return false
+  if (!isProductVisibleInShop(product)) return false
   if (product.type === "3d" && !services.druck3d) return false
   if (product.type === "laser" && !services.lasergravur) return false
   return true

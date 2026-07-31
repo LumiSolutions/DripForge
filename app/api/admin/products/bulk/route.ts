@@ -8,10 +8,14 @@ import {
 import { normalizeAdminProductInput } from "@/lib/admin/normalize-product"
 import { normalizeProductTagIds } from "@/lib/admin/product-tags"
 import {
+  isProductShopStatus,
+  productFieldsFromShopStatus,
+  type ProductShopStatus,
+} from "@/lib/admin/product-status"
+import {
   inferSaleRabattFromProduct,
   resolveProductBasisPreis,
   validateSaleDiscount,
-  calculateSalePrice,
   type SaleRabattTyp,
 } from "@/lib/dripforge/product-sale"
 import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
@@ -27,6 +31,8 @@ export const runtime = "nodejs"
 type ProductBulkPatch = {
   istAktiv?: boolean
   sale?: boolean
+  /** Kurzstatus active | sale | inactive — wird auf istAktiv/sale gemappt */
+  status?: ProductShopStatus
   saleRabattTyp?: SaleRabattTyp
   saleRabattWert?: number
   tagsAdd?: string[]
@@ -57,23 +63,25 @@ async function applyPatchToProduct(
     tags = tags.filter((id) => !remove.has(id))
   }
 
-  const input: Partial<AdminProduct> & { variantenText?: string; basisPreis?: number } =
-    {
-      ...existing,
-      tags,
-    }
-
-  if (patch.istAktiv !== undefined) {
-    input.istAktiv = patch.istAktiv
+  const input: Partial<AdminProduct> & {
+    variantenText?: string
+    basisPreis?: number
+    status?: ProductShopStatus
+  } = {
+    ...existing,
+    tags,
   }
 
-  if (patch.sale !== undefined) {
-    input.sale = patch.sale
-    const basisPreis =
-      existing.basisPreis ?? existing.originalPrice ?? existing.price
-    input.basisPreis = basisPreis
-
-    if (patch.sale) {
+  if (isProductShopStatus(patch.status)) {
+    const fields = productFieldsFromShopStatus(patch.status)
+    input.istAktiv = fields.istAktiv
+    if (fields.sale !== undefined) {
+      input.sale = fields.sale
+    }
+    if (patch.status === "sale") {
+      const basisPreis =
+        existing.basisPreis ?? existing.originalPrice ?? existing.price
+      input.basisPreis = basisPreis
       const typ = patch.saleRabattTyp
       const wert = patch.saleRabattWert
       if (typ && wert != null) {
@@ -87,6 +95,34 @@ async function applyPatchToProduct(
         const inferred = inferSaleRabattFromProduct(existing)
         input.saleRabattTyp = inferred.typ
         input.saleRabattWert = inferred.wert
+      }
+    }
+  } else {
+    if (patch.istAktiv !== undefined) {
+      input.istAktiv = patch.istAktiv
+    }
+
+    if (patch.sale !== undefined) {
+      input.sale = patch.sale
+      const basisPreis =
+        existing.basisPreis ?? existing.originalPrice ?? existing.price
+      input.basisPreis = basisPreis
+
+      if (patch.sale) {
+        const typ = patch.saleRabattTyp
+        const wert = patch.saleRabattWert
+        if (typ && wert != null) {
+          const validation = validateSaleDiscount(basisPreis, typ, wert)
+          if (validation) {
+            throw new Error(validation)
+          }
+          input.saleRabattTyp = typ
+          input.saleRabattWert = wert
+        } else if (!existing.sale) {
+          const inferred = inferSaleRabattFromProduct(existing)
+          input.saleRabattTyp = inferred.typ
+          input.saleRabattWert = inferred.wert
+        }
       }
     }
   }

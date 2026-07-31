@@ -56,7 +56,13 @@ export type Product = {
   varianten?: string[]
   /** Verknüpfung zu Rohmaterialien (Lagerverwaltung) */
   materialLinks?: import("@/lib/admin/material-types").ProductMaterialLink[]
-  /** Sichtbarkeit im Shop (false = ausgeblendet) */
+  /**
+   * Sichtbarkeit im Shop (false = inaktiv / archiviert, ausgeblendet).
+   * Effektiver Status zusammen mit `sale`:
+   * - active: istAktiv !== false && !sale
+   * - sale: istAktiv !== false && sale
+   * - inactive: istAktiv === false
+   */
   istAktiv?: boolean
   /** Fallback für Startseite «Unsere Top Produkte» bei zu wenigen Verkäufen */
   isTopProduct?: boolean

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import {
@@ -16,7 +16,6 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import { products } from "@/lib/dripforge/data"
 import {
   filterNavItems,
   normalizeServiceVisibility,
@@ -30,6 +29,9 @@ import {
   useThemeInboundTourVisible,
 } from "@/components/dripforge/theme-inbound-tour"
 import { markThemeInboundTourSeen } from "@/lib/dripforge/theme-inbound-tour-settings"
+import type { Product } from "@/lib/dripforge/types"
+import { normalizeShopProduct } from "@/lib/dripforge/normalize-shop-product"
+import { productHref } from "@/lib/dripforge/product-slug"
 
 type SpaNavProps = {
   mode: "spa"
@@ -57,6 +59,8 @@ export function ShopHeader(props: ShopHeaderProps) {
     normalizeServiceVisibility(null)
   )
   const [kontoLoggedIn, setKontoLoggedIn] = useState(false)
+  const [catalogProducts, setCatalogProducts] = useState<Product[]>([])
+  const [catalogLoaded, setCatalogLoaded] = useState(false)
   const searchRef = useRef<HTMLDivElement>(null)
   const themeButtonRef = useRef<HTMLButtonElement>(null)
   const themeTourVisible = useThemeInboundTourVisible()
@@ -96,6 +100,30 @@ export function ShopHeader(props: ShopHeaderProps) {
   }, [pathname])
 
   useEffect(() => {
+    if (!searchOpen || catalogLoaded) return
+    let cancelled = false
+    void fetch("/api/products", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelled) return
+        const list = Array.isArray(data?.products)
+          ? (data.products as Product[]).map(normalizeShopProduct)
+          : []
+        setCatalogProducts(list)
+        setCatalogLoaded(true)
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCatalogProducts([])
+          setCatalogLoaded(true)
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [searchOpen, catalogLoaded])
+
+  useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
         setSearchOpen(false)
@@ -119,14 +147,17 @@ export function ShopHeader(props: ShopHeaderProps) {
 
   const visibleNavItems = filterNavItems(services)
 
-  const searchResults =
-    searchQuery.trim().length > 0
-      ? products.filter(
-          (p) =>
-            p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            p.description.toLowerCase().includes(searchQuery.toLowerCase())
-        )
-      : []
+  const searchResults = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    if (!q) return []
+    // /api/products liefert nur active/sale — inaktive sind nie enthalten
+    return catalogProducts.filter(
+      (p) =>
+        p.istAktiv !== false &&
+        (p.name.toLowerCase().includes(q) ||
+          p.description.toLowerCase().includes(q))
+    )
+  }, [catalogProducts, searchQuery])
 
   const isNavActive = (viewId: string) => {
     if (props.mode === "spa") return props.currentView === viewId
@@ -294,9 +325,7 @@ export function ShopHeader(props: ShopHeaderProps) {
                                 if (props.mode === "spa") {
                                   props.onNavigate("shop")
                                 } else {
-                                  router.push(
-                                    `/shop?product=${encodeURIComponent(p.id)}`
-                                  )
+                                  router.push(productHref(p, catalogProducts))
                                 }
                                 setSearchOpen(false)
                                 setSearchQuery("")

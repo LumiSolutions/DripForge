@@ -1,14 +1,16 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import {
   Filter,
   Loader2,
+  MoreHorizontal,
   Pencil,
   Tag,
   Trash2,
   ToggleLeft,
   Percent,
+  Archive,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -52,6 +54,11 @@ import {
   calculateSalePrice,
   type SaleRabattTyp,
 } from "@/lib/dripforge/product-sale"
+import {
+  getProductShopStatus,
+  productShopStatusLabel,
+  type ProductShopStatus,
+} from "@/lib/admin/product-status"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
 import { cn } from "@/lib/utils"
 
@@ -63,10 +70,24 @@ type AdminProductsListPanelProps = {
   activeProductId?: string
   onEdit: (product: AdminProduct) => void
   onRefresh: () => Promise<void>
+  /** Festen Status-Filter setzen (z. B. Archiv-Tab) */
+  lockedStatusFilter?: StatusFilter
+  emptyMessage?: string
 }
 
 type TypeFilter = "all" | "3d" | "laser"
-type StatusFilter = "all" | "active" | "inactive" | "sale"
+export type StatusFilter = "all" | "active" | "inactive" | "sale"
+
+function statusBadgeClass(status: ProductShopStatus): string {
+  switch (status) {
+    case "inactive":
+      return cn(adminUi.badgeInactive, "bg-slate-100 text-slate-500 dark:bg-zinc-800/80 dark:text-zinc-400")
+    case "sale":
+      return "bg-orange-500/20 text-orange-300 hover:bg-orange-500/30"
+    default:
+      return "border-emerald-500/40 text-emerald-600 dark:text-emerald-400"
+  }
+}
 
 export function AdminProductsListPanel({
   products,
@@ -76,28 +97,35 @@ export function AdminProductsListPanel({
   activeProductId,
   onEdit,
   onRefresh,
+  lockedStatusFilter,
+  emptyMessage,
 }: AdminProductsListPanelProps) {
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [bulkBusy, setBulkBusy] = useState(false)
+  const [statusBusyId, setStatusBusyId] = useState<string | null>(null)
   const [bulkError, setBulkError] = useState<string | null>(null)
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all")
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all")
   const [tagFilter, setTagFilter] = useState<string>("all")
   const [saleDialogOpen, setSaleDialogOpen] = useState(false)
+  const [saleTargetIds, setSaleTargetIds] = useState<string[]>([])
   const [saleRabattTyp, setSaleRabattTyp] = useState<SaleRabattTyp>("percent")
   const [saleRabattWert, setSaleRabattWert] = useState("10")
   const [saleFormError, setSaleFormError] = useState<string | null>(null)
 
+  const effectiveStatusFilter = lockedStatusFilter ?? statusFilter
+
   const filteredProducts = useMemo(() => {
     return products.filter((product) => {
       if (typeFilter !== "all" && product.type !== typeFilter) return false
-      if (statusFilter === "active" && product.istAktiv === false) return false
-      if (statusFilter === "inactive" && product.istAktiv !== false) return false
-      if (statusFilter === "sale" && !product.sale) return false
+      const shopStatus = getProductShopStatus(product)
+      if (effectiveStatusFilter === "active" && shopStatus !== "active") return false
+      if (effectiveStatusFilter === "inactive" && shopStatus !== "inactive") return false
+      if (effectiveStatusFilter === "sale" && shopStatus !== "sale") return false
       if (tagFilter !== "all" && !(product.tags ?? []).includes(tagFilter)) return false
       return true
     })
-  }, [products, typeFilter, statusFilter, tagFilter])
+  }, [products, typeFilter, effectiveStatusFilter, tagFilter])
 
   const sortedProducts = useMemo(
     () => sortProducts(filteredProducts, productSort),
@@ -109,16 +137,17 @@ export function AdminProductsListPanel({
     [sortedProducts]
   )
 
-  useEffect(() => {
-    setSelectedIds((prev) => prev.filter((id) => visibleIds.has(id)))
-  }, [visibleIds])
+  const effectiveSelectedIds = useMemo(
+    () => selectedIds.filter((id) => visibleIds.has(id)),
+    [selectedIds, visibleIds]
+  )
 
   const tagNameById = useMemo(
     () => new Map(productTags.map((tag) => [tag.id, tag.name])),
     [productTags]
   )
 
-  const selectedVisibleCount = selectedIds.filter((id) => visibleIds.has(id)).length
+  const selectedVisibleCount = effectiveSelectedIds.length
   const allSelected =
     sortedProducts.length > 0 && selectedVisibleCount === sortedProducts.length
   const someSelected = selectedVisibleCount > 0 && !allSelected
@@ -128,12 +157,18 @@ export function AdminProductsListPanel({
   }
 
   const toggleOne = (id: string, checked: boolean) => {
-    setSelectedIds((prev) =>
-      checked ? [...new Set([...prev, id])] : prev.filter((entry) => entry !== id)
-    )
+    setSelectedIds((prev) => {
+      const next = prev.filter((entry) => visibleIds.has(entry) || entry === id)
+      return checked
+        ? [...new Set([...next, id])]
+        : next.filter((entry) => entry !== id)
+    })
   }
 
-  const runBulk = async (body: Record<string, unknown>, options?: { clearSelection?: boolean }) => {
+  const runBulk = async (
+    body: Record<string, unknown>,
+    options?: { clearSelection?: boolean; ids?: string[] }
+  ) => {
     setBulkBusy(true)
     setBulkError(null)
     try {
@@ -141,7 +176,10 @@ export function AdminProductsListPanel({
         method: "PATCH",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: selectedIds, ...body }),
+        body: JSON.stringify({
+          ids: options?.ids ?? effectiveSelectedIds,
+          ...body,
+        }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? "Bulk-Aktion fehlgeschlagen")
@@ -156,10 +194,62 @@ export function AdminProductsListPanel({
     }
   }
 
+  const setProductStatus = async (
+    productIds: string[],
+    status: ProductShopStatus,
+    options?: { clearSelection?: boolean }
+  ) => {
+    if (status === "sale") {
+      const needsSaleDialog = productIds.some((id) => {
+        const product = products.find((entry) => entry.id === id)
+        return product != null && !product.sale
+      })
+      if (needsSaleDialog) {
+        setSaleTargetIds(productIds)
+        setSaleRabattTyp("percent")
+        setSaleRabattWert("10")
+        setSaleFormError(null)
+        setSaleDialogOpen(true)
+        return
+      }
+    }
+
+    if (productIds.length === 1) {
+      setStatusBusyId(productIds[0]!)
+    } else {
+      setBulkBusy(true)
+    }
+    setBulkError(null)
+    try {
+      const res = await fetch("/api/admin/products/bulk", {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ids: productIds,
+          patch: { status },
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? "Status konnte nicht geändert werden")
+      if (options?.clearSelection !== false && productIds.length > 1) {
+        setSelectedIds([])
+      }
+      await onRefresh()
+    } catch (err) {
+      setBulkError(
+        err instanceof Error ? err.message : "Status konnte nicht geändert werden"
+      )
+    } finally {
+      setStatusBusyId(null)
+      setBulkBusy(false)
+    }
+  }
+
   const bulkDelete = () => {
     if (
       !confirm(
-        `${selectedIds.length} Produkt(e) wirklich löschen? Dies kann nicht rückgängig gemacht werden.`
+        `${effectiveSelectedIds.length} Produkt(e) wirklich löschen? Dies kann nicht rückgängig gemacht werden.`
       )
     ) {
       return
@@ -175,6 +265,7 @@ export function AdminProductsListPanel({
   }
 
   const openSaleDialog = () => {
+    setSaleTargetIds(effectiveSelectedIds)
     setSaleRabattTyp("percent")
     setSaleRabattWert("10")
     setSaleFormError(null)
@@ -193,14 +284,19 @@ export function AdminProductsListPanel({
     }
 
     setSaleFormError(null)
-    await runBulk({
-      patch: {
-        sale: true,
-        saleRabattTyp,
-        saleRabattWert: wert,
+    await runBulk(
+      {
+        patch: {
+          status: "sale",
+          sale: true,
+          saleRabattTyp,
+          saleRabattWert: wert,
+        },
       },
-    })
+      { ids: saleTargetIds }
+    )
     setSaleDialogOpen(false)
+    setSaleTargetIds([])
   }
 
   const salePreviewEnd =
@@ -209,16 +305,28 @@ export function AdminProductsListPanel({
       : calculateSalePrice(100, "fixed", Number(saleRabattWert) || 0)
 
   const hasActiveFilters =
-    typeFilter !== "all" || statusFilter !== "all" || tagFilter !== "all"
+    typeFilter !== "all" ||
+    (!lockedStatusFilter && effectiveStatusFilter !== "all") ||
+    tagFilter !== "all"
+
+  const busy = bulkBusy || statusBusyId != null
 
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className={cn("text-sm", adminUi.muted)}>
-            {filteredProducts.length === products.length
-              ? `${products.length} Produkte im Shop`
-              : `${filteredProducts.length} von ${products.length} Produkten angezeigt`}
+            {lockedStatusFilter === "inactive" ? (
+              <>
+                <Archive className="mr-1.5 inline h-3.5 w-3.5" />
+                {filteredProducts.length} archivierte / inaktive Produkt
+                {filteredProducts.length !== 1 ? "e" : ""}
+              </>
+            ) : filteredProducts.length === products.length ? (
+              `${products.length} Produkte im Shop`
+            ) : (
+              `${filteredProducts.length} von ${products.length} Produkten angezeigt`
+            )}
           </p>
           <Select
             value={productSort}
@@ -254,20 +362,22 @@ export function AdminProductsListPanel({
               <SelectItem value="laser">Laser</SelectItem>
             </SelectContent>
           </Select>
-          <Select
-            value={statusFilter}
-            onValueChange={(v) => setStatusFilter(v as StatusFilter)}
-          >
-            <SelectTrigger className="w-[150px]">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Alle Status</SelectItem>
-              <SelectItem value="active">Aktiv</SelectItem>
-              <SelectItem value="inactive">Inaktiv</SelectItem>
-              <SelectItem value="sale">Im Sale</SelectItem>
-            </SelectContent>
-          </Select>
+          {!lockedStatusFilter && (
+            <Select
+              value={effectiveStatusFilter}
+              onValueChange={(v) => setStatusFilter(v as StatusFilter)}
+            >
+              <SelectTrigger className="w-[190px]">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Alle Status</SelectItem>
+                <SelectItem value="active">Aktiv</SelectItem>
+                <SelectItem value="sale">Sale</SelectItem>
+                <SelectItem value="inactive">Inaktiv / Archiviert</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
           <Select value={tagFilter} onValueChange={setTagFilter}>
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Tag" />
@@ -289,7 +399,7 @@ export function AdminProductsListPanel({
               className={cn("text-xs", adminUi.muted)}
               onClick={() => {
                 setTypeFilter("all")
-                setStatusFilter("all")
+                if (!lockedStatusFilter) setStatusFilter("all")
                 setTagFilter("all")
               }}
             >
@@ -301,7 +411,7 @@ export function AdminProductsListPanel({
 
       {bulkError && <p className={cn("text-sm", adminUi.error)}>{bulkError}</p>}
 
-      {selectedIds.length > 0 && (
+      {effectiveSelectedIds.length > 0 && (
         <div
           className={cn(
             "flex flex-wrap items-center gap-2 rounded-xl border px-4 py-3",
@@ -309,7 +419,7 @@ export function AdminProductsListPanel({
           )}
         >
           <span className={cn("text-sm font-medium", adminUi.heading)}>
-            {selectedIds.length} ausgewählt
+            {effectiveSelectedIds.length} ausgewählt
           </span>
 
           <DropdownMenu>
@@ -319,7 +429,7 @@ export function AdminProductsListPanel({
                 size="sm"
                 variant="outline"
                 className={adminUi.outlineBtn}
-                disabled={bulkBusy || productTags.length === 0}
+                disabled={busy || productTags.length === 0}
               >
                 <Tag className="mr-1.5 h-4 w-4" />
                 Tags zuweisen
@@ -355,25 +465,35 @@ export function AdminProductsListPanel({
                 size="sm"
                 variant="outline"
                 className={adminUi.outlineBtn}
-                disabled={bulkBusy}
+                disabled={busy}
               >
                 <ToggleLeft className="mr-1.5 h-4 w-4" />
                 Status
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start">
-              <DropdownMenuItem onClick={() => void runBulk({ patch: { istAktiv: true } })}>
+              <DropdownMenuItem
+                onClick={() =>
+                  void setProductStatus(effectiveSelectedIds, "active")
+                }
+              >
                 Aktiv setzen
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => void runBulk({ patch: { istAktiv: false } })}>
-                Inaktiv setzen
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
               <DropdownMenuItem onClick={openSaleDialog}>
                 <Percent className="mr-2 h-4 w-4" />
-                Sale aktivieren…
+                Sale setzen…
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => void runBulk({ patch: { sale: false } })}>
+              <DropdownMenuItem
+                onClick={() =>
+                  void setProductStatus(effectiveSelectedIds, "inactive")
+                }
+              >
+                Inaktiv / Archivieren
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => void runBulk({ patch: { sale: false } })}
+              >
                 Sale deaktivieren
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -384,7 +504,7 @@ export function AdminProductsListPanel({
             size="sm"
             variant="outline"
             className="border-red-500/40 text-red-500 hover:bg-red-500/10"
-            disabled={bulkBusy}
+            disabled={busy}
             onClick={bulkDelete}
           >
             {bulkBusy ? (
@@ -400,7 +520,7 @@ export function AdminProductsListPanel({
             size="sm"
             variant="ghost"
             className={adminUi.muted}
-            disabled={bulkBusy}
+            disabled={busy}
             onClick={() => setSelectedIds([])}
           >
             Auswahl aufheben
@@ -411,12 +531,12 @@ export function AdminProductsListPanel({
       <Dialog open={saleDialogOpen} onOpenChange={setSaleDialogOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Sale für {selectedIds.length} Produkt(e)</DialogTitle>
+            <DialogTitle>Sale für {saleTargetIds.length} Produkt(e)</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <p className={cn("text-sm", adminUi.muted)}>
               Rabatt wird für alle ausgewählten Produkte gleich angewendet. Der Basispreis
-              jedes Produkts bleibt erhalten.
+              jedes Produkts bleibt erhalten. Produkte werden zugleich aktiv gesetzt.
             </p>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -462,7 +582,7 @@ export function AdminProductsListPanel({
             <Button
               type="button"
               className={adminUi.primaryBtn}
-              disabled={bulkBusy}
+              disabled={busy}
               onClick={() => void applyBulkSale()}
             >
               {bulkBusy ? (
@@ -499,21 +619,25 @@ export function AdminProductsListPanel({
             {sortedProducts.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={7} className={cn("py-10 text-center text-sm", adminUi.muted)}>
-                  {products.length === 0
-                    ? "Noch keine Produkte vorhanden."
-                    : "Keine Produkte entsprechen den Filtern."}
+                  {emptyMessage ??
+                    (products.length === 0
+                      ? "Noch keine Produkte vorhanden."
+                      : "Keine Produkte entsprechen den Filtern.")}
                 </TableCell>
               </TableRow>
             ) : (
               sortedProducts.map((product) => {
-                const checked = selectedIds.includes(product.id)
+                const checked = effectiveSelectedIds.includes(product.id)
                 const productTagIds = product.tags ?? []
+                const shopStatus = getProductShopStatus(product)
+                const rowBusy = statusBusyId === product.id
                 return (
                   <TableRow
                     key={product.id}
                     className={cn(
                       activeProductId === product.id && "bg-primary/5",
-                      checked && "bg-muted/30"
+                      checked && "bg-muted/30",
+                      shopStatus === "inactive" && "opacity-80"
                     )}
                   >
                     <TableCell>
@@ -562,32 +686,112 @@ export function AdminProductsListPanel({
                       </div>
                     </TableCell>
                     <TableCell>
-                      <div className="flex flex-wrap gap-1">
-                        {product.istAktiv === false && (
-                          <Badge variant="outline" className={adminUi.badgeInactive}>
-                            Inaktiv
-                          </Badge>
-                        )}
-                        {product.sale && (
-                          <Badge className="bg-orange-500/20 text-orange-300">Sale</Badge>
-                        )}
-                        {product.istAktiv !== false && !product.sale && (
-                          <Badge variant="outline" className="text-xs">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            type="button"
+                            disabled={rowBusy || bulkBusy}
+                            className="inline-flex items-center gap-1.5 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            aria-label={`Status von ${product.name} ändern`}
+                            title="Status ändern"
+                          >
+                            {rowBusy ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                            ) : (
+                              <Badge
+                                variant="outline"
+                                className={cn(
+                                  "cursor-pointer text-xs transition-opacity hover:opacity-90",
+                                  statusBadgeClass(shopStatus)
+                                )}
+                              >
+                                {productShopStatusLabel(shopStatus)}
+                              </Badge>
+                            )}
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start">
+                          <DropdownMenuLabel>Status setzen</DropdownMenuLabel>
+                          <DropdownMenuItem
+                            disabled={shopStatus === "active"}
+                            onClick={() => void setProductStatus([product.id], "active", {
+                              clearSelection: false,
+                            })}
+                          >
                             Aktiv
-                          </Badge>
-                        )}
-                      </div>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            disabled={shopStatus === "sale"}
+                            onClick={() => void setProductStatus([product.id], "sale", {
+                              clearSelection: false,
+                            })}
+                          >
+                            Sale
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            disabled={shopStatus === "inactive"}
+                            onClick={() =>
+                              void setProductStatus([product.id], "inactive", {
+                                clearSelection: false,
+                              })
+                            }
+                          >
+                            Inaktiv / Archivieren
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </TableCell>
                     <TableCell>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => onEdit(product)}
-                        aria-label={`${product.name} bearbeiten`}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            aria-label={`Aktionen für ${product.name}`}
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => onEdit(product)}>
+                            <Pencil className="mr-2 h-4 w-4" />
+                            Bearbeiten
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            disabled={shopStatus === "active"}
+                            onClick={() =>
+                              void setProductStatus([product.id], "active", {
+                                clearSelection: false,
+                              })
+                            }
+                          >
+                            Aktiv setzen
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            disabled={shopStatus === "sale"}
+                            onClick={() =>
+                              void setProductStatus([product.id], "sale", {
+                                clearSelection: false,
+                              })
+                            }
+                          >
+                            Sale setzen
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            disabled={shopStatus === "inactive"}
+                            onClick={() =>
+                              void setProductStatus([product.id], "inactive", {
+                                clearSelection: false,
+                              })
+                            }
+                          >
+                            <Archive className="mr-2 h-4 w-4" />
+                            Archivieren
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </TableCell>
                   </TableRow>
                 )
