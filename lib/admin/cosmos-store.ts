@@ -24,7 +24,10 @@ import {
 import { logCosmosError, formatCosmosError } from "@/lib/cosmos/log-error"
 import { normalizeOrderForPersistence } from "@/lib/admin/normalize-order"
 import { products as seedProducts } from "@/lib/dripforge/data"
-import { DEFAULT_CHECKOUT_RUNTIME_CONFIG } from "@/lib/dripforge/checkout-config"
+import {
+  DEFAULT_CHECKOUT_RUNTIME_CONFIG,
+  normalizeCheckoutRuntimeConfig,
+} from "@/lib/dripforge/checkout-config"
 import { buildSupportPageSettings } from "@/lib/dripforge/support-page-settings"
 import {
   normalizeEnableOnboardingTour,
@@ -418,7 +421,7 @@ export async function cosmosGetSettings(): Promise<AdminSettings> {
         services
       )
       return {
-        checkout: resource.checkout,
+        checkout: normalizeCheckoutRuntimeConfig(resource.checkout),
         company: normalizeCompanySettings(resource.company),
         launch: normalizeLaunchSettings(resource.launch),
         services,

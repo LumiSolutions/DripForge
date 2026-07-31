@@ -56,12 +56,25 @@ function humanizeLaserMaterialSlug(id: string): string {
     .join(" ")
 }
 
+function formatLaserStockMaterialLabel(item: {
+  name: string
+  farbe?: string | null
+  dicke?: string | null
+}): string {
+  const name = item.name.trim()
+  const farbe = item.farbe?.trim()
+  if (farbe) return `${name} — ${farbe}`
+  const dicke = item.dicke?.trim()
+  return dicke ? `${name} (${dicke})` : name
+}
+
 /** Katalog + dynamische Lagermaterialien → Admin-Dropdown. */
 export function buildLaserMaterialSelectOptions(
   stockMaterials: Array<{
     id: string
     name: string
     category: string
+    farbe?: string | null
     dicke?: string | null
   }>
 ): Array<{ value: LaserMaterialId; label: string }> {
@@ -76,17 +89,18 @@ export function buildLaserMaterialSelectOptions(
 
     const core = matchCoreLaserMaterialId(name)
     if (core) {
-      // Kernmaterial bereits im Katalog — Label ggf. mit Dicke ergänzen nicht nötig
+      // Kernmaterial bereits im Katalog — keine Duplikate
       continue
     }
 
-    const value = slugifyLaserMaterialId(name)
+    const value = slugifyLaserMaterialId(
+      item.farbe?.trim() ? `${name}-${item.farbe}` : name
+    )
     if (seen.has(value)) continue
     seen.add(value)
-    const dicke = item.dicke?.trim()
     options.push({
       value,
-      label: dicke ? `${name} (${dicke})` : name,
+      label: formatLaserStockMaterialLabel(item),
     })
   }
 

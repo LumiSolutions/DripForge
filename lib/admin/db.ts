@@ -1,7 +1,10 @@
 import { promises as fs } from "fs"
 import path from "path"
 import { products as seedProducts } from "@/lib/dripforge/data"
-import { DEFAULT_CHECKOUT_RUNTIME_CONFIG } from "@/lib/dripforge/checkout-config"
+import {
+  DEFAULT_CHECKOUT_RUNTIME_CONFIG,
+  normalizeCheckoutRuntimeConfig,
+} from "@/lib/dripforge/checkout-config"
 import { reconcilePortalAccounts } from "@/lib/konto/crm-sync"
 import type {
   AdminProduct,
@@ -535,7 +538,7 @@ async function getSettingsFromFile(): Promise<AdminSettings> {
       services
     )
     return {
-      checkout: stored.checkout,
+      checkout: normalizeCheckoutRuntimeConfig(stored.checkout),
       company: normalizeCompanySettings(stored.company),
     launch: normalizeLaunchSettings(stored.launch),
       services,
@@ -674,7 +677,7 @@ export async function saveSettings(input: {
   }
 
   const next: AdminSettings = {
-    checkout: input.checkout,
+    checkout: normalizeCheckoutRuntimeConfig(input.checkout),
     company: normalizeCompanySettings({
       ...current.company,
       ...input.company,

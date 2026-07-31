@@ -130,6 +130,15 @@ function materialLabel(item: MaterialItem): string {
   return parts.join(" — ") || item.name
 }
 
+/** Dropdown-Label: id, Name, Farbe, Materialtyp */
+function materialSelectLabel(item: MaterialItem): string {
+  const namePart = item.farbe?.trim()
+    ? `${item.name} — ${item.farbe.trim()}`
+    : item.name
+  const typePart = item.materialType?.trim() ? ` [${item.materialType}]` : ""
+  return `${item.id} · ${namePart}${typePart}`
+}
+
 function marginToneClass(marginPercent: number | null): string {
   if (marginPercent == null) return adminUi.muted
   if (marginPercent >= 60) return "text-emerald-600 dark:text-emerald-400"
@@ -151,6 +160,10 @@ export function AdminProductsTab() {
   const [materialCatalog, setMaterialCatalog] = useState<MaterialItem[]>([])
   const [productSort, setProductSort] = useState<ProductSortMode>("name-asc")
   const [productTags, setProductTags] = useState<ProductTag[]>([])
+  const [laserMaterialFilter, setLaserMaterialFilter] = useState("")
+  const [materialLinkFilters, setMaterialLinkFilters] = useState<Record<number, string>>(
+    {}
+  )
 
   const archivedCount = useMemo(
     () => products.filter((p) => getProductShopStatus(p) === "inactive").length,
@@ -174,6 +187,8 @@ export function AdminProductsTab() {
     setIsEditing(false)
     setForm(EMPTY_FORM)
     setImageUrlInput("")
+    setLaserMaterialFilter("")
+    setMaterialLinkFilters({})
   }
 
   const loadProducts = useCallback(async () => {
@@ -227,6 +242,8 @@ export function AdminProductsTab() {
       ...EMPTY_FORM,
       id: `p-${Date.now()}`,
     })
+    setLaserMaterialFilter("")
+    setMaterialLinkFilters({})
     setIsEditing(true)
   }
 
@@ -248,6 +265,8 @@ export function AdminProductsTab() {
       purchasePriceChf: product.purchasePriceChf ?? 0,
       tags: product.tags ?? [],
     })
+    setLaserMaterialFilter("")
+    setMaterialLinkFilters({})
     setIsEditing(true)
   }
 
@@ -339,6 +358,16 @@ export function AdminProductsTab() {
     [materialCatalog]
   )
 
+  const filteredLaserMaterialOptions = useMemo(() => {
+    const q = laserMaterialFilter.trim().toLowerCase()
+    if (!q) return laserMaterialOptions
+    return laserMaterialOptions.filter(
+      (opt) =>
+        opt.label.toLowerCase().includes(q) ||
+        opt.value.toLowerCase().includes(q)
+    )
+  }, [laserMaterialOptions, laserMaterialFilter])
+
   const productVariantOptions = useMemo(() => {
     const fromText = (form.variantenText ?? "")
       .split(",")
@@ -346,6 +375,28 @@ export function AdminProductsTab() {
       .filter(Boolean)
     return fromText
   }, [form.variantenText])
+
+  const filteredMaterialCatalogForLink = useCallback(
+    (index: number) => {
+      const q = (materialLinkFilters[index] ?? "").trim().toLowerCase()
+      if (!q) return materialCatalog
+      return materialCatalog.filter((m) => {
+        const hay = [
+          m.id,
+          m.name,
+          m.farbe,
+          m.materialType,
+          m.manufacturer,
+          m.category,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
+        return hay.includes(q)
+      })
+    },
+    [materialCatalog, materialLinkFilters]
+  )
 
   const updateMaterialLink = (
     index: number,
@@ -824,51 +875,61 @@ export function AdminProductsTab() {
                     Laser-Optionen
                   </h4>
                   <div className="space-y-2">
-                    <Label className={adminUi.label}>Material-ID</Label>
-                    <select
+                    <Label className={adminUi.label}>Lasermaterial (Lager)</Label>
+                    {materialCatalog.length > 8 && (
+                      <Input
+                        value={laserMaterialFilter}
+                        onChange={(e) => setLaserMaterialFilter(e.target.value)}
+                        placeholder="Material filtern…"
+                        className={cn("h-8", adminUi.input)}
+                      />
+                    )}
+                    <Select
                       value={form.laserMaterialId ?? "wood"}
-                      onChange={(e) =>
-                        updateField(
-                          "laserMaterialId",
-                          e.target.value as LaserMaterialId
-                        )
+                      onValueChange={(value) =>
+                        updateField("laserMaterialId", value as LaserMaterialId)
                       }
-                      className={cn("h-10 w-full rounded-md border px-3 text-sm", adminUi.select)}
                     >
-                      {laserMaterialOptions.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </option>
-                      ))}
-                      {/* Aktueller Wert behalten, falls nicht mehr im Katalog */}
-                      {form.laserMaterialId &&
-                      !laserMaterialOptions.some(
-                        (o) => o.value === form.laserMaterialId
-                      ) ? (
-                        <option value={form.laserMaterialId}>
-                          {form.laserMaterialId}
-                        </option>
-                      ) : null}
-                    </select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className={adminUi.label}>
-                      Varianten-Stichworte (mit Komma trennen)
-                    </Label>
-                    <Input
-                      value={form.variantenText ?? ""}
-                      onChange={(e) =>
-                        updateField("variantenText", e.target.value)
-                      }
-                      placeholder="Echtleder Braun, Echtleder Schwarz"
-                      className={adminUi.input}
-                    />
+                      <SelectTrigger className={cn("w-full", adminUi.input)}>
+                        <SelectValue placeholder="Lasermaterial wählen" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {filteredLaserMaterialOptions.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                        {form.laserMaterialId &&
+                        !laserMaterialOptions.some(
+                          (o) => o.value === form.laserMaterialId
+                        ) ? (
+                          <SelectItem value={form.laserMaterialId}>
+                            {form.laserMaterialId}
+                          </SelectItem>
+                        ) : null}
+                      </SelectContent>
+                    </Select>
                     <p className={cn("text-xs", adminUi.muted)}>
-                      Leer lassen = keine Varianten-Box im Shop
+                      Optionen aus Kernkatalog und Lasermaterialien im Lager
+                      (Name — Farbe).
                     </p>
                   </div>
                 </div>
               )}
+
+              <div className={cn("space-y-2 rounded-xl border p-4", adminUi.section)}>
+                <Label className={adminUi.label}>Varianten</Label>
+                <Input
+                  value={form.variantenText ?? ""}
+                  onChange={(e) => updateField("variantenText", e.target.value)}
+                  placeholder="z. B. Schwarz, Weiss, Rot"
+                  className={adminUi.input}
+                />
+                <p className={cn("text-xs", adminUi.muted)}>
+                  Kommagetrennt — definiert Shop-Auswahl und Auswahl bei
+                  Rohmaterial-Links. Leer = keine Varianten.
+                </p>
+              </div>
 
               <div className={cn("space-y-4 rounded-xl border p-4", adminUi.section)}>
                 <div className="flex items-center justify-between gap-2">
@@ -901,6 +962,13 @@ export function AdminProductsTab() {
                     const selectedMaterial = materialCatalog.find(
                       (m) => m.id === link.materialId
                     )
+                    const filteredMats = filteredMaterialCatalogForLink(index)
+                    const linkOptions =
+                      link.materialId &&
+                      !filteredMats.some((m) => m.id === link.materialId) &&
+                      selectedMaterial
+                        ? [selectedMaterial, ...filteredMats]
+                        : filteredMats
                     return (
                       <div
                         key={`mat-link-${index}`}
@@ -913,24 +981,36 @@ export function AdminProductsTab() {
                           <Label className={cn("text-xs", adminUi.labelMuted)}>
                             Rohmaterial
                           </Label>
-                          <select
-                            value={link.materialId}
-                            onChange={(e) =>
-                              updateMaterialLink(index, { materialId: e.target.value })
+                          {materialCatalog.length > 6 && (
+                            <Input
+                              value={materialLinkFilters[index] ?? ""}
+                              onChange={(e) =>
+                                setMaterialLinkFilters((prev) => ({
+                                  ...prev,
+                                  [index]: e.target.value,
+                                }))
+                              }
+                              placeholder="Suchen: ID, Name, Farbe, Typ…"
+                              className={cn("h-8", adminUi.input)}
+                            />
+                          )}
+                          <Select
+                            value={link.materialId || undefined}
+                            onValueChange={(value) =>
+                              updateMaterialLink(index, { materialId: value })
                             }
-                            className={cn(
-                              "h-10 w-full rounded-md border px-3 text-sm",
-                              adminUi.select
-                            )}
                           >
-                            <option value="">— Material wählen —</option>
-                            {materialCatalog.map((m) => (
-                              <option key={m.id} value={m.id}>
-                                {materialLabel(m)}
-                                {m.materialType ? ` [${m.materialType}]` : ""}
-                              </option>
-                            ))}
-                          </select>
+                            <SelectTrigger className={cn("w-full", adminUi.input)}>
+                              <SelectValue placeholder="— Material wählen —" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {linkOptions.map((m) => (
+                                <SelectItem key={m.id} value={m.id}>
+                                  {materialSelectLabel(m)}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </div>
 
                         <div className="space-y-1.5">
@@ -954,43 +1034,34 @@ export function AdminProductsTab() {
                           />
                         </div>
 
-                        <div className="space-y-1.5">
-                          <Label className={cn("text-xs", adminUi.labelMuted)}>
-                            Produktvariante (optional)
-                          </Label>
-                          {productVariantOptions.length > 0 ? (
-                            <select
-                              value={link.productVariant ?? ""}
-                              onChange={(e) =>
+                        {productVariantOptions.length > 0 ? (
+                          <div className="space-y-1.5">
+                            <Label className={cn("text-xs", adminUi.labelMuted)}>
+                              Produktvariante (optional)
+                            </Label>
+                            <Select
+                              value={link.productVariant || "__all__"}
+                              onValueChange={(value) =>
                                 updateMaterialLink(index, {
-                                  productVariant: e.target.value || undefined,
+                                  productVariant:
+                                    value === "__all__" ? undefined : value,
                                 })
                               }
-                              className={cn(
-                                "h-10 w-full rounded-md border px-3 text-sm",
-                                adminUi.select
-                              )}
                             >
-                              <option value="">Alle Varianten</option>
-                              {productVariantOptions.map((v) => (
-                                <option key={v} value={v}>
-                                  {v}
-                                </option>
-                              ))}
-                            </select>
-                          ) : (
-                            <Input
-                              value={link.productVariant ?? ""}
-                              onChange={(e) =>
-                                updateMaterialLink(index, {
-                                  productVariant: e.target.value || undefined,
-                                })
-                              }
-                              placeholder="z. B. Schwarz"
-                              className={adminUi.input}
-                            />
-                          )}
-                        </div>
+                              <SelectTrigger className={cn("w-full", adminUi.input)}>
+                                <SelectValue placeholder="Alle Varianten" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="__all__">Alle Varianten</SelectItem>
+                                {productVariantOptions.map((v) => (
+                                  <SelectItem key={v} value={v}>
+                                    {v}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        ) : null}
 
                         {selectedMaterial && (
                           <p className={cn("text-xs sm:col-span-2", adminUi.muted)}>

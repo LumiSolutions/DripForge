@@ -6,6 +6,7 @@ import {
 } from "@/lib/admin/require-admin-session"
 import { DEFAULT_COMPANY_SETTINGS } from "@/lib/admin/types"
 import type { CheckoutRuntimeConfig } from "@/lib/dripforge/checkout-config"
+import { normalizeCheckoutRuntimeConfig } from "@/lib/dripforge/checkout-config"
 import type {
   CompanySettings,
   LaunchSettings,
@@ -76,13 +77,14 @@ export async function PUT(request: Request) {
       )
     }
 
-    const checkout: CheckoutRuntimeConfig = {
+    const checkout: CheckoutRuntimeConfig = normalizeCheckoutRuntimeConfig({
       mwstAktiv: Boolean(body.checkout.mwstAktiv),
       mwstSatz: Number(body.checkout.mwstSatz) || 8.1,
+      mwstNummer: body.checkout.mwstNummer,
       twintGatewayAktiv: Boolean(body.checkout.twintGatewayAktiv),
       twintTelefonnummer:
         body.checkout.twintTelefonnummer?.trim() || "+41 79 000 00 00",
-    }
+    })
 
     const company: CompanySettings = {
       firmenname:
