@@ -1,6 +1,6 @@
 "use client"
 
-import { Fragment, useCallback, useEffect, useRef, useState } from "react"
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ChevronDown,
   ChevronRight,
@@ -9,6 +9,7 @@ import {
   ImageIcon,
   Loader2,
   RefreshCw,
+  Search,
   Trash2,
 } from "lucide-react"
 import {
@@ -22,6 +23,9 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
@@ -446,6 +450,12 @@ export function AdminOrdersTab({
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [newOrderNotice, setNewOrderNotice] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [dateFrom, setDateFrom] = useState("")
+  const [dateTo, setDateTo] = useState("")
+  const [amountFrom, setAmountFrom] = useState("")
+  const [amountTo, setAmountTo] = useState("")
+  const [statusFilter, setStatusFilter] = useState<string>("all")
   const knownOrderIdsRef = useRef<Set<string> | null>(null)
   const audioCtxRef = useRef<AudioContext | null>(null)
 
@@ -537,6 +547,75 @@ export function AdminOrdersTab({
     })
   }, [highlightOrderId, loading, onHighlightConsumed])
 
+  const filtersActive =
+    searchQuery.trim() !== "" ||
+    dateFrom !== "" ||
+    dateTo !== "" ||
+    amountFrom !== "" ||
+    amountTo !== "" ||
+    statusFilter !== "all"
+
+  const resetFilters = () => {
+    setSearchQuery("")
+    setDateFrom("")
+    setDateTo("")
+    setAmountFrom("")
+    setAmountTo("")
+    setStatusFilter("all")
+  }
+
+  const filteredOrders = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    const minAmount = amountFrom.trim() === "" ? null : Number(amountFrom)
+    const maxAmount = amountTo.trim() === "" ? null : Number(amountTo)
+    const fromTs = dateFrom ? new Date(`${dateFrom}T00:00:00`).getTime() : null
+    const toTs = dateTo ? new Date(`${dateTo}T23:59:59.999`).getTime() : null
+
+    return orders.filter((order) => {
+      if (statusFilter !== "all" && order.status !== statusFilter) return false
+
+      if (fromTs != null || toTs != null) {
+        const created = new Date(order.createdAt).getTime()
+        if (Number.isNaN(created)) return false
+        if (fromTs != null && created < fromTs) return false
+        if (toTs != null && created > toTs) return false
+      }
+
+      if (minAmount != null || maxAmount != null) {
+        const total = order.totals.total
+        if (minAmount != null && !Number.isNaN(minAmount) && total < minAmount) {
+          return false
+        }
+        if (maxAmount != null && !Number.isNaN(maxAmount) && total > maxAmount) {
+          return false
+        }
+      }
+
+      if (q) {
+        const haystack = [
+          order.orderId,
+          order.invoiceNumber ?? "",
+          customerName(order),
+          order.billing.email,
+          order.kundennummer ?? "",
+        ]
+          .join(" ")
+          .toLowerCase()
+        if (!haystack.includes(q)) return false
+      }
+
+      return true
+    })
+  }, [
+    amountFrom,
+    amountTo,
+    dateFrom,
+    dateTo,
+    orders,
+    searchQuery,
+    statusFilter,
+  ])
+
   const updateStatus = async (orderId: string, status: OrderStatus) => {
     setUpdatingId(orderId)
     try {
@@ -620,8 +699,9 @@ export function AdminOrdersTab({
         <div>
           <h2 className={cn("text-xl font-bold", adminUi.heading)}>Bestellübersicht</h2>
           <p className={cn("text-sm", adminUi.muted)}>
-            Produktions-Cockpit — {orders.length} Bestellung
-            {orders.length !== 1 ? "en" : ""}
+            Produktions-Cockpit — {filteredOrders.length}
+            {filtersActive ? ` von ${orders.length}` : ""} Bestellung
+            {filteredOrders.length !== 1 ? "en" : ""}
             <span className="ml-2 text-xs opacity-70">(Auto-Refresh 20s)</span>
           </p>
         </div>
@@ -637,11 +717,111 @@ export function AdminOrdersTab({
         </Button>
       </div>
 
+      <Card className={adminUi.section}>
+        <CardContent className="space-y-3 p-4">
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="min-w-[220px] flex-1 space-y-1">
+              <Label className={cn("text-xs", adminUi.label)}>Suche</Label>
+              <div className="relative">
+                <Search
+                  className={cn(
+                    "pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2",
+                    adminUi.muted
+                  )}
+                />
+                <Input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Bestell-ID, Kunde, E-Mail…"
+                  className={cn("pl-9", adminUi.input)}
+                />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label className={cn("text-xs", adminUi.label)}>Status</Label>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className={cn("h-10 rounded-md border px-3 text-sm", adminUi.select)}
+              >
+                <option value="all">Alle</option>
+                {ORDER_STATUS_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {filtersActive ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className={cn("h-10 text-xs", adminUi.muted)}
+                onClick={resetFilters}
+              >
+                Filter zurücksetzen
+              </Button>
+            ) : null}
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="space-y-1">
+              <Label className={cn("text-xs", adminUi.label)}>Datum von</Label>
+              <Input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className={adminUi.input}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className={cn("text-xs", adminUi.label)}>Datum bis</Label>
+              <Input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className={adminUi.input}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className={cn("text-xs", adminUi.label)}>Betrag von (CHF)</Label>
+              <Input
+                type="number"
+                min={0}
+                step={0.05}
+                inputMode="decimal"
+                value={amountFrom}
+                onChange={(e) => setAmountFrom(e.target.value)}
+                placeholder="0.00"
+                className={adminUi.input}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className={cn("text-xs", adminUi.label)}>Betrag bis (CHF)</Label>
+              <Input
+                type="number"
+                min={0}
+                step={0.05}
+                inputMode="decimal"
+                value={amountTo}
+                onChange={(e) => setAmountTo(e.target.value)}
+                placeholder="0.00"
+                className={adminUi.input}
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {error && <p className={adminUi.errorLg}>{error}</p>}
 
       {orders.length === 0 ? (
         <div className={cn("rounded-xl border border-dashed py-16 text-center", adminUi.empty)}>
           Noch keine Bestellungen erfasst.
+        </div>
+      ) : filteredOrders.length === 0 ? (
+        <div className={cn("rounded-xl border border-dashed py-16 text-center", adminUi.empty)}>
+          Keine Bestellungen für die aktuellen Filter.
         </div>
       ) : (
         <div className={adminUi.tableWrap}>
@@ -660,7 +840,7 @@ export function AdminOrdersTab({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {orders.map((order) => {
+              {filteredOrders.map((order) => {
                 const expanded = expandedId === order.orderId
                 return (
                   <Fragment key={order.orderId}>

@@ -655,7 +655,7 @@ export function AdminProductionTab() {
   const [shipBusy, setShipBusy] = useState(false)
   const [shipNotice, setShipNotice] = useState<string | null>(null)
   const [detailOrder, setDetailOrder] = useState<StoredOrder | null>(null)
-  const [sortKey, setSortKey] = useState<SortKey>("newest")
+  const [sortKey, setSortKey] = useState<SortKey>("oldest")
   const [jobType, setJobType] = useState<JobTypeFilter>("all")
   const [search, setSearch] = useState("")
   const [mobileColumn, setMobileColumn] = useState<ProductionStatus>(
