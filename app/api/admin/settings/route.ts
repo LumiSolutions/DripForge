@@ -6,6 +6,7 @@ import {
 } from "@/lib/admin/require-admin-session"
 import { DEFAULT_COMPANY_SETTINGS } from "@/lib/admin/types"
 import type { CheckoutRuntimeConfig } from "@/lib/dripforge/checkout-config"
+import { normalizeCheckoutRuntimeConfig } from "@/lib/dripforge/checkout-config"
 import type {
   CompanySettings,
   LaunchSettings,
@@ -19,6 +20,10 @@ import {
   normalizeManagedCatalog,
   type ManagedCatalogItem,
 } from "@/lib/dripforge/managed-catalog"
+import type {
+  SupportFeatureItem,
+  SupportMilestoneConfig,
+} from "@/lib/dripforge/support-page-settings"
 import { buildDefaultAdminSettings } from "@/lib/admin/safe-defaults"
 import {
   normalizeShowTopProductsOnHomepage,
@@ -53,6 +58,8 @@ export async function PUT(request: Request) {
       managedCatalog?: ManagedCatalogItem[] | null
       showSupportOnMainSite?: boolean
       showSupportOnCountdownPage?: boolean
+      supportMilestones?: SupportMilestoneConfig[]
+      supportFeatures?: SupportFeatureItem[]
       enableOnboardingTour?: boolean
       onboardingTourText?: string | null
       themeInboundTourImageUrl?: string | null
@@ -76,13 +83,14 @@ export async function PUT(request: Request) {
       )
     }
 
-    const checkout: CheckoutRuntimeConfig = {
+    const checkout: CheckoutRuntimeConfig = normalizeCheckoutRuntimeConfig({
       mwstAktiv: Boolean(body.checkout.mwstAktiv),
       mwstSatz: Number(body.checkout.mwstSatz) || 8.1,
+      mwstNummer: body.checkout.mwstNummer,
       twintGatewayAktiv: Boolean(body.checkout.twintGatewayAktiv),
       twintTelefonnummer:
         body.checkout.twintTelefonnummer?.trim() || "+41 79 000 00 00",
-    }
+    })
 
     const company: CompanySettings = {
       firmenname:
@@ -120,6 +128,8 @@ export async function PUT(request: Request) {
       managedCatalog,
       showSupportOnMainSite: body.showSupportOnMainSite,
       showSupportOnCountdownPage: body.showSupportOnCountdownPage,
+      supportMilestones: body.supportMilestones,
+      supportFeatures: body.supportFeatures,
       enableOnboardingTour: body.enableOnboardingTour,
       onboardingTourText: body.onboardingTourText,
       themeInboundTourImageUrl: body.themeInboundTourImageUrl,

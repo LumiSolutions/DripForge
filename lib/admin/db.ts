@@ -1,7 +1,10 @@
 import { promises as fs } from "fs"
 import path from "path"
 import { products as seedProducts } from "@/lib/dripforge/data"
-import { DEFAULT_CHECKOUT_RUNTIME_CONFIG } from "@/lib/dripforge/checkout-config"
+import {
+  DEFAULT_CHECKOUT_RUNTIME_CONFIG,
+  normalizeCheckoutRuntimeConfig,
+} from "@/lib/dripforge/checkout-config"
 import { reconcilePortalAccounts } from "@/lib/konto/crm-sync"
 import type {
   AdminProduct,
@@ -29,6 +32,10 @@ import {
   normalizeSupportFlag,
 } from "@/lib/admin/safe-defaults"
 import { buildSupportPageSettings } from "@/lib/dripforge/support-page-settings"
+import {
+  normalizeSupportFeatures,
+  normalizeSupportMilestones,
+} from "@/lib/dripforge/support-page-settings"
 import {
   normalizeEnableOnboardingTour,
   normalizeOnboardingTourText,
@@ -535,7 +542,7 @@ async function getSettingsFromFile(): Promise<AdminSettings> {
       services
     )
     return {
-      checkout: stored.checkout,
+      checkout: normalizeCheckoutRuntimeConfig(stored.checkout),
       company: normalizeCompanySettings(stored.company),
     launch: normalizeLaunchSettings(stored.launch),
       services,
@@ -546,6 +553,8 @@ async function getSettingsFromFile(): Promise<AdminSettings> {
         shopConfigurators
       ),
       ...buildSupportPageSettings(stored),
+      supportMilestones: normalizeSupportMilestones(stored.supportMilestones),
+      supportFeatures: normalizeSupportFeatures(stored.supportFeatures),
       enableOnboardingTour: normalizeEnableOnboardingTour(
         stored.enableOnboardingTour ??
           (stored as { enableThemeInboundTour?: boolean }).enableThemeInboundTour
@@ -591,6 +600,8 @@ async function getSettingsFromFile(): Promise<AdminSettings> {
     ),
     showSupportOnMainSite: false,
     showSupportOnCountdownPage: false,
+    supportMilestones: normalizeSupportMilestones(undefined),
+    supportFeatures: normalizeSupportFeatures(undefined),
     enableOnboardingTour: true,
     onboardingTourText: DEFAULT_ONBOARDING_TOUR_TEXT,
     themeInboundTourImageUrl: null,
@@ -632,6 +643,8 @@ export async function saveSettings(input: {
   managedCatalog?: ManagedCatalogItem[] | null
   showSupportOnMainSite?: boolean
   showSupportOnCountdownPage?: boolean
+  supportMilestones?: AdminSettings["supportMilestones"]
+  supportFeatures?: AdminSettings["supportFeatures"]
   enableOnboardingTour?: boolean
   onboardingTourText?: string | null
   themeInboundTourImageUrl?: string | null
@@ -674,7 +687,7 @@ export async function saveSettings(input: {
   }
 
   const next: AdminSettings = {
-    checkout: input.checkout,
+    checkout: normalizeCheckoutRuntimeConfig(input.checkout),
     company: normalizeCompanySettings({
       ...current.company,
       ...input.company,
@@ -694,6 +707,14 @@ export async function saveSettings(input: {
       input.showSupportOnCountdownPage !== undefined
         ? normalizeSupportFlag(input.showSupportOnCountdownPage)
         : current.showSupportOnCountdownPage === true,
+    supportMilestones:
+      input.supportMilestones !== undefined
+        ? normalizeSupportMilestones(input.supportMilestones)
+        : normalizeSupportMilestones(current.supportMilestones),
+    supportFeatures:
+      input.supportFeatures !== undefined
+        ? normalizeSupportFeatures(input.supportFeatures)
+        : normalizeSupportFeatures(current.supportFeatures),
     enableOnboardingTour:
       input.enableOnboardingTour !== undefined
         ? normalizeEnableOnboardingTour(input.enableOnboardingTour)

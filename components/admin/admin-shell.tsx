@@ -234,19 +234,19 @@ function AdminShellFrame({ children }: { children: React.ReactNode }) {
           </Link>
         </div>
 
-        <nav className="flex-1 overflow-y-auto p-4">
+        <nav className="flex-1 overflow-y-auto p-3">
           {ADMIN_NAV_SECTIONS.map((section, sectionIndex) => (
             <div key={section.title}>
               <p
                 className={cn(
-                  "px-4 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em]",
-                  sectionIndex > 0 ? "pt-4" : "pt-0",
+                  "px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.14em]",
+                  sectionIndex > 0 ? "pt-3" : "pt-0",
                   adminUi.muted
                 )}
               >
                 {section.title}
               </p>
-              <div className="space-y-1">
+              <div className="space-y-0.5">
                 {section.items.map((item) => {
                   const Icon = item.icon
                   const hasChildren = Boolean(item.children?.length)
@@ -266,7 +266,7 @@ function AdminShellFrame({ children }: { children: React.ReactNode }) {
                         key={item.id}
                         href={item.href}
                         className={cn(
-                          "flex w-full min-w-0 items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-colors",
+                          "flex w-full min-w-0 items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-medium transition-colors",
                           isAdminNavActive(pathname, item.href, { exact: true })
                             ? adminUi.navActive
                             : adminUi.navInactive
@@ -281,12 +281,12 @@ function AdminShellFrame({ children }: { children: React.ReactNode }) {
                   }
 
                   return (
-                    <div key={item.id} className="space-y-1">
+                    <div key={item.id} className="space-y-0.5">
                       <button
                         type="button"
                         onClick={() => toggleGroup(item.id)}
                         className={cn(
-                          "flex w-full min-w-0 items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-colors",
+                          "flex w-full min-w-0 items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-medium transition-colors",
                           groupActive ? adminUi.navActive : adminUi.navInactive
                         )}
                         aria-expanded={open}
@@ -303,13 +303,13 @@ function AdminShellFrame({ children }: { children: React.ReactNode }) {
                         />
                       </button>
                       {open && (
-                        <div className="ml-4 min-w-0 space-y-1 border-l border-border/60 pl-2">
+                        <div className="ml-3 min-w-0 space-y-0.5 border-l border-border/60 pl-2">
                           {item.children!.map((child) => (
                             <Link
                               key={child.id}
                               href={child.href}
                               className={cn(
-                                "flex w-full min-w-0 items-center rounded-lg px-3 py-2 text-sm transition-colors",
+                                "flex w-full min-w-0 items-center rounded-lg px-2.5 py-1.5 text-sm transition-colors",
                                 isAdminNavActive(pathname, child.href, {
                                   exact: true,
                                 })

@@ -31,8 +31,18 @@ import {
 import type { LaserConfiguratorSettings } from "@/lib/admin/laser-configurator-types"
 import { createDefaultLaserConfiguratorSettings } from "@/lib/admin/laser-configurator-types"
 import type { CheckoutRuntimeConfig } from "@/lib/dripforge/checkout-config"
-import { DEFAULT_CHECKOUT_RUNTIME_CONFIG } from "@/lib/dripforge/checkout-config"
+import {
+  DEFAULT_CHECKOUT_RUNTIME_CONFIG,
+  normalizeCheckoutRuntimeConfig,
+} from "@/lib/dripforge/checkout-config"
 import { buildSupportPageSettings } from "@/lib/dripforge/support-page-settings"
+import {
+  normalizeSupportFeatures,
+  normalizeSupportMilestones,
+  type SupportFeatureItem,
+  type SupportMilestoneConfig,
+} from "@/lib/dripforge/support-page-settings"
+import { AdminSupportCampaignSection } from "@/components/admin/admin-support-campaign-section"
 import {
   normalizeEnableOnboardingTour,
   normalizeOnboardingTourText,
@@ -98,7 +108,8 @@ const SECTION_HEADERS: Record<
   },
   support: {
     title: "Support-Kampagne",
-    subtitle: "Sichtbarkeit der Support-Kampagne auf Hauptwebsite und Countdown-Seite",
+    subtitle:
+      "Sichtbarkeit, Meilensteine und unterstützte Features der Support-Kampagne",
   },
   services: {
     title: "Dienstleistungen & Konfiguratoren",
@@ -144,6 +155,12 @@ export function AdminSettingsTab({
   const [launch, setLaunch] = useState<LaunchSettings>(DEFAULT_LAUNCH_SETTINGS)
   const [showSupportOnMainSite, setShowSupportOnMainSite] = useState(false)
   const [showSupportOnCountdownPage, setShowSupportOnCountdownPage] = useState(false)
+  const [supportMilestones, setSupportMilestones] = useState<
+    SupportMilestoneConfig[]
+  >(() => normalizeSupportMilestones(undefined))
+  const [supportFeatures, setSupportFeatures] = useState<SupportFeatureItem[]>(
+    () => normalizeSupportFeatures(undefined)
+  )
   const [enableOnboardingTour, setEnableOnboardingTour] = useState(true)
   const [onboardingTourText, setOnboardingTourText] = useState("")
   const [enableRewardPointsSystem, setEnableRewardPointsSystem] = useState(true)
@@ -174,7 +191,11 @@ export function AdminSettingsTab({
       if (!res.ok) throw new Error(data.error ?? "Laden fehlgeschlagen")
       const laserRes = await fetch("/api/admin/laser-configurator")
       const laserData = laserRes.ok ? await laserRes.json() : null
-      setCheckout(data.checkout ?? DEFAULT_CHECKOUT_RUNTIME_CONFIG)
+      setCheckout(
+        normalizeCheckoutRuntimeConfig(
+          data.checkout ?? DEFAULT_CHECKOUT_RUNTIME_CONFIG
+        )
+      )
       setCompany(normalizeCompanySettings(data.company))
       setShopLive(Boolean(data.launch?.shopLive))
       setLaunch({
@@ -184,6 +205,8 @@ export function AdminSettingsTab({
       const support = buildSupportPageSettings(data)
       setShowSupportOnMainSite(support.showSupportOnMainSite)
       setShowSupportOnCountdownPage(support.showSupportOnCountdownPage)
+      setSupportMilestones(normalizeSupportMilestones(data.supportMilestones))
+      setSupportFeatures(normalizeSupportFeatures(data.supportFeatures))
       setEnableOnboardingTour(
         normalizeEnableOnboardingTour(
           data.enableOnboardingTour ?? data.enableThemeInboundTour
@@ -269,6 +292,8 @@ export function AdminSettingsTab({
           managedCatalog: applied.managedCatalog,
           showSupportOnMainSite,
           showSupportOnCountdownPage,
+          supportMilestones,
+          supportFeatures,
           enableOnboardingTour,
           onboardingTourText,
           themeInboundTourImageUrl,
@@ -293,7 +318,7 @@ export function AdminSettingsTab({
         const laserErr = laserData as { error?: string }
         throw new Error(laserErr.error ?? "Laser-Konfigurator konnte nicht gespeichert werden.")
       }
-      setCheckout(data.checkout)
+      setCheckout(normalizeCheckoutRuntimeConfig(data.checkout))
       setCompany(normalizeCompanySettings(data.company))
       setLaunch({
         ...DEFAULT_LAUNCH_SETTINGS,
@@ -303,6 +328,8 @@ export function AdminSettingsTab({
       const support = buildSupportPageSettings(data)
       setShowSupportOnMainSite(support.showSupportOnMainSite)
       setShowSupportOnCountdownPage(support.showSupportOnCountdownPage)
+      setSupportMilestones(normalizeSupportMilestones(data.supportMilestones))
+      setSupportFeatures(normalizeSupportFeatures(data.supportFeatures))
       setEnableOnboardingTour(
         normalizeEnableOnboardingTour(
           data.enableOnboardingTour ?? data.enableThemeInboundTour
@@ -931,6 +958,7 @@ export function AdminSettingsTab({
         )}
 
         {show("support") && (
+          <>
           <Card className={adminUi.card}>
             <CardContent className="space-y-4 p-6">
               <div>
@@ -984,6 +1012,18 @@ export function AdminSettingsTab({
               </div>
             </CardContent>
           </Card>
+
+          <Card className={adminUi.card}>
+            <CardContent className="p-6">
+              <AdminSupportCampaignSection
+                milestones={supportMilestones}
+                features={supportFeatures}
+                onMilestonesChange={setSupportMilestones}
+                onFeaturesChange={setSupportFeatures}
+              />
+            </CardContent>
+          </Card>
+          </>
         )}
 
         {show("services") && (
@@ -1185,27 +1225,31 @@ export function AdminSettingsTab({
                 />
               </div>
 
-              <div className={cn("space-y-2 rounded-xl border p-4", adminUi.section)}>
-                <Label className={adminUi.label}>MwSt.-Satz anpassen (%)</Label>
-                <p className={cn("text-xs", adminUi.labelMuted)}>
-                  Aktuell gültiger Schweizer Normalsteuersatz: 8.1%. Änderungen gelten
-                  sofort im Checkout.
-                </p>
-                <Input
-                  type="number"
-                  step="0.1"
-                  min="0"
-                  max="100"
-                  value={checkout.mwstSatz}
-                  onChange={(e) =>
-                    setCheckout((prev) => ({
-                      ...prev,
-                      mwstSatz: Number(e.target.value) || 8.1,
-                    }))
-                  }
-                  className={cn("max-w-[160px]", adminUi.input)}
-                />
-              </div>
+              {checkout.mwstAktiv && (
+                <div className={cn("space-y-2 rounded-xl border p-4", adminUi.section)}>
+                  <Label className={adminUi.label}>
+                    MwSt.-Nummer{" "}
+                    <span className="text-red-500" aria-hidden>
+                      *
+                    </span>
+                  </Label>
+                  <p className={cn("text-xs", adminUi.labelMuted)}>
+                    Schweizer UID mit MwSt.-Zusatz, z.&nbsp;B. CHE-123.456.789 MWST
+                  </p>
+                  <Input
+                    value={checkout.mwstNummer ?? ""}
+                    onChange={(e) =>
+                      setCheckout((prev) => ({
+                        ...prev,
+                        mwstNummer: e.target.value,
+                      }))
+                    }
+                    placeholder="CHE-123.456.789 MWST"
+                    required
+                    className={cn("max-w-md", adminUi.input)}
+                  />
+                </div>
+              )}
 
               <div
                 className={cn(
