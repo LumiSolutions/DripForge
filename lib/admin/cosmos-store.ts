@@ -51,6 +51,7 @@ import {
   normalizeLoyaltyPointValueChf,
 } from "@/lib/konto/loyalty-points-config"
 import { normalizeOrderEmailTemplates } from "@/lib/email/order-email-templates"
+import { normalizeOrderEmailLayout } from "@/lib/email/order-email-layout"
 import {
   DEFAULT_SHOW_TOP_PRODUCTS_ON_HOMEPAGE,
   DEFAULT_TOP_PRODUCTS_COUNT,
@@ -467,6 +468,7 @@ export async function cosmosGetSettings(): Promise<AdminSettings> {
         orderEmailTemplates: normalizeOrderEmailTemplates(
           resource.orderEmailTemplates
         ),
+        orderEmailLayout: normalizeOrderEmailLayout(resource.orderEmailLayout),
         updatedAt: resource.updatedAt,
       }
     }
@@ -503,6 +505,7 @@ export async function cosmosGetSettings(): Promise<AdminSettings> {
     showTopProductsOnHomepage: DEFAULT_SHOW_TOP_PRODUCTS_ON_HOMEPAGE,
     topProductsCount: DEFAULT_TOP_PRODUCTS_COUNT,
     orderEmailTemplates: normalizeOrderEmailTemplates(undefined),
+    orderEmailLayout: normalizeOrderEmailLayout(undefined),
     updatedAt: new Date().toISOString(),
   }
   try {

@@ -12,6 +12,7 @@ import {
 } from "@/lib/admin/require-admin-session"
 import { mergeSiteImages } from "@/lib/admin/site-images"
 import { mergeSiteLinks } from "@/lib/admin/site-links"
+import { mergeCmsNavItems, mergeCmsPages } from "@/lib/admin/site-nav"
 import { mergeSiteTexts, sanitizeSiteTextsInput } from "@/lib/admin/site-texts"
 import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
 
@@ -26,7 +27,14 @@ export async function GET(request: Request) {
       ? await getSiteConfigStaging()
       : await getSiteConfigProduction()
     return NextResponse.json(
-      { texts: bundle.texts, images: bundle.images, links: bundle.links, preview },
+      {
+        texts: bundle.texts,
+        images: bundle.images,
+        links: bundle.links,
+        navItems: bundle.navItems,
+        pages: bundle.pages,
+        preview,
+      },
       { headers: { "Cache-Control": "no-store, max-age=0" } }
     )
   } catch (error) {
@@ -36,6 +44,8 @@ export async function GET(request: Request) {
         texts: mergeSiteTexts(null),
         images: mergeSiteImages(null),
         links: mergeSiteLinks(null),
+        navItems: mergeCmsNavItems(null),
+        pages: mergeCmsPages(null),
         preview: false,
       },
       { headers: { "Cache-Control": "no-store, max-age=0" } }
@@ -61,6 +71,8 @@ export async function PUT(request: Request) {
       texts: saved.texts,
       images: saved.images,
       links: saved.links,
+      navItems: saved.navItems,
+      pages: saved.pages,
       environment: "staging",
     })
   } catch (error) {

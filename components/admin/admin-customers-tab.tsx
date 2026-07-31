@@ -1,14 +1,17 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ArrowRight,
   Check,
+  ChevronDown,
+  ChevronUp,
   Coins,
   ExternalLink,
   Loader2,
   Pencil,
   RefreshCw,
+  Search,
   Trash2,
   UserRound,
   X,
@@ -35,6 +38,12 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
   TableBody,
@@ -66,6 +75,24 @@ type CustomerLoyaltyInfo = {
 
 type StatusFilter = "alle" | "aktive" | "inaktive"
 type AddressSection = "billing" | "delivery"
+type SortDirection = "asc" | "desc"
+type CustomerSortColumn =
+  | "kundennummer"
+  | "name"
+  | "status"
+  | "createdAt"
+  | "orderCount"
+type OrderSortColumn = "createdAt" | "total" | "status"
+
+const PAGE_SIZE_OPTIONS = [25, 50, 100] as const
+const DETAIL_CACHE_TTL_MS = 60_000
+
+type DetailCacheEntry = {
+  detail: CustomerDetail
+  orders: StoredOrder[]
+  loyalty: CustomerLoyaltyInfo | null
+  fetchedAt: number
+}
 
 type AddressFormState = {
   firstName: string
@@ -117,6 +144,52 @@ function formatDate(iso: string) {
 
 function statusLabel(status: StoredOrder["status"]) {
   return ORDER_STATUS_OPTIONS.find((o) => o.value === status)?.label ?? status
+}
+
+function statusRank(status: CustomerAccountStatus): number {
+  if (status === "aktiv") return 0
+  if (status === "inaktiv") return 1
+  return 2
+}
+
+function compareText(a: string, b: string): number {
+  return a.localeCompare(b, "de-CH", { sensitivity: "base" })
+}
+
+function toggleSortDirection(direction: SortDirection): SortDirection {
+  return direction === "asc" ? "desc" : "asc"
+}
+
+function defaultCustomerSortDirection(column: CustomerSortColumn): SortDirection {
+  if (column === "createdAt" || column === "orderCount") return "desc"
+  return "asc"
+}
+
+function defaultOrderSortDirection(column: OrderSortColumn): SortDirection {
+  if (column === "status") return "asc"
+  return "desc"
+}
+
+function customerMatchesSearch(customer: CustomerListItem, query: string): boolean {
+  if (!query) return true
+  const haystack = [
+    customer.name,
+    customer.email,
+    customer.status,
+    customer.createdAt,
+    formatDate(customer.createdAt),
+    customer.city,
+    customer.street,
+    customer.zip,
+    customer.country,
+    customer.phone,
+    customer.kundennummer,
+    customer.firstName,
+    customer.lastName,
+  ]
+    .join(" ")
+    .toLowerCase()
+  return haystack.includes(query)
 }
 
 function addressToForm(
@@ -260,6 +333,67 @@ function AddressReadOnly({ address }: { address: OrderAddress }) {
   )
 }
 
+function CustomerDetailSkeleton() {
+  return (
+    <div className="space-y-6" aria-busy="true" aria-label="Kundendetails werden geladen">
+      <div className="space-y-2">
+        <Skeleton className="h-4 w-28" />
+        <Skeleton className="h-7 w-48" />
+        <Skeleton className="h-4 w-56" />
+        <Skeleton className="h-3 w-40" />
+        <Skeleton className="mt-2 h-10 w-40" />
+      </div>
+      <div className="grid gap-6 md:grid-cols-2">
+        <Skeleton className="h-44 w-full rounded-xl" />
+        <Skeleton className="h-44 w-full rounded-xl" />
+      </div>
+      <Skeleton className="h-36 w-full rounded-xl" />
+      <Skeleton className="h-12 w-full rounded-xl" />
+    </div>
+  )
+}
+
+function SortableHead({
+  label,
+  active,
+  direction,
+  onClick,
+  className,
+  align = "left",
+}: {
+  label: string
+  active: boolean
+  direction: SortDirection
+  onClick: () => void
+  className?: string
+  align?: "left" | "right"
+}) {
+  return (
+    <TableHead className={cn(adminUi.tableHead, className)}>
+      <button
+        type="button"
+        onClick={onClick}
+        className={cn(
+          "inline-flex items-center gap-0.5 font-medium hover:text-foreground",
+          align === "right" && "ml-auto flex-row-reverse",
+          active ? adminUi.heading : adminUi.muted
+        )}
+      >
+        {label}
+        {active ? (
+          direction === "asc" ? (
+            <ChevronUp className="h-3.5 w-3.5" aria-hidden />
+          ) : (
+            <ChevronDown className="h-3.5 w-3.5" aria-hidden />
+          )
+        ) : (
+          <ChevronDown className="h-3.5 w-3.5 opacity-30" aria-hidden />
+        )}
+      </button>
+    </TableHead>
+  )
+}
+
 type AdminCustomersTabProps = {
   onOpenOrder?: (orderId: string) => void
 }
@@ -267,6 +401,11 @@ type AdminCustomersTabProps = {
 export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
   const [customers, setCustomers] = useState<CustomerListItem[]>([])
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("alle")
+  const [searchQuery, setSearchQuery] = useState("")
+  const [sortColumn, setSortColumn] = useState<CustomerSortColumn | null>(null)
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc")
+  const [pageSize, setPageSize] = useState<number>(50)
+  const [visibleCount, setVisibleCount] = useState(50)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [detail, setDetail] = useState<CustomerDetail | null>(null)
   const [orders, setOrders] = useState<StoredOrder[]>([])
@@ -289,23 +428,125 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
+  const [ordersExpanded, setOrdersExpanded] = useState(false)
+  const [orderSearch, setOrderSearch] = useState("")
+  const [orderDateFrom, setOrderDateFrom] = useState("")
+  const [orderDateTo, setOrderDateTo] = useState("")
+  const [orderAmountFrom, setOrderAmountFrom] = useState("")
+  const [orderAmountTo, setOrderAmountTo] = useState("")
+  const [orderStatusFilter, setOrderStatusFilter] = useState("all")
+  const [orderSortColumn, setOrderSortColumn] = useState<OrderSortColumn | null>(null)
+  const [orderSortDirection, setOrderSortDirection] = useState<SortDirection>("desc")
+
+  const detailCacheRef = useRef<Map<string, DetailCacheEntry>>(new Map())
+  const detailKundennummerRef = useRef<string | null>(null)
+
   const filteredCustomers = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+
+    let list = customers
     if (statusFilter === "aktive") {
-      return customers.filter((c) => c.status === "aktiv")
+      list = list.filter((c) => c.status === "aktiv")
+    } else if (statusFilter === "inaktive") {
+      list = list.filter((c) => c.status === "inaktiv" || c.status === "gelöscht")
     }
-    if (statusFilter === "inaktive") {
-      return customers.filter(
-        (c) => c.status === "inaktiv" || c.status === "gelöscht"
-      )
+
+    if (q) {
+      list = list.filter((c) => customerMatchesSearch(c, q))
     }
-    return customers
-  }, [customers, statusFilter])
+
+    const sorted = [...list]
+    sorted.sort((a, b) => {
+      if (sortColumn) {
+        let cmp = 0
+        switch (sortColumn) {
+          case "kundennummer":
+            cmp = compareText(a.kundennummer, b.kundennummer)
+            break
+          case "name":
+            cmp = compareText(a.name, b.name)
+            break
+          case "status":
+            cmp = statusRank(a.status) - statusRank(b.status)
+            if (cmp === 0) cmp = compareText(a.status, b.status)
+            break
+          case "createdAt":
+            cmp = a.createdAt.localeCompare(b.createdAt)
+            break
+          case "orderCount":
+            cmp = a.orderCount - b.orderCount
+            break
+        }
+        if (cmp !== 0) return sortDirection === "asc" ? cmp : -cmp
+        const activeCmp = statusRank(a.status) - statusRank(b.status)
+        if (activeCmp !== 0) return activeCmp
+        return compareText(a.name, b.name)
+      }
+
+      const activeCmp = statusRank(a.status) - statusRank(b.status)
+      if (activeCmp !== 0) return activeCmp
+      return compareText(a.name, b.name)
+    })
+
+    return sorted
+  }, [customers, searchQuery, sortColumn, sortDirection, statusFilter])
+
+  const visibleCustomers = useMemo(
+    () => filteredCustomers.slice(0, visibleCount),
+    [filteredCustomers, visibleCount]
+  )
+
+  const hasMoreCustomers = visibleCount < filteredCustomers.length
+
+  useEffect(() => {
+    setVisibleCount(pageSize)
+  }, [pageSize, searchQuery, statusFilter, sortColumn, sortDirection])
 
   const resetEditState = useCallback(() => {
     setEditingSection(null)
     setAddressForm(null)
     setSaveError(null)
   }, [])
+
+  const resetOrderFilters = useCallback(() => {
+    setOrderSearch("")
+    setOrderDateFrom("")
+    setOrderDateTo("")
+    setOrderAmountFrom("")
+    setOrderAmountTo("")
+    setOrderStatusFilter("all")
+    setOrderSortColumn(null)
+    setOrderSortDirection("desc")
+  }, [])
+
+  const applyDetailPayload = useCallback(
+    (
+      customer: CustomerDetail | null,
+      nextOrders: StoredOrder[],
+      nextLoyalty: CustomerLoyaltyInfo | null,
+      options?: { resetOrderUi?: boolean }
+    ) => {
+      const resetOrderUi = options?.resetOrderUi ?? true
+      setDetail(customer)
+      if (customer) {
+        const st = normalizeDetailStatus(customer.status)
+        setStatusDraft(st === "inaktiv" ? "inaktiv" : "aktiv")
+      }
+      setOrders(nextOrders)
+      setLoyalty(nextLoyalty)
+      setPointsDelta("")
+      setPointsNote("")
+      setPointsError(null)
+      setEditingSection(null)
+      setAddressForm(null)
+      setSaveError(null)
+      if (resetOrderUi) {
+        setOrdersExpanded(false)
+        resetOrderFilters()
+      }
+    },
+    [resetOrderFilters]
+  )
 
   const loadCustomers = useCallback(async () => {
     setLoading(true)
@@ -325,24 +566,35 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
     }
   }, [])
 
-  const loadCustomerDetail = useCallback(async (kundennummer: string) => {
-    setDetailLoading(true)
-    setError(null)
-    try {
-      const res = await fetch(
-        `/api/admin/customers/${encodeURIComponent(kundennummer)}`
-      )
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? "Laden fehlgeschlagen")
-      const customer = (data.customer ?? null) as CustomerDetail | null
-      setDetail(customer)
-      if (customer) {
-        const st = normalizeDetailStatus(customer.status)
-        setStatusDraft(st === "inaktiv" ? "inaktiv" : "aktiv")
+  const loadCustomerDetail = useCallback(
+    async (kundennummer: string, options?: { force?: boolean }) => {
+      const force = options?.force ?? false
+      const sameCustomer = detailKundennummerRef.current === kundennummer
+      const cached = detailCacheRef.current.get(kundennummer)
+      if (
+        !force &&
+        cached &&
+        Date.now() - cached.fetchedAt < DETAIL_CACHE_TTL_MS
+      ) {
+        detailKundennummerRef.current = cached.detail.kundennummer
+        applyDetailPayload(cached.detail, cached.orders, cached.loyalty, {
+          resetOrderUi: !sameCustomer,
+        })
+        setDetailLoading(false)
+        return
       }
-      setOrders(data.orders ?? [])
-      setLoyalty(
-        data.loyalty
+
+      setDetailLoading(true)
+      setError(null)
+      try {
+        const res = await fetch(
+          `/api/admin/customers/${encodeURIComponent(kundennummer)}`
+        )
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error ?? "Laden fehlgeschlagen")
+        const customer = (data.customer ?? null) as CustomerDetail | null
+        const nextOrders = (data.orders ?? []) as StoredOrder[]
+        const nextLoyalty: CustomerLoyaltyInfo | null = data.loyalty
           ? {
               points: Number(data.loyalty.points) || 0,
               history: Array.isArray(data.loyalty.history)
@@ -353,24 +605,33 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
               enabled: data.loyalty.enabled !== false,
             }
           : null
-      )
-      setPointsDelta("")
-      setPointsNote("")
-      setPointsError(null)
-      setEditingSection(null)
-      setAddressForm(null)
-      setSaveError(null)
-    } catch (err) {
-      console.warn("Admin: Kundendetails konnten nicht geladen werden.", err)
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Kundendetails konnten nicht geladen werden."
-      )
-    } finally {
-      setDetailLoading(false)
-    }
-  }, [])
+
+        detailKundennummerRef.current = customer?.kundennummer ?? null
+        applyDetailPayload(customer, nextOrders, nextLoyalty, {
+          resetOrderUi: !sameCustomer,
+        })
+
+        if (customer) {
+          detailCacheRef.current.set(kundennummer, {
+            detail: customer,
+            orders: nextOrders,
+            loyalty: nextLoyalty,
+            fetchedAt: Date.now(),
+          })
+        }
+      } catch (err) {
+        console.warn("Admin: Kundendetails konnten nicht geladen werden.", err)
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Kundendetails konnten nicht geladen werden."
+        )
+      } finally {
+        setDetailLoading(false)
+      }
+    },
+    [applyDetailPayload]
+  )
 
   useEffect(() => {
     void loadCustomers()
@@ -380,21 +641,115 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
     if (selectedId) {
       void loadCustomerDetail(selectedId)
     } else {
+      detailKundennummerRef.current = null
       setDetail(null)
       setOrders([])
       setLoyalty(null)
       setPointsDelta("")
       setPointsNote("")
       setPointsError(null)
+      setOrdersExpanded(false)
+      resetOrderFilters()
       resetEditState()
     }
-  }, [selectedId, loadCustomerDetail, resetEditState])
+  }, [selectedId, loadCustomerDetail, resetEditState, resetOrderFilters])
 
   const selectCustomer = (kundennummer: string) => {
     setDeleteError(null)
     setPointsError(null)
     setSelectedId((prev) => (prev === kundennummer ? null : kundennummer))
   }
+
+  const handleCustomerSort = (column: CustomerSortColumn) => {
+    if (sortColumn === column) {
+      setSortDirection((prev) => toggleSortDirection(prev))
+      return
+    }
+    setSortColumn(column)
+    setSortDirection(defaultCustomerSortDirection(column))
+  }
+
+  const handleOrderSort = (column: OrderSortColumn) => {
+    if (orderSortColumn === column) {
+      setOrderSortDirection((prev) => toggleSortDirection(prev))
+      return
+    }
+    setOrderSortColumn(column)
+    setOrderSortDirection(defaultOrderSortDirection(column))
+  }
+
+  const orderFiltersActive =
+    orderSearch.trim() !== "" ||
+    orderDateFrom !== "" ||
+    orderDateTo !== "" ||
+    orderAmountFrom !== "" ||
+    orderAmountTo !== "" ||
+    orderStatusFilter !== "all"
+
+  const filteredOrders = useMemo(() => {
+    if (!ordersExpanded) return []
+
+    const q = orderSearch.trim().toLowerCase()
+    const minAmount =
+      orderAmountFrom.trim() === "" ? null : Number(orderAmountFrom)
+    const maxAmount = orderAmountTo.trim() === "" ? null : Number(orderAmountTo)
+    const fromTs = orderDateFrom
+      ? new Date(`${orderDateFrom}T00:00:00`).getTime()
+      : null
+    const toTs = orderDateTo
+      ? new Date(`${orderDateTo}T23:59:59.999`).getTime()
+      : null
+
+    let list = orders.filter((order) => {
+      if (orderStatusFilter !== "all" && order.status !== orderStatusFilter) {
+        return false
+      }
+      if (q) {
+        const hay = `${order.orderId} ${order.status} ${statusLabel(order.status)}`.toLowerCase()
+        if (!hay.includes(q)) return false
+      }
+      const created = new Date(order.createdAt).getTime()
+      if (fromTs != null && Number.isFinite(fromTs) && created < fromTs) return false
+      if (toTs != null && Number.isFinite(toTs) && created > toTs) return false
+      const total = Number(order.totals?.total) || 0
+      if (minAmount != null && Number.isFinite(minAmount) && total < minAmount) {
+        return false
+      }
+      if (maxAmount != null && Number.isFinite(maxAmount) && total > maxAmount) {
+        return false
+      }
+      return true
+    })
+
+    if (orderSortColumn) {
+      list = [...list].sort((a, b) => {
+        let cmp = 0
+        if (orderSortColumn === "createdAt") {
+          cmp = a.createdAt.localeCompare(b.createdAt)
+        } else if (orderSortColumn === "total") {
+          cmp = (Number(a.totals?.total) || 0) - (Number(b.totals?.total) || 0)
+        } else {
+          cmp = compareText(statusLabel(a.status), statusLabel(b.status))
+        }
+        return orderSortDirection === "asc" ? cmp : -cmp
+      })
+    } else {
+      list = [...list].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    }
+
+    return list
+  }, [
+    orderAmountFrom,
+    orderAmountTo,
+    orderDateFrom,
+    orderDateTo,
+    orderSearch,
+    orderSortColumn,
+    orderSortDirection,
+    orderStatusFilter,
+    orders,
+    ordersExpanded,
+  ])
 
   const startEditAddress = (section: AddressSection) => {
     if (!detail) return
@@ -411,6 +766,10 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
 
   const cancelEditAddress = () => {
     resetEditState()
+  }
+
+  const invalidateDetailCache = (kundennummer: string) => {
+    detailCacheRef.current.delete(kundennummer)
   }
 
   const patchCustomer = async (payload: {
@@ -438,8 +797,9 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
       if (!res.ok) {
         throw new Error(data.error ?? "Speichern fehlgeschlagen.")
       }
+      invalidateDetailCache(detail.kundennummer)
       await Promise.all([
-        loadCustomerDetail(detail.kundennummer),
+        loadCustomerDetail(detail.kundennummer, { force: true }),
         loadCustomers(),
       ])
       return true
@@ -515,7 +875,8 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
       setPointsDialogOpen(false)
       setPointsDelta("")
       setPointsNote("")
-      await loadCustomerDetail(detail.kundennummer)
+      invalidateDetailCache(detail.kundennummer)
+      await loadCustomerDetail(detail.kundennummer, { force: true })
     } catch (err) {
       setPointsError(
         err instanceof Error
@@ -552,6 +913,7 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
         throw new Error(data.error ?? "Kunde konnte nicht gelöscht werden.")
       }
 
+      invalidateDetailCache(detail.kundennummer)
       setDeleteDialogOpen(false)
       setSelectedId(null)
       setDetail(null)
@@ -586,9 +948,12 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
             <h2 className={cn("text-xl font-bold", adminUi.heading)}>Kundenverwaltung</h2>
             <p className={cn("text-sm", adminUi.muted)}>
               {filteredCustomers.length}
-              {statusFilter !== "alle" ? ` von ${customers.length}` : ""} Kunde
+              {statusFilter !== "alle" || searchQuery.trim()
+                ? ` von ${customers.length}`
+                : ""}{" "}
+              Kunde
               {filteredCustomers.length !== 1 ? "n" : ""}
-              {statusFilter === "alle" ? " erfasst" : ""}
+              {statusFilter === "alle" && !searchQuery.trim() ? " erfasst" : ""}
             </p>
           </div>
           <Button
@@ -603,7 +968,23 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
           </Button>
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="relative">
+          <Search
+            className={cn(
+              "pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2",
+              adminUi.muted
+            )}
+          />
+          <Input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Name, E-Mail, Kundennr., Ort, Tel…"
+            className={cn("pl-9", adminUi.input)}
+            aria-label="Kunden suchen"
+          />
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
           {(
             [
               { id: "alle", label: "Alle" },
@@ -624,9 +1005,28 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
               {tab.label}
             </Button>
           ))}
+          <div className="ml-auto flex items-center gap-2">
+            <Label className={cn("text-xs whitespace-nowrap", adminUi.label)}>
+              Anzeige
+            </Label>
+            <select
+              value={pageSize}
+              onChange={(e) => setPageSize(Number(e.target.value))}
+              className={cn("h-8 rounded-md border px-2 text-xs", adminUi.select)}
+              aria-label="Seitengrösse"
+            >
+              {PAGE_SIZE_OPTIONS.map((size) => (
+                <option key={size} value={size}>
+                  {size}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
-        {error && !detail && <p className={adminUi.error}>{error}</p>}
+        {error && !detail && !detailLoading && (
+          <p className={adminUi.error}>{error}</p>
+        )}
 
         {customers.length === 0 ? (
           <div className={cn("rounded-xl border border-dashed py-16 text-center", adminUi.empty)}>
@@ -638,53 +1038,101 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
             Keine Kunden für diesen Filter.
           </div>
         ) : (
-          <div className={adminUi.tableWrap}>
-            <Table>
-              <TableHeader>
-                <TableRow className={adminUi.tableHeadRow}>
-                  <TableHead className={adminUi.tableHead}>Kundennr.</TableHead>
-                  <TableHead className={adminUi.tableHead}>Name</TableHead>
-                  <TableHead className={adminUi.tableHead}>Status</TableHead>
-                  <TableHead className={cn("hidden md:table-cell", adminUi.tableHead)}>
-                    Registriert
-                  </TableHead>
-                  <TableHead className={cn("text-right", adminUi.tableHead)}>Best.</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredCustomers.map((customer) => {
-                  const active = selectedId === customer.kundennummer
-                  return (
-                    <TableRow
-                      key={customer.kundennummer}
-                      className={cn(
-                        "cursor-pointer",
-                        adminUi.tableRow,
-                        active && adminUi.listItemActive
-                      )}
-                      onClick={() => selectCustomer(customer.kundennummer)}
-                    >
-                      <TableCell className={cn("font-mono text-xs", adminUi.accentTitle)}>
-                        {customer.kundennummer}
-                      </TableCell>
-                      <TableCell>
-                        <p className={cn("font-medium", adminUi.heading)}>{customer.name}</p>
-                        <p className={cn("text-xs", adminUi.muted)}>{customer.email}</p>
-                      </TableCell>
-                      <TableCell>
-                        <CustomerStatusBadge status={customer.status} />
-                      </TableCell>
-                      <TableCell className={cn("hidden md:table-cell text-xs", adminUi.muted)}>
-                        {formatDate(customer.createdAt)}
-                      </TableCell>
-                      <TableCell className={cn("text-right tabular-nums", adminUi.bodyText)}>
-                        {customer.orderCount}
-                      </TableCell>
-                    </TableRow>
-                  )
-                })}
-              </TableBody>
-            </Table>
+          <div className="space-y-3">
+            <div className={adminUi.tableWrap}>
+              <Table>
+                <TableHeader>
+                  <TableRow className={adminUi.tableHeadRow}>
+                    <SortableHead
+                      label="Kundennr."
+                      active={sortColumn === "kundennummer"}
+                      direction={sortDirection}
+                      onClick={() => handleCustomerSort("kundennummer")}
+                    />
+                    <SortableHead
+                      label="Name"
+                      active={sortColumn === "name"}
+                      direction={sortDirection}
+                      onClick={() => handleCustomerSort("name")}
+                    />
+                    <SortableHead
+                      label="Status"
+                      active={sortColumn === "status"}
+                      direction={sortDirection}
+                      onClick={() => handleCustomerSort("status")}
+                    />
+                    <SortableHead
+                      label="Registriert"
+                      active={sortColumn === "createdAt"}
+                      direction={sortDirection}
+                      onClick={() => handleCustomerSort("createdAt")}
+                      className="hidden md:table-cell"
+                    />
+                    <SortableHead
+                      label="Best."
+                      active={sortColumn === "orderCount"}
+                      direction={sortDirection}
+                      onClick={() => handleCustomerSort("orderCount")}
+                      className="text-right"
+                      align="right"
+                    />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {visibleCustomers.map((customer) => {
+                    const active = selectedId === customer.kundennummer
+                    return (
+                      <TableRow
+                        key={customer.kundennummer}
+                        className={cn(
+                          "cursor-pointer",
+                          adminUi.tableRow,
+                          active && adminUi.listItemActive
+                        )}
+                        onClick={() => selectCustomer(customer.kundennummer)}
+                      >
+                        <TableCell className={cn("font-mono text-xs", adminUi.accentTitle)}>
+                          {customer.kundennummer}
+                        </TableCell>
+                        <TableCell>
+                          <p className={cn("font-medium", adminUi.heading)}>{customer.name}</p>
+                          <p className={cn("text-xs", adminUi.muted)}>{customer.email}</p>
+                        </TableCell>
+                        <TableCell>
+                          <CustomerStatusBadge status={customer.status} />
+                        </TableCell>
+                        <TableCell className={cn("hidden md:table-cell text-xs", adminUi.muted)}>
+                          {formatDate(customer.createdAt)}
+                        </TableCell>
+                        <TableCell className={cn("text-right tabular-nums", adminUi.bodyText)}>
+                          {customer.orderCount}
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className={cn("text-xs", adminUi.muted)}>
+                {visibleCustomers.length} von {filteredCustomers.length} angezeigt
+              </p>
+              {hasMoreCustomers ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className={adminUi.outlineBtn}
+                  onClick={() =>
+                    setVisibleCount((prev) =>
+                      Math.min(prev + pageSize, filteredCustomers.length)
+                    )
+                  }
+                >
+                  Mehr laden
+                </Button>
+              ) : null}
+            </div>
           </div>
         )}
       </div>
@@ -697,10 +1145,7 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
               <p>Kunde auswählen für Stammdaten und Bestellhistorie</p>
             </div>
           ) : detailLoading ? (
-            <div className={cn("flex min-h-[320px] items-center justify-center", adminUi.loader)}>
-              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-              Kundendetails werden geladen…
-            </div>
+            <CustomerDetailSkeleton />
           ) : detail ? (
             <>
               <div>
@@ -1049,53 +1494,245 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
                 )}
               </div>
 
-              <div className="space-y-3">
-                <h4 className={cn("text-sm font-semibold", adminUi.accentTitle)}>
-                  Bestellhistorie ({orders.length})
-                </h4>
-                {orders.length === 0 ? (
-                  <p className={cn("text-sm", adminUi.muted)}>Keine Bestellungen verknuepft.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {orders.map((order) => (
-                      <div
-                        key={order.orderId}
+              <Collapsible open={ordersExpanded} onOpenChange={setOrdersExpanded}>
+                <div className={cn("rounded-xl border", adminUi.section)}>
+                  <CollapsibleTrigger asChild>
+                    <button
+                      type="button"
+                      className={cn(
+                        "flex w-full items-center justify-between gap-3 px-4 py-3 text-left",
+                        adminUi.accentTitle
+                      )}
+                    >
+                      <span className="text-sm font-semibold">
+                        Bestellhistorie ({orders.length})
+                      </span>
+                      <ChevronDown
                         className={cn(
-                          "flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3",
-                          adminUi.detailPanel
+                          "h-4 w-4 shrink-0 transition-transform",
+                          ordersExpanded && "rotate-180"
                         )}
-                      >
-                        <div className="min-w-0">
-                          <p className={cn("font-mono text-sm", adminUi.tableCell)}>
-                            {order.orderId}
+                      />
+                    </button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down">
+                    {ordersExpanded ? (
+                      <div className="space-y-3 border-t px-4 py-3">
+                        {orders.length === 0 ? (
+                          <p className={cn("text-sm", adminUi.muted)}>
+                            Keine Bestellungen verknuepft.
                           </p>
-                          <p className={cn("text-xs", adminUi.muted)}>
-                            {formatDate(order.createdAt)} · CHF{" "}
-                            {order.totals.total.toFixed(2)}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" className={adminUi.badgeOutline}>
-                            {statusLabel(order.status)}
-                          </Badge>
-                          {onOpenOrder && (
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="ghost"
-                              className={cn("hover:text-orange-300", adminUi.accentTitle)}
-                              onClick={() => onOpenOrder(order.orderId)}
-                            >
-                              <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
-                              Bestellung
-                            </Button>
-                          )}
-                        </div>
+                        ) : (
+                          <>
+                            <div className="space-y-2">
+                              <div className="flex flex-wrap items-end gap-2">
+                                <div className="min-w-[160px] flex-1 space-y-1">
+                                  <Label className={cn("text-xs", adminUi.label)}>
+                                    Suche
+                                  </Label>
+                                  <Input
+                                    value={orderSearch}
+                                    onChange={(e) => setOrderSearch(e.target.value)}
+                                    placeholder="Bestell-ID, Status…"
+                                    className={cn("h-8 text-xs", adminUi.input)}
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <Label className={cn("text-xs", adminUi.label)}>
+                                    Status
+                                  </Label>
+                                  <select
+                                    value={orderStatusFilter}
+                                    onChange={(e) =>
+                                      setOrderStatusFilter(e.target.value)
+                                    }
+                                    className={cn(
+                                      "h-8 rounded-md border px-2 text-xs",
+                                      adminUi.select
+                                    )}
+                                  >
+                                    <option value="all">Alle</option>
+                                    {ORDER_STATUS_OPTIONS.map((opt) => (
+                                      <option key={opt.value} value={opt.value}>
+                                        {opt.label}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                                {orderFiltersActive ? (
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="ghost"
+                                    className={cn("h-8 text-xs", adminUi.muted)}
+                                    onClick={resetOrderFilters}
+                                  >
+                                    Filter zurücksetzen
+                                  </Button>
+                                ) : null}
+                              </div>
+                              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                                <div className="space-y-1">
+                                  <Label className={cn("text-xs", adminUi.label)}>
+                                    Datum von
+                                  </Label>
+                                  <Input
+                                    type="date"
+                                    value={orderDateFrom}
+                                    onChange={(e) => setOrderDateFrom(e.target.value)}
+                                    className={cn("h-8 text-xs", adminUi.input)}
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <Label className={cn("text-xs", adminUi.label)}>
+                                    Datum bis
+                                  </Label>
+                                  <Input
+                                    type="date"
+                                    value={orderDateTo}
+                                    onChange={(e) => setOrderDateTo(e.target.value)}
+                                    className={cn("h-8 text-xs", adminUi.input)}
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <Label className={cn("text-xs", adminUi.label)}>
+                                    Betrag von
+                                  </Label>
+                                  <Input
+                                    type="number"
+                                    min={0}
+                                    step={0.05}
+                                    inputMode="decimal"
+                                    value={orderAmountFrom}
+                                    onChange={(e) =>
+                                      setOrderAmountFrom(e.target.value)
+                                    }
+                                    placeholder="0.00"
+                                    className={cn("h-8 text-xs", adminUi.input)}
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <Label className={cn("text-xs", adminUi.label)}>
+                                    Betrag bis
+                                  </Label>
+                                  <Input
+                                    type="number"
+                                    min={0}
+                                    step={0.05}
+                                    inputMode="decimal"
+                                    value={orderAmountTo}
+                                    onChange={(e) => setOrderAmountTo(e.target.value)}
+                                    placeholder="0.00"
+                                    className={cn("h-8 text-xs", adminUi.input)}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+
+                            {filteredOrders.length === 0 ? (
+                              <p className={cn("py-4 text-center text-sm", adminUi.muted)}>
+                                Keine Bestellungen für die aktuellen Filter.
+                              </p>
+                            ) : (
+                              <div className={adminUi.tableWrap}>
+                                <Table>
+                                  <TableHeader>
+                                    <TableRow className={adminUi.tableHeadRow}>
+                                      <TableHead className={adminUi.tableHead}>
+                                        Bestell-ID
+                                      </TableHead>
+                                      <SortableHead
+                                        label="Datum"
+                                        active={orderSortColumn === "createdAt"}
+                                        direction={orderSortDirection}
+                                        onClick={() => handleOrderSort("createdAt")}
+                                      />
+                                      <SortableHead
+                                        label="Betrag"
+                                        active={orderSortColumn === "total"}
+                                        direction={orderSortDirection}
+                                        onClick={() => handleOrderSort("total")}
+                                      />
+                                      <SortableHead
+                                        label="Status"
+                                        active={orderSortColumn === "status"}
+                                        direction={orderSortDirection}
+                                        onClick={() => handleOrderSort("status")}
+                                      />
+                                      {onOpenOrder ? (
+                                        <TableHead
+                                          className={cn("text-right", adminUi.tableHead)}
+                                        >
+                                          <span className="sr-only">Aktion</span>
+                                        </TableHead>
+                                      ) : null}
+                                    </TableRow>
+                                  </TableHeader>
+                                  <TableBody>
+                                    {filteredOrders.map((order) => (
+                                      <TableRow
+                                        key={order.orderId}
+                                        className={adminUi.tableRow}
+                                      >
+                                        <TableCell
+                                          className={cn(
+                                            "font-mono text-xs",
+                                            adminUi.tableCell
+                                          )}
+                                        >
+                                          {order.orderId}
+                                        </TableCell>
+                                        <TableCell
+                                          className={cn("text-xs", adminUi.muted)}
+                                        >
+                                          {formatDate(order.createdAt)}
+                                        </TableCell>
+                                        <TableCell
+                                          className={cn(
+                                            "text-xs tabular-nums",
+                                            adminUi.bodyText
+                                          )}
+                                        >
+                                          CHF {order.totals.total.toFixed(2)}
+                                        </TableCell>
+                                        <TableCell>
+                                          <Badge
+                                            variant="outline"
+                                            className={adminUi.badgeOutline}
+                                          >
+                                            {statusLabel(order.status)}
+                                          </Badge>
+                                        </TableCell>
+                                        {onOpenOrder ? (
+                                          <TableCell className="text-right">
+                                            <Button
+                                              type="button"
+                                              size="sm"
+                                              variant="ghost"
+                                              className={cn(
+                                                "h-8 hover:text-orange-300",
+                                                adminUi.accentTitle
+                                              )}
+                                              onClick={() => onOpenOrder(order.orderId)}
+                                            >
+                                              <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
+                                              Öffnen
+                                            </Button>
+                                          </TableCell>
+                                        ) : null}
+                                      </TableRow>
+                                    ))}
+                                  </TableBody>
+                                </Table>
+                              </div>
+                            )}
+                          </>
+                        )}
                       </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+                    ) : null}
+                  </CollapsibleContent>
+                </div>
+              </Collapsible>
 
               <p className={cn("flex items-center gap-2 text-xs", adminUi.tableCellMuted)}>
                 <ArrowRight className="h-3 w-3" />

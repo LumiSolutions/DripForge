@@ -54,6 +54,7 @@ import {
   normalizeLoyaltyPointValueChf,
 } from "@/lib/konto/loyalty-points-config"
 import { normalizeOrderEmailTemplates } from "@/lib/email/order-email-templates"
+import { normalizeOrderEmailLayout } from "@/lib/email/order-email-layout"
 import {
   DEFAULT_SHOW_TOP_PRODUCTS_ON_HOMEPAGE,
   DEFAULT_TOP_PRODUCTS_COUNT,
@@ -152,6 +153,14 @@ import {
   sanitizeSiteLinksInput,
   type SiteLinks,
 } from "@/lib/admin/site-links"
+import {
+  mergeCmsNavItems,
+  mergeCmsPages,
+  sanitizeCmsNavItemsInput,
+  sanitizeCmsPagesInput,
+  type CmsNavItem,
+  type CmsPageEntry,
+} from "@/lib/admin/site-nav"
 import type { AdminFilament } from "@/lib/admin/filament-types"
 import {
   mergeLaserMaterialTypes,
@@ -595,6 +604,7 @@ async function getSettingsFromFile(): Promise<AdminSettings> {
       orderEmailTemplates: normalizeOrderEmailTemplates(
         stored.orderEmailTemplates
       ),
+      orderEmailLayout: normalizeOrderEmailLayout(stored.orderEmailLayout),
       updatedAt: stored.updatedAt,
     }
   }
@@ -623,6 +633,7 @@ async function getSettingsFromFile(): Promise<AdminSettings> {
     showTopProductsOnHomepage: DEFAULT_SHOW_TOP_PRODUCTS_ON_HOMEPAGE,
     topProductsCount: DEFAULT_TOP_PRODUCTS_COUNT,
     orderEmailTemplates: normalizeOrderEmailTemplates(undefined),
+    orderEmailLayout: normalizeOrderEmailLayout(undefined),
     updatedAt: new Date().toISOString(),
   }
   try {
@@ -669,6 +680,7 @@ export async function saveSettings(input: {
     receivedIntro?: string
     receivedFooter?: string
   }
+  orderEmailLayout?: unknown
 }): Promise<AdminSettings> {
   const current = await getSettings()
 
@@ -777,6 +789,16 @@ export async function saveSettings(input: {
             ...input.orderEmailTemplates,
           })
         : normalizeOrderEmailTemplates(current.orderEmailTemplates),
+    orderEmailLayout:
+      input.orderEmailLayout !== undefined
+        ? normalizeOrderEmailLayout({
+            ...normalizeOrderEmailLayout(current.orderEmailLayout),
+            ...(typeof input.orderEmailLayout === "object" &&
+            input.orderEmailLayout !== null
+              ? input.orderEmailLayout
+              : {}),
+          })
+        : normalizeOrderEmailLayout(current.orderEmailLayout),
     updatedAt: new Date().toISOString(),
   }
   await withCosmosFallback(
@@ -819,7 +841,7 @@ function parseSiteConfigFile(
 ): SiteConfigBundle | null {
   if (!stored || typeof stored !== "object") return null
   const raw = stored as Record<string, unknown>
-  if ("texts" in raw || "images" in raw || "links" in raw) {
+  if ("texts" in raw || "images" in raw || "links" in raw || "navItems" in raw || "pages" in raw) {
     return {
       texts: mergeSiteTexts(
         (raw.texts as Partial<Record<string, string>> | undefined) ?? null
@@ -828,6 +850,8 @@ function parseSiteConfigFile(
         (raw.images as Partial<Record<string, unknown>> | undefined) ?? null
       ),
       links: mergeSiteLinks((raw.links as SiteLinks | undefined) ?? null),
+      navItems: mergeCmsNavItems(raw.navItems),
+      pages: mergeCmsPages(raw.pages),
     }
   }
   // Legacy: flache Text-Map ohne images
@@ -835,6 +859,8 @@ function parseSiteConfigFile(
     texts: mergeSiteTexts(raw as Partial<Record<string, string>>),
     images: mergeSiteImages(null),
     links: mergeSiteLinks(null),
+    navItems: mergeCmsNavItems(null),
+    pages: mergeCmsPages(null),
   }
 }
 
@@ -855,6 +881,8 @@ export async function getSiteConfigProduction(): Promise<SiteConfigBundle> {
         texts: mergeSiteTexts(legacy),
         images: mergeSiteImages(null),
         links: mergeSiteLinks(null),
+        navItems: mergeCmsNavItems(null),
+        pages: mergeCmsPages(null),
       }
     }
   )
@@ -878,6 +906,8 @@ export async function saveSiteConfigStaging(
     texts?: SiteTexts
     images?: SiteImages
     links?: SiteLinks
+    navItems?: CmsNavItem[]
+    pages?: CmsPageEntry[]
   }
 ): Promise<SiteConfigBundle> {
   const existing = await getSiteConfigStaging()
@@ -885,6 +915,8 @@ export async function saveSiteConfigStaging(
     texts: sanitizeSiteTextsInput(input.texts ?? existing.texts),
     images: sanitizeSiteImagesInput(input.images ?? existing.images),
     links: sanitizeSiteLinksInput(input.links ?? existing.links),
+    navItems: sanitizeCmsNavItemsInput(input.navItems ?? existing.navItems),
+    pages: sanitizeCmsPagesInput(input.pages ?? existing.pages),
   }
   return withCosmosFallback(
     "saveSiteConfigStaging",
@@ -906,6 +938,8 @@ export async function publishSiteConfig(): Promise<SiteConfigBundle> {
         texts: sanitizeSiteTextsInput(staging.texts),
         images: sanitizeSiteImagesInput(staging.images),
         links: sanitizeSiteLinksInput(staging.links),
+        navItems: sanitizeCmsNavItemsInput(staging.navItems),
+        pages: sanitizeCmsPagesInput(staging.pages),
       }
       await writeJsonFile(SITE_CONFIG_PRODUCTION_FILE, published)
       return published

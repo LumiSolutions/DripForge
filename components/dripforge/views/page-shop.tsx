@@ -86,6 +86,7 @@ import { SHOP_ROUTES } from "@/lib/dripforge/shop-routes"
 import { ProductDetailErrorBoundary } from "@/components/dripforge/product-detail-error-boundary"
 import { SiteText } from "@/components/dripforge/editable-site-text"
 import { SiteTextPhrase } from "@/components/dripforge/site-text-phrase"
+import { useSiteTexts } from "@/components/dripforge/site-texts-provider"
 import { captureProductionLayerPng } from "@/lib/dripforge/capture-production-layer"
 
 const Product3DPreview = dynamic(
@@ -165,6 +166,7 @@ export function PageShop({
   productCatalog,
 }: PageShopProps) {
   const router = useRouter()
+  const { canInlineEdit } = useSiteTexts()
   const { materials: filamentMaterials, loading: filamentsLoading } =
     useFilamentCatalog()
 
@@ -317,6 +319,7 @@ export function PageShop({
   }, [selectedProduct?.id])
 
   const openProduct = (product: Product) => {
+    if (canInlineEdit) return
     const initial = normalizeShopProduct(product)
     const catalog = productCatalog?.length ? productCatalog : shopProducts
     router.push(productHref(initial, catalog))
@@ -1113,21 +1116,35 @@ export function PageShop({
                 return (
                   <Card
                     key={product.id}
-                    role="button"
-                    tabIndex={0}
+                    role={canInlineEdit ? undefined : "button"}
+                    tabIndex={canInlineEdit ? undefined : 0}
                     onClick={() => openProduct(product)}
                     onKeyDown={(e) => {
+                      if (canInlineEdit) return
                       if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault()
                         openProduct(product)
                       }
                     }}
                     className={cn(
-                      "cursor-pointer overflow-hidden border-border/50 bg-card/50 transition-colors hover:border-primary/50 hover:shadow-md",
+                      "relative overflow-hidden border-border/50 bg-card/50 transition-colors",
+                      canInlineEdit
+                        ? "cursor-default"
+                        : "cursor-pointer hover:border-primary/50 hover:shadow-md",
                       product.sale && "border-red-500/30 hover:border-red-500/60"
                     )}
                   >
-                    <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center">
+                    {canInlineEdit && (
+                      <span className="absolute right-2 top-2 z-20 rounded-md border border-amber-500/40 bg-amber-500/90 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-950">
+                        Dynamisch aus Shop
+                      </span>
+                    )}
+                    <div
+                      className={cn(
+                        "flex flex-col gap-4 p-4 sm:flex-row sm:items-center",
+                        canInlineEdit && "pointer-events-none select-none"
+                      )}
+                    >
                       <div className="relative h-36 w-full shrink-0 overflow-hidden rounded-lg bg-secondary/50 sm:h-28 sm:w-36">
                         {product.sale && salePercent != null && (
                           <span className="absolute left-2 top-2 z-10 rounded-full bg-red-500 px-2 py-0.5 text-xs font-bold text-white">
@@ -1175,24 +1192,34 @@ export function PageShop({
               return (
               <Card
                 key={product.id}
-                role="button"
-                tabIndex={0}
+                role={canInlineEdit ? undefined : "button"}
+                tabIndex={canInlineEdit ? undefined : 0}
                 onClick={() => openProduct(product)}
                 onKeyDown={(e) => {
+                  if (canInlineEdit) return
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault()
                     openProduct(product)
                   }
                 }}
                 className={cn(
-                  "cursor-pointer overflow-hidden border-border/50 bg-card/50 transition-colors hover:border-primary/50 hover:shadow-md",
+                  "relative overflow-hidden border-border/50 bg-card/50 transition-colors",
+                  canInlineEdit
+                    ? "cursor-default"
+                    : "cursor-pointer hover:border-primary/50 hover:shadow-md",
                   product.sale && "border-red-500/30 hover:border-red-500/60"
                 )}
               >
+                {canInlineEdit && (
+                  <span className="absolute right-2 top-2 z-20 rounded-md border border-amber-500/40 bg-amber-500/90 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-950">
+                    Dynamisch aus Shop
+                  </span>
+                )}
                 <div
                   className={cn(
                     "relative bg-secondary/50",
-                    viewMode === "grid5" ? "h-36" : "h-48"
+                    viewMode === "grid5" ? "h-36" : "h-48",
+                    canInlineEdit && "pointer-events-none select-none"
                   )}
                 >
                   {product.sale && salePercent != null && (
@@ -1208,7 +1235,12 @@ export function PageShop({
                     className="object-cover sm:object-contain sm:p-4"
                   />
                 </div>
-                <CardContent className="p-4">
+                <CardContent
+                  className={cn(
+                    "p-4",
+                    canInlineEdit && "pointer-events-none select-none"
+                  )}
+                >
                   <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
                     {product.type === "3d" ? (
                       <>

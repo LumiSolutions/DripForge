@@ -23,11 +23,21 @@ import {
   SITE_TEXT_DOC_TYPE,
   type SiteTexts,
 } from "@/lib/admin/site-texts"
+import {
+  mergeCmsNavItems,
+  mergeCmsPages,
+  sanitizeCmsNavItemsInput,
+  sanitizeCmsPagesInput,
+  type CmsNavItem,
+  type CmsPageEntry,
+} from "@/lib/admin/site-nav"
 
 export type SiteConfigBundle = {
   texts: SiteTexts
   images: SiteImages
   links: SiteLinks
+  navItems: CmsNavItem[]
+  pages: CmsPageEntry[]
 }
 
 type SiteConfigCosmosDoc = {
@@ -37,6 +47,8 @@ type SiteConfigCosmosDoc = {
   texts: Partial<Record<string, string>>
   images?: Partial<Record<string, unknown>>
   links?: SiteLinks
+  navItems?: CmsNavItem[]
+  pages?: CmsPageEntry[]
   updatedAt: string
 }
 
@@ -50,6 +62,8 @@ function bundleFromDoc(doc: SiteConfigCosmosDoc | null): SiteConfigBundle | null
     texts: mergeSiteTexts(doc.texts),
     images: mergeSiteImages(doc.images),
     links: mergeSiteLinks(doc.links),
+    navItems: mergeCmsNavItems(doc.navItems),
+    pages: mergeCmsPages(doc.pages),
   }
 }
 
@@ -98,6 +112,8 @@ async function upsertSiteConfigDoc(
   const texts = sanitizeSiteTextsInput(bundle.texts)
   const images = sanitizeSiteImagesInput(bundle.images)
   const links = sanitizeSiteLinksInput(bundle.links)
+  const navItems = sanitizeCmsNavItemsInput(bundle.navItems)
+  const pages = sanitizeCmsPagesInput(bundle.pages)
   const doc: SiteConfigCosmosDoc = {
     id: docIdForEnvironment(environment),
     docType: SITE_CONFIG_DOC_TYPE,
@@ -105,10 +121,12 @@ async function upsertSiteConfigDoc(
     texts,
     images,
     links,
+    navItems,
+    pages,
     updatedAt: new Date().toISOString(),
   }
   await container.items.upsert(doc)
-  return { texts, images, links }
+  return { texts, images, links, navItems, pages }
 }
 
 export async function cosmosGetSiteConfigProduction(): Promise<SiteConfigBundle> {
@@ -122,6 +140,8 @@ export async function cosmosGetSiteConfigProduction(): Promise<SiteConfigBundle>
       texts: mergeSiteTexts(legacy),
       images: mergeSiteImages(null),
       links: mergeSiteLinks(null),
+      navItems: mergeCmsNavItems(null),
+      pages: mergeCmsPages(null),
     }
     await upsertSiteConfigDoc("production", migrated)
     return migrated
@@ -131,6 +151,8 @@ export async function cosmosGetSiteConfigProduction(): Promise<SiteConfigBundle>
     texts: mergeSiteTexts(null),
     images: mergeSiteImages(null),
     links: mergeSiteLinks(null),
+    navItems: mergeCmsNavItems(null),
+    pages: mergeCmsPages(null),
   }
 }
 

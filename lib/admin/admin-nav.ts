@@ -44,6 +44,8 @@ export type AdminRouteId =
   | "dienstleistungen"
   | "website-staging"
   | "edit"
+  | "edit-preview"
+  | "test"
   | "dokumenten-vorlagen"
   | "email-vorlagen"
 
@@ -88,6 +90,8 @@ export const ADMIN_ROUTE_PATHS: Record<AdminRouteId, string> = {
   dienstleistungen: "/dienstleistungen",
   "website-staging": "/website-staging",
   edit: "/edit",
+  "edit-preview": "/edit/preview",
+  test: "/test",
   "dokumenten-vorlagen": "/dokumenten-vorlagen",
   "email-vorlagen": "/email-vorlagen",
 }
@@ -238,6 +242,18 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
         id: "edit",
         label: "Website bearbeiten",
         href: adminRouteHref("edit"),
+        icon: FlaskConical,
+      },
+      {
+        id: "edit-preview",
+        label: "In-Context Editor",
+        href: adminRouteHref("edit-preview"),
+        icon: FlaskConical,
+      },
+      {
+        id: "test",
+        label: "Test-Umgebung",
+        href: adminRouteHref("test"),
         icon: FlaskConical,
       },
       {

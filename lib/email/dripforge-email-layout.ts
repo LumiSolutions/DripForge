@@ -1,5 +1,11 @@
 import type { DocumentFooterLines } from "@/lib/documents/document-template-types"
 import { DRIPFORGE_LOGO_URL } from "@/lib/invoices/invoice-format"
+import {
+  normalizeOrderEmailLayout,
+  type OrderEmailLayout,
+  type OrderEmailLogoPosition,
+  type OrderEmailSectionId,
+} from "@/lib/email/order-email-layout"
 
 function escapeHtml(value: string): string {
   return value
@@ -21,14 +27,50 @@ export function textToHtmlParagraphs(text: string): string {
     .join("")
 }
 
+function logoAlignStyle(position: OrderEmailLogoPosition): string {
+  if (position === "left") return "left"
+  if (position === "right") return "right"
+  return "center"
+}
+
 export function renderDripForgeEmailHtml(options: {
   title: string
   bodyHtml: string
   footerLines: DocumentFooterLines
   logoUrl?: string
+  showLogo?: boolean
+  logoPosition?: OrderEmailLogoPosition
+  /** When false, skip the default logo + title header rows (body includes them). */
+  includeDefaultHeader?: boolean
 }): string {
   const logoUrl = options.logoUrl || DRIPFORGE_LOGO_URL
   const footer = options.footerLines
+  const showLogo = options.showLogo !== false
+  const logoPosition = options.logoPosition ?? "center"
+  const includeDefaultHeader = options.includeDefaultHeader !== false
+  const align = logoAlignStyle(logoPosition)
+
+  const headerRows = includeDefaultHeader
+    ? `${
+        showLogo
+          ? `<tr>
+            <td style="padding:28px 28px 12px;text-align:${align};background:linear-gradient(180deg,#fff7ed 0%,#ffffff 100%);">
+              <img src="${escapeHtml(logoUrl)}" alt="DripForge" width="120" style="display:inline-block;max-width:120px;height:auto;" />
+            </td>
+          </tr>`
+          : ""
+      }
+          <tr>
+            <td style="padding:${showLogo ? "8px" : "28px"} 28px 24px;">
+              <h1 style="margin:0 0 18px;font-size:22px;line-height:1.3;color:#111827;text-align:${align};">${escapeHtml(options.title)}</h1>
+              ${options.bodyHtml}
+            </td>
+          </tr>`
+    : `<tr>
+            <td style="padding:28px 28px 24px;">
+              ${options.bodyHtml}
+            </td>
+          </tr>`
 
   return `<!DOCTYPE html>
 <html lang="de">
@@ -42,17 +84,7 @@ export function renderDripForgeEmailHtml(options: {
     <tr>
       <td align="center">
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e5e7eb;">
-          <tr>
-            <td style="padding:28px 28px 12px;text-align:center;background:linear-gradient(180deg,#fff7ed 0%,#ffffff 100%);">
-              <img src="${escapeHtml(logoUrl)}" alt="DripForge" width="120" style="display:inline-block;max-width:120px;height:auto;" />
-            </td>
-          </tr>
-          <tr>
-            <td style="padding:8px 28px 24px;">
-              <h1 style="margin:0 0 18px;font-size:22px;line-height:1.3;color:#111827;">${escapeHtml(options.title)}</h1>
-              ${options.bodyHtml}
-            </td>
-          </tr>
+          ${headerRows}
           <tr>
             <td style="padding:20px 28px 28px;border-top:1px solid #e5e7eb;text-align:center;background:#fafafa;">
               ${footer.line1 ? `<p style="margin:0 0 4px;font-size:12px;font-weight:700;color:#4b5563;">${escapeHtml(footer.line1)}</p>` : ""}
@@ -100,4 +132,68 @@ export function renderOrderItemsTableHtml(
     </thead>
     <tbody>${rows}</tbody>
   </table>`
+}
+
+export function renderOrderEmailHeaderSectionHtml(options: {
+  title: string
+  logoUrl?: string
+  showLogo?: boolean
+  logoPosition?: OrderEmailLogoPosition
+}): string {
+  const showLogo = options.showLogo !== false
+  const logoUrl = options.logoUrl || DRIPFORGE_LOGO_URL
+  const align = logoAlignStyle(options.logoPosition ?? "center")
+  const logoHtml = showLogo
+    ? `<div style="margin:0 0 16px;text-align:${align};">
+        <img src="${escapeHtml(logoUrl)}" alt="DripForge" width="120" style="display:inline-block;max-width:120px;height:auto;" />
+      </div>`
+    : ""
+  return `${logoHtml}<h1 style="margin:0 0 18px;font-size:22px;line-height:1.3;color:#111827;text-align:${align};">${escapeHtml(options.title)}</h1>`
+}
+
+export type OrderConfirmationSectionContent = {
+  header: string
+  intro: string
+  orderItems: string
+  totals: string
+  addressBlock: string
+  footer: string
+}
+
+/** Builds customer order-confirmation HTML respecting sectionOrder / logo settings. */
+export function renderOrderConfirmationEmailHtml(options: {
+  layout?: OrderEmailLayout | unknown
+  title: string
+  sections: OrderConfirmationSectionContent
+  /** Payment hints, PDF note, CTA — always appended after ordered sections. */
+  extraHtml?: string
+  footerLines: DocumentFooterLines
+  logoUrl?: string
+}): string {
+  const layout = normalizeOrderEmailLayout(options.layout)
+  const headerTitle =
+    layout.headerTitle?.trim() || options.title
+
+  const resolvedSections: OrderConfirmationSectionContent = {
+    ...options.sections,
+    header: renderOrderEmailHeaderSectionHtml({
+      title: headerTitle,
+      logoUrl: options.logoUrl,
+      showLogo: layout.showLogo,
+      logoPosition: layout.logoPosition,
+    }),
+  }
+
+  const bodyHtml =
+    layout.sectionOrder
+      .map((id: OrderEmailSectionId) => resolvedSections[id] ?? "")
+      .join("") + (options.extraHtml ?? "")
+
+  return renderDripForgeEmailHtml({
+    title: headerTitle,
+    bodyHtml,
+    footerLines: options.footerLines,
+    logoUrl: options.logoUrl,
+    includeDefaultHeader: false,
+  })
 }

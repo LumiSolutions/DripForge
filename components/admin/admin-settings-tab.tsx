@@ -59,10 +59,15 @@ import {
 import { normalizeCompanySettings } from "@/lib/dripforge/company-settings"
 import {
   DEFAULT_ORDER_EMAIL_TEMPLATES,
-  ORDER_EMAIL_PLACEHOLDER_HINT,
   normalizeOrderEmailTemplates,
   type OrderEmailTemplates,
 } from "@/lib/email/order-email-templates"
+import {
+  DEFAULT_ORDER_EMAIL_LAYOUT,
+  normalizeOrderEmailLayout,
+  type OrderEmailLayout,
+} from "@/lib/email/order-email-layout"
+import { AdminEmailTemplateBuilder } from "@/components/admin/admin-email-template-builder"
 import {
   COUNTDOWN_TEMPLATE_OPTIONS,
   fromDatetimeLocalInput,
@@ -125,8 +130,9 @@ const SECTION_HEADERS: Record<
     subtitle: "Steuert Kaufen, Einlösen und Anzeige von Treuepunkten",
   },
   email: {
-    title: "Bestell-E-Mail Texte",
-    subtitle: "Einleitung und Fusstext der Kunden-Bestätigungsmail",
+    title: "E-Mail-Vorlagen",
+    subtitle:
+      "Visueller Editor für Layout und Texte der Kunden-Bestellbestätigung",
   },
   accounting: {
     title: "Finanz-Setup",
@@ -170,6 +176,12 @@ export function AdminSettingsTab({
   const [loyaltyPointsExpiryMonths, setLoyaltyPointsExpiryMonths] = useState("6")
   const [orderEmailTemplates, setOrderEmailTemplates] =
     useState<OrderEmailTemplates>({ ...DEFAULT_ORDER_EMAIL_TEMPLATES })
+  const [orderEmailLayout, setOrderEmailLayout] = useState<OrderEmailLayout>(
+    () => ({
+      ...DEFAULT_ORDER_EMAIL_LAYOUT,
+      sectionOrder: [...DEFAULT_ORDER_EMAIL_LAYOUT.sectionOrder],
+    })
+  )
   const [themeInboundTourImageUrl, setThemeInboundTourImageUrl] = useState<string | null>(
     null
   )
@@ -242,6 +254,7 @@ export function AdminSettingsTab({
       setOrderEmailTemplates(
         normalizeOrderEmailTemplates(data.orderEmailTemplates)
       )
+      setOrderEmailLayout(normalizeOrderEmailLayout(data.orderEmailLayout))
       setThemeInboundTourImageUrl(
         normalizeThemeInboundTourImageUrl(data.themeInboundTourImageUrl)
       )
@@ -303,6 +316,7 @@ export function AdminSettingsTab({
           loyaltyPointValueChf: Number(loyaltyPointValueChf),
           loyaltyPointsExpiryMonths: Number(loyaltyPointsExpiryMonths),
           orderEmailTemplates,
+          orderEmailLayout,
           launch,
         }),
       })
@@ -365,6 +379,7 @@ export function AdminSettingsTab({
       setOrderEmailTemplates(
         normalizeOrderEmailTemplates(data.orderEmailTemplates)
       )
+      setOrderEmailLayout(normalizeOrderEmailLayout(data.orderEmailLayout))
       setThemeInboundTourImageUrl(
         normalizeThemeInboundTourImageUrl(data.themeInboundTourImageUrl)
       )
@@ -764,69 +779,13 @@ export function AdminSettingsTab({
 
         {show("email") && (
           <Card className={adminUi.card}>
-            <CardContent className="space-y-4 p-6">
-              <div>
-                <h3 className={cn("text-base font-semibold", adminUi.accentTitle)}>
-                  Bestell-E-Mail Texte
-                </h3>
-                <p className={cn("mt-1 text-sm", adminUi.muted)}>
-                  Einleitung und Fusstext der Kunden-Bestätigungsmail.{" "}
-                  {ORDER_EMAIL_PLACEHOLDER_HINT}
-                </p>
-              </div>
-              <div className={cn("space-y-2 rounded-xl border p-4", adminUi.section)}>
-                <Label
-                  htmlFor="orderEmailIntro"
-                  className={cn("text-sm font-semibold", adminUi.heading)}
-                >
-                  Einleitung
-                </Label>
-                <Textarea
-                  id="orderEmailIntro"
-                  value={orderEmailTemplates.receivedIntro}
-                  onChange={(event) =>
-                    setOrderEmailTemplates((prev) => ({
-                      ...prev,
-                      receivedIntro: event.target.value,
-                    }))
-                  }
-                  rows={6}
-                  className={cn("font-mono text-sm", adminUi.input)}
-                  placeholder={DEFAULT_ORDER_EMAIL_TEMPLATES.receivedIntro}
-                />
-              </div>
-              <div className={cn("space-y-2 rounded-xl border p-4", adminUi.section)}>
-                <Label
-                  htmlFor="orderEmailFooter"
-                  className={cn("text-sm font-semibold", adminUi.heading)}
-                >
-                  Fusstext / Abschluss
-                </Label>
-                <Textarea
-                  id="orderEmailFooter"
-                  value={orderEmailTemplates.receivedFooter}
-                  onChange={(event) =>
-                    setOrderEmailTemplates((prev) => ({
-                      ...prev,
-                      receivedFooter: event.target.value,
-                    }))
-                  }
-                  rows={4}
-                  className={cn("font-mono text-sm", adminUi.input)}
-                  placeholder={DEFAULT_ORDER_EMAIL_TEMPLATES.receivedFooter}
-                />
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className={adminUi.input}
-                onClick={() =>
-                  setOrderEmailTemplates({ ...DEFAULT_ORDER_EMAIL_TEMPLATES })
-                }
-              >
-                Standardtexte wiederherstellen
-              </Button>
+            <CardContent className="p-6">
+              <AdminEmailTemplateBuilder
+                templates={orderEmailTemplates}
+                layout={orderEmailLayout}
+                onTemplatesChange={setOrderEmailTemplates}
+                onLayoutChange={setOrderEmailLayout}
+              />
             </CardContent>
           </Card>
         )}

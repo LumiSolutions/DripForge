@@ -27,10 +27,8 @@ import {
   isSiteConfigPreviewEnabled,
   SITE_CONFIG_PREVIEW_PARAM,
 } from "@/lib/admin/site-config"
-import {
-  CMS_PREVIEW_PAGES,
-  cmsPreviewHref,
-} from "@/lib/admin/cms-preview-pages"
+import { cmsPreviewHref } from "@/lib/admin/cms-preview-pages"
+import { resolveVisibleCmsPages } from "@/lib/admin/site-nav"
 import { adminPortalPath } from "@/lib/admin/admin-portal-path"
 import { cn } from "@/lib/utils"
 
@@ -80,11 +78,12 @@ export function SiteConfigPreviewProvider({ children }: { children: ReactNode })
 
 export function SiteConfigPreviewBanner() {
   const { preview, exitPreview } = useContext(SiteConfigPreviewContext)
-  const { canInlineEdit, refresh } = useSiteTexts()
+  const { canInlineEdit, refresh, pages } = useSiteTexts()
   const pathname = usePathname() ?? "/"
   const [publishing, setPublishing] = useState(false)
   const [publishMessage, setPublishMessage] = useState<string | null>(null)
   const [collapsed, setCollapsed] = useState(false)
+  const previewPages = useMemo(() => resolveVisibleCmsPages(pages), [pages])
 
   useEffect(() => {
     try {
@@ -141,7 +140,7 @@ export function SiteConfigPreviewBanner() {
 
   if (collapsed) {
     return (
-      <div className="pointer-events-none fixed bottom-4 right-4 z-[300] sm:bottom-6 sm:right-6">
+      <div className="pointer-events-none fixed top-20 left-4 z-[300]">
         <button
           type="button"
           onClick={() => setCollapsedPreference(false)}
@@ -215,7 +214,7 @@ export function SiteConfigPreviewBanner() {
           <span className="mr-1 text-[11px] font-semibold uppercase tracking-wide text-amber-950/70">
             Seite
           </span>
-          {CMS_PREVIEW_PAGES.map((page) => {
+          {previewPages.map((page) => {
             const active =
               page.path === "/"
                 ? pathname === "/"
@@ -231,7 +230,7 @@ export function SiteConfigPreviewBanner() {
                     : "bg-amber-600/25 text-amber-950 hover:bg-amber-600/40"
                 )}
               >
-                {page.label}
+                {page.title}
               </Link>
             )
           })}
