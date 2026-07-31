@@ -105,8 +105,10 @@ import {
   cosmosGetFilamentMaterials,
 } from "@/lib/admin/cosmos-filaments"
 import {
+  cosmosGetLaserMaterialTypes,
   cosmosGetMaterialStats,
   cosmosGetMaterialTypes,
+  cosmosSaveLaserMaterialTypes,
   cosmosSaveMaterialStats,
   cosmosSaveMaterialTypes,
 } from "@/lib/admin/cosmos-material-stats"
@@ -145,7 +147,16 @@ import {
   sanitizeSiteImagesInput,
   type SiteImages,
 } from "@/lib/admin/site-images"
+import {
+  mergeSiteLinks,
+  sanitizeSiteLinksInput,
+  type SiteLinks,
+} from "@/lib/admin/site-links"
 import type { AdminFilament } from "@/lib/admin/filament-types"
+import {
+  mergeLaserMaterialTypes,
+  type LaserMaterialTypeDefinition,
+} from "@/lib/admin/laser-material-types"
 import {
   mergeMaterialStats,
   mergeMaterialTypes,
@@ -843,6 +854,7 @@ export async function getSiteConfigProduction(): Promise<SiteConfigBundle> {
       return {
         texts: mergeSiteTexts(legacy),
         images: mergeSiteImages(null),
+        links: mergeSiteLinks(null),
       }
     }
   )
@@ -865,12 +877,14 @@ export async function saveSiteConfigStaging(
   input: {
     texts?: SiteTexts
     images?: SiteImages
+    links?: SiteLinks
   }
 ): Promise<SiteConfigBundle> {
   const existing = await getSiteConfigStaging()
   const bundle: SiteConfigBundle = {
     texts: sanitizeSiteTextsInput(input.texts ?? existing.texts),
     images: sanitizeSiteImagesInput(input.images ?? existing.images),
+    links: sanitizeSiteLinksInput(input.links ?? existing.links),
   }
   return withCosmosFallback(
     "saveSiteConfigStaging",
@@ -891,6 +905,7 @@ export async function publishSiteConfig(): Promise<SiteConfigBundle> {
       const published: SiteConfigBundle = {
         texts: sanitizeSiteTextsInput(staging.texts),
         images: sanitizeSiteImagesInput(staging.images),
+        links: sanitizeSiteLinksInput(staging.links),
       }
       await writeJsonFile(SITE_CONFIG_PRODUCTION_FILE, published)
       return published
@@ -919,18 +934,40 @@ export async function saveSiteTexts(texts: SiteTexts): Promise<SiteTexts> {
   return saved.texts
 }
 
+type MaterialStatsFileShape =
+  | Partial<MaterialStatsMap>
+  | MaterialTypeDefinition[]
+  | {
+      types?: MaterialTypeDefinition[]
+      laserTypes?: LaserMaterialTypeDefinition[]
+      categories?: Partial<MaterialStatsMap>
+    }
+  | null
+
+function filamentTypesFromFile(stored: MaterialStatsFileShape): MaterialTypeDefinition[] {
+  if (!stored) return mergeMaterialTypes(null)
+  if (Array.isArray(stored)) return mergeMaterialTypes(stored)
+  if ("types" in stored || "laserTypes" in stored || "categories" in stored) {
+    if (Array.isArray(stored.types)) return mergeMaterialTypes(stored.types)
+    return mergeMaterialTypes(stored.categories ?? null)
+  }
+  return mergeMaterialTypes(stored)
+}
+
+function laserTypesFromFile(stored: MaterialStatsFileShape): LaserMaterialTypeDefinition[] {
+  if (stored && !Array.isArray(stored) && "laserTypes" in stored) {
+    return mergeLaserMaterialTypes(stored.laserTypes)
+  }
+  return mergeLaserMaterialTypes(null)
+}
+
 export async function getMaterialStats(): Promise<MaterialStatsMap> {
   return withCosmosFallback(
     "getMaterialStats",
     cosmosGetMaterialStats,
     async () => {
-      const stored = await readJsonFile<
-        | Partial<MaterialStatsMap>
-        | MaterialTypeDefinition[]
-        | null
-      >(MATERIAL_STATS_FILE, null)
-      if (Array.isArray(stored)) return typesToLegacyMap(mergeMaterialTypes(stored))
-      return mergeMaterialStats(stored)
+      const stored = await readJsonFile<MaterialStatsFileShape>(MATERIAL_STATS_FILE, null)
+      return typesToLegacyMap(filamentTypesFromFile(stored))
     }
   )
 }
@@ -940,12 +977,19 @@ export async function getMaterialTypes(): Promise<MaterialTypeDefinition[]> {
     "getMaterialTypes",
     cosmosGetMaterialTypes,
     async () => {
-      const stored = await readJsonFile<
-        | Partial<MaterialStatsMap>
-        | MaterialTypeDefinition[]
-        | null
-      >(MATERIAL_STATS_FILE, null)
-      return mergeMaterialTypes(stored)
+      const stored = await readJsonFile<MaterialStatsFileShape>(MATERIAL_STATS_FILE, null)
+      return filamentTypesFromFile(stored)
+    }
+  )
+}
+
+export async function getLaserMaterialTypes(): Promise<LaserMaterialTypeDefinition[]> {
+  return withCosmosFallback(
+    "getLaserMaterialTypes",
+    cosmosGetLaserMaterialTypes,
+    async () => {
+      const stored = await readJsonFile<MaterialStatsFileShape>(MATERIAL_STATS_FILE, null)
+      return laserTypesFromFile(stored)
     }
   )
 }
@@ -954,6 +998,14 @@ export async function saveMaterialTypes(
   types: MaterialTypeDefinition[]
 ): Promise<MaterialTypeDefinition[]> {
   return withCosmosRequired("saveMaterialTypes", () => cosmosSaveMaterialTypes(types))
+}
+
+export async function saveLaserMaterialTypes(
+  laserTypes: LaserMaterialTypeDefinition[]
+): Promise<LaserMaterialTypeDefinition[]> {
+  return withCosmosRequired("saveLaserMaterialTypes", () =>
+    cosmosSaveLaserMaterialTypes(laserTypes)
+  )
 }
 
 export async function saveMaterialStats(
