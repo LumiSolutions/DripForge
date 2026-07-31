@@ -394,7 +394,7 @@ export function AdminStatsTab() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-3">
         <Card className={adminUi.card}>
           <CardHeader>
             <CardTitle className={cn("text-base", adminUi.heading)}>Top-Produkte</CardTitle>
@@ -474,8 +474,8 @@ export function AdminStatsTab() {
                 Keine Produktdaten vorhanden.
               </p>
             ) : (
-              <div className="flex flex-col gap-6 md:flex-row md:items-center">
-                <div className="mx-auto h-[220px] w-full max-w-[240px]">
+              <div className="flex flex-col gap-4">
+                <div className="mx-auto h-[160px] w-full max-w-[180px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
@@ -484,8 +484,8 @@ export function AdminStatsTab() {
                         nameKey="name"
                         cx="50%"
                         cy="50%"
-                        innerRadius={48}
-                        outerRadius={80}
+                        innerRadius={36}
+                        outerRadius={60}
                         paddingAngle={2}
                       >
                         {pieProducts.map((_, index) => (
@@ -510,12 +510,7 @@ export function AdminStatsTab() {
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
-                <div
-                  className={cn(
-                    "max-h-64 min-w-0 flex-1 overflow-y-auto",
-                    adminUi.tableWrap
-                  )}
-                >
+                <div className={cn("min-w-0", adminUi.tableWrap)}>
                   <Table>
                     <TableHeader>
                       <TableRow className={adminUi.tableHeadRow}>
@@ -535,7 +530,7 @@ export function AdminStatsTab() {
                         <TableRow key={row.name} className={cn("py-1.5", adminUi.tableRow)}>
                           <TableCell
                             className={cn(
-                              "max-w-[200px] truncate py-1.5",
+                              "max-w-[140px] truncate py-1.5",
                               adminUi.tableCell
                             )}
                           >
@@ -582,7 +577,7 @@ export function AdminStatsTab() {
                 Noch keine Konfigurationsdaten in Bestellpositionen.
               </p>
             ) : (
-              <div className={cn("max-h-64 overflow-y-auto", adminUi.tableWrap)}>
+              <div className={adminUi.tableWrap}>
                 <Table>
                   <TableHeader>
                     <TableRow className={adminUi.tableHeadRow}>
@@ -625,78 +620,78 @@ export function AdminStatsTab() {
             )}
           </CardContent>
         </Card>
-      </div>
 
-      <Card className={adminUi.card}>
-        <CardHeader>
-          <CardTitle className={cn("text-base", adminUi.heading)}>
-            Top-Käufer (Top 10)
-          </CardTitle>
-          <p className={cn("text-sm", adminUi.muted)}>
-            Nach Gesamtumsatz ohne stornierte Bestellungen
-          </p>
-        </CardHeader>
-          <CardContent>
-          {(data?.topBuyers ?? []).length === 0 ? (
-            <p className={cn("py-8 text-center text-sm", adminUi.muted)}>
-              Noch keine Kundendaten vorhanden.
+        <Card className={adminUi.card}>
+          <CardHeader>
+            <CardTitle className={cn("text-base", adminUi.heading)}>
+              Top Käufer (Top 10)
+            </CardTitle>
+            <p className={cn("text-sm", adminUi.muted)}>
+              Nach Gesamtumsatz ohne stornierte Bestellungen
             </p>
-          ) : (
-            <div className={cn("max-h-64 overflow-y-auto", adminUi.tableWrap)}>
-              <Table>
-                <TableHeader>
-                  <TableRow className={adminUi.tableHeadRow}>
-                    <TableHead className={cn("w-14 py-1.5", adminUi.tableHead)}>
-                      Rang
-                    </TableHead>
-                    <TableHead className={cn("py-1.5", adminUi.tableHead)}>Kunde</TableHead>
-                    <TableHead className={cn("py-1.5 text-right", adminUi.tableHead)}>
-                      Bestellungen
-                    </TableHead>
-                    <TableHead className={cn("py-1.5 text-right", adminUi.tableHead)}>
-                      Gesamtumsatz
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {data?.topBuyers.map((row, index) => (
-                    <TableRow key={row.email} className={adminUi.tableRow}>
-                      <TableCell
-                        className={cn(
-                          "py-1.5 font-semibold tabular-nums",
-                          adminUi.accentTitle
-                        )}
-                      >
-                        #{index + 1}
-                      </TableCell>
-                      <TableCell className={cn("py-1.5", adminUi.tableCell)}>
-                        <p className="font-medium">{row.name}</p>
-                        <p className={cn("text-xs", adminUi.muted)}>{row.email}</p>
-                      </TableCell>
-                      <TableCell
-                        className={cn(
-                          "py-1.5 text-right tabular-nums",
-                          adminUi.bodyText
-                        )}
-                      >
-                        {row.orderCount}
-                      </TableCell>
-                      <TableCell
-                        className={cn(
-                          "py-1.5 text-right font-medium tabular-nums",
-                          adminUi.accentTitle
-                        )}
-                      >
-                        {formatChf(row.revenueChf)}
-                      </TableCell>
+          </CardHeader>
+          <CardContent>
+            {(data?.topBuyers ?? []).length === 0 ? (
+              <p className={cn("py-8 text-center text-sm", adminUi.muted)}>
+                Noch keine Kundendaten vorhanden.
+              </p>
+            ) : (
+              <div className={adminUi.tableWrap}>
+                <Table>
+                  <TableHeader>
+                    <TableRow className={adminUi.tableHeadRow}>
+                      <TableHead className={cn("w-10 py-1.5", adminUi.tableHead)}>
+                        Rang
+                      </TableHead>
+                      <TableHead className={cn("py-1.5", adminUi.tableHead)}>Kunde</TableHead>
+                      <TableHead className={cn("py-1.5 text-right", adminUi.tableHead)}>
+                        Bestellungen
+                      </TableHead>
+                      <TableHead className={cn("py-1.5 text-right", adminUi.tableHead)}>
+                        Gesamtumsatz
+                      </TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                  </TableHeader>
+                  <TableBody>
+                    {data?.topBuyers.map((row, index) => (
+                      <TableRow key={row.email} className={adminUi.tableRow}>
+                        <TableCell
+                          className={cn(
+                            "py-1.5 font-semibold tabular-nums",
+                            adminUi.accentTitle
+                          )}
+                        >
+                          #{index + 1}
+                        </TableCell>
+                        <TableCell className={cn("py-1.5", adminUi.tableCell)}>
+                          <p className="truncate font-medium">{row.name}</p>
+                          <p className={cn("truncate text-xs", adminUi.muted)}>{row.email}</p>
+                        </TableCell>
+                        <TableCell
+                          className={cn(
+                            "py-1.5 text-right tabular-nums",
+                            adminUi.bodyText
+                          )}
+                        >
+                          {row.orderCount}
+                        </TableCell>
+                        <TableCell
+                          className={cn(
+                            "py-1.5 text-right font-medium tabular-nums",
+                            adminUi.accentTitle
+                          )}
+                        >
+                          {formatChf(row.revenueChf)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
 }

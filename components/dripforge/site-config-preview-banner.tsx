@@ -11,7 +11,15 @@ import {
 } from "react"
 import { usePathname } from "next/navigation"
 import Link from "next/link"
-import { EyeOff, Loader2, Rocket, X } from "lucide-react"
+import {
+  ChevronDown,
+  ChevronUp,
+  EyeOff,
+  Loader2,
+  Pencil,
+  Rocket,
+  X,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useSiteTexts } from "@/components/dripforge/site-texts-provider"
 import {
@@ -19,6 +27,14 @@ import {
   isSiteConfigPreviewEnabled,
   SITE_CONFIG_PREVIEW_PARAM,
 } from "@/lib/admin/site-config"
+import {
+  CMS_PREVIEW_PAGES,
+  cmsPreviewHref,
+} from "@/lib/admin/cms-preview-pages"
+import { adminPortalPath } from "@/lib/admin/admin-portal-path"
+import { cn } from "@/lib/utils"
+
+const BANNER_COLLAPSED_KEY = "dripforge_staging_banner_collapsed"
 
 type SiteConfigPreviewContextValue = {
   preview: boolean
@@ -65,8 +81,27 @@ export function SiteConfigPreviewProvider({ children }: { children: ReactNode })
 export function SiteConfigPreviewBanner() {
   const { preview, exitPreview } = useContext(SiteConfigPreviewContext)
   const { canInlineEdit, refresh } = useSiteTexts()
+  const pathname = usePathname() ?? "/"
   const [publishing, setPublishing] = useState(false)
   const [publishMessage, setPublishMessage] = useState<string | null>(null)
+  const [collapsed, setCollapsed] = useState(false)
+
+  useEffect(() => {
+    try {
+      setCollapsed(sessionStorage.getItem(BANNER_COLLAPSED_KEY) === "1")
+    } catch {
+      setCollapsed(false)
+    }
+  }, [])
+
+  const setCollapsedPreference = (next: boolean) => {
+    setCollapsed(next)
+    try {
+      sessionStorage.setItem(BANNER_COLLAPSED_KEY, next ? "1" : "0")
+    } catch {
+      /* ignore */
+    }
+  }
 
   const publishLive = async () => {
     if (
@@ -84,7 +119,10 @@ export function SiteConfigPreviewBanner() {
         method: "POST",
         credentials: "include",
       })
-      const data = (await res.json().catch(() => null)) as { error?: string; message?: string } | null
+      const data = (await res.json().catch(() => null)) as {
+        error?: string
+        message?: string
+      } | null
       if (!res.ok) {
         throw new Error(data?.error ?? "Veröffentlichen fehlgeschlagen")
       }
@@ -101,41 +139,104 @@ export function SiteConfigPreviewBanner() {
 
   if (!preview) return null
 
-  return (
-    <div className="pointer-events-none fixed inset-x-0 top-0 z-[300] flex justify-center px-4 pt-[max(0.5rem,env(safe-area-inset-top))]">
-      <div className="pointer-events-auto flex max-w-4xl flex-wrap items-center justify-center gap-2 rounded-xl border border-amber-500/40 bg-amber-500/95 px-4 py-2 text-sm font-medium text-amber-950 shadow-lg backdrop-blur-sm">
-        <span>Staging-Vorschau — Besucher sehen diese Texte und Bilder noch nicht.</span>
-        {canInlineEdit && (
-          <Button
-            type="button"
-            size="sm"
-            disabled={publishing}
-            className="h-8 bg-emerald-600 text-white hover:bg-emerald-500"
-            onClick={() => void publishLive()}
-          >
-            {publishing ? (
-              <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Rocket className="mr-1 h-3.5 w-3.5" />
-            )}
-            Änderungen live veröffentlichen
-          </Button>
-        )}
-        <Button type="button" size="sm" variant="secondary" className="h-8" asChild>
-          <Link href="/admin/content">Zum CMS</Link>
-        </Button>
-        <Button type="button" size="sm" variant="secondary" className="h-8" onClick={exitPreview}>
-          <EyeOff className="mr-1 h-3.5 w-3.5" />
-          Vorschau beenden
-        </Button>
+  if (collapsed) {
+    return (
+      <div className="pointer-events-none fixed bottom-4 right-4 z-[300] sm:bottom-6 sm:right-6">
         <button
           type="button"
-          onClick={exitPreview}
-          className="rounded-md p-1 text-amber-950/70 hover:bg-amber-600/30 hover:text-amber-950"
-          aria-label="Vorschau schliessen"
+          onClick={() => setCollapsedPreference(false)}
+          className={cn(
+            "pointer-events-auto inline-flex items-center gap-2 rounded-full",
+            "border border-amber-500/50 bg-amber-500 px-3 py-2 text-xs font-semibold text-amber-950",
+            "shadow-lg backdrop-blur-sm transition hover:bg-amber-400"
+          )}
+          aria-expanded={false}
+          aria-label="Staging-Banner erweitern"
         >
-          <X className="h-4 w-4" />
+          <span className="h-2 w-2 rounded-full bg-amber-950/80" />
+          Staging
+          <ChevronUp className="h-3.5 w-3.5" />
         </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="pointer-events-none fixed inset-x-0 top-0 z-[300] flex justify-center px-4 pt-[max(0.5rem,env(safe-area-inset-top))]">
+      <div className="pointer-events-auto flex max-w-5xl flex-col gap-2 rounded-xl border border-amber-500/40 bg-amber-500/95 px-4 py-2 text-sm font-medium text-amber-950 shadow-lg backdrop-blur-sm">
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          <span>Staging-Vorschau — Besucher sehen diese Texte und Bilder noch nicht.</span>
+          {canInlineEdit && (
+            <Button
+              type="button"
+              size="sm"
+              disabled={publishing}
+              className="h-8 bg-emerald-600 text-white hover:bg-emerald-500"
+              onClick={() => void publishLive()}
+            >
+              {publishing ? (
+                <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Rocket className="mr-1 h-3.5 w-3.5" />
+              )}
+              Live veröffentlichen
+            </Button>
+          )}
+          <Button type="button" size="sm" variant="secondary" className="h-8" asChild>
+            <Link href={adminPortalPath("/edit")}>
+              <Pencil className="mr-1 h-3.5 w-3.5" />
+              Zum CMS
+            </Link>
+          </Button>
+          <Button type="button" size="sm" variant="secondary" className="h-8" onClick={exitPreview}>
+            <EyeOff className="mr-1 h-3.5 w-3.5" />
+            Vorschau beenden
+          </Button>
+          <button
+            type="button"
+            onClick={() => setCollapsedPreference(true)}
+            className="rounded-md p-1 text-amber-950/70 hover:bg-amber-600/30 hover:text-amber-950"
+            aria-label="Banner minimieren"
+            title="Minimieren"
+          >
+            <ChevronDown className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={exitPreview}
+            className="rounded-md p-1 text-amber-950/70 hover:bg-amber-600/30 hover:text-amber-950"
+            aria-label="Vorschau schliessen"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-center gap-1.5 border-t border-amber-700/20 pt-2">
+          <span className="mr-1 text-[11px] font-semibold uppercase tracking-wide text-amber-950/70">
+            Seite
+          </span>
+          {CMS_PREVIEW_PAGES.map((page) => {
+            const active =
+              page.path === "/"
+                ? pathname === "/"
+                : pathname === page.path || pathname.startsWith(`${page.path}/`)
+            return (
+              <Link
+                key={page.id}
+                href={cmsPreviewHref(page.path)}
+                className={cn(
+                  "rounded-md px-2 py-1 text-xs font-medium transition",
+                  active
+                    ? "bg-amber-950 text-amber-50"
+                    : "bg-amber-600/25 text-amber-950 hover:bg-amber-600/40"
+                )}
+              >
+                {page.label}
+              </Link>
+            )
+          })}
+        </div>
+
         {publishMessage && (
           <span className="w-full text-center text-xs font-semibold">{publishMessage}</span>
         )}

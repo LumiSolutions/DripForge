@@ -43,6 +43,7 @@ export type AdminRouteId =
   | "support-kampagne"
   | "dienstleistungen"
   | "website-staging"
+  | "edit"
   | "dokumenten-vorlagen"
   | "email-vorlagen"
 
@@ -86,6 +87,7 @@ export const ADMIN_ROUTE_PATHS: Record<AdminRouteId, string> = {
   "support-kampagne": "/support-kampagne",
   dienstleistungen: "/dienstleistungen",
   "website-staging": "/website-staging",
+  edit: "/edit",
   "dokumenten-vorlagen": "/dokumenten-vorlagen",
   "email-vorlagen": "/email-vorlagen",
 }
@@ -233,6 +235,12 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
         icon: Layers,
       },
       {
+        id: "edit",
+        label: "Website bearbeiten",
+        href: adminRouteHref("edit"),
+        icon: FlaskConical,
+      },
+      {
         id: "website-staging",
         label: "Website Stagingpage",
         href: adminRouteHref("website-staging"),
@@ -310,7 +318,7 @@ export const LEGACY_ADMIN_TAB_REDIRECTS: Record<string, string> = {
   accounting: ADMIN_ROUTE_PATHS.buchhaltung,
   coupons: ADMIN_ROUTE_PATHS.gutscheine,
   settings: ADMIN_ROUTE_PATHS["shop-einstellungen"],
-  "site-texts": ADMIN_ROUTE_PATHS["website-staging"],
+  "site-texts": ADMIN_ROUTE_PATHS.edit,
   "print-calculator": ADMIN_ROUTE_PATHS.druckkalkulator,
   "ai-settings": ADMIN_ROUTE_PATHS["ki-modell"],
   "invoice-template": ADMIN_ROUTE_PATHS["dokumenten-vorlagen"],

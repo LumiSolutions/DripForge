@@ -20,6 +20,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       texts: published.texts,
       images: published.images,
+      links: published.links,
       meta,
       environment: "production",
       message: "Staging-Inhalte wurden live veröffentlicht.",

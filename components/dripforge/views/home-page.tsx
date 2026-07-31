@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import Link from "next/link"
 import {
   Home,
   Printer,
@@ -58,7 +57,10 @@ import { IndividualProcessBar } from "@/components/dripforge/shared/individual-p
 import { materials3D, laserMaterials, processSteps, products } from "@/lib/dripforge/data"
 import type { CartItem } from "@/lib/dripforge/types"
 import type { ServiceVisibilitySettings } from "@/lib/admin/types"
-import { SiteText } from "@/components/dripforge/editable-site-text"
+import {
+  SiteEditableLink,
+  SiteText,
+} from "@/components/dripforge/editable-site-text"
 import { SiteImage } from "@/components/dripforge/editable-site-image"
 import { SiteTextPhrase } from "@/components/dripforge/site-text-phrase"
 import { useAiPublicSettings } from "@/hooks/use-ai-public-settings"
@@ -107,13 +109,21 @@ export function HomePage({
                   asChild
                   className="bg-primary text-primary-foreground hover:bg-primary/90"
                 >
-                  <Link href={SHOP_ROUTES.shop}>
+                  <SiteEditableLink
+                    href={SHOP_ROUTES.shop}
+                    hrefKey="landingpage_hero_cta_primary"
+                  >
                     <SiteText k="landingpage_hero_cta_primary" />
                     <ArrowRight className="ml-2 h-4 w-4" />
-                  </Link>
+                  </SiteEditableLink>
                 </Button>
                 <Button size="lg" variant="outline" asChild>
-                  <Link href={SHOP_ROUTES.shop}><SiteText k="landingpage_hero_cta_secondary" /></Link>
+                  <SiteEditableLink
+                    href={SHOP_ROUTES.shop}
+                    hrefKey="landingpage_hero_cta_secondary"
+                  >
+                    <SiteText k="landingpage_hero_cta_secondary" />
+                  </SiteEditableLink>
                 </Button>
               </div>
             </div>
@@ -179,13 +189,14 @@ export function HomePage({
                     <p className="mb-6 text-sm text-muted-foreground">
                       <SiteText k="landingpage_expertise_3d_description" />
                     </p>
-                    <Link
+                    <SiteEditableLink
                       href={SHOP_ROUTES["3d-druck"]}
+                      hrefKey="landingpage_expertise_3d_cta"
                       className="inline-flex items-center text-sm font-medium text-foreground hover:text-primary"
                     >
                       <SiteText k="landingpage_expertise_3d_cta" />
                       <ArrowRight className="ml-1 h-4 w-4" />
-                    </Link>
+                    </SiteEditableLink>
                   </div>
                   <div className="relative ml-4 h-40 w-40 opacity-50">
                     <SiteImage
@@ -211,13 +222,14 @@ export function HomePage({
                     <p className="mb-6 text-sm text-muted-foreground">
                       <SiteText k="landingpage_expertise_laser_description" />
                     </p>
-                    <Link
+                    <SiteEditableLink
                       href={SHOP_ROUTES.laser}
+                      hrefKey="landingpage_expertise_laser_cta"
                       className="inline-flex items-center text-sm font-medium text-foreground hover:text-primary"
                     >
                       <SiteText k="landingpage_expertise_laser_cta" />
                       <ArrowRight className="ml-1 h-4 w-4" />
-                    </Link>
+                    </SiteEditableLink>
                   </div>
                   <div className="relative ml-4 h-40 w-40 opacity-50">
                     <SiteImage
@@ -254,10 +266,13 @@ export function HomePage({
                 asChild
                 className="bg-violet-600 text-white hover:bg-violet-500"
               >
-                <Link href={SHOP_ROUTES.aiKonfigurator}>
+                <SiteEditableLink
+                  href={SHOP_ROUTES.aiKonfigurator}
+                  hrefKey="landingpage_ai_cta"
+                >
                   <SiteText k="landingpage_ai_cta" />
                   <ArrowRight className="ml-2 h-4 w-4" />
-                </Link>
+                </SiteEditableLink>
               </Button>
             </CardContent>
           </Card>
@@ -341,13 +356,21 @@ export function HomePage({
                   asChild
                   className="bg-primary text-primary-foreground hover:bg-primary/90"
                 >
-                  <Link href={SHOP_ROUTES.shop}>
+                  <SiteEditableLink
+                    href={SHOP_ROUTES.shop}
+                    hrefKey="landingpage_cta_button_upload"
+                  >
                     <SiteText k="landingpage_cta_button_upload" />
                     <ArrowRight className="ml-2 h-4 w-4" />
-                  </Link>
+                  </SiteEditableLink>
                 </Button>
                 <Button size="lg" variant="outline" asChild>
-                  <Link href={SHOP_ROUTES.kontakt}><SiteText k="landingpage_cta_button_contact" /></Link>
+                  <SiteEditableLink
+                    href={SHOP_ROUTES.kontakt}
+                    hrefKey="landingpage_cta_button_contact"
+                  >
+                    <SiteText k="landingpage_cta_button_contact" />
+                  </SiteEditableLink>
                 </Button>
               </div>
               <div className="mt-8 flex flex-wrap justify-center gap-6 text-sm text-muted-foreground">

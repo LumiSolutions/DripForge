@@ -10,6 +10,8 @@ export type SiteTextField = {
   key: SiteTextKey
   label: string
   multiline?: boolean
+  /** Wenn true (oder Key enthält cta/button), zeigt der Editor ein Ziel-URL-Feld. */
+  hrefEditable?: boolean
 }
 
 export type SiteTextSection = {
@@ -144,8 +146,8 @@ export const SITE_TEXT_SECTIONS: SiteTextSection[] = [
       { key: "landingpage_hero_title", label: "Hero-Titel (Teil 1)" },
       { key: "landingpage_hero_title_highlight", label: "Hero-Titel (hervorgehoben)" },
       { key: "landingpage_hero_subtitle", label: "Hero-Untertitel", multiline: true },
-      { key: "landingpage_hero_cta_primary", label: "Primaerer Button" },
-      { key: "landingpage_hero_cta_secondary", label: "Sekundaerer Button" },
+      { key: "landingpage_hero_cta_primary", label: "Primaerer Button", hrefEditable: true },
+      { key: "landingpage_hero_cta_secondary", label: "Sekundaerer Button", hrefEditable: true },
       { key: "landingpage_top_products_prefix", label: "Top-Produkte Prefix (z.B. Unsere)" },
       { key: "landingpage_top_products_heading", label: "Top-Produkte Überschrift" },
       {
@@ -172,8 +174,8 @@ export const SITE_TEXT_SECTIONS: SiteTextSection[] = [
       { key: "landingpage_cta_title_prefix", label: "CTA-Titel Prefix (z.B. Bereit zum)" },
       { key: "landingpage_cta_title", label: "CTA-Titel (hervorgehoben)" },
       { key: "landingpage_cta_subtitle", label: "CTA-Text", multiline: true },
-      { key: "landingpage_cta_button_upload", label: "CTA-Button Upload" },
-      { key: "landingpage_cta_button_contact", label: "CTA-Button Kontakt" },
+      { key: "landingpage_cta_button_upload", label: "CTA-Button Upload", hrefEditable: true },
+      { key: "landingpage_cta_button_contact", label: "CTA-Button Kontakt", hrefEditable: true },
       { key: "landingpage_trust_offer", label: "Vertrauens-Badge: Offerte" },
       { key: "landingpage_trust_shipping", label: "Vertrauens-Badge: Versand" },
       { key: "landingpage_trust_quality", label: "Vertrauens-Badge: Qualität" },
@@ -191,17 +193,17 @@ export const SITE_TEXT_SECTIONS: SiteTextSection[] = [
         label: "3D-Karte Beschreibung",
         multiline: true,
       },
-      { key: "landingpage_expertise_3d_cta", label: "3D-Karte Button" },
+      { key: "landingpage_expertise_3d_cta", label: "3D-Karte Button", hrefEditable: true },
       { key: "landingpage_expertise_laser_title", label: "Laser-Karte Titel" },
       {
         key: "landingpage_expertise_laser_description",
         label: "Laser-Karte Beschreibung",
         multiline: true,
       },
-      { key: "landingpage_expertise_laser_cta", label: "Laser-Karte Button" },
+      { key: "landingpage_expertise_laser_cta", label: "Laser-Karte Button", hrefEditable: true },
       { key: "landingpage_ai_title", label: "KI-Block Titel" },
       { key: "landingpage_ai_description", label: "KI-Block Text", multiline: true },
-      { key: "landingpage_ai_cta", label: "KI-Block Button" },
+      { key: "landingpage_ai_cta", label: "KI-Block Button", hrefEditable: true },
       { key: "landingpage_feature_1_title", label: "Feature 1 Titel" },
       {
         key: "landingpage_feature_1_description",
@@ -238,7 +240,7 @@ export const SITE_TEXT_SECTIONS: SiteTextSection[] = [
       { key: "chat_status_live", label: "Status: Live" },
       { key: "chat_loading", label: "Lade-Hinweis" },
       { key: "chat_input_placeholder", label: "Eingabefeld Placeholder" },
-      { key: "chat_contact_link", label: "Kontakt-Link" },
+      { key: "chat_contact_link", label: "Kontakt-Link", hrefEditable: true },
       { key: "chat_open_label", label: "Chat-Button Label" },
       { key: "chat_support_mission", label: "Support-Herz Titel" },
     ],
@@ -298,14 +300,25 @@ export const SITE_TEXT_SECTIONS: SiteTextSection[] = [
 export function getSiteTextFieldMeta(key: SiteTextKey): {
   label: string
   multiline: boolean
+  hrefEditable: boolean
 } {
   for (const section of SITE_TEXT_SECTIONS) {
     const field = section.fields.find((entry) => entry.key === key)
     if (field) {
-      return { label: field.label, multiline: Boolean(field.multiline) }
+      const hrefEditable =
+        Boolean(field.hrefEditable) ||
+        key.toLowerCase().includes("cta") ||
+        key.toLowerCase().includes("button")
+      return {
+        label: field.label,
+        multiline: Boolean(field.multiline),
+        hrefEditable,
+      }
     }
   }
-  return { label: key, multiline: false }
+  const hrefEditable =
+    key.toLowerCase().includes("cta") || key.toLowerCase().includes("button")
+  return { label: key, multiline: false, hrefEditable }
 }
 
 export function mergeSiteTexts(

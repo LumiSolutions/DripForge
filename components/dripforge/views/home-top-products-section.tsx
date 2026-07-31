@@ -6,6 +6,7 @@ import useEmblaCarousel from "embla-carousel-react"
 import { ArrowRight, ChevronLeft, ChevronRight, Printer, Zap } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { SiteText } from "@/components/dripforge/editable-site-text"
+import { useSiteTexts } from "@/components/dripforge/site-texts-provider"
 import { SiteTextPhrase } from "@/components/dripforge/site-text-phrase"
 import { ProductShopPrice } from "@/components/dripforge/shared/product-shop-price"
 import { SafeProductImage } from "@/components/dripforge/shared/safe-product-image"
@@ -48,6 +49,7 @@ function buildLoopSlides(products: Product[]): LoopSlide[] {
 }
 
 export function HomeTopProductsSection() {
+  const { canInlineEdit } = useSiteTexts()
   const [products, setProducts] = useState<Product[] | null>(null)
   const [enabled, setEnabled] = useState(true)
 
@@ -166,6 +168,12 @@ export function HomeTopProductsSection() {
                       <Link
                         href={`/shop/${encodeURIComponent(product.id)}`}
                         className="block"
+                        onClick={(event) => {
+                          if (canInlineEdit) {
+                            event.preventDefault()
+                            event.stopPropagation()
+                          }
+                        }}
                       >
                         <div className="relative aspect-[4/3] bg-secondary/50">
                           {product.sale && salePercent != null && (

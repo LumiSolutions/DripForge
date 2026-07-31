@@ -13,6 +13,11 @@ import {
   type SiteImages,
 } from "@/lib/admin/site-images"
 import {
+  mergeSiteLinks,
+  sanitizeSiteLinksInput,
+  type SiteLinks,
+} from "@/lib/admin/site-links"
+import {
   mergeSiteTexts,
   sanitizeSiteTextsInput,
   SITE_TEXT_DOC_TYPE,
@@ -22,6 +27,7 @@ import {
 export type SiteConfigBundle = {
   texts: SiteTexts
   images: SiteImages
+  links: SiteLinks
 }
 
 type SiteConfigCosmosDoc = {
@@ -30,6 +36,7 @@ type SiteConfigCosmosDoc = {
   environment: SiteConfigEnvironment
   texts: Partial<Record<string, string>>
   images?: Partial<Record<string, unknown>>
+  links?: SiteLinks
   updatedAt: string
 }
 
@@ -42,6 +49,7 @@ function bundleFromDoc(doc: SiteConfigCosmosDoc | null): SiteConfigBundle | null
   return {
     texts: mergeSiteTexts(doc.texts),
     images: mergeSiteImages(doc.images),
+    links: mergeSiteLinks(doc.links),
   }
 }
 
@@ -89,16 +97,18 @@ async function upsertSiteConfigDoc(
   const container = await getSettingsContainer()
   const texts = sanitizeSiteTextsInput(bundle.texts)
   const images = sanitizeSiteImagesInput(bundle.images)
+  const links = sanitizeSiteLinksInput(bundle.links)
   const doc: SiteConfigCosmosDoc = {
     id: docIdForEnvironment(environment),
     docType: SITE_CONFIG_DOC_TYPE,
     environment,
     texts,
     images,
+    links,
     updatedAt: new Date().toISOString(),
   }
   await container.items.upsert(doc)
-  return { texts, images }
+  return { texts, images, links }
 }
 
 export async function cosmosGetSiteConfigProduction(): Promise<SiteConfigBundle> {
@@ -111,6 +121,7 @@ export async function cosmosGetSiteConfigProduction(): Promise<SiteConfigBundle>
     const migrated: SiteConfigBundle = {
       texts: mergeSiteTexts(legacy),
       images: mergeSiteImages(null),
+      links: mergeSiteLinks(null),
     }
     await upsertSiteConfigDoc("production", migrated)
     return migrated
@@ -119,6 +130,7 @@ export async function cosmosGetSiteConfigProduction(): Promise<SiteConfigBundle>
   return {
     texts: mergeSiteTexts(null),
     images: mergeSiteImages(null),
+    links: mergeSiteLinks(null),
   }
 }
 

@@ -17,6 +17,7 @@ export async function cosmosSaveSiteTexts(texts: SiteTexts): Promise<SiteTexts> 
   const saved = await cosmosSaveSiteConfigStaging({
     texts,
     images: existing.images,
+    links: existing.links,
   })
   return saved.texts
 }

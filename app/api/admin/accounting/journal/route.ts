@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import {
   cosmosCreateJournalEntry,
   cosmosGetJournalEntries,
+  cosmosPeekNextJournalBelegNummer,
 } from "@/lib/admin/cosmos-journal"
 import { cosmosGetTaxCodes } from "@/lib/admin/cosmos-tax-codes"
 import {
@@ -75,7 +76,16 @@ export async function GET(request: Request) {
       }
     }
 
-    return NextResponse.json({ entries: safeEntries })
+    let nextBelegNummer: string | undefined
+    try {
+      nextBelegNummer = await cosmosPeekNextJournalBelegNummer(
+        new Date().toISOString().slice(0, 10)
+      )
+    } catch (peekError) {
+      console.warn("Admin-API: nextBelegNummer konnte nicht ermittelt werden.", peekError)
+    }
+
+    return NextResponse.json({ entries: safeEntries, nextBelegNummer })
   } catch (error) {
     console.error("Admin-API: Journal konnte nicht geladen werden.", error)
     // Nie hart abstürzen – UI bleibt bedienbar

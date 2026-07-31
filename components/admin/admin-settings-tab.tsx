@@ -20,6 +20,7 @@ import {
   DEFAULT_SERVICE_VISIBILITY,
   DEFAULT_SHOP_CONFIGURATORS,
 } from "@/lib/admin/types"
+import { AdminPasswordChangeSection } from "@/components/admin/admin-password-change-section"
 import { AdminTesterPasswordSection } from "@/components/admin/admin-tester-password-section"
 import { AdminTwoFactorSection } from "@/components/admin/admin-two-factor-section"
 import { AdminManagedCatalogSection } from "@/components/admin/admin-managed-catalog-section"
@@ -584,6 +585,10 @@ export function AdminSettingsTab({
 
         {show("shop") && (
           <AdminTwoFactorSection />
+        )}
+
+        {show("shop") && (
+          <AdminPasswordChangeSection />
         )}
 
         {show("shop") && (
