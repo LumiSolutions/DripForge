@@ -273,7 +273,7 @@ export function AdminSupportCampaignSection({
 
   return (
     <div className="space-y-8">
-      <div className="space-y-4">
+      <div className="space-y-3">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h3 className={cn("text-base font-semibold", adminUi.accentTitle)}>
@@ -284,7 +284,7 @@ export function AdminSupportCampaignSection({
               Support-Seite.
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2">
             <label className="flex items-center gap-2 text-xs">
               <Switch
                 checked={showArchivedMilestones}
@@ -295,7 +295,7 @@ export function AdminSupportCampaignSection({
             <Button
               type="button"
               size="sm"
-              className={adminUi.primaryBtn}
+              className={cn("h-8", adminUi.primaryBtn)}
               onClick={openNewMilestone}
             >
               <Plus className="mr-1.5 h-4 w-4" />
@@ -309,12 +309,12 @@ export function AdminSupportCampaignSection({
             Keine Meilensteine. Füge einen neuen hinzu oder zeige Archivierte.
           </p>
         ) : (
-          <div className="space-y-2">
+          <div className="grid gap-3">
             {visibleMilestones.map((item) => (
               <div
                 key={item.id}
                 className={cn(
-                  "flex flex-col gap-3 rounded-xl border p-3 sm:flex-row sm:items-start sm:justify-between",
+                  "flex flex-col gap-3 rounded-xl border p-3 sm:flex-row sm:items-center sm:justify-between",
                   adminUi.listItem,
                   item.status === "archiviert" && "opacity-70"
                 )}
@@ -340,7 +340,7 @@ export function AdminSupportCampaignSection({
                     </p>
                   ) : null}
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex shrink-0 flex-wrap items-center gap-2">
                   {item.status !== "archiviert" ? (
                     <Select
                       value={item.status}
@@ -405,7 +405,7 @@ export function AdminSupportCampaignSection({
         )}
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-3">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h3 className={cn("text-base font-semibold", adminUi.accentTitle)}>
@@ -416,7 +416,7 @@ export function AdminSupportCampaignSection({
               ausgebaut wurden.
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2">
             <label className="flex items-center gap-2 text-xs">
               <Switch
                 checked={showArchivedFeatures}
@@ -427,7 +427,7 @@ export function AdminSupportCampaignSection({
             <Button
               type="button"
               size="sm"
-              className={adminUi.primaryBtn}
+              className={cn("h-8", adminUi.primaryBtn)}
               onClick={openNewFeature}
             >
               <Plus className="mr-1.5 h-4 w-4" />
@@ -442,7 +442,7 @@ export function AdminSupportCampaignSection({
             erscheinen sollen.
           </p>
         ) : (
-          <div className="space-y-2">
+          <div className="grid gap-3">
             {visibleFeatures.map((item) => {
               const orderedIndex = sortedFeatures.findIndex(
                 (f) => f.id === item.id
@@ -451,7 +451,7 @@ export function AdminSupportCampaignSection({
                 <div
                   key={item.id}
                   className={cn(
-                    "flex flex-col gap-3 rounded-xl border p-3 sm:flex-row sm:items-start sm:justify-between",
+                    "flex flex-col gap-3 rounded-xl border p-3 sm:flex-row sm:items-center sm:justify-between",
                     adminUi.listItem,
                     item.archived && "opacity-70"
                   )}
@@ -476,7 +476,7 @@ export function AdminSupportCampaignSection({
                       </p>
                     ) : null}
                   </div>
-                  <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex shrink-0 flex-wrap items-center gap-2">
                     {!item.archived ? (
                       <>
                         <Button
