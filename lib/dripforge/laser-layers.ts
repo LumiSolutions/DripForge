@@ -23,6 +23,8 @@ export type LaserDesignLayer = {
   fontId?: LaserFontId
   /** Bild-Data-URL oder HTTP-URL (nur kind=image) */
   src?: string | null
+  /** Gemeinsame Gruppen-ID — transformiert gemeinsam (geladenes Design) */
+  groupId?: string | null
 }
 
 export type LaserDesignerState = {
@@ -136,10 +138,12 @@ export function ensureLaserLayers(
             ...layer,
             text: layer.text ?? "",
             fontId: layer.fontId ?? state.selectedFont ?? DEFAULT_LASER_FONT_ID,
+            groupId: layer.groupId ?? null,
           }
         : {
             ...layer,
             src: layer.src ?? null,
+            groupId: layer.groupId ?? null,
           }
     )
 
@@ -247,6 +251,164 @@ export function removeLayerById(
   return layers.filter((layer) => layer.id !== id)
 }
 
+export function createLayerGroupId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return `grp-${crypto.randomUUID()}`
+  }
+  return `grp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+}
+
+/** Weist allen Layern dieselbe groupId zu (z. B. beim Laden eines Designs). */
+export function assignLayersToGroup(
+  layers: LaserDesignLayer[],
+  groupId?: string
+): LaserDesignLayer[] {
+  if (layers.length === 0) return layers
+  const id = groupId ?? createLayerGroupId()
+  return layers.map((layer) => ({ ...layer, groupId: id }))
+}
+
+export function ungroupLayers(
+  layers: LaserDesignLayer[],
+  groupId: string | null | undefined
+): LaserDesignLayer[] {
+  if (!groupId) return layers
+  return layers.map((layer) =>
+    layer.groupId === groupId ? { ...layer, groupId: null } : layer
+  )
+}
+
+export function getLayerGroupMembers(
+  layers: LaserDesignLayer[],
+  layerId: string
+): LaserDesignLayer[] {
+  const target = layers.find((l) => l.id === layerId)
+  if (!target?.groupId) {
+    return target ? [target] : []
+  }
+  return layers.filter((l) => l.groupId === target.groupId)
+}
+
+function groupCentroid(members: LaserDesignLayer[]): { x: number; y: number } {
+  if (members.length === 0) return { x: 50, y: 50 }
+  const x = members.reduce((sum, m) => sum + m.x, 0) / members.length
+  const y = members.reduce((sum, m) => sum + m.y, 0) / members.length
+  return { x, y }
+}
+
+function rotateAround(
+  x: number,
+  y: number,
+  cx: number,
+  cy: number,
+  deltaDeg: number
+): { x: number; y: number } {
+  const rad = (deltaDeg * Math.PI) / 180
+  const cos = Math.cos(rad)
+  const sin = Math.sin(rad)
+  const dx = x - cx
+  const dy = y - cy
+  return {
+    x: cx + dx * cos - dy * sin,
+    y: cy + dx * sin + dy * cos,
+  }
+}
+
+/**
+ * Wendet ein Layout-Patch auf ein Layer an — bei groupId auf die ganze Gruppe
+ * (relative Abstände bleiben erhalten).
+ */
+export function applyLayoutPatchToLayerOrGroup(
+  layers: LaserDesignLayer[],
+  layerId: string,
+  patch: Partial<ElementLayout>
+): LaserDesignLayer[] {
+  const target = layers.find((l) => l.id === layerId)
+  if (!target) return layers
+
+  if (!target.groupId) {
+    return updateLayerById(layers, layerId, {
+      ...layerToElementLayout(target),
+      ...patch,
+    })
+  }
+
+  const members = layers.filter((l) => l.groupId === target.groupId)
+  if (members.length <= 1) {
+    return updateLayerById(layers, layerId, {
+      ...layerToElementLayout(target),
+      ...patch,
+    })
+  }
+
+  const dx = patch.x !== undefined ? patch.x - target.x : 0
+  const dy = patch.y !== undefined ? patch.y - target.y : 0
+
+  const startSx = target.scaleX ?? target.scale
+  const startSy = target.scaleY ?? target.scale
+  const nextSx =
+    patch.scaleX !== undefined
+      ? patch.scaleX
+      : patch.scale !== undefined
+        ? patch.scale
+        : startSx
+  const nextSy =
+    patch.scaleY !== undefined
+      ? patch.scaleY
+      : patch.scale !== undefined
+        ? patch.scale
+        : startSy
+  const ratioX = startSx !== 0 ? nextSx / startSx : 1
+  const ratioY = startSy !== 0 ? nextSy / startSy : 1
+  const scaleChanged =
+    patch.scale !== undefined ||
+    patch.scaleX !== undefined ||
+    patch.scaleY !== undefined
+
+  const rotDelta =
+    patch.rotation !== undefined
+      ? patch.rotation - target.rotation
+      : 0
+
+  const centroid = groupCentroid(members)
+
+  return layers.map((layer) => {
+    if (layer.groupId !== target.groupId) return layer
+
+    let x = layer.x + dx
+    let y = layer.y + dy
+    let scale = layer.scale
+    let scaleX = layer.scaleX ?? layer.scale
+    let scaleY = layer.scaleY ?? layer.scale
+    let rotation = layer.rotation
+
+    if (scaleChanged) {
+      x = centroid.x + (x - centroid.x) * ratioX
+      y = centroid.y + (y - centroid.y) * ratioY
+      scaleX = scaleX * ratioX
+      scaleY = scaleY * ratioY
+      scale = (scaleX + scaleY) / 2
+    }
+
+    if (rotDelta !== 0) {
+      const rotated = rotateAround(x, y, centroid.x, centroid.y, rotDelta)
+      x = rotated.x
+      y = rotated.y
+      rotation = layer.rotation + rotDelta
+    }
+
+    return {
+      ...layer,
+      x,
+      y,
+      scale,
+      scaleX,
+      scaleY,
+      rotation,
+    }
+  })
+}
+
 /** Offset für neu hinzugefügte Elemente, damit sie sich nicht überdecken. */
 export function nextLayerOffset(index: number): { x: number; y: number } {
   const step = (index % 5) * 4
@@ -269,6 +431,7 @@ export type SerializedLaserLayer = {
   fontId?: string
   src?: string | null
   hasImage?: boolean
+  groupId?: string | null
 }
 
 export function serializeLayersForOrder(
@@ -287,6 +450,7 @@ export function serializeLayersForOrder(
         rotation: layer.rotation,
         text: layer.text ?? "",
         fontId: layer.fontId,
+        groupId: layer.groupId ?? null,
       }
     }
     return {
@@ -300,6 +464,7 @@ export function serializeLayersForOrder(
       rotation: layer.rotation,
       src: layer.src?.startsWith("data:") ? null : layer.src ?? null,
       hasImage: Boolean(layer.src),
+      groupId: layer.groupId ?? null,
     }
   })
 }

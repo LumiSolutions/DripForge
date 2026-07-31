@@ -25,6 +25,7 @@ import {
   Wand2,
   ArrowUp,
   ArrowDown,
+  Ungroup,
   X,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
@@ -64,13 +65,16 @@ import {
   type ElementMmSize,
 } from "@/lib/dripforge/laser-canvas-layout"
 import {
+  applyLayoutPatchToLayerOrGroup,
   createImageLayer,
   createTextLayer,
   deriveCompatFromLayers,
   ensureLaserLayers,
+  getLayerGroupMembers,
   layerToElementLayout,
   nextLayerOffset,
   removeLayerById,
+  ungroupLayers,
   updateLayerById,
   type LaserDesignLayer,
   type LaserDesignerState,
@@ -1741,6 +1745,11 @@ function LaserDesignerPreview({
     visibleImageLayers[0] ??
     null
 
+  const activeGroupId = activeLayer?.groupId ?? null
+  const activeGroupSize = activeGroupId
+    ? getLayerGroupMembers(layers, activeLayer!.id).length
+    : 0
+
   const imageLayersWithSrc = layers.filter(
     (l) => l.kind === "image" && Boolean(l.src)
   )
@@ -1779,7 +1788,11 @@ function LaserDesignerPreview({
     }
     // Position/Scale bewusst ungeklemmt — Motiv darf über den Rand hinausragen
 
-    const nextLayers = updateLayerById(current.layers, layerId, next)
+    const nextLayers = applyLayoutPatchToLayerOrGroup(
+      current.layers,
+      layerId,
+      next
+    )
     emitLayers(nextLayers, layerId)
   }
 
@@ -1788,7 +1801,7 @@ function LaserDesignerPreview({
       const current = stateRef.current
       const layer = current.layers.find((l) => l.id === layerId)
       if (!layer) return
-      const nextLayers = updateLayerById(current.layers, layerId, {
+      const nextLayers = applyLayoutPatchToLayerOrGroup(current.layers, layerId, {
         ...layerToElementLayout(layer),
         ...patch,
       })
@@ -2907,6 +2920,23 @@ function LaserDesignerPreview({
             >
               <ArrowDown className="h-4 w-4" />
             </ToolIconButton>
+            <ToolIconButton
+              onShowInfo={showToolInfo}
+              label="Gruppe auflösen"
+              description="Löst die geladene Design-Gruppe auf, damit einzelne Texte und Bilder wieder separat bewegt werden können."
+              disabled={activeGroupSize < 2}
+              onClick={() => {
+                if (!activeGroupId) return
+                pushHistorySnapshot()
+                emitLayers(
+                  ungroupLayers(stateRef.current.layers, activeGroupId),
+                  activeLayerId
+                )
+                setMobileToolHint("Gruppe aufgelöst — Elemente einzeln bearbeitbar")
+              }}
+            >
+              <Ungroup className="h-4 w-4" />
+            </ToolIconButton>
           </div>
 
         <div
@@ -2969,6 +2999,10 @@ function LaserDesignerPreview({
 
           {layers.map((layer, index) => {
             const isActive = activeLayerId === layer.id
+            const isGroupMate =
+              Boolean(activeGroupId) &&
+              layer.groupId === activeGroupId &&
+              !isActive
             if (layer.kind === "image" && layer.src) {
               return (
                 <InteractiveCanvasElement
@@ -2977,7 +3011,7 @@ function LaserDesignerPreview({
                   kind="image"
                   layout={layerToElementLayout(layer)}
                   isActive={isActive}
-                  isMoving={dragMode != null && isActive}
+                  isMoving={dragMode != null && (isActive || isGroupMate)}
                   stackIndex={index}
                   canvasRef={canvasRef}
                   onSelect={() => {
@@ -3073,7 +3107,7 @@ function LaserDesignerPreview({
             if (layer.kind === "text") {
               const text = (layer.text ?? "").trim()
               // Leerer Text nur rendern wenn aktiv — damit Auswahl/Move funktioniert
-              if (!text && !isActive) return null
+              if (!text && !isActive && !isGroupMate) return null
               const fontId = layer.fontId ?? selectedFont
               const canvasFontStyle = getLaserFontStyle(fontId, "canvas")
               const fontFamily = getLaserFontFamily(fontId)
@@ -3084,7 +3118,7 @@ function LaserDesignerPreview({
                   kind="text"
                   layout={layerToElementLayout(layer)}
                   isActive={isActive}
-                  isMoving={dragMode != null && isActive}
+                  isMoving={dragMode != null && (isActive || isGroupMate)}
                   stackIndex={index}
                   canvasRef={canvasRef}
                   onSelect={() => {

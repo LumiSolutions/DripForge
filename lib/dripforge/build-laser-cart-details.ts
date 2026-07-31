@@ -68,6 +68,7 @@ export function buildLaserCartCustomDetails(
               rotation: layer.rotation,
               text: layer.text ?? "",
               fontId: layer.fontId,
+              groupId: layer.groupId ?? null,
             }
           : {
               id: layer.id,
@@ -80,6 +81,7 @@ export function buildLaserCartCustomDetails(
               rotation: layer.rotation,
               src: layer.src ?? null,
               hasImage: Boolean(layer.src),
+              groupId: layer.groupId ?? null,
             }
       ),
     },

@@ -11,16 +11,25 @@ import {
 import {
   ensureLaserLayers,
   type LaserDesignLayer,
+  assignLayersToGroup,
 } from "@/lib/dripforge/laser-layers"
 import type { LaserMaterial } from "@/lib/dripforge/types"
 
 function asLayers(raw: unknown): LaserDesignLayer[] {
   if (!Array.isArray(raw)) return []
-  return raw.filter((layer): layer is LaserDesignLayer => {
-    if (!layer || typeof layer !== "object") return false
-    const kind = (layer as LaserDesignLayer).kind
-    return kind === "text" || kind === "image"
-  })
+  return raw
+    .filter((layer): layer is LaserDesignLayer => {
+      if (!layer || typeof layer !== "object") return false
+      const kind = (layer as LaserDesignLayer).kind
+      return kind === "text" || kind === "image"
+    })
+    .map((layer) => ({
+      ...layer,
+      groupId:
+        typeof (layer as LaserDesignLayer).groupId === "string"
+          ? (layer as LaserDesignLayer).groupId
+          : null,
+    }))
 }
 
 /** Hydriert LaserDesignerState aus gespeichertem Design-config / Order-config. */
@@ -110,8 +119,18 @@ export function hydrateLaserDesignerFromConfig(
     activeLayerId: null,
   }
 
+  const ensured = ensureLaserLayers(draft)
+  // Mehrere Elemente eines gespeicherten Designs als eine Gruppe laden
+  // (bestehende groupId aus Config behalten, sonst neu zuweisen)
+  const alreadyGrouped = ensured.some((l) => Boolean(l.groupId))
+  const grouped =
+    ensured.length > 1 && !alreadyGrouped
+      ? assignLayersToGroup(ensured)
+      : ensured
+
   return {
     ...draft,
-    layers: ensureLaserLayers(draft),
+    layers: grouped,
+    activeLayerId: grouped[0]?.id ?? null,
   }
 }

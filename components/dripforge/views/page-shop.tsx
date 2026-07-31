@@ -704,26 +704,49 @@ export function PageShop({
                       </Button>
                     </CardContent>
                   </Card>
+
+                  {/* Desktop: Varianten unter Preis/Warenkorb */}
+                  {shopProductVarianten.length > 0 && (
+                    <div className="hidden xl:block">
+                      <LaserDesignerStudio
+                        column="settings"
+                        material={shopLaserMaterial}
+                        productName={detailProduct.name}
+                        state={laserDesign}
+                        varianten={shopProductVarianten}
+                        showMaterialCard={false}
+                        showVariantPicker
+                        showTextLayers={false}
+                        onStateChange={(patch) =>
+                          setLaserDesign((prev) =>
+                            prev ? { ...prev, ...patch } : prev
+                          )
+                        }
+                      />
+                    </div>
+                  )}
                 </div>
 
-                {/* Spalte 3: Varianten oberhalb der Live-Vorschau */}
+                {/* Spalte 3: Live-Vorschau — mobil Varianten darüber */}
                 <div className="order-2 flex min-w-0 max-w-full flex-col gap-4 xl:order-3 xl:col-span-4 xl:sticky xl:top-[calc(var(--header-height,4rem)+1rem)]">
                   {shopProductVarianten.length > 0 && (
-                    <LaserDesignerStudio
-                      column="settings"
-                      material={shopLaserMaterial}
-                      productName={detailProduct.name}
-                      state={laserDesign}
-                      varianten={shopProductVarianten}
-                      showMaterialCard={false}
-                      showVariantPicker
-                      showTextLayers={false}
-                      onStateChange={(patch) =>
-                        setLaserDesign((prev) =>
-                          prev ? { ...prev, ...patch } : prev
-                        )
-                      }
-                    />
+                    <div className="xl:hidden">
+                      <LaserDesignerStudio
+                        column="settings"
+                        material={shopLaserMaterial}
+                        productName={detailProduct.name}
+                        state={laserDesign}
+                        varianten={shopProductVarianten}
+                        showMaterialCard={false}
+                        showVariantPicker
+                        showTextLayers={false}
+                        onStateChange={(patch) =>
+                          setLaserDesign((prev) =>
+                            prev ? { ...prev, ...patch } : prev
+                          )
+                        }
+                      />
+                    </div>
                   )}
                   <LaserDesignerStudio
                     column="preview"
