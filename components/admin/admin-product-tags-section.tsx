@@ -1,7 +1,17 @@
 "use client"
 
-import { FormEvent, useCallback, useEffect, useRef, useState } from "react"
-import { FolderInput, Loader2, Pencil, Plus, Save, Trash2, X } from "lucide-react"
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import {
+  ChevronDown,
+  ChevronUp,
+  FolderInput,
+  Loader2,
+  Pencil,
+  Plus,
+  Save,
+  Trash2,
+  X,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -30,6 +40,13 @@ import {
   PRODUCT_TAG_GROUPS,
   type ProductTag,
 } from "@/lib/admin/product-tags"
+import {
+  defaultTagColumnDirection,
+  sortTagsByColumn,
+  sortTagsDefault,
+  toggleSortDirection,
+  type TagColumnSort,
+} from "@/lib/admin/list-sort-utils"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
 import { cn } from "@/lib/utils"
 
@@ -43,14 +60,6 @@ type TagsApiPayload = {
   tags?: ProductTag[]
   tag?: ProductTag
   error?: string
-}
-
-function sortTags(tags: ProductTag[]): ProductTag[] {
-  return [...tags].sort((a, b) => {
-    const groupCmp = (a.group || "Allgemein").localeCompare(b.group || "Allgemein", "de")
-    if (groupCmp !== 0) return groupCmp
-    return a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, "de")
-  })
 }
 
 function reportTagApiError(action: string, status: number, payload: unknown, message: string) {
@@ -104,6 +113,7 @@ export function AdminProductTagsSection({ onTagsChange }: AdminProductTagsSectio
   const [editGroup, setEditGroup] = useState<string>(PRODUCT_TAG_GROUPS[0])
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [bulkBusy, setBulkBusy] = useState(false)
+  const [columnSort, setColumnSort] = useState<TagColumnSort | null>(null)
   const onTagsChangeRef = useRef(onTagsChange)
 
   useEffect(() => {
@@ -111,10 +121,33 @@ export function AdminProductTagsSection({ onTagsChange }: AdminProductTagsSectio
   }, [onTagsChange])
 
   const applyTags = useCallback((next: ProductTag[]) => {
-    const sorted = sortTags(next)
+    const sorted = sortTagsDefault(next)
     setTags(sorted)
     onTagsChangeRef.current?.(sorted)
   }, [])
+
+  const displayedTags = useMemo(
+    () => sortTagsByColumn(tags, columnSort),
+    [tags, columnSort]
+  )
+
+  const handleColumnHeaderClick = (column: TagColumnSort["column"]) => {
+    setColumnSort((prev) => {
+      if (prev?.column === column) {
+        return { column, direction: toggleSortDirection(prev.direction) }
+      }
+      return { column, direction: defaultTagColumnDirection(column) }
+    })
+  }
+
+  const renderSortIndicator = (column: TagColumnSort["column"]) => {
+    if (columnSort?.column !== column) return null
+    return columnSort.direction === "asc" ? (
+      <ChevronUp className="ml-1 inline h-3.5 w-3.5" aria-hidden />
+    ) : (
+      <ChevronDown className="ml-1 inline h-3.5 w-3.5" aria-hidden />
+    )
+  }
 
   const load = useCallback(
     async (options?: { silent?: boolean }) => {
@@ -149,11 +182,11 @@ export function AdminProductTagsSection({ onTagsChange }: AdminProductTagsSectio
     void load()
   }, [load])
 
-  const allSelected = tags.length > 0 && selectedIds.length === tags.length
+  const allSelected = displayedTags.length > 0 && selectedIds.length === displayedTags.length
   const someSelected = selectedIds.length > 0 && !allSelected
 
   const toggleAll = (checked: boolean) => {
-    setSelectedIds(checked ? tags.map((tag) => tag.id) : [])
+    setSelectedIds(checked ? displayedTags.map((tag) => tag.id) : [])
   }
 
   const toggleOne = (id: string, checked: boolean) => {
@@ -405,20 +438,52 @@ export function AdminProductTagsSection({ onTagsChange }: AdminProductTagsSectio
                   aria-label="Alle Tags auswählen"
                 />
               </TableHead>
-              <TableHead>Name</TableHead>
-              <TableHead>Gruppe</TableHead>
+              <TableHead>
+                <button
+                  type="button"
+                  className="inline-flex items-center font-medium hover:text-foreground"
+                  onClick={() => handleColumnHeaderClick("name")}
+                  aria-sort={
+                    columnSort?.column === "name"
+                      ? columnSort.direction === "asc"
+                        ? "ascending"
+                        : "descending"
+                      : "none"
+                  }
+                >
+                  Name
+                  {renderSortIndicator("name")}
+                </button>
+              </TableHead>
+              <TableHead>
+                <button
+                  type="button"
+                  className="inline-flex items-center font-medium hover:text-foreground"
+                  onClick={() => handleColumnHeaderClick("group")}
+                  aria-sort={
+                    columnSort?.column === "group"
+                      ? columnSort.direction === "asc"
+                        ? "ascending"
+                        : "descending"
+                      : "none"
+                  }
+                >
+                  Gruppe
+                  {renderSortIndicator("group")}
+                </button>
+              </TableHead>
               <TableHead className="w-24" />
             </TableRow>
           </TableHeader>
           <TableBody>
-            {tags.length === 0 ? (
+            {displayedTags.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={4} className={cn("py-10 text-center text-sm", adminUi.muted)}>
                   Noch keine Tags angelegt.
                 </TableCell>
               </TableRow>
             ) : (
-              tags.map((tag) => (
+              displayedTags.map((tag) => (
                 <TableRow key={tag.id} className={selectedIds.includes(tag.id) ? "bg-muted/30" : ""}>
                   <TableCell>
                     <Checkbox
