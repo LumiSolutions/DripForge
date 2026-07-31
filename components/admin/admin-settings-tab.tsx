@@ -8,7 +8,6 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
 import type {
@@ -76,16 +75,66 @@ import {
 } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 
-type SettingsPanelId = "general" | "content" | "store"
+export type AdminSettingsSection =
+  | "shop"
+  | "countdown"
+  | "onboarding"
+  | "support"
+  | "services"
+  | "laser"
+  | "loyalty"
+  | "email"
+  | "accounting"
 
-const SETTINGS_TABS: { id: SettingsPanelId; label: string }[] = [
-  { id: "general", label: "Allgemein & Status" },
-  { id: "content", label: "Inhalt & Optionen" },
-  { id: "store", label: "Buchhaltung & Store" },
-]
+const SECTION_HEADERS: Record<
+  AdminSettingsSection,
+  { title: string; subtitle: string }
+> = {
+  shop: {
+    title: "Shop-Einstellungen",
+    subtitle: "Shop-Status, Admin-Zugang und Checkout-Grundeinstellungen",
+  },
+  countdown: {
+    title: "Coming-Soon / Countdown",
+    subtitle: "Vorlage, Texte, Ziel-Datum und Teaser-Bild für die Countdown-Landingpage",
+  },
+  onboarding: {
+    title: "Erstbesucher-Onboarding",
+    subtitle: "Steuert die einmalige Theme-Hilfe für neue Besucher im Shop-Header",
+  },
+  support: {
+    title: "Support-Kampagne",
+    subtitle: "Sichtbarkeit der Support-Kampagne auf Hauptwebsite und Countdown-Seite",
+  },
+  services: {
+    title: "Dienstleistungen & Konfiguratoren",
+    subtitle: "Steuert Navigation, Startseite und Shop-Konfigurator-Karten",
+  },
+  laser: {
+    title: "Laser-Konfigurator",
+    subtitle: "Kunden-Einsendung und Instruktionen für die personalisierte Laserkreation",
+  },
+  loyalty: {
+    title: "Treuepunkte",
+    subtitle: "Steuert Kaufen, Einlösen und Anzeige von Treuepunkten",
+  },
+  email: {
+    title: "Bestell-E-Mail Texte",
+    subtitle: "Einleitung und Fusstext der Kunden-Bestätigungsmail",
+  },
+  accounting: {
+    title: "Checkout & Firmendaten",
+    subtitle: "MwSt., TWINT und Firmendaten für Impressum und Rechnungszahlung",
+  },
+}
 
-export function AdminSettingsTab() {
-  const [activePanel, setActivePanel] = useState<SettingsPanelId>("general")
+export function AdminSettingsTab({
+  section = "shop",
+}: {
+  section?: AdminSettingsSection
+}) {
+  const show = (...ids: AdminSettingsSection[]) => ids.includes(section)
+  const header = SECTION_HEADERS[section]
   const [checkout, setCheckout] = useState<CheckoutRuntimeConfig>(
     DEFAULT_CHECKOUT_RUNTIME_CONFIG
   )
@@ -461,37 +510,18 @@ export function AdminSettingsTab() {
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
         <h2 className={cn("text-xl font-bold", adminUi.heading)}>
-          Globale Shop-Einstellungen
+          {header.title}
         </h2>
         <p className={cn("text-sm", adminUi.muted)}>
-          Checkout, Inhalte und Shop-Verhalten — nach Bereich in Tabs sortiert
+          {header.subtitle}
         </p>
       </div>
 
       {error && <p className={adminUi.errorLg}>{error}</p>}
       {success && <p className={adminUi.success}>{success}</p>}
 
-      <Tabs
-        value={activePanel}
-        onValueChange={(value) => setActivePanel(value as SettingsPanelId)}
-        className="space-y-6"
-      >
-        <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1 bg-muted/60 p-1">
-          {SETTINGS_TABS.map((tab) => (
-            <TabsTrigger
-              key={tab.id}
-              value={tab.id}
-              className="flex-none px-3 py-2 text-xs sm:text-sm"
-            >
-              {tab.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-
-        <TabsContent value="general" className="mt-0 space-y-6">
-          <AdminTwoFactorSection />
-          <AdminTesterPasswordSection />
-
+      <div className="space-y-6">
+        {show("shop") && (
           <Card
             className={cn(
               adminUi.card,
@@ -503,12 +533,12 @@ export function AdminSettingsTab() {
             <CardContent className="space-y-4 p-6">
               <div>
                 <h3 className={cn("text-lg font-bold", adminUi.heading)}>
-                  Website-Status
+                  Shop-Status (Aktiv / Inaktiv / Wartung)
                 </h3>
                 <p className={cn("mt-1 text-sm", adminUi.muted)}>
                   {shopLive
-                    ? "Die Website ist offiziell live. Alle Besucher sehen den vollen Shop."
-                    : "Vorschau-Modus aktiv: Besucher sehen die Coming-Soon-Seite bis zum Launch oder zur manuellen Freischaltung."}
+                    ? "Aktiv: Die Website ist offiziell live. Alle Besucher sehen den vollen Shop."
+                    : "Inaktiv / Wartung: Vorschau-Modus aktiv — Besucher sehen die Coming-Soon-Seite bis zum Launch oder zur manuellen Freischaltung."}
                 </p>
               </div>
 
@@ -537,7 +567,17 @@ export function AdminSettingsTab() {
               )}
             </CardContent>
           </Card>
+        )}
 
+        {show("shop") && (
+          <AdminTwoFactorSection />
+        )}
+
+        {show("shop") && (
+          <AdminTesterPasswordSection />
+        )}
+
+        {show("countdown") && (
           <Card className={adminUi.card}>
             <CardContent className="space-y-5 p-6">
               <div>
@@ -702,9 +742,9 @@ export function AdminSettingsTab() {
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
+        )}
 
-        <TabsContent value="content" className="mt-0 space-y-6">
+        {show("email") && (
           <Card className={adminUi.card}>
             <CardContent className="space-y-4 p-6">
               <div>
@@ -771,7 +811,9 @@ export function AdminSettingsTab() {
               </Button>
             </CardContent>
           </Card>
+        )}
 
+        {show("onboarding") && (
           <Card className={adminUi.card}>
             <CardContent className="space-y-4 p-6">
               <div>
@@ -900,7 +942,9 @@ export function AdminSettingsTab() {
               </div>
             </CardContent>
           </Card>
+        )}
 
+        {show("support") && (
           <Card className={adminUi.card}>
             <CardContent className="space-y-4 p-6">
               <div>
@@ -954,7 +998,9 @@ export function AdminSettingsTab() {
               </div>
             </CardContent>
           </Card>
+        )}
 
+        {show("services") && (
           <Card className={adminUi.card}>
             <CardContent className="space-y-6 p-6">
               <div>
@@ -1025,122 +1071,69 @@ export function AdminSettingsTab() {
                   </div>
                 ))}
               </div>
-
-              <div className="space-y-3 border-t pt-6">
-                <div>
-                  <h4 className={cn("text-sm font-semibold", adminUi.heading)}>
-                    Top Produkte auf der Startseite
-                  </h4>
-                  <p className={cn("mt-1 text-xs", adminUi.muted)}>
-                    Zeigt die meistverkauften Produkte unter «Unsere Top Produkte». Bei zu
-                    wenigen Verkäufen werden manuell markierte Top-Produkte und danach die
-                    neuesten Artikel ergänzt.
-                  </p>
-                </div>
-                <div
-                  className={cn(
-                    "flex items-start justify-between gap-4 rounded-xl border p-4",
-                    adminUi.section
-                  )}
-                >
-                  <div className="space-y-1 pr-2">
-                    <Label className={cn("text-sm font-semibold", adminUi.heading)}>
-                      Top Produkte auf Startseite anzeigen
-                    </Label>
-                    <p className={cn("text-xs", adminUi.muted)}>
-                      Schaltet die gesamte Sektion auf der Homepage ein oder aus.
-                    </p>
-                  </div>
-                  <Switch
-                    checked={showTopProductsOnHomepage}
-                    onCheckedChange={setShowTopProductsOnHomepage}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className={adminUi.label}>Anzahl angezeigter Top-Produkte</Label>
-                  <Select
-                    value={String(normalizeTopProductsCount(topProductsCount))}
-                    onValueChange={(value) => setTopProductsCount(value)}
-                    disabled={!showTopProductsOnHomepage}
-                  >
-                    <SelectTrigger className={cn("w-full max-w-xs", adminUi.input)}>
-                      <SelectValue placeholder="Anzahl wählen" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Array.from(
-                        { length: MAX_TOP_PRODUCTS_COUNT - MIN_TOP_PRODUCTS_COUNT + 1 },
-                        (_, i) => MIN_TOP_PRODUCTS_COUNT + i
-                      ).map((n) => (
-                        <SelectItem key={n} value={String(n)}>
-                          {n}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className={cn("text-xs", adminUi.muted)}>
-                    Standard: {DEFAULT_TOP_PRODUCTS_COUNT}. Die Liste wird nach Verkaufsrang
-                    gefüllt (meistverkauft zuerst).
-                  </p>
-                </div>
-              </div>
-
-              <details className={cn("rounded-xl border p-4", adminUi.section)}>
-                <summary className={cn("cursor-pointer text-sm font-semibold", adminUi.heading)}>
-                  Laser-Konfigurator — Kunden-Einsendung (intern)
-                </summary>
-                <div className="mt-4 space-y-4">
-                  <p className={cn("text-xs", adminUi.muted)}>
-                    Vorbereitung für «Eigenes Produkt einschicken & verarbeiten» bei der
-                    Personalisierten Laserkreation. Sichtbar für Kunden nur bei aktiviertem Toggle.
-                  </p>
-                  <div
-                    className={cn(
-                      "flex items-start justify-between gap-4 rounded-xl border p-4",
-                      adminUi.section
-                    )}
-                  >
-                    <div className="space-y-1 pr-2">
-                      <Label className={cn("text-sm font-semibold", adminUi.heading)}>
-                        Option: Kunden-Einsendung erlauben
-                      </Label>
-                      <p className={cn("text-xs", adminUi.muted)}>
-                        Aktiviert die Einsende-Option im Laser-Konfigurator für Kunden.
-                      </p>
-                    </div>
-                    <Switch
-                      checked={laserConfigurator.allowCustomerShipping}
-                      onCheckedChange={(checked) =>
-                        setLaserConfigurator((prev) => ({
-                          ...prev,
-                          allowCustomerShipping: checked,
-                        }))
-                      }
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className={adminUi.label}>
-                      Einsende-Instruktionen & Lieferadresse
-                    </Label>
-                    <Textarea
-                      value={laserConfigurator.customerShippingInstructions}
-                      onChange={(e) =>
-                        setLaserConfigurator((prev) => ({
-                          ...prev,
-                          customerShippingInstructions: e.target.value,
-                        }))
-                      }
-                      rows={5}
-                      placeholder="Versandanleitung, Packhinweise, Lieferadresse …"
-                      className={adminUi.input}
-                    />
-                  </div>
-                </div>
-              </details>
             </CardContent>
           </Card>
-        </TabsContent>
+        )}
 
-        <TabsContent value="store" className="mt-0 space-y-6">
+
+        {show("laser") && (
+          <Card className={adminUi.card}>
+            <CardContent className="space-y-4 p-6">
+              <div>
+                <h3 className={cn("text-base font-semibold", adminUi.accentTitle)}>
+                  Laser-Konfigurator — Kunden-Einsendung
+                </h3>
+                <p className={cn("mt-1 text-sm", adminUi.muted)}>
+                  Vorbereitung für «Eigenes Produkt einschicken & verarbeiten» bei der
+                  Personalisierten Laserkreation. Sichtbar für Kunden nur bei aktiviertem Toggle.
+                </p>
+              </div>
+              <div
+                className={cn(
+                  "flex items-start justify-between gap-4 rounded-xl border p-4",
+                  adminUi.section
+                )}
+              >
+                <div className="space-y-1 pr-2">
+                  <Label className={cn("text-sm font-semibold", adminUi.heading)}>
+                    Option: Kunden-Einsendung erlauben
+                  </Label>
+                  <p className={cn("text-xs", adminUi.muted)}>
+                    Aktiviert die Einsende-Option im Laser-Konfigurator für Kunden.
+                  </p>
+                </div>
+                <Switch
+                  checked={laserConfigurator.allowCustomerShipping}
+                  onCheckedChange={(checked) =>
+                    setLaserConfigurator((prev) => ({
+                      ...prev,
+                      allowCustomerShipping: checked,
+                    }))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className={adminUi.label}>
+                  Einsende-Instruktionen & Lieferadresse
+                </Label>
+                <Textarea
+                  value={laserConfigurator.customerShippingInstructions}
+                  onChange={(e) =>
+                    setLaserConfigurator((prev) => ({
+                      ...prev,
+                      customerShippingInstructions: e.target.value,
+                    }))
+                  }
+                  rows={5}
+                  placeholder="Versandanleitung, Packhinweise, Lieferadresse …"
+                  className={adminUi.input}
+                />
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {show("loyalty") && (
           <Card className={adminUi.card}>
             <CardContent className="space-y-4 p-6">
               <div>
@@ -1233,7 +1226,9 @@ export function AdminSettingsTab() {
               </div>
             </CardContent>
           </Card>
+        )}
 
+        {show("shop", "accounting") && (
           <Card className={adminUi.card}>
             <CardContent className="space-y-6 p-6">
               <div>
@@ -1331,7 +1326,71 @@ export function AdminSettingsTab() {
               )}
             </CardContent>
           </Card>
+        )}
 
+        {show("shop") && (
+          <Card className={adminUi.card}>
+            <CardContent className="space-y-4 p-6">
+              <div>
+                <h3 className={cn("text-base font-semibold", adminUi.accentTitle)}>
+                  Top Produkte auf der Startseite
+                </h3>
+                <p className={cn("mt-1 text-sm", adminUi.muted)}>
+                  Zeigt die meistverkauften Produkte unter «Unsere Top Produkte». Bei zu
+                  wenigen Verkäufen werden manuell markierte Top-Produkte und danach die
+                  neuesten Artikel ergänzt.
+                </p>
+              </div>
+              <div
+                className={cn(
+                  "flex items-start justify-between gap-4 rounded-xl border p-4",
+                  adminUi.section
+                )}
+              >
+                <div className="space-y-1 pr-2">
+                  <Label className={cn("text-sm font-semibold", adminUi.heading)}>
+                    Top Produkte auf Startseite anzeigen
+                  </Label>
+                  <p className={cn("text-xs", adminUi.muted)}>
+                    Schaltet die gesamte Sektion auf der Homepage ein oder aus.
+                  </p>
+                </div>
+                <Switch
+                  checked={showTopProductsOnHomepage}
+                  onCheckedChange={setShowTopProductsOnHomepage}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className={adminUi.label}>Anzahl angezeigter Top-Produkte</Label>
+                <Select
+                  value={String(normalizeTopProductsCount(topProductsCount))}
+                  onValueChange={(value) => setTopProductsCount(value)}
+                  disabled={!showTopProductsOnHomepage}
+                >
+                  <SelectTrigger className={cn("w-full max-w-xs", adminUi.input)}>
+                    <SelectValue placeholder="Anzahl wählen" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from(
+                      { length: MAX_TOP_PRODUCTS_COUNT - MIN_TOP_PRODUCTS_COUNT + 1 },
+                      (_, i) => MIN_TOP_PRODUCTS_COUNT + i
+                    ).map((n) => (
+                      <SelectItem key={n} value={String(n)}>
+                        {n}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className={cn("text-xs", adminUi.muted)}>
+                  Standard: {DEFAULT_TOP_PRODUCTS_COUNT}. Die Liste wird nach Verkaufsrang
+                  gefüllt (meistverkauft zuerst).
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {show("accounting") && (
           <Card className={adminUi.card}>
             <CardContent className="space-y-4 p-6">
               <div>
@@ -1422,8 +1481,9 @@ export function AdminSettingsTab() {
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
-      </Tabs>
+        )}
+
+      </div>
 
       <Button
         type="button"

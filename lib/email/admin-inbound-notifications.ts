@@ -28,21 +28,22 @@ import {
 } from "@/lib/invoices/order-invoice-display"
 import { resolveSiteOrigin } from "@/lib/site/site-origin"
 
-function buildAdminPortalUrl(query: Record<string, string>): string {
+function buildAdminPortalUrl(pathname: string, query: Record<string, string> = {}): string {
   const params = new URLSearchParams(query)
-  return `${resolveSiteOrigin()}${adminPortalPath()}?${params.toString()}`
+  const qs = params.toString()
+  return `${resolveSiteOrigin()}${adminPortalPath(pathname)}${qs ? `?${qs}` : ""}`
 }
 
 export function buildAdminOrderDetailUrl(orderId: string): string {
-  return buildAdminPortalUrl({ tab: "orders", order: orderId })
+  return buildAdminPortalUrl("/belege", { view: "orders", order: orderId })
 }
 
 export function buildAdminDruckanfrageDetailUrl(anfrageId: string): string {
-  return buildAdminPortalUrl({ tab: "print-calculator", anfrage: anfrageId })
+  return buildAdminPortalUrl("/druckkalkulator", { anfrage: anfrageId })
 }
 
 export function buildAdminKontaktDetailUrl(anfrageId: string): string {
-  return buildAdminPortalUrl({ tab: "customers", kontakt: anfrageId })
+  return buildAdminPortalUrl("/kundenverwaltung", { kontakt: anfrageId })
 }
 
 function formatItemOptionLines(item: StoredOrderItem): string[] {
