@@ -182,6 +182,7 @@ export function AdminSettingsTab({
       sectionOrder: [...DEFAULT_ORDER_EMAIL_LAYOUT.sectionOrder],
     })
   )
+  const [documentLogoUrl, setDocumentLogoUrl] = useState<string | null>(null)
   const [themeInboundTourImageUrl, setThemeInboundTourImageUrl] = useState<string | null>(
     null
   )
@@ -270,6 +271,21 @@ export function AdminSettingsTab({
           ...createDefaultLaserConfiguratorSettings(),
           ...laserData,
         })
+      }
+      try {
+        const docRes = await fetch("/api/admin/document-template", {
+          cache: "no-store",
+        })
+        if (docRes.ok) {
+          const docData = (await docRes.json()) as { logoUrl?: string | null }
+          setDocumentLogoUrl(
+            typeof docData.logoUrl === "string" && docData.logoUrl.trim()
+              ? docData.logoUrl.trim()
+              : null
+          )
+        }
+      } catch {
+        /* optional branding */
       }
     } catch (err) {
       console.warn("Admin: Einstellungen konnten nicht geladen werden.", err)
@@ -783,6 +799,7 @@ export function AdminSettingsTab({
               <AdminEmailTemplateBuilder
                 templates={orderEmailTemplates}
                 layout={orderEmailLayout}
+                documentLogoUrl={documentLogoUrl}
                 onTemplatesChange={setOrderEmailTemplates}
                 onLayoutChange={setOrderEmailLayout}
               />

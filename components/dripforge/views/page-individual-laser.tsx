@@ -38,6 +38,7 @@ import {
   type LaserDesignerState,
   type LaserEngravingMetrics,
 } from "@/components/dripforge/shared/laser-designer-studio"
+import { SaveDesignButton } from "@/components/konto/save-design-button"
 import { IndividualProcessBar } from "@/components/dripforge/shared/individual-process-bar"
 import {
   buildLaserCartCustomDetails,
@@ -500,7 +501,7 @@ export function PageIndividualLaser({
                 </p>
               </div>
 
-              <div className="mt-6">
+              <div className="mt-6 space-y-2">
                 <Button
                   onClick={handleAddToCart}
                   disabled={!hasDesign}
@@ -510,6 +511,21 @@ export function PageIndividualLaser({
                   <ShoppingCart className="mr-2 h-5 w-5" />
                   In den Warenkorb
                 </Button>
+                <SaveDesignButton
+                  designType="laser"
+                  defaultLabel={`Laser-Design ${new Date().toLocaleDateString("de-CH")}`}
+                  previewUrl={laserDesign.imageLayout?.src || null}
+                  config={{
+                    materialId: selectedMaterialId,
+                    engravingText: laserDesign.engravingText,
+                    selectedFont: laserDesign.selectedFont,
+                    selectedVariant: laserDesign.selectedVariant,
+                    layers: laserDesign.layers,
+                    textLayout: laserDesign.textLayout,
+                    imageLayout: laserDesign.imageLayout,
+                  }}
+                  className="w-full"
+                />
                 {!hasDesign && (
                   <p className="mt-3 text-center text-sm text-muted-foreground">
                     Bitte Gravur-Text eingeben oder ein Logo hochladen.

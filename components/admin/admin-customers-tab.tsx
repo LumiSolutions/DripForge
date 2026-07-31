@@ -62,6 +62,7 @@ import type { CustomerAccountStatus } from "@/lib/konto/account-status"
 import { normalizeAccountStatus } from "@/lib/konto/account-status"
 import type { OrderAddress } from "@/lib/dripforge/submit-order"
 import type { LoyaltyPointTransaction } from "@/lib/konto/loyalty-points-config"
+import type { SavedCustomerDesign } from "@/lib/konto/account-types"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
 import { cn } from "@/lib/utils"
 
@@ -91,6 +92,7 @@ type DetailCacheEntry = {
   detail: CustomerDetail
   orders: StoredOrder[]
   loyalty: CustomerLoyaltyInfo | null
+  designs: SavedCustomerDesign[]
   fetchedAt: number
 }
 
@@ -410,6 +412,7 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
   const [detail, setDetail] = useState<CustomerDetail | null>(null)
   const [orders, setOrders] = useState<StoredOrder[]>([])
   const [loyalty, setLoyalty] = useState<CustomerLoyaltyInfo | null>(null)
+  const [designs, setDesigns] = useState<SavedCustomerDesign[]>([])
   const [loading, setLoading] = useState(true)
   const [detailLoading, setDetailLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -524,6 +527,7 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
       customer: CustomerDetail | null,
       nextOrders: StoredOrder[],
       nextLoyalty: CustomerLoyaltyInfo | null,
+      nextDesigns: SavedCustomerDesign[] = [],
       options?: { resetOrderUi?: boolean }
     ) => {
       const resetOrderUi = options?.resetOrderUi ?? true
@@ -534,6 +538,7 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
       }
       setOrders(nextOrders)
       setLoyalty(nextLoyalty)
+      setDesigns(nextDesigns)
       setPointsDelta("")
       setPointsNote("")
       setPointsError(null)
@@ -577,9 +582,15 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
         Date.now() - cached.fetchedAt < DETAIL_CACHE_TTL_MS
       ) {
         detailKundennummerRef.current = cached.detail.kundennummer
-        applyDetailPayload(cached.detail, cached.orders, cached.loyalty, {
-          resetOrderUi: !sameCustomer,
-        })
+        applyDetailPayload(
+          cached.detail,
+          cached.orders,
+          cached.loyalty,
+          cached.designs ?? [],
+          {
+            resetOrderUi: !sameCustomer,
+          }
+        )
         setDetailLoading(false)
         return
       }
@@ -594,6 +605,7 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
         if (!res.ok) throw new Error(data.error ?? "Laden fehlgeschlagen")
         const customer = (data.customer ?? null) as CustomerDetail | null
         const nextOrders = (data.orders ?? []) as StoredOrder[]
+        const nextDesigns = (data.designs ?? []) as SavedCustomerDesign[]
         const nextLoyalty: CustomerLoyaltyInfo | null = data.loyalty
           ? {
               points: Number(data.loyalty.points) || 0,
@@ -607,7 +619,7 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
           : null
 
         detailKundennummerRef.current = customer?.kundennummer ?? null
-        applyDetailPayload(customer, nextOrders, nextLoyalty, {
+        applyDetailPayload(customer, nextOrders, nextLoyalty, nextDesigns, {
           resetOrderUi: !sameCustomer,
         })
 
@@ -616,6 +628,7 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
             detail: customer,
             orders: nextOrders,
             loyalty: nextLoyalty,
+            designs: nextDesigns,
             fetchedAt: Date.now(),
           })
         }
@@ -1491,6 +1504,39 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
                       ))}
                     </ul>
                   </div>
+                )}
+              </div>
+
+              <div className={cn("rounded-xl border p-4", adminUi.section)}>
+                <p className={cn("text-sm font-semibold", adminUi.accentTitle)}>
+                  Kundendesigns ({designs.length})
+                </p>
+                {designs.length === 0 ? (
+                  <p className={cn("mt-2 text-sm", adminUi.muted)}>
+                    Keine gespeicherten Designs.
+                  </p>
+                ) : (
+                  <ul className="mt-3 space-y-2">
+                    {designs.map((design) => (
+                      <li
+                        key={design.id}
+                        className={cn(
+                          "flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm",
+                          adminUi.listItem
+                        )}
+                      >
+                        <span className="min-w-0 truncate font-medium">
+                          {design.label}{" "}
+                          <span className={cn("text-xs", adminUi.muted)}>
+                            ({design.designType})
+                          </span>
+                        </span>
+                        <span className={cn("shrink-0 text-xs", adminUi.muted)}>
+                          {formatDate(design.updatedAt)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
                 )}
               </div>
 

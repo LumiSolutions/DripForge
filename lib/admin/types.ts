@@ -244,6 +244,7 @@ export type AdminSettings = {
     showLogo: boolean
     logoPosition: "left" | "center" | "right"
     headerTitle?: string
+    logoUrl?: string
   }
   updatedAt: string
 }

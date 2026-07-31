@@ -4,11 +4,14 @@ import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import {
   Coins,
+  FileText,
+  Heart,
   LayoutDashboard,
   LogOut,
   MapPin,
   Package,
   Palette,
+  RefreshCw,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -17,6 +20,9 @@ import { useRewardPointsEnabled } from "@/hooks/use-reward-points-enabled"
 const NAV = [
   { href: "/konto", label: "Übersicht", icon: LayoutDashboard, exact: true },
   { href: "/konto/bestellungen", label: "Bestellungen", icon: Package, exact: false },
+  { href: "/konto/bestellvorschlag", label: "Bestellvorschlag", icon: RefreshCw, exact: false },
+  { href: "/konto/merkliste", label: "Merkliste", icon: Heart, exact: false },
+  { href: "/konto/belege", label: "Belege", icon: FileText, exact: false },
   { href: "/konto/punkte", label: "Treuepunkte", icon: Coins, exact: false, rewardPoints: true },
   { href: "/konto/profil", label: "Profil & Adressen", icon: MapPin, exact: false },
   { href: "/konto/designs", label: "Meine Designs", icon: Palette, exact: false },

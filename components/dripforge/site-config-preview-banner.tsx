@@ -106,6 +106,13 @@ export function SiteConfigPreviewBanner() {
     }
   }
 
+  // Beim Seitenwechsel über die Storefront-Navigation Banner automatisch einklappen.
+  useEffect(() => {
+    if (!preview) return
+    setCollapsedPreference(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only react to route changes
+  }, [pathname, preview])
+
   const publishLive = async () => {
     if (
       !window.confirm(

@@ -67,6 +67,7 @@ import {
 import { ProductImageGallery } from "@/components/dripforge/shared/product-image-gallery"
 import { SafeProductImage } from "@/components/dripforge/shared/safe-product-image"
 import { ProductShopPrice } from "@/components/dripforge/shared/product-shop-price"
+import { WishlistButton } from "@/components/konto/wishlist-button"
 import type { CartItem, Product, ProductDimensionsMm } from "@/lib/dripforge/types"
 import type { ServiceVisibilitySettings, ShopConfiguratorSettings } from "@/lib/admin/types"
 import { DEFAULT_SHOP_CONFIGURATORS } from "@/lib/admin/types"
@@ -1139,6 +1140,13 @@ export function PageShop({
                         Dynamisch aus Shop
                       </span>
                     )}
+                    {!canInlineEdit && (
+                      <WishlistButton
+                        productId={product.id}
+                        size="sm"
+                        className="absolute right-2 top-2 z-20"
+                      />
+                    )}
                     <div
                       className={cn(
                         "flex flex-col gap-4 p-4 sm:flex-row sm:items-center",
@@ -1214,6 +1222,13 @@ export function PageShop({
                   <span className="absolute right-2 top-2 z-20 rounded-md border border-amber-500/40 bg-amber-500/90 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-950">
                     Dynamisch aus Shop
                   </span>
+                )}
+                {!canInlineEdit && (
+                  <WishlistButton
+                    productId={product.id}
+                    size="sm"
+                    className="absolute right-2 top-2 z-20"
+                  />
                 )}
                 <div
                   className={cn(

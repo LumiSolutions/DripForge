@@ -28,6 +28,7 @@ import { HEADER_ICON_BTN_CLASS } from "@/components/dripforge/support-nav-link"
 import { SiteImage } from "@/components/dripforge/editable-site-image"
 import { EditableCmsNavLabel } from "@/components/dripforge/editable-cms-nav-label"
 import { useSiteTexts } from "@/components/dripforge/site-texts-provider"
+import { cmsPreviewHref, cmsReadonlyPreviewHref } from "@/lib/admin/cms-preview-pages"
 import {
   ThemeInboundTour,
   useThemeInboundTourVisible,
@@ -69,7 +70,12 @@ function applyServiceVisibilityToCmsNav(
 export function ShopHeader(props: ShopHeaderProps) {
   const pathname = usePathname()
   const router = useRouter()
-  const { navItems: cmsNavItems } = useSiteTexts()
+  const { navItems: cmsNavItems, preview, readonly } = useSiteTexts()
+
+  const withPreviewHref = (href: string) => {
+    if (!preview) return href
+    return readonly ? cmsReadonlyPreviewHref(href) : cmsPreviewHref(href)
+  }
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
@@ -245,7 +251,7 @@ export function ShopHeader(props: ShopHeaderProps) {
           </button>
         ) : (
           <Link
-            href="/"
+            href={withPreviewHref("/")}
             prefetch
             className="relative z-20 flex min-w-0 shrink items-center gap-2 pr-1 sm:shrink-0 sm:pr-4"
           >
@@ -257,7 +263,7 @@ export function ShopHeader(props: ShopHeaderProps) {
           {useCmsNav
             ? visibleCmsNav.map((item) => {
                 const Icon = resolveCmsNavIcon(item.icon)
-                const href = item.href || shopNavHref(item.id)
+                const href = withPreviewHref(item.href || shopNavHref(item.id))
                 if (props.mode === "spa") {
                   return (
                     <button
@@ -297,7 +303,7 @@ export function ShopHeader(props: ShopHeaderProps) {
                 ) : (
                   <Link
                     key={item.id}
-                    href={shopNavHref(item.id)}
+                    href={withPreviewHref(shopNavHref(item.id))}
                     prefetch
                     className={navLinkClass(isNavActive(item.id))}
                   >

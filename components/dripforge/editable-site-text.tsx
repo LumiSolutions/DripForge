@@ -92,7 +92,7 @@ export function SiteTextEditor({
         <button
           type="button"
           className={cn(
-            "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md",
+            "relative z-10 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md",
             "text-muted-foreground/80 opacity-60 transition-opacity",
             "hover:bg-primary/10 hover:text-primary hover:opacity-100",
             "group-hover/site-text:opacity-100 focus-visible:opacity-100",
@@ -101,15 +101,15 @@ export function SiteTextEditor({
           )}
           aria-label={`${label} bearbeiten`}
           onPointerDown={(event) => {
-            event.preventDefault()
+            // Nur Propagation stoppen — preventDefault blockiert den Radix-Trigger-Click.
             event.stopPropagation()
           }}
           onClick={(event) => {
-            event.preventDefault()
             event.stopPropagation()
+            setOpen(true)
           }}
         >
-          <Pencil className="h-3.5 w-3.5" />
+          <Pencil className="h-3.5 w-3.5 relative z-10" />
         </button>
       </PopoverTrigger>
       <PopoverContent

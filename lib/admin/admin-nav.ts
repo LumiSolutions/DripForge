@@ -256,13 +256,17 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
             label: "In-Context Editor",
             href: adminRouteHref("edit-preview"),
           },
+          {
+            id: "test",
+            label: "Test-Umgebung",
+            href: adminRouteHref("test"),
+          },
+          {
+            id: "test-preview",
+            label: "Preview",
+            href: adminRouteHref("test-preview"),
+          },
         ],
-      },
-      {
-        id: "test",
-        label: "Test-Umgebung",
-        href: adminRouteHref("test"),
-        icon: FlaskConical,
       },
       {
         id: "dokumenten-vorlagen",
