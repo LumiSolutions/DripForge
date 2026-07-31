@@ -1,6 +1,5 @@
 "use client"
 
-import Link from "next/link"
 import {
   Zap,
   Scissors,
@@ -16,6 +15,11 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { LaserProcessStep } from "@/components/dripforge/shared/laser-process-step"
+import {
+  SiteEditableLink,
+  SiteText,
+} from "@/components/dripforge/editable-site-text"
+import { SiteTextPhrase } from "@/components/dripforge/site-text-phrase"
 import { laserMaterials } from "@/lib/dripforge/data"
 import { SHOP_ROUTES } from "@/lib/dripforge/shop-routes"
 import type { ServiceVisibilitySettings } from "@/lib/admin/types"
@@ -59,15 +63,22 @@ export function PageLaser({
         <div className="mx-auto max-w-7xl px-4">
           <Badge variant="outline" className="mb-6 border-cyan-500/30 bg-cyan-500/10 text-cyan-400">
             <Zap className="mr-1 h-3 w-3" />
-            Präzisions-Lasertechnologie
+            <SiteText k="page_laser_hero_badge" />
           </Badge>
           <h1 className="text-4xl font-bold md:text-5xl">
-            <span className="text-foreground">Laser </span>
-            <span className="bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent">Gravur & Schnitt</span>
+            <SiteTextPhrase
+              parts={[
+                { key: "page_laser_hero_title_prefix", className: "text-foreground" },
+                {
+                  key: "page_laser_hero_title_highlight",
+                  className:
+                    "bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent",
+                },
+              ]}
+            />
           </h1>
           <p className="mt-4 max-w-2xl text-lg text-muted-foreground">
-            Präzision trifft Kunstfertigkeit. Unsere Lasertechnologie erzeugt atemberaubende Gravuren und 
-            präzise Schnitte auf Holz, Acryl, Leder und mehr.
+            <SiteText k="page_laser_hero_subtitle" />
           </p>
           <div className="mt-8 flex flex-wrap gap-4">
             <Button
@@ -75,13 +86,16 @@ export function PageLaser({
               size="lg"
               className="bg-primary text-primary-foreground shadow-lg shadow-primary/20 hover:bg-primary/90"
             >
-              <Link href={configuratorHref} prefetch>
-                Jetzt Gravur gestalten
+              <SiteEditableLink
+                href={configuratorHref}
+                hrefKey="page_laser_hero_cta_primary"
+              >
+                <SiteText k="page_laser_hero_cta_primary" />
                 <ArrowRight className="ml-2 h-4 w-4" />
-              </Link>
+              </SiteEditableLink>
             </Button>
             <Button variant="outline" onClick={() => setCurrentView("shop")}>
-              Produkte Entdecken
+              <SiteText k="page_laser_hero_cta_secondary" />
             </Button>
           </div>
         </div>
@@ -92,11 +106,22 @@ export function PageLaser({
         <div className="mx-auto max-w-7xl px-4">
           <div className="mb-8 text-center md:mb-12">
             <h2 className="text-3xl font-bold md:text-4xl">
-              <span className="text-foreground">Unsere </span>
-              <span className="bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent">Möglichkeiten</span>
+              <SiteTextPhrase
+                parts={[
+                  {
+                    key: "page_laser_capabilities_heading_prefix",
+                    className: "text-foreground",
+                  },
+                  {
+                    key: "page_laser_capabilities_heading_highlight",
+                    className:
+                      "bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent",
+                  },
+                ]}
+              />
             </h2>
             <p className="mt-4 text-muted-foreground">
-              Modernste Lasertechnologie für Gravieren, Schneiden und Markieren verschiedener Materialien.
+              <SiteText k="page_laser_capabilities_subtitle" />
             </p>
           </div>
 
@@ -239,11 +264,22 @@ export function PageLaser({
         <div className="mx-auto max-w-7xl px-4">
           <div className="mb-8 text-center md:mb-12">
             <h2 className="text-3xl font-bold md:text-4xl">
-              <span className="text-foreground">Unterstützte </span>
-              <span className="bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent">Materialien</span>
+              <SiteTextPhrase
+                parts={[
+                  {
+                    key: "page_laser_materials_heading_prefix",
+                    className: "text-foreground",
+                  },
+                  {
+                    key: "page_laser_materials_heading_highlight",
+                    className:
+                      "bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent",
+                  },
+                ]}
+              />
             </h2>
             <p className="mt-4 text-muted-foreground">
-              Wir arbeiten mit einer breiten Palette von Materialien, jedes mit einzigartigen Möglichkeiten für Ihre Projekte.
+              <SiteText k="page_laser_materials_subtitle" />
             </p>
           </div>
 
@@ -302,12 +338,22 @@ export function PageLaser({
         <div className="mx-auto max-w-7xl px-4">
           <div className="mb-8 text-center md:mb-12">
             <h2 className="text-3xl font-bold md:text-4xl">
-              <span className="text-foreground">Wie die </span>
-              <span className="bg-gradient-to-r from-cyan-400 to-primary bg-clip-text text-transparent">Lasergravur</span>
-              <span className="text-foreground"> funktioniert</span>
+              <SiteTextPhrase
+                parts={[
+                  {
+                    key: "page_laser_process_heading_prefix",
+                    className: "text-foreground",
+                  },
+                  {
+                    key: "page_laser_process_heading_highlight",
+                    className:
+                      "bg-gradient-to-r from-cyan-400 to-primary bg-clip-text text-transparent",
+                  },
+                ]}
+              />
             </h2>
             <p className="mt-4 text-muted-foreground">
-              Von Ihrer Idee zum fertigen gravierten Produkt — in vier einfachen Schritten.
+              <SiteText k="page_laser_process_subtitle" />
             </p>
           </div>
 
@@ -404,13 +450,10 @@ export function PageLaser({
             <CardContent className="p-12 text-center">
               <Zap className="mx-auto mb-4 h-10 w-10 text-cyan-400" />
               <h2 className="mb-4 text-3xl font-bold">
-                <span className="text-foreground">Individuelles Projekt im </span>
-                <span className="bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent">Sinn</span>
-                <span className="text-foreground">?</span>
+                <SiteText k="page_laser_cta_title" />
               </h2>
               <p className="mb-8 text-muted-foreground">
-                Ob ein einzelnes personalisiertes Geschenk oder eine Serie von individuellen Produkten - 
-                wir helfen Ihnen, Ihr Laserprojekt zum Leben zu erwecken.
+                <SiteText k="page_laser_cta_subtitle" />
               </p>
               <div className="flex flex-wrap justify-center gap-4">
                 <Button
@@ -418,10 +461,13 @@ export function PageLaser({
                   size="lg"
                   className="bg-primary text-primary-foreground shadow-lg shadow-primary/20 hover:bg-primary/90"
                 >
-                  <Link href={configuratorHref} prefetch>
-                    Jetzt Gravur gestalten
+                  <SiteEditableLink
+                    href={configuratorHref}
+                    hrefKey="page_laser_cta_button"
+                  >
+                    <SiteText k="page_laser_cta_button" />
                     <ArrowRight className="ml-2 h-4 w-4" />
-                  </Link>
+                  </SiteEditableLink>
                 </Button>
                 <Button size="lg" variant="outline" onClick={() => setCurrentView("kontakt")}>
                   Individuelle Offerte Anfragen

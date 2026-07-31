@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import type { CustomerOrderSummary } from "@/lib/konto/customer-orders"
 import { CUSTOMER_ORDER_TIMELINE_STEPS } from "@/lib/konto/customer-order-timeline"
+import { SaveDesignButton } from "@/components/konto/save-design-button"
 import { cn } from "@/lib/utils"
 
 export function OrderStatusTimeline({ order }: { order: CustomerOrderSummary }) {
@@ -185,6 +186,19 @@ export function OrderItemList({ order }: { order: CustomerOrderSummary }) {
                     {download.label}
                   </a>
                 ))}
+              </div>
+            ) : null}
+            {item.canSaveDesign && item.designConfig ? (
+              <div className="mt-2">
+                <SaveDesignButton
+                  designType={item.type === "3d" ? "3d" : "laser"}
+                  defaultLabel={`${item.name} · ${order.orderId}`}
+                  previewUrl={
+                    item.mockupPreviewUrl ?? item.logoPreviewUrl ?? item.imageUrl
+                  }
+                  config={item.designConfig}
+                  className="h-8 text-xs"
+                />
               </div>
             ) : null}
           </div>

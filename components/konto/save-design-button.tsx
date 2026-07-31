@@ -73,12 +73,12 @@ export function SaveDesignButton({
       <DialogTrigger asChild>
         <Button type="button" variant="outline" size="sm" className={className}>
           <Save className="mr-1 h-3.5 w-3.5" />
-          Design speichern
+          Design in «Meine Designs» speichern
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Design speichern</DialogTitle>
+          <DialogTitle>Design in «Meine Designs» speichern</DialogTitle>
         </DialogHeader>
         <div className="space-y-2 py-2">
           <Input

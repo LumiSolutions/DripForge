@@ -245,6 +245,14 @@ export type AdminSettings = {
     logoPosition: "left" | "center" | "right"
     headerTitle?: string
     logoUrl?: string
+    metaFields?: {
+      invoiceNumber: boolean
+      orderRef: boolean
+      date: boolean
+      paymentMethod: boolean
+      paymentStatus: boolean
+      shippingMethod: boolean
+    }
   }
   updatedAt: string
 }

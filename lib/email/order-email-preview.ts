@@ -8,7 +8,11 @@ import {
   renderOrderItemsTableHtml,
   textToHtmlParagraphs,
 } from "@/lib/email/dripforge-email-layout"
-import type { OrderEmailLayout } from "@/lib/email/order-email-layout"
+import {
+  normalizeOrderEmailLayout,
+  type OrderEmailLayout,
+  type OrderEmailMetaFields,
+} from "@/lib/email/order-email-layout"
 import { DRIPFORGE_LOGO_URL } from "@/lib/invoices/invoice-format"
 
 const SAMPLE_PLACEHOLDERS = {
@@ -22,12 +26,38 @@ const SAMPLE_ITEMS = [
   { name: "UV-Druck — Visitenkarten (50 Stk.)", quantity: 1, price: 65.0 },
 ]
 
+function buildSampleMetaLines(metaFields: OrderEmailMetaFields): string[] {
+  const lines: string[] = []
+  if (metaFields.invoiceNumber) {
+    lines.push(`Rechnungsnummer: ${SAMPLE_PLACEHOLDERS.orderNumber}`)
+  }
+  if (metaFields.orderRef) {
+    lines.push("Bestell-Ref: DF-SAMPLE-001")
+  }
+  if (metaFields.date) {
+    lines.push("Datum: 31.07.2026")
+  }
+  if (metaFields.paymentMethod) {
+    lines.push("Zahlungsart: TWINT")
+  }
+  if (metaFields.paymentStatus) {
+    lines.push("Zahlungsstatus: Bezahlt / bestätigt")
+  }
+  if (metaFields.shippingMethod) {
+    lines.push("Versandart: Schweizer Post (A-Post)")
+  }
+  return lines
+}
+
 /** Live-Vorschau der Kunden-Bestellbestätigung für den Admin-Editor. */
 export function renderOrderEmailPreviewHtml(options: {
   templates: OrderEmailTemplates
   layout: OrderEmailLayout
   logoUrl?: string | null
 }): string {
+  const layout = normalizeOrderEmailLayout(options.layout)
+  const metaFields = layout.metaFields!
+
   const introRaw =
     options.templates.receivedIntro.trim() ||
     DEFAULT_ORDER_EMAIL_TEMPLATES.receivedIntro
@@ -38,17 +68,11 @@ export function renderOrderEmailPreviewHtml(options: {
   const introText = applyOrderEmailPlaceholders(introRaw, SAMPLE_PLACEHOLDERS)
   const footerText = applyOrderEmailPlaceholders(footerRaw, SAMPLE_PLACEHOLDERS)
 
+  const metaLines = buildSampleMetaLines(metaFields)
   const orderItems =
-    textToHtmlParagraphs(
-      [
-        `Rechnungsnummer: ${SAMPLE_PLACEHOLDERS.orderNumber}`,
-        "Bestell-Ref: DF-SAMPLE-001",
-        "Datum: 31.07.2026",
-        "Zahlungsart: TWINT",
-        "Zahlungsstatus: Bezahlt / bestätigt",
-        "Versandart: Schweizer Post (A-Post)",
-      ].join("\n")
-    ) + renderOrderItemsTableHtml(SAMPLE_ITEMS)
+    (metaLines.length
+      ? textToHtmlParagraphs(metaLines.join("\n"))
+      : "") + renderOrderItemsTableHtml(SAMPLE_ITEMS)
 
   const totals = textToHtmlParagraphs(
     [
@@ -77,7 +101,7 @@ export function renderOrderEmailPreviewHtml(options: {
   )
 
   return renderOrderConfirmationEmailHtml({
-    layout: options.layout,
+    layout,
     title: "Bestellbestätigung",
     sections: {
       header: "",

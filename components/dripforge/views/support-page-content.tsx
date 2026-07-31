@@ -33,6 +33,8 @@ import {
   type SupportMilestone,
 } from "@/lib/support/types"
 import type { SupportFeatureItem } from "@/lib/dripforge/support-page-settings"
+import { SiteText } from "@/components/dripforge/editable-site-text"
+import { SiteTextPhrase } from "@/components/dripforge/site-text-phrase"
 
 const PRESET_AMOUNTS = [20, 50, 100] as const
 
@@ -162,19 +164,22 @@ export function SupportPageContent({
             className="mb-6 border-primary/30 bg-primary/10 text-primary"
           >
             <Heart className="mr-1 h-3 w-3" />
-            Support our Journey
+            <SiteText k="page_support_hero_badge" />
           </Badge>
           <h1 className="text-4xl font-bold leading-tight md:text-5xl">
-            <span className="text-foreground">Gemeinsam bauen wir </span>
-            <span className="bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent">
-              die Manufaktur von morgen
-            </span>
+            <SiteTextPhrase
+              parts={[
+                { key: "page_support_hero_title_prefix", className: "text-foreground" },
+                {
+                  key: "page_support_hero_title_highlight",
+                  className:
+                    "bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent",
+                },
+              ]}
+            />
           </h1>
           <p className="mx-auto mt-6 max-w-3xl text-lg leading-relaxed text-muted-foreground">
-            In Pfäffikon ZH entsteht Schritt für Schritt eine moderne Manufaktur für
-            präzisen 3D-Druck und feine Lasergravur. Was als Vision begann, wächst dank
-            eurer Unterstützung zu echter Produktionskapazität — mit neuen Druckern,
-            erweiterten Materialien und professioneller Laser-Infrastruktur.
+            <SiteText k="page_support_hero_subtitle" />
           </p>
           <div className="mt-8 inline-flex items-center gap-2 rounded-full border border-border/60 bg-card/60 px-4 py-2 text-sm text-muted-foreground backdrop-blur-sm">
             <MapPin className="h-4 w-4 text-primary" />
@@ -208,7 +213,9 @@ export function SupportPageContent({
 
       <section className="mx-auto max-w-5xl px-4">
         <div className="mb-6 text-center md:mb-10">
-          <h2 className="text-3xl font-bold">Unsere nächsten Meilensteine</h2>
+          <h2 className="text-3xl font-bold">
+            <SiteText k="page_support_milestones_heading" />
+          </h2>
           <p className="mt-3 text-muted-foreground">
             {loadingMilestones
               ? "Fortschritt wird geladen…"
@@ -278,7 +285,9 @@ export function SupportPageContent({
       {features.length > 0 ? (
         <section className="mx-auto max-w-5xl px-4">
           <div className="mb-6 text-center md:mb-10">
-            <h2 className="text-3xl font-bold">Bereits ermöglicht</h2>
+            <h2 className="text-3xl font-bold">
+              <SiteText k="page_support_enabled_heading" />
+            </h2>
             <p className="mt-3 text-muted-foreground">
               Produkte und Features, die dank eurer Unterstützung entstanden oder
               ausgebaut wurden.
@@ -313,9 +322,11 @@ export function SupportPageContent({
         <Card className="overflow-hidden border-border/50 bg-card/70 backdrop-blur-md">
           <CardContent className="space-y-6 p-8">
             <div className="text-center">
-              <h2 className="text-2xl font-bold">Jetzt unterstützen</h2>
+              <h2 className="text-2xl font-bold">
+                <SiteText k="page_support_form_heading" />
+              </h2>
               <p className="mt-2 text-sm text-muted-foreground">
-                Wähle einen Betrag und bezahle sicher per TWINT oder Kreditkarte über Stripe.
+                <SiteText k="page_support_form_subtitle" />
               </p>
             </div>
 
@@ -435,8 +446,7 @@ export function SupportPageContent({
             </Button>
 
             <p className="text-center text-xs text-muted-foreground">
-              Sichere Zahlung via Stripe · TWINT &amp; Kreditkarte · Spenden sind freiwillig
-              und nicht erstattungsfähig.
+              <SiteText k="page_support_footer_note" />
             </p>
           </CardContent>
         </Card>

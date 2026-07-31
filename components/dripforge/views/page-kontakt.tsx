@@ -20,6 +20,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { isValidKontaktEmail } from "@/lib/admin/kontaktanfrage-types"
 import { useCompanySettings } from "@/components/dripforge/company-settings-provider"
+import { SiteText } from "@/components/dripforge/editable-site-text"
+import { SiteTextPhrase } from "@/components/dripforge/site-text-phrase"
 
 export function PageKontakt({ setCurrentView }: { setCurrentView: (view: string) => void }) {
   const {
@@ -102,15 +104,22 @@ export function PageKontakt({ setCurrentView }: { setCurrentView: (view: string)
         <div className="mb-8 text-center md:mb-12">
           <Badge variant="outline" className="mb-6 border-primary/30 bg-primary/10 text-primary">
             <MessageSquare className="mr-1 h-3 w-3" />
-            Kontakt aufnehmen
+            <SiteText k="page_kontakt_hero_badge" />
           </Badge>
           <h1 className="text-4xl font-bold md:text-5xl">
-            <span className="text-foreground">Kontaktieren Sie </span>
-            <span className="bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent">DripForge</span>
+            <SiteTextPhrase
+              parts={[
+                { key: "page_kontakt_hero_title_prefix", className: "text-foreground" },
+                {
+                  key: "page_kontakt_hero_title_highlight",
+                  className:
+                    "bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent",
+                },
+              ]}
+            />
           </h1>
           <p className="mx-auto mt-4 max-w-2xl text-muted-foreground">
-            Haben Sie ein individuelles Projekt im Sinn? Fragen zu unseren Services? 
-            Wir freuen uns von Ihnen zu hören.
+            <SiteText k="page_kontakt_hero_subtitle" />
           </p>
         </div>
 
@@ -119,7 +128,9 @@ export function PageKontakt({ setCurrentView }: { setCurrentView: (view: string)
           <div className="lg:col-span-2">
             <Card className="border-border/50 bg-card/50">
               <CardContent className="p-8">
-                <h2 className="mb-6 text-xl font-bold">Nachricht Senden</h2>
+                <h2 className="mb-6 text-xl font-bold">
+                  <SiteText k="page_kontakt_form_title" />
+                </h2>
                 <form className="space-y-6" onSubmit={(event) => void handleSubmit(event)}>
                   <div className="grid gap-6 md:grid-cols-2">
                     <div className="space-y-2">
@@ -239,7 +250,9 @@ export function PageKontakt({ setCurrentView }: { setCurrentView: (view: string)
           <div className="space-y-6">
             <Card className="border-border/50 bg-card/50">
               <CardContent className="p-6">
-                <h3 className="mb-4 font-bold">Kontaktinformationen</h3>
+                <h3 className="mb-4 font-bold">
+                  <SiteText k="page_kontakt_sidebar_info_title" />
+                </h3>
                 <ul className="space-y-4">
                   <li className="flex items-start gap-3">
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/20">
@@ -289,7 +302,9 @@ export function PageKontakt({ setCurrentView }: { setCurrentView: (view: string)
 
             <Card className="border-border/50 bg-card/50">
               <CardContent className="p-6">
-                <h3 className="mb-4 font-bold">Schnelle Hilfe</h3>
+                <h3 className="mb-4 font-bold">
+                  <SiteText k="page_kontakt_sidebar_help_title" />
+                </h3>
                 <p className="mb-4 text-sm text-muted-foreground">Suchen Sie nach etwas Bestimmtem?</p>
                 <ul className="space-y-2">
                   {[
@@ -316,10 +331,11 @@ export function PageKontakt({ setCurrentView }: { setCurrentView: (view: string)
                 <div className="flex items-start gap-3">
                   <Clock className="h-5 w-5 text-primary" />
                   <div>
-                    <h4 className="font-bold">Antwortzeit</h4>
+                    <h4 className="font-bold">
+                      <SiteText k="page_kontakt_sidebar_response_title" />
+                    </h4>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      Wir antworten in der Regel innerhalb von 24 Stunden an Werktagen. 
-                      Für dringende Anfragen rufen Sie uns bitte direkt an.
+                      <SiteText k="page_kontakt_sidebar_response_body" />
                     </p>
                   </div>
                 </div>
