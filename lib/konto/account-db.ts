@@ -13,7 +13,7 @@ import { normalizeLoyaltyPoints, loyaltyPointsToChf } from "@/lib/konto/loyalty-
 import { getEffectiveLoyaltyPoints } from "@/lib/konto/loyalty-points"
 import {
   DEFAULT_CUSTOMER_ACCOUNT_STATUS,
-  isAccountDeleted,
+  isAccountActive,
   normalizeAccountStatus,
 } from "@/lib/konto/account-status"
 
@@ -76,7 +76,7 @@ function normalizeAccount(account: CustomerAccount): CustomerAccount {
 export function isActiveCustomerAccount(
   account: CustomerAccount | null | undefined
 ): account is CustomerAccount {
-  return Boolean(account && !isAccountDeleted(account.status))
+  return Boolean(account && isAccountActive(account.status))
 }
 
 export async function saveAccount(account: CustomerAccount): Promise<CustomerAccount> {
