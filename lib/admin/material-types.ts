@@ -36,9 +36,11 @@ export type MaterialItem = {
   /** Produktlinie / Bezeichnung ohne Farbe */
   name: string
   manufacturer?: string
-  /** Filament-Material-Art-ID (Slug) — verknüpft mit Material-Arten */
+  /** Filament-Material-Art-ID (Slug) — verknüpft mit Material-Arten; Lasermaterial: Werkstoff-Art */
   materialType?: string
-  /** Farbname dieses Lagerartikels */
+  /** Lasermaterial: Form/Typ z. B. Herz, Rechteck, Anhänger-Form */
+  typ?: string
+  /** Farbname dieses Lagerartikels (Filament) bzw. Zusatzfarbe */
   farbe?: string
   /** Hersteller-Filamentcode / Farbcode (z. B. Bambu Lab «10100») */
   filamentCode?: string
@@ -115,9 +117,13 @@ export function getEffectiveMaterialStock(material: MaterialItem): {
 
 export function formatMaterialFarbeDisplay(material: MaterialItem): string | null {
   if (material.category === "lasermaterial") {
-    const parts = [material.farbe?.trim(), material.dicke?.trim(), material.formatGroesse?.trim()].filter(
-      Boolean
-    ) as string[]
+    const parts = [
+      material.typ?.trim(),
+      material.materialType?.trim(),
+      material.farbe?.trim(),
+      material.dicke?.trim(),
+      material.formatGroesse?.trim(),
+    ].filter(Boolean) as string[]
     return parts.length > 0 ? parts.join(" · ") : null
   }
   if (!material.farbe?.trim() && !material.filamentCode?.trim()) return null

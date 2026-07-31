@@ -56,6 +56,25 @@ function humanizeLaserMaterialSlug(id: string): string {
     .join(" ")
 }
 
+/** Ableitung der Shop-Material-ID aus Lagermaterial-Stammdaten. */
+export function resolveLaserMaterialIdFromStockItem(item: {
+  name?: string | null
+  materialType?: string | null
+  typ?: string | null
+  farbe?: string | null
+  category?: string | null
+}): LaserMaterialId | null {
+  const hint = [item.materialType, item.typ, item.name, item.farbe]
+    .filter(Boolean)
+    .join(" ")
+  const core = matchCoreLaserMaterialId(hint)
+  if (core) return core
+  if (item.category && item.category !== "lasermaterial") return null
+  const slugSource = item.materialType?.trim() || item.name?.trim()
+  if (!slugSource) return null
+  return slugifyLaserMaterialId(slugSource)
+}
+
 /** Katalog + dynamische Lagermaterialien → Admin-Dropdown. */
 export function buildLaserMaterialSelectOptions(
   stockMaterials: Array<{
@@ -63,6 +82,8 @@ export function buildLaserMaterialSelectOptions(
     name: string
     category: string
     dicke?: string | null
+    materialType?: string | null
+    typ?: string | null
   }>
 ): Array<{ value: LaserMaterialId; label: string }> {
   const options: Array<{ value: LaserMaterialId; label: string }> =
@@ -74,19 +95,25 @@ export function buildLaserMaterialSelectOptions(
     const name = item.name?.trim()
     if (!name) continue
 
-    const core = matchCoreLaserMaterialId(name)
+    const artHint = [item.materialType, item.typ, name]
+      .filter(Boolean)
+      .join(" ")
+    const core = matchCoreLaserMaterialId(artHint)
     if (core) {
       // Kernmaterial bereits im Katalog — Label ggf. mit Dicke ergänzen nicht nötig
       continue
     }
 
-    const value = slugifyLaserMaterialId(name)
+    const value = slugifyLaserMaterialId(item.materialType?.trim() || name)
     if (seen.has(value)) continue
     seen.add(value)
     const dicke = item.dicke?.trim()
+    const labelBase = item.materialType?.trim()
+      ? `${name} · ${item.materialType.trim()}`
+      : name
     options.push({
       value,
-      label: dicke ? `${name} (${dicke})` : name,
+      label: dicke ? `${labelBase} (${dicke})` : labelBase,
     })
   }
 

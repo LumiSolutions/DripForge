@@ -80,6 +80,7 @@ export function AdminProductsListPanel({
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [bulkBusy, setBulkBusy] = useState(false)
   const [bulkError, setBulkError] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState("")
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all")
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all")
   const [tagFilter, setTagFilter] = useState<string>("all")
@@ -89,15 +90,29 @@ export function AdminProductsListPanel({
   const [saleFormError, setSaleFormError] = useState<string | null>(null)
 
   const filteredProducts = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
     return products.filter((product) => {
       if (typeFilter !== "all" && product.type !== typeFilter) return false
       if (statusFilter === "active" && product.istAktiv === false) return false
       if (statusFilter === "inactive" && product.istAktiv !== false) return false
       if (statusFilter === "sale" && !product.sale) return false
       if (tagFilter !== "all" && !(product.tags ?? []).includes(tagFilter)) return false
+      if (q) {
+        const hay = [
+          product.name,
+          product.description,
+          product.id,
+          product.laserMaterialId,
+          ...(product.tags ?? []),
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
+        if (!hay.includes(q)) return false
+      }
       return true
     })
-  }, [products, typeFilter, statusFilter, tagFilter])
+  }, [products, typeFilter, statusFilter, tagFilter, searchQuery])
 
   const sortedProducts = useMemo(
     () => sortProducts(filteredProducts, productSort),
@@ -209,7 +224,10 @@ export function AdminProductsListPanel({
       : calculateSalePrice(100, "fixed", Number(saleRabattWert) || 0)
 
   const hasActiveFilters =
-    typeFilter !== "all" || statusFilter !== "all" || tagFilter !== "all"
+    typeFilter !== "all" ||
+    statusFilter !== "all" ||
+    tagFilter !== "all" ||
+    searchQuery.trim().length > 0
 
   return (
     <div className="space-y-4">
@@ -244,6 +262,12 @@ export function AdminProductsListPanel({
           )}
         >
           <Filter className={cn("h-4 w-4 shrink-0", adminUi.muted)} />
+          <Input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Suche Name, ID, Material…"
+            className={cn("h-10 min-w-[180px] flex-1 sm:max-w-xs", adminUi.input)}
+          />
           <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as TypeFilter)}>
             <SelectTrigger className="w-[150px]">
               <SelectValue placeholder="Typ" />
@@ -288,6 +312,7 @@ export function AdminProductsListPanel({
               variant="ghost"
               className={cn("text-xs", adminUi.muted)}
               onClick={() => {
+                setSearchQuery("")
                 setTypeFilter("all")
                 setStatusFilter("all")
                 setTagFilter("all")

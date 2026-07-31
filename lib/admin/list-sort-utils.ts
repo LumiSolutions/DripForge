@@ -12,6 +12,7 @@ export type StockSortMode =
   | "material-type"
   | "manufacturer"
   | "color-asc"
+  | "name-asc"
   | "stock-asc"
 
 function productCreatedAt(product: AdminProduct): number {
@@ -75,9 +76,15 @@ export function sortStockItems(
       })
     case "color-asc":
       return copy.sort((a, b) => {
-        const c = (a.farbe ?? "").localeCompare(b.farbe ?? "", "de")
+        const c = (a.farbe ?? a.typ ?? "").localeCompare(b.farbe ?? b.typ ?? "", "de")
         if (c !== 0) return c
         return (a.name ?? "").localeCompare(b.name ?? "", "de")
+      })
+    case "name-asc":
+      return copy.sort((a, b) => {
+        const n = (a.name ?? "").localeCompare(b.name ?? "", "de")
+        if (n !== 0) return n
+        return (a.typ ?? "").localeCompare(b.typ ?? "", "de")
       })
     case "stock-asc":
     default:

@@ -3,12 +3,14 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react"
 import {
   AlertTriangle,
+  Copy,
   Loader2,
   Minus,
   Pencil,
   Plus,
   RefreshCw,
   Save,
+  Search,
   Trash2,
   Upload,
 } from "lucide-react"
@@ -136,6 +138,8 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
   const [materials, setMaterials] = useState<MaterialItem[]>([])
   const [materialTypes, setMaterialTypes] = useState<MaterialTypeDefinition[]>([])
   const [sortMode, setSortMode] = useState<StockSortMode>("stock-asc")
+  const [searchQuery, setSearchQuery] = useState("")
+  const [artFilter, setArtFilter] = useState<string>("all")
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [editorOpen, setEditorOpen] = useState(false)
@@ -164,6 +168,39 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
     () => sortStockItems(materials, sortMode, materialTypes),
     [materials, sortMode, materialTypes]
   )
+
+  const artOptions = useMemo(() => {
+    const set = new Set<string>()
+    for (const m of materials) {
+      const art = m.materialType?.trim()
+      if (art) set.add(art)
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b, "de"))
+  }, [materials])
+
+  const displayedMaterials = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    return sortedMaterials.filter((m) => {
+      if (artFilter !== "all" && (m.materialType?.trim() || "") !== artFilter) {
+        return false
+      }
+      if (!q) return true
+      const hay = [
+        m.name,
+        m.manufacturer,
+        m.farbe,
+        m.typ,
+        m.materialType,
+        m.dicke,
+        m.formatGroesse,
+        m.filamentCode,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+      return hay.includes(q)
+    })
+  }, [sortedMaterials, searchQuery, artFilter])
 
   const materialTypeLabel = useCallback(
     (ref?: string) => findMaterialType(materialTypes, ref)?.name ?? ref ?? "—",
@@ -224,6 +261,20 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
     const partial =
       material.stockUnit === "gram" ? stock.stockTotal % 1000 : stock.stockAvailable
     setPartialGrams(String(partial))
+    setAddRolls("0")
+    setEditorOpen(true)
+  }
+
+  const openDuplicate = (material: MaterialItem) => {
+    setDraft({
+      ...material,
+      id: "",
+      name: `${material.name} (Kopie)`,
+      stockAvailable: 0,
+      stockReserved: 0,
+      updatedAt: new Date().toISOString(),
+    })
+    setPartialGrams("0")
     setAddRolls("0")
     setEditorOpen(true)
   }
@@ -377,16 +428,47 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
               : "Platten, Holz, Acryl & Co. — pro Variante (Dicke, Format, Farbe) als Stückbestand"}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <div className="relative min-w-[200px] flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Suche Name, Typ, Art, Farbe…"
+              className={cn("pl-9", adminUi.input)}
+            />
+          </div>
+          {(category === "lasermaterial" || category === "filament") && (
+            <Select value={artFilter} onValueChange={setArtFilter}>
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder="Materialart" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Alle Arten</SelectItem>
+                {category === "filament"
+                  ? activeMaterialTypes.map((type) => (
+                      <SelectItem key={type.id} value={type.id}>
+                        {type.name}
+                      </SelectItem>
+                    ))
+                  : artOptions.map((art) => (
+                      <SelectItem key={art} value={art}>
+                        {art}
+                      </SelectItem>
+                    ))}
+              </SelectContent>
+            </Select>
+          )}
           <Select value={sortMode} onValueChange={(v) => setSortMode(v as StockSortMode)}>
             <SelectTrigger className="w-[210px]">
               <SelectValue placeholder="Sortierung" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="stock-asc">Bestand (kritisch zuerst)</SelectItem>
+              <SelectItem value="name-asc">Name (A–Z)</SelectItem>
               <SelectItem value="material-type">Material-Art</SelectItem>
               <SelectItem value="manufacturer">Hersteller</SelectItem>
-              <SelectItem value="color-asc">Farbe (A–Z)</SelectItem>
+              <SelectItem value="color-asc">Farbe / Typ (A–Z)</SelectItem>
             </SelectContent>
           </Select>
           <Button type="button" variant="outline" className={adminUi.outlineBtn} onClick={() => void load()}>
@@ -402,13 +484,15 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
 
       {error && <p className={adminUi.errorLg}>{error}</p>}
 
-      {sortedMaterials.length === 0 ? (
+      {displayedMaterials.length === 0 ? (
         <p className={cn("rounded-xl border p-8 text-center text-sm", adminUi.section, adminUi.muted)}>
-          Noch keine Lagerartikel in «{categoryLabel}».
+          {materials.length === 0
+            ? `Noch keine Lagerartikel in «${categoryLabel}».`
+            : "Keine Treffer für die aktuelle Suche/Filter."}
         </p>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {sortedMaterials.map((material) => (
+          {displayedMaterials.map((material) => (
             <div
               key={material.id}
               className={cn(
@@ -464,7 +548,7 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
                     : undefined
                 }
               />
-              <div className="mt-4 flex gap-2">
+              <div className="mt-4 flex flex-wrap gap-2">
                 <Button
                   type="button"
                   size="sm"
@@ -474,6 +558,16 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
                 >
                   <Pencil className="mr-1 h-3 w-3" />
                   Bearbeiten
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className={adminUi.outlineBtn}
+                  onClick={() => openDuplicate(material)}
+                >
+                  <Copy className="mr-1 h-3 w-3" />
+                  Duplizieren
                 </Button>
                 <Button
                   type="button"
@@ -584,14 +678,55 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
                     />
                   </div>
                   <div className="space-y-2 sm:col-span-2">
-                    <Label>Materialname / Typ</Label>
+                    <Label>Materialname</Label>
                     <Input
                       value={draft.name}
                       onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-                      placeholder="z. B. Pappelsperrholz, Acryl transparent"
+                      placeholder="z. B. Anhänger, Platte, Schild"
                       className={adminUi.input}
                       required
                     />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Typ</Label>
+                    <Input
+                      value={draft.typ ?? ""}
+                      onChange={(e) =>
+                        setDraft({ ...draft, typ: e.target.value || undefined })
+                      }
+                      placeholder="z. B. Herz, Rechteck, Rund"
+                      className={adminUi.input}
+                      list="laser-typ-suggestions"
+                    />
+                    <datalist id="laser-typ-suggestions">
+                      <option value="Herz" />
+                      <option value="Rechteck" />
+                      <option value="Rund" />
+                      <option value="Schild" />
+                      <option value="Anhänger" />
+                    </datalist>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Art (Werkstoff)</Label>
+                    <Input
+                      value={draft.materialType ?? ""}
+                      onChange={(e) =>
+                        setDraft({
+                          ...draft,
+                          materialType: e.target.value || undefined,
+                        })
+                      }
+                      placeholder="z. B. Edelstahl, Schiefer & Stein, Holz"
+                      className={adminUi.input}
+                      list="laser-art-suggestions"
+                    />
+                    <datalist id="laser-art-suggestions">
+                      <option value="Edelstahl" />
+                      <option value="Schiefer & Stein" />
+                      <option value="Holz" />
+                      <option value="Acryl" />
+                      <option value="Leder" />
+                    </datalist>
                   </div>
                   <div className="space-y-2">
                     <Label>Dicke / Stärke</Label>
@@ -616,11 +751,11 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
                     />
                   </div>
                   <div className="space-y-2 sm:col-span-2">
-                    <Label>Farbcode / Farbbezeichnung</Label>
+                    <Label>Farbe / Optik (optional)</Label>
                     <Input
                       value={draft.farbe ?? ""}
                       onChange={(e) => setDraft({ ...draft, farbe: e.target.value })}
-                      placeholder="z. B. Rauchglas, Natur"
+                      placeholder="z. B. Rauchglas, Natur, Gold"
                       className={adminUi.input}
                     />
                   </div>

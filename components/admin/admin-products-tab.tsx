@@ -32,7 +32,10 @@ import {
   type SaleRabattTyp,
 } from "@/lib/dripforge/product-sale"
 import type { LaserMaterialId, Product } from "@/lib/dripforge/types"
-import { buildLaserMaterialSelectOptions } from "@/lib/dripforge/laser-material-options"
+import {
+  buildLaserMaterialSelectOptions,
+  resolveLaserMaterialIdFromStockItem,
+} from "@/lib/dripforge/laser-material-options"
 import type { MaterialItem, ProductMaterialLink } from "@/lib/admin/material-types"
 import {
   calculateGrossMarginPercent,
@@ -344,6 +347,22 @@ export function AdminProductsTab() {
     const prev = links[index]
     const next = { ...prev, ...patch }
     links[index] = next
+
+    if (patch.materialId !== undefined && form.type === "laser") {
+      const selected = materialCatalog.find((m) => m.id === patch.materialId)
+      const laserId = selected
+        ? resolveLaserMaterialIdFromStockItem(selected)
+        : null
+      if (laserId) {
+        setForm((prevForm) => ({
+          ...prevForm,
+          materialLinks: links,
+          laserMaterialId: laserId,
+        }))
+        return
+      }
+    }
+
     updateField("materialLinks", links)
   }
 
@@ -771,6 +790,9 @@ export function AdminProductsTab() {
                         </option>
                       ) : null}
                     </select>
+                    <p className={cn("text-xs", adminUi.muted)}>
+                      Wird automatisch gesetzt, wenn unten ein Lasermaterial verknüpft wird.
+                    </p>
                   </div>
                   <div className="space-y-2">
                     <Label className={adminUi.label}>

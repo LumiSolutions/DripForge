@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Minus, Package, Plus, ShoppingCart } from "lucide-react"
+import { Minus, Package, Plus, ShoppingCart, Loader2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -83,6 +83,7 @@ export function PageIndividualLaser({
   const [allowCustomerShipping, setAllowCustomerShipping] = useState(false)
   const [customerShippingInstructions, setCustomerShippingInstructions] =
     useState("")
+  const [cartCapturing, setCartCapturing] = useState(false)
   const laserPreviewRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -172,63 +173,78 @@ export function PageIndividualLaser({
   const hasDesign = laserDesignHasContent(laserDesign)
 
   const handleAddToCart = async () => {
-    if (!hasDesign) return
+    if (!hasDesign || cartCapturing) return
 
-    let previewMockup: string | undefined
-    let productionLayer: string | undefined
+    const designSnapshot: LaserDesignerState = {
+      ...laserDesign,
+      layers: laserDesign.layers.map((l) => ({ ...l })),
+      textLayout: { ...laserDesign.textLayout },
+      imageLayout: { ...laserDesign.imageLayout },
+    }
+
+    setCartCapturing(true)
+    setActiveLayerId(null)
+
     try {
-      setActiveLayerId(null)
       await new Promise<void>((resolve) =>
         requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
       )
-      previewMockup = await buildLaserCombinedMockup({
-        layers: ensureLaserLayers(laserDesign),
-        backgroundUrl: null,
-        previewRoot: laserPreviewRef.current,
-      })
-    } catch {
-      console.warn("Mockup: Laser-Snapshot konnte nicht erstellt werden.")
-    }
-    try {
-      const layer = await captureProductionLayerPng({
-        layers: ensureLaserLayers(laserDesign),
-        textLayout,
-        imageLayout,
-        engravingText: gravurText,
-        fontId: selectedFont,
-      })
-      productionLayer = layer ?? undefined
-    } catch {
-      console.warn("Produktions-Layer: Laser-Export fehlgeschlagen.")
-    }
 
-    const gravurSize = engravingMetrics?.active
-    addToCart({
-      id: `custom-laser-${Date.now()}`,
-      name: isCustomerInbound
-        ? "Personalisierte Laserkreation (Kunden-Einsendung)"
-        : "Personalisierte Laserkreation",
-      price: priceBreakdown.unitPrice,
-      quantity,
-      type: "laser",
-      leitbild: previewMockup,
-      previewMockup,
-      productionLayer,
-      customDetails: buildLaserCartCustomDetails(laserDesign, {
-        material: isCustomerInbound
-          ? CUSTOMER_INBOUND_MATERIAL_LABEL
-          : material.name,
-        productBackgroundUrl: null,
-        materialVariant: laserDesign.selectedVariant,
-        size: sizePreset.dimensionsLabel,
-        isCustomerInbound,
-        dimensions: gravurSize
-          ? `${gravurSize.widthMm.toFixed(1)} x ${gravurSize.heightMm.toFixed(1)} mm`
-          : sizePreset.dimensionsLabel,
-      }),
-    })
+      const layers = ensureLaserLayers(designSnapshot)
+      let previewMockup: string | undefined
+      let productionLayer: string | undefined
+      try {
+        previewMockup = await buildLaserCombinedMockup({
+          layers,
+          backgroundUrl: null,
+          previewRoot: laserPreviewRef.current,
+        })
+      } catch {
+        console.warn("Mockup: Laser-Snapshot konnte nicht erstellt werden.")
+      }
+      try {
+        const layer = await captureProductionLayerPng({
+          layers,
+          textLayout: designSnapshot.textLayout,
+          imageLayout: designSnapshot.imageLayout,
+          engravingText: designSnapshot.engravingText,
+          fontId: designSnapshot.selectedFont,
+        })
+        productionLayer = layer ?? undefined
+      } catch {
+        console.warn("Produktions-Layer: Laser-Export fehlgeschlagen.")
+      }
 
-    setCurrentView("shop")
+      const gravurSize = engravingMetrics?.active
+      addToCart({
+        id: `custom-laser-${Date.now()}`,
+        name: isCustomerInbound
+          ? "Personalisierte Laserkreation (Kunden-Einsendung)"
+          : "Personalisierte Laserkreation",
+        price: priceBreakdown.unitPrice,
+        quantity,
+        type: "laser",
+        leitbild: previewMockup,
+        previewMockup,
+        productionLayer,
+        customDetails: buildLaserCartCustomDetails(designSnapshot, {
+          material: isCustomerInbound
+            ? CUSTOMER_INBOUND_MATERIAL_LABEL
+            : material.name,
+          productBackgroundUrl: null,
+          materialVariant: designSnapshot.selectedVariant,
+          size: sizePreset.dimensionsLabel,
+          isCustomerInbound,
+          dimensions: gravurSize
+            ? `${gravurSize.widthMm.toFixed(1)} x ${gravurSize.heightMm.toFixed(1)} mm`
+            : sizePreset.dimensionsLabel,
+        }),
+      })
+
+      setCurrentView("shop")
+    } finally {
+      setCartCapturing(false)
+    }
   }
 
   const activeStep = hasDesign
@@ -502,13 +518,19 @@ export function PageIndividualLaser({
 
               <div className="mt-6">
                 <Button
-                  onClick={handleAddToCart}
-                  disabled={!hasDesign}
+                  onClick={() => void handleAddToCart()}
+                  disabled={!hasDesign || cartCapturing}
                   className="w-full bg-cyan-500 hover:bg-cyan-600"
                   size="lg"
                 >
-                  <ShoppingCart className="mr-2 h-5 w-5" />
-                  In den Warenkorb
+                  {cartCapturing ? (
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                  ) : (
+                    <ShoppingCart className="mr-2 h-5 w-5" />
+                  )}
+                  {cartCapturing
+                    ? "Design wird gespeichert…"
+                    : "In den Warenkorb"}
                 </Button>
                 {!hasDesign && (
                   <p className="mt-3 text-center text-sm text-muted-foreground">

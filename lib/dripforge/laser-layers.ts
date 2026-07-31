@@ -130,7 +130,7 @@ export function ensureLaserLayers(
   }
 ): LaserDesignLayer[] {
   if (Array.isArray(state.layers) && state.layers.length > 0) {
-    return state.layers.map((layer) =>
+    const layers: LaserDesignLayer[] = state.layers.map((layer) =>
       layer.kind === "text"
         ? {
             ...layer,
@@ -142,6 +142,28 @@ export function ensureLaserLayers(
             src: layer.src ?? null,
           }
     )
+
+    // Compat: Bild nur in imageLayout, aber Layers-Array ohne src → nachziehen
+    const imageLayout = state.imageLayout
+    const layoutSrc = imageLayout?.src?.trim()
+    if (
+      layoutSrc &&
+      !layers.some((l) => l.kind === "image" && Boolean(l.src?.trim()))
+    ) {
+      layers.push(
+        createImageLayer({
+          x: imageLayout?.x,
+          y: imageLayout?.y,
+          scale: imageLayout?.scale,
+          scaleX: imageLayout?.scaleX,
+          scaleY: imageLayout?.scaleY,
+          rotation: imageLayout?.rotation,
+          src: layoutSrc,
+        })
+      )
+    }
+
+    return layers
   }
 
   const layers: LaserDesignLayer[] = []

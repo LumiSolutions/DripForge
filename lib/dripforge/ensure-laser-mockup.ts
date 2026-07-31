@@ -32,7 +32,32 @@ export async function buildLaserCombinedMockup(args: {
     .filter(Boolean) as import("@/lib/dripforge/laser-fonts").LaserFontId[]
   await ensureLaserFontsReady(textIds)
 
-  // 1) Exakte 1:1-Kopie der Live-Vorschau (inkl. CSS-Transforms)
+  const hasImageLayers = args.layers.some(
+    (l) => l.kind === "image" && Boolean(l.src?.trim())
+  )
+  const refW =
+    args.previewRoot?.getBoundingClientRect().width ||
+    DEFAULT_REFERENCE_PREVIEW_WIDTH
+
+  // Bei Bild-Layern zuerst programmatisch rendern — html2canvas kann Data-URLs /
+  // frisch gemountete Bilder verpassen und nur den Produkt-Hintergrund speichern.
+  let programmatic: string | undefined
+  try {
+    const composite = await renderLaserCompositeMockup({
+      backgroundUrl: args.backgroundUrl ?? null,
+      layers: args.layers,
+      size: DEFAULT_EXPORT_SIZE,
+      referencePreviewWidth: refW,
+    })
+    if (composite) programmatic = composite
+  } catch (err) {
+    console.warn("Composite-Mockup-Render fehlgeschlagen:", err)
+  }
+
+  if (hasImageLayers && programmatic) {
+    return programmatic
+  }
+
   if (args.previewRoot) {
     try {
       const snap = await captureLaserPreviewMockup(args.previewRoot)
@@ -42,24 +67,7 @@ export async function buildLaserCombinedMockup(args: {
     }
   }
 
-  // 2) Programmatisch — skaliert relativ zur gemessenen Preview-Breite
-  const refW =
-    args.previewRoot?.getBoundingClientRect().width ||
-    DEFAULT_REFERENCE_PREVIEW_WIDTH
-
-  try {
-    const composite = await renderLaserCompositeMockup({
-      backgroundUrl: args.backgroundUrl ?? null,
-      layers: args.layers,
-      size: DEFAULT_EXPORT_SIZE,
-      referencePreviewWidth: refW,
-    })
-    if (composite) return composite
-  } catch (err) {
-    console.warn("Composite-Mockup-Render fehlgeschlagen:", err)
-  }
-
-  return undefined
+  return programmatic
 }
 
 /**

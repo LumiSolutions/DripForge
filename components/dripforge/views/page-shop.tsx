@@ -18,6 +18,8 @@ import {
   Grid2x2,
   List,
   CheckCircle2,
+  Loader2,
+  Palette,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -65,12 +67,14 @@ import {
   productDimensionsToViewerMm,
 } from "@/lib/dripforge/product-dimensions"
 import { ProductImageGallery } from "@/components/dripforge/shared/product-image-gallery"
-import { SafeProductImage } from "@/components/dripforge/shared/safe-product-image"
+import {
+  ShopProductCard,
+  type ShopCardSurface,
+} from "@/components/dripforge/shared/shop-product-card"
 import { ProductShopPrice } from "@/components/dripforge/shared/product-shop-price"
 import type { CartItem, Product, ProductDimensionsMm } from "@/lib/dripforge/types"
 import type { ServiceVisibilitySettings, ShopConfiguratorSettings } from "@/lib/admin/types"
 import { DEFAULT_SHOP_CONFIGURATORS } from "@/lib/admin/types"
-import { getSaleBadgePercent } from "@/lib/dripforge/product-sale"
 import {
   buildShopFilterOptions,
   isShopFilterId,
@@ -182,8 +186,11 @@ export function PageShop({
   const [filamentTab, setFilamentTab] = useState("pla")
   const [filamentSelection, setFilamentSelection] = useState<FilamentSelection | null>(null)
   const [laserDesign, setLaserDesign] = useState<LaserDesignerState | null>(null)
+  const laserDesignRef = useRef<LaserDesignerState | null>(null)
+  laserDesignRef.current = laserDesign
   const [quantity, setQuantity] = useState(1)
   const [cartAddedOpen, setCartAddedOpen] = useState(false)
+  const [cartCapturing, setCartCapturing] = useState(false)
   const product3dCanvasRef = useRef<HTMLCanvasElement>(null)
   const laserPreviewRef = useRef<HTMLDivElement>(null)
   const [shopProducts, setShopProducts] = useState<Product[]>(staticProducts)
@@ -192,11 +199,14 @@ export function PageShop({
   const [categoryFilter, setCategoryFilter] = useState<ShopFilterId>("all")
   const [sortMode, setSortMode] = useState<ShopSortMode>("newest")
   const [viewMode, setViewMode] = useState<ShopViewMode>("grid3")
+  const [cardSurface, setCardSurface] = useState<ShopCardSurface>("brand")
 
   useEffect(() => {
     try {
       const stored = window.localStorage.getItem("df-shop-view-mode")
       setViewMode(normalizeShopViewMode(stored))
+      const surface = window.localStorage.getItem("df-shop-card-surface")
+      if (surface === "brand" || surface === "neutral") setCardSurface(surface)
     } catch {
       /* ignore */
     }
@@ -206,6 +216,15 @@ export function PageShop({
     setViewMode(mode)
     try {
       window.localStorage.setItem("df-shop-view-mode", mode)
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const setCardSurfacePersist = (surface: ShopCardSurface) => {
+    setCardSurface(surface)
+    try {
+      window.localStorage.setItem("df-shop-card-surface", surface)
     } catch {
       /* ignore */
     }
@@ -333,65 +352,79 @@ export function PageShop({
     filamentSelection ?? pickDefaultFilamentSelection(filamentMaterials)
 
   const handleAddToCart = async () => {
-    if (!selectedProduct) return
+    if (!selectedProduct || cartCapturing) return
 
     if (selectedProduct.type === "3d") {
       const selection = effectiveFilamentSelection
       if (!selection?.inStock) return
 
-      let leitbild: string | undefined
+      setCartCapturing(true)
       try {
-        const leitbildUrl = await capture3dPreviewLeitbild(product3dCanvasRef.current)
-        leitbild = leitbildUrl ?? undefined
-      } catch {
-        console.warn("Leitbild: Shop-3D-Snapshot konnte nicht erstellt werden.")
+        let leitbild: string | undefined
+        try {
+          const leitbildUrl = await capture3dPreviewLeitbild(product3dCanvasRef.current)
+          leitbild = leitbildUrl ?? undefined
+        } catch {
+          console.warn("Leitbild: Shop-3D-Snapshot konnte nicht erstellt werden.")
+        }
+
+        const printFile = resolveProductPrintFile(selectedProduct)
+
+        addToCart({
+          id: `${selectedProduct.id}-${Date.now()}`,
+          name: selectedProduct.name,
+          price: selectedProduct.price,
+          quantity,
+          type: "3d",
+          leitbild,
+          customDetails: {
+            filament: selection.materialName,
+            color: selection.colorName,
+            dimensions: selectedProduct.dimensionsMm
+              ? formatProductDimensionsText(selectedProduct.dimensionsMm)
+              : undefined,
+            ...(printFile
+              ? {
+                  fileName: printFile.fileName,
+                  fileUrl: printFile.fileUrl,
+                  modelUrl: printFile.fileUrl,
+                }
+              : {}),
+          },
+        })
+        setCartAddedOpen(true)
+      } finally {
+        setCartCapturing(false)
       }
+      return
+    }
 
-      const printFile = resolveProductPrintFile(selectedProduct)
+    const designSnapshot = laserDesignRef.current
+    if (!designSnapshot) return
+    const productVarianten = resolveProductVarianten(selectedProduct)
+    const needsVariant = productVarianten.length > 0
+    const { selectedVariant } = designSnapshot
+    if (
+      !laserDesignHasContent(designSnapshot) ||
+      (needsVariant && !selectedVariant)
+    )
+      return
 
-      addToCart({
-        id: `${selectedProduct.id}-${Date.now()}`,
-        name: selectedProduct.name,
-        price: selectedProduct.price,
-        quantity,
-        type: "3d",
-        leitbild,
-        customDetails: {
-          filament: selection.materialName,
-          color: selection.colorName,
-          dimensions: selectedProduct.dimensionsMm
-            ? formatProductDimensionsText(selectedProduct.dimensionsMm)
-            : undefined,
-          ...(printFile
-            ? {
-                fileName: printFile.fileName,
-                fileUrl: printFile.fileUrl,
-                modelUrl: printFile.fileUrl,
-              }
-            : {}),
-        },
-      })
-    } else {
-      if (!laserDesign) return
-      const productVarianten = resolveProductVarianten(selectedProduct)
-      const needsVariant = productVarianten.length > 0
-      const { selectedVariant } = laserDesign
-      if (
-        !laserDesignHasContent(laserDesign) ||
-        (needsVariant && !selectedVariant)
+    setCartCapturing(true)
+    // Auswahl-Chrome ausblenden — Snapshot der Layer bleibt unverändert
+    setLaserDesign((prev) =>
+      prev ? { ...prev, activeLayerId: null } : prev
+    )
+
+    try {
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
       )
-        return
 
+      const layers = ensureLaserLayers(designSnapshot)
       let previewMockup: string | undefined
       let productionLayer: string | undefined
       try {
-        // Auswahl-Chrome ausblenden vor Composite-Capture
-        setLaserDesign((prev) =>
-          prev ? { ...prev, activeLayerId: null } : prev
-        )
-        await new Promise<void>((resolve) =>
-          requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
-        )
         const bgUrl =
           selectedProduct.individualisierungsBild?.trim() ||
           resolveProductImages(
@@ -401,7 +434,7 @@ export function PageShop({
           )[0] ||
           null
         previewMockup = await buildLaserCombinedMockup({
-          layers: ensureLaserLayers(laserDesign),
+          layers,
           backgroundUrl: bgUrl,
           previewRoot: laserPreviewRef.current,
         })
@@ -410,11 +443,11 @@ export function PageShop({
       }
       try {
         const layer = await captureProductionLayerPng({
-          layers: ensureLaserLayers(laserDesign),
-          textLayout: laserDesign.textLayout,
-          imageLayout: laserDesign.imageLayout,
-          engravingText: laserDesign.engravingText,
-          fontId: laserDesign.selectedFont,
+          layers,
+          textLayout: designSnapshot.textLayout,
+          imageLayout: designSnapshot.imageLayout,
+          engravingText: designSnapshot.engravingText,
+          fontId: designSnapshot.selectedFont,
         })
         productionLayer = layer ?? undefined
       } catch {
@@ -430,7 +463,7 @@ export function PageShop({
         leitbild: previewMockup,
         previewMockup,
         productionLayer,
-        customDetails: buildLaserCartCustomDetails(laserDesign, {
+        customDetails: buildLaserCartCustomDetails(designSnapshot, {
           material: selectedProduct.name,
           variant: selectedVariant,
           productBackgroundUrl:
@@ -444,12 +477,11 @@ export function PageShop({
         }),
       }
 
-      console.log("Warenkorb-Item hinzugefuegt:", newItem)
       addToCart(newItem)
+      setCartAddedOpen(true)
+    } finally {
+      setCartCapturing(false)
     }
-
-    // Bleibt auf der Produktseite — Modal statt Redirect
-    setCartAddedOpen(true)
   }
 
   const selectedProductVarianten =
@@ -458,7 +490,8 @@ export function PageShop({
       : []
 
   const canAddToCart =
-    selectedProduct?.type === "3d"
+    !cartCapturing &&
+    (selectedProduct?.type === "3d"
       ? !filamentsLoading && Boolean(effectiveFilamentSelection?.inStock)
       : Boolean(
           laserDesign &&
@@ -467,7 +500,7 @@ export function PageShop({
             (laserDesign.engravingText.trim() ||
               laserDesign.imageLayout.src ||
               laserDesignHasContent(laserDesign))
-        )
+        ))
 
   if (selectedProduct) {
     const detailProduct = normalizeShopProduct(selectedProduct)
@@ -562,8 +595,8 @@ export function PageShop({
           {detailProduct.type === "laser" && shopLaserMaterial && laserDesign ? (
             <div className="space-y-6">
               <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-12 xl:gap-6">
-                {/* Spalte 1: Galerie */}
-                <div className="flex min-w-0 max-w-full flex-col gap-4 xl:col-span-4">
+                {/* Spalte 1: Galerie / Settings */}
+                <div className="order-1 flex min-w-0 max-w-full flex-col gap-4 xl:col-span-4">
                   <ProductImageGallery
                     images={galleryImages}
                     alt={detailProduct.name}
@@ -602,8 +635,8 @@ export function PageShop({
                   />
                 </div>
 
-                {/* Spalte 2: Preis / Varianten / Warenkorb — betont */}
-                <div className="flex min-w-0 max-w-full flex-col gap-4 xl:col-span-4 xl:sticky xl:top-[calc(var(--header-height,4rem)+1rem)]">
+                {/* Spalte 2: Preis / Varianten / Warenkorb — auf Mobile unter der Vorschau */}
+                <div className="order-3 flex min-w-0 max-w-full flex-col gap-4 xl:order-2 xl:col-span-4 xl:sticky xl:top-[calc(var(--header-height,4rem)+1rem)]">
                   <Card className="rounded-2xl border-2 border-primary/25 bg-card/80 shadow-md shadow-primary/5">
                     <CardContent className="space-y-4 p-4 sm:p-5">
                       <div className="flex flex-col gap-1">
@@ -639,13 +672,17 @@ export function PageShop({
                         </span>
                       </div>
                       <Button
-                        onClick={handleAddToCart}
+                        onClick={() => void handleAddToCart()}
                         disabled={!canAddToCart}
                         className="w-full bg-primary text-base hover:bg-primary/90"
                         size="lg"
                       >
-                        <ShoppingCart className="mr-2 h-5 w-5" />
-                        In den Warenkorb
+                        {cartCapturing ? (
+                          <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                        ) : (
+                          <ShoppingCart className="mr-2 h-5 w-5" />
+                        )}
+                        {cartCapturing ? "Design wird gespeichert…" : "In den Warenkorb"}
                       </Button>
                     </CardContent>
                   </Card>
@@ -667,8 +704,8 @@ export function PageShop({
                   />
                 </div>
 
-                {/* Spalte 3: Live-Vorschau */}
-                <div className="flex min-w-0 max-w-full flex-col gap-4 xl:col-span-4 xl:sticky xl:top-[calc(var(--header-height,4rem)+1rem)]">
+                {/* Spalte 3: Live-Vorschau — mobil direkt über dem Warenkorb */}
+                <div className="order-2 flex min-w-0 max-w-full flex-col gap-4 xl:order-3 xl:col-span-4 xl:sticky xl:top-[calc(var(--header-height,4rem)+1rem)]">
                   <LaserDesignerStudio
                     column="preview"
                     material={shopLaserMaterial}
@@ -874,13 +911,19 @@ export function PageShop({
                             </div>
 
                             <Button
-                              onClick={handleAddToCart}
+                              onClick={() => void handleAddToCart()}
                               disabled={!canAddToCart}
                               className="w-full bg-primary hover:bg-primary/90"
                               size="lg"
                             >
-                              <ShoppingCart className="mr-2 h-5 w-5" />
-                              In den Warenkorb
+                              {cartCapturing ? (
+                                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                              ) : (
+                                <ShoppingCart className="mr-2 h-5 w-5" />
+                              )}
+                              {cartCapturing
+                                ? "Wird hinzugefügt…"
+                                : "In den Warenkorb"}
                             </Button>
                             {filamentSelection && !filamentSelection.inStock && (
                               <p className="text-center text-sm text-red-500">
@@ -1033,40 +1076,66 @@ export function PageShop({
           onSortChange={setSortMode}
           productCount={displayedProducts.length}
           viewToggle={
-            <div className="inline-flex rounded-lg border border-border/60 p-0.5">
-              <Button
-                type="button"
-                size="icon"
-                variant={viewMode === "grid3" ? "default" : "ghost"}
-                className="h-9 w-9"
-                aria-label="Einzelansicht / grosse Karten"
-                title="Grosse Karten (1 Spalte mobil, 3 Desktop)"
-                onClick={() => setViewModePersist("grid3")}
-              >
-                <LayoutGrid className="h-4 w-4" />
-              </Button>
-              <Button
-                type="button"
-                size="icon"
-                variant={viewMode === "grid5" ? "default" : "ghost"}
-                className="h-9 w-9"
-                aria-label="Zwei-Spalten / kompakte Karten"
-                title="Kompakte Karten (2 Spalten mobil, 5 Desktop)"
-                onClick={() => setViewModePersist("grid5")}
-              >
-                <Grid2x2 className="h-4 w-4" />
-              </Button>
-              <Button
-                type="button"
-                size="icon"
-                variant={viewMode === "list" ? "default" : "ghost"}
-                className="hidden h-9 w-9 md:inline-flex"
-                aria-label="Listenansicht"
-                title="Listenansicht"
-                onClick={() => setViewModePersist("list")}
-              >
-                <List className="h-4 w-4" />
-              </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="inline-flex rounded-lg border border-border/60 p-0.5">
+                <Button
+                  type="button"
+                  size="icon"
+                  variant={viewMode === "grid3" ? "default" : "ghost"}
+                  className="h-9 w-9"
+                  aria-label="Einzelansicht / grosse Karten"
+                  title="Grosse Karten (1 Spalte mobil, 3 Desktop)"
+                  onClick={() => setViewModePersist("grid3")}
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                </Button>
+                <Button
+                  type="button"
+                  size="icon"
+                  variant={viewMode === "grid5" ? "default" : "ghost"}
+                  className="h-9 w-9"
+                  aria-label="Zwei-Spalten / kompakte Karten"
+                  title="Kompakte Karten (2 Spalten mobil, 5 Desktop)"
+                  onClick={() => setViewModePersist("grid5")}
+                >
+                  <Grid2x2 className="h-4 w-4" />
+                </Button>
+                <Button
+                  type="button"
+                  size="icon"
+                  variant={viewMode === "list" ? "default" : "ghost"}
+                  className="hidden h-9 w-9 md:inline-flex"
+                  aria-label="Listenansicht"
+                  title="Listenansicht"
+                  onClick={() => setViewModePersist("list")}
+                >
+                  <List className="h-4 w-4" />
+                </Button>
+              </div>
+              <div className="inline-flex rounded-lg border border-border/60 p-0.5">
+                <Button
+                  type="button"
+                  size="icon"
+                  variant={cardSurface === "brand" ? "default" : "ghost"}
+                  className="h-9 w-9"
+                  aria-label="Kartenhintergrund Brand-Gradient"
+                  title="Brand-Gradient"
+                  onClick={() => setCardSurfacePersist("brand")}
+                >
+                  <Palette className="h-4 w-4" />
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={cardSurface === "neutral" ? "default" : "ghost"}
+                  className="h-9 px-2 text-xs"
+                  aria-label="Kartenhintergrund neutral"
+                  title="Neutral"
+                  onClick={() => setCardSurfacePersist("neutral")}
+                >
+                  Neutral
+                </Button>
+              </div>
             </div>
           }
         />
@@ -1108,133 +1177,15 @@ export function PageShop({
                 product.images?.[0]?.trim() ||
                 cardImages[0] ||
                 "/filaments/printed-pla-schwarz.png"
-              const salePercent = getSaleBadgePercent(product)
-              if (viewMode === "list") {
-                return (
-                  <Card
-                    key={product.id}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => openProduct(product)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault()
-                        openProduct(product)
-                      }
-                    }}
-                    className={cn(
-                      "cursor-pointer overflow-hidden border-border/50 bg-card/50 transition-colors hover:border-primary/50 hover:shadow-md",
-                      product.sale && "border-red-500/30 hover:border-red-500/60"
-                    )}
-                  >
-                    <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center">
-                      <div className="relative h-36 w-full shrink-0 overflow-hidden rounded-lg bg-secondary/50 sm:h-28 sm:w-36">
-                        {product.sale && salePercent != null && (
-                          <span className="absolute left-2 top-2 z-10 rounded-full bg-red-500 px-2 py-0.5 text-xs font-bold text-white">
-                            -{salePercent}%
-                          </span>
-                        )}
-                        <SafeProductImage
-                          src={coverSrc}
-                          alt={product.name}
-                          fill
-                          sizes="160px"
-                          className="object-cover sm:object-contain sm:p-2"
-                        />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
-                          {product.type === "3d" ? (
-                            <>
-                              <Printer className="h-3 w-3" />
-                              3D-Druck
-                            </>
-                          ) : (
-                            <>
-                              <Zap className="h-3 w-3" />
-                              Laser
-                            </>
-                          )}
-                        </div>
-                        <h3 className="font-bold">{product.name}</h3>
-                        <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
-                          {product.description}
-                        </p>
-                      </div>
-                      <div className="flex shrink-0 items-center justify-between gap-4 sm:flex-col sm:items-end">
-                        <ProductShopPrice product={product} />
-                        <span className="inline-flex items-center text-sm font-medium text-primary">
-                          Ansehen
-                          <ArrowRight className="ml-1 h-4 w-4" />
-                        </span>
-                      </div>
-                    </div>
-                  </Card>
-                )
-              }
               return (
-              <Card
-                key={product.id}
-                role="button"
-                tabIndex={0}
-                onClick={() => openProduct(product)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault()
-                    openProduct(product)
-                  }
-                }}
-                className={cn(
-                  "cursor-pointer overflow-hidden border-border/50 bg-card/50 transition-colors hover:border-primary/50 hover:shadow-md",
-                  product.sale && "border-red-500/30 hover:border-red-500/60"
-                )}
-              >
-                <div
-                  className={cn(
-                    "relative bg-secondary/50",
-                    viewMode === "grid5" ? "h-36" : "h-48"
-                  )}
-                >
-                  {product.sale && salePercent != null && (
-                    <span className="absolute left-3 top-3 z-10 rounded-full bg-red-500 px-2 py-0.5 text-xs font-bold text-white">
-                      -{salePercent}%
-                    </span>
-                  )}
-                  <SafeProductImage
-                    src={coverSrc}
-                    alt={product.name}
-                    fill
-                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
-                    className="object-cover sm:object-contain sm:p-4"
-                  />
-                </div>
-                <CardContent className="p-4">
-                  <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
-                    {product.type === "3d" ? (
-                      <>
-                        <Printer className="h-3 w-3" />
-                        3D-Druck
-                      </>
-                    ) : (
-                      <>
-                        <Zap className="h-3 w-3" />
-                        Laser
-                      </>
-                    )}
-                  </div>
-                  <h3 className="mb-1 font-bold">{product.name}</h3>
-                  <p className="mb-4 line-clamp-2 text-xs text-muted-foreground">
-                    {product.description}
-                  </p>
-                  <div className="flex items-center justify-between">
-                    <ProductShopPrice product={product} />
-                    <span className="inline-flex items-center text-sm font-medium text-primary">
-                      Ansehen
-                      <ArrowRight className="ml-1 h-4 w-4" />
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
+                <ShopProductCard
+                  key={product.id}
+                  product={product}
+                  coverSrc={coverSrc}
+                  viewMode={viewMode}
+                  surface={cardSurface}
+                  onOpen={() => openProduct(product)}
+                />
               )
             })}
           </div>

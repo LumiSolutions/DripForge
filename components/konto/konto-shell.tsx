@@ -54,7 +54,13 @@ export function KontoShell({
       )}
     >
       {!authMode && (
-        <nav className="flex shrink-0 flex-row gap-2 md:w-52 md:flex-col">
+        <nav
+          className={cn(
+            "-mx-4 flex shrink-0 flex-nowrap gap-2 overflow-x-auto px-4 whitespace-nowrap",
+            "[scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden",
+            "md:mx-0 md:w-52 md:flex-col md:overflow-visible md:whitespace-normal md:px-0"
+          )}
+        >
           {navItems.map((item) => {
             const Icon = item.icon
             const active = item.exact
@@ -65,7 +71,7 @@ export function KontoShell({
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-medium transition-colors",
+                  "flex shrink-0 items-center gap-2 rounded-xl px-4 py-3 text-sm font-medium transition-colors",
                   active
                     ? "bg-primary/15 text-primary ring-1 ring-primary/30"
                     : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"

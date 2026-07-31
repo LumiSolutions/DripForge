@@ -63,7 +63,9 @@ export function normalizeMaterialItem(raw: Partial<MaterialItem> & { id: string 
   const imageUrls = resolveMaterialImageUrls(raw as CosmosMaterialDoc)
 
   const materialType = raw.materialType?.trim()
-    ? normalizeMaterialTypeKey(raw.materialType)
+    ? category === "filament"
+      ? normalizeMaterialTypeKey(raw.materialType)
+      : raw.materialType.trim()
     : undefined
 
   return {
@@ -72,7 +74,8 @@ export function normalizeMaterialItem(raw: Partial<MaterialItem> & { id: string 
     category,
     name: String(raw.name ?? "").trim() || "Unbenannt",
     manufacturer: raw.manufacturer?.trim() || undefined,
-    materialType: category === "filament" ? materialType : undefined,
+    materialType,
+    typ: category === "lasermaterial" ? raw.typ?.trim() || undefined : undefined,
     farbe: legacy.farbe ?? (raw.farbe?.trim() || undefined),
     filamentCode: category === "filament" ? raw.filamentCode?.trim() || undefined : undefined,
     dicke: category === "lasermaterial" ? raw.dicke?.trim() || undefined : undefined,
