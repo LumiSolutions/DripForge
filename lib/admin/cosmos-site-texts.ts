@@ -21,6 +21,11 @@ export async function cosmosSaveSiteTexts(texts: SiteTexts): Promise<SiteTexts> 
     navItems: existing.navItems,
     pages: existing.pages,
     faqItems: existing.faqItems,
+    processSteps3d: existing.processSteps3d,
+    processStepsLaser: existing.processStepsLaser,
+    expectItems3d: existing.expectItems3d,
+    expectItemsLaser: existing.expectItemsLaser,
+    contactFormFields: existing.contactFormFields,
   })
   return saved.texts
 }

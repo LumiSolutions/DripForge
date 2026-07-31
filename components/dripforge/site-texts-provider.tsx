@@ -45,6 +45,20 @@ import {
   type CmsFaqItem,
 } from "@/lib/admin/cms-faq"
 import {
+  getDefaultCmsPageContentLists,
+  getDefaultExpectItems3d,
+  getDefaultExpectItemsLaser,
+  getDefaultProcessSteps3d,
+  getDefaultProcessStepsLaser,
+  mergeCmsPageContentLists,
+  sanitizeCmsContactFormFields,
+  sanitizeCmsExpectItems,
+  sanitizeCmsProcessSteps,
+  type CmsContactField,
+  type CmsExpectItem,
+  type CmsProcessStep,
+} from "@/lib/admin/cms-page-content"
+import {
   isSiteConfigPreviewEnabled,
   isSiteConfigReadonlyEnabled,
   SITE_CONFIG_PREVIEW_PARAM,
@@ -57,6 +71,11 @@ type SiteTextsContextValue = {
   navItems: CmsNavItem[]
   pages: CmsPageEntry[]
   faqItems: CmsFaqItem[]
+  processSteps3d: CmsProcessStep[]
+  processStepsLaser: CmsProcessStep[]
+  expectItems3d: CmsExpectItem[]
+  expectItemsLaser: CmsExpectItem[]
+  contactFormFields: CmsContactField[]
   loading: boolean
   preview: boolean
   readonly: boolean
@@ -72,6 +91,11 @@ type SiteTextsContextValue = {
   saveNavItems: (items: CmsNavItem[]) => Promise<void>
   savePages: (pages: CmsPageEntry[]) => Promise<void>
   saveFaqItems: (items: CmsFaqItem[]) => Promise<void>
+  saveProcessSteps3d: (items: CmsProcessStep[]) => Promise<void>
+  saveProcessStepsLaser: (items: CmsProcessStep[]) => Promise<void>
+  saveExpectItems3d: (items: CmsExpectItem[]) => Promise<void>
+  saveExpectItemsLaser: (items: CmsExpectItem[]) => Promise<void>
+  saveContactFormFields: (items: CmsContactField[]) => Promise<void>
   updateNavItemLabel: (id: string, label: string) => Promise<void>
 }
 
@@ -97,22 +121,31 @@ type BundlePayload = {
   navItems?: CmsNavItem[]
   pages?: CmsPageEntry[]
   faqItems?: CmsFaqItem[]
+  processSteps3d?: CmsProcessStep[]
+  processStepsLaser?: CmsProcessStep[]
+  expectItems3d?: CmsExpectItem[]
+  expectItemsLaser?: CmsExpectItem[]
+  contactFormFields?: CmsContactField[]
   preview?: boolean
   role?: "admin" | "tester"
   error?: string
 }
 
-function applyBundle(
-  data: BundlePayload | null,
-  setters: {
-    setTexts: (v: SiteTexts) => void
-    setImages: (v: SiteImages) => void
-    setLinks: (v: SiteLinks) => void
-    setNavItems: (v: CmsNavItem[]) => void
-    setPages: (v: CmsPageEntry[]) => void
-    setFaqItems: (v: CmsFaqItem[]) => void
-  }
-) {
+type BundleSetters = {
+  setTexts: (v: SiteTexts) => void
+  setImages: (v: SiteImages) => void
+  setLinks: (v: SiteLinks) => void
+  setNavItems: (v: CmsNavItem[]) => void
+  setPages: (v: CmsPageEntry[]) => void
+  setFaqItems: (v: CmsFaqItem[]) => void
+  setProcessSteps3d: (v: CmsProcessStep[]) => void
+  setProcessStepsLaser: (v: CmsProcessStep[]) => void
+  setExpectItems3d: (v: CmsExpectItem[]) => void
+  setExpectItemsLaser: (v: CmsExpectItem[]) => void
+  setContactFormFields: (v: CmsContactField[]) => void
+}
+
+function applyBundle(data: BundlePayload | null, setters: BundleSetters) {
   const texts = mergeSiteTexts(data?.texts)
   setters.setTexts(texts)
   setters.setImages(mergeSiteImages(data?.images))
@@ -120,6 +153,12 @@ function applyBundle(
   setters.setNavItems(mergeCmsNavItems(data?.navItems))
   setters.setPages(mergeCmsPages(data?.pages))
   setters.setFaqItems(mergeCmsFaqItems(data?.faqItems, texts))
+  const lists = mergeCmsPageContentLists(data)
+  setters.setProcessSteps3d(lists.processSteps3d)
+  setters.setProcessStepsLaser(lists.processStepsLaser)
+  setters.setExpectItems3d(lists.expectItems3d)
+  setters.setExpectItemsLaser(lists.expectItemsLaser)
+  setters.setContactFormFields(lists.contactFormFields)
 }
 
 export function SiteTextsProvider({ children }: { children: ReactNode }) {
@@ -130,6 +169,21 @@ export function SiteTextsProvider({ children }: { children: ReactNode }) {
   const [navItems, setNavItems] = useState<CmsNavItem[]>(mergeCmsNavItems(null))
   const [pages, setPages] = useState<CmsPageEntry[]>(mergeCmsPages(null))
   const [faqItems, setFaqItems] = useState<CmsFaqItem[]>(mergeCmsFaqItems(null))
+  const [processSteps3d, setProcessSteps3d] = useState<CmsProcessStep[]>(
+    () => getDefaultCmsPageContentLists().processSteps3d
+  )
+  const [processStepsLaser, setProcessStepsLaser] = useState<CmsProcessStep[]>(
+    () => getDefaultCmsPageContentLists().processStepsLaser
+  )
+  const [expectItems3d, setExpectItems3d] = useState<CmsExpectItem[]>(
+    () => getDefaultCmsPageContentLists().expectItems3d
+  )
+  const [expectItemsLaser, setExpectItemsLaser] = useState<CmsExpectItem[]>(
+    () => getDefaultCmsPageContentLists().expectItemsLaser
+  )
+  const [contactFormFields, setContactFormFields] = useState<CmsContactField[]>(
+    () => getDefaultCmsPageContentLists().contactFormFields
+  )
   const [loading, setLoading] = useState(true)
   const [preview, setPreview] = useState(false)
   const [readonly, setReadonly] = useState(false)
@@ -141,13 +195,18 @@ export function SiteTextsProvider({ children }: { children: ReactNode }) {
     setPreview(previewNow)
     setReadonly(readonlyNow)
 
-    const setters = {
+    const setters: BundleSetters = {
       setTexts,
       setImages,
       setLinks,
       setNavItems,
       setPages,
       setFaqItems,
+      setProcessSteps3d,
+      setProcessStepsLaser,
+      setExpectItems3d,
+      setExpectItemsLaser,
+      setContactFormFields,
     }
 
     try {
@@ -224,6 +283,23 @@ export function SiteTextsProvider({ children }: { children: ReactNode }) {
     }
   }, [preview, pathname])
 
+  const bundleSetters = useMemo<BundleSetters>(
+    () => ({
+      setTexts,
+      setImages,
+      setLinks,
+      setNavItems,
+      setPages,
+      setFaqItems,
+      setProcessSteps3d,
+      setProcessStepsLaser,
+      setExpectItems3d,
+      setExpectItemsLaser,
+      setContactFormFields,
+    }),
+    []
+  )
+
   const saveText = useCallback(async (key: SiteTextKey, value: string) => {
     let previousTexts: SiteTexts | null = null
     setTexts((prev) => {
@@ -242,15 +318,8 @@ export function SiteTextsProvider({ children }: { children: ReactNode }) {
       if (previousTexts) setTexts(previousTexts)
       throw new Error(data?.error ?? "Text konnte nicht gespeichert werden.")
     }
-    applyBundle(data, {
-      setTexts,
-      setImages,
-      setLinks,
-      setNavItems,
-      setPages,
-      setFaqItems,
-    })
-  }, [])
+    applyBundle(data, bundleSetters)
+  }, [bundleSetters])
 
   const saveImage = useCallback(async (key: SiteImageKey, entry: SiteImageEntry) => {
     let previousImages: SiteImages | null = null
@@ -270,15 +339,8 @@ export function SiteTextsProvider({ children }: { children: ReactNode }) {
       if (previousImages) setImages(previousImages)
       throw new Error(data?.error ?? "Bild konnte nicht gespeichert werden.")
     }
-    applyBundle(data, {
-      setTexts,
-      setImages,
-      setLinks,
-      setNavItems,
-      setPages,
-      setFaqItems,
-    })
-  }, [])
+    applyBundle(data, bundleSetters)
+  }, [bundleSetters])
 
   const saveLink = useCallback(async (key: string, href: string) => {
     let previousLinks: SiteLinks | null = null
@@ -298,15 +360,8 @@ export function SiteTextsProvider({ children }: { children: ReactNode }) {
       if (previousLinks) setLinks(previousLinks)
       throw new Error(data?.error ?? "Link konnte nicht gespeichert werden.")
     }
-    applyBundle(data, {
-      setTexts,
-      setImages,
-      setLinks,
-      setNavItems,
-      setPages,
-      setFaqItems,
-    })
-  }, [])
+    applyBundle(data, bundleSetters)
+  }, [bundleSetters])
 
   const saveNavItems = useCallback(async (items: CmsNavItem[]) => {
     let previous: CmsNavItem[] | null = null
@@ -374,6 +429,130 @@ export function SiteTextsProvider({ children }: { children: ReactNode }) {
     setFaqItems(sanitizeCmsFaqItemsInput(data?.faqItems ?? next))
   }, [])
 
+  const saveProcessSteps3d = useCallback(async (nextItems: CmsProcessStep[]) => {
+    let previous: CmsProcessStep[] | null = null
+    const next = sanitizeCmsProcessSteps(nextItems, getDefaultProcessSteps3d)
+    setProcessSteps3d((prev) => {
+      previous = prev
+      return next
+    })
+
+    const res = await fetch("/api/admin/site-config", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ processSteps3d: next }),
+    })
+    const data = (await res.json().catch(() => null)) as BundlePayload | null
+    if (!res.ok) {
+      if (previous) setProcessSteps3d(previous)
+      throw new Error(data?.error ?? "Prozessschritte konnten nicht gespeichert werden.")
+    }
+    setProcessSteps3d(
+      sanitizeCmsProcessSteps(data?.processSteps3d ?? next, getDefaultProcessSteps3d)
+    )
+  }, [])
+
+  const saveProcessStepsLaser = useCallback(async (nextItems: CmsProcessStep[]) => {
+    let previous: CmsProcessStep[] | null = null
+    const next = sanitizeCmsProcessSteps(nextItems, getDefaultProcessStepsLaser)
+    setProcessStepsLaser((prev) => {
+      previous = prev
+      return next
+    })
+
+    const res = await fetch("/api/admin/site-config", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ processStepsLaser: next }),
+    })
+    const data = (await res.json().catch(() => null)) as BundlePayload | null
+    if (!res.ok) {
+      if (previous) setProcessStepsLaser(previous)
+      throw new Error(data?.error ?? "Prozessschritte konnten nicht gespeichert werden.")
+    }
+    setProcessStepsLaser(
+      sanitizeCmsProcessSteps(
+        data?.processStepsLaser ?? next,
+        getDefaultProcessStepsLaser
+      )
+    )
+  }, [])
+
+  const saveExpectItems3d = useCallback(async (nextItems: CmsExpectItem[]) => {
+    let previous: CmsExpectItem[] | null = null
+    const next = sanitizeCmsExpectItems(nextItems, getDefaultExpectItems3d)
+    setExpectItems3d((prev) => {
+      previous = prev
+      return next
+    })
+
+    const res = await fetch("/api/admin/site-config", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ expectItems3d: next }),
+    })
+    const data = (await res.json().catch(() => null)) as BundlePayload | null
+    if (!res.ok) {
+      if (previous) setExpectItems3d(previous)
+      throw new Error(data?.error ?? "Erwartungs-Einträge konnten nicht gespeichert werden.")
+    }
+    setExpectItems3d(
+      sanitizeCmsExpectItems(data?.expectItems3d ?? next, getDefaultExpectItems3d)
+    )
+  }, [])
+
+  const saveExpectItemsLaser = useCallback(async (nextItems: CmsExpectItem[]) => {
+    let previous: CmsExpectItem[] | null = null
+    const next = sanitizeCmsExpectItems(nextItems, getDefaultExpectItemsLaser)
+    setExpectItemsLaser((prev) => {
+      previous = prev
+      return next
+    })
+
+    const res = await fetch("/api/admin/site-config", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ expectItemsLaser: next }),
+    })
+    const data = (await res.json().catch(() => null)) as BundlePayload | null
+    if (!res.ok) {
+      if (previous) setExpectItemsLaser(previous)
+      throw new Error(data?.error ?? "Erwartungs-Einträge konnten nicht gespeichert werden.")
+    }
+    setExpectItemsLaser(
+      sanitizeCmsExpectItems(
+        data?.expectItemsLaser ?? next,
+        getDefaultExpectItemsLaser
+      )
+    )
+  }, [])
+
+  const saveContactFormFields = useCallback(async (nextItems: CmsContactField[]) => {
+    let previous: CmsContactField[] | null = null
+    const next = sanitizeCmsContactFormFields(nextItems)
+    setContactFormFields((prev) => {
+      previous = prev
+      return next
+    })
+
+    const res = await fetch("/api/admin/site-config", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ contactFormFields: next }),
+    })
+    const data = (await res.json().catch(() => null)) as BundlePayload | null
+    if (!res.ok) {
+      if (previous) setContactFormFields(previous)
+      throw new Error(data?.error ?? "Kontaktfelder konnten nicht gespeichert werden.")
+    }
+    setContactFormFields(sanitizeCmsContactFormFields(data?.contactFormFields ?? next))
+  }, [])
+
   const updateNavItemLabel = useCallback(
     async (id: string, label: string) => {
       const trimmed = label.trim()
@@ -397,6 +576,11 @@ export function SiteTextsProvider({ children }: { children: ReactNode }) {
       navItems,
       pages,
       faqItems,
+      processSteps3d,
+      processStepsLaser,
+      expectItems3d,
+      expectItemsLaser,
+      contactFormFields,
       loading,
       preview,
       readonly,
@@ -412,6 +596,11 @@ export function SiteTextsProvider({ children }: { children: ReactNode }) {
       saveNavItems,
       savePages,
       saveFaqItems,
+      saveProcessSteps3d,
+      saveProcessStepsLaser,
+      saveExpectItems3d,
+      saveExpectItemsLaser,
+      saveContactFormFields,
       updateNavItemLabel,
     }),
     [
@@ -421,6 +610,11 @@ export function SiteTextsProvider({ children }: { children: ReactNode }) {
       navItems,
       pages,
       faqItems,
+      processSteps3d,
+      processStepsLaser,
+      expectItems3d,
+      expectItemsLaser,
+      contactFormFields,
       loading,
       preview,
       readonly,
@@ -433,6 +627,11 @@ export function SiteTextsProvider({ children }: { children: ReactNode }) {
       saveNavItems,
       savePages,
       saveFaqItems,
+      saveProcessSteps3d,
+      saveProcessStepsLaser,
+      saveExpectItems3d,
+      saveExpectItemsLaser,
+      saveContactFormFields,
       updateNavItemLabel,
     ]
   )
@@ -445,6 +644,7 @@ export function SiteTextsProvider({ children }: { children: ReactNode }) {
 export function useSiteTexts(): SiteTextsContextValue {
   const ctx = useContext(SiteTextsContext)
   if (!ctx) {
+    const lists = getDefaultCmsPageContentLists()
     return {
       texts: mergeSiteTexts(null),
       images: mergeSiteImages(null),
@@ -452,6 +652,11 @@ export function useSiteTexts(): SiteTextsContextValue {
       navItems: mergeCmsNavItems(null),
       pages: mergeCmsPages(null),
       faqItems: mergeCmsFaqItems(null),
+      processSteps3d: lists.processSteps3d,
+      processStepsLaser: lists.processStepsLaser,
+      expectItems3d: lists.expectItems3d,
+      expectItemsLaser: lists.expectItemsLaser,
+      contactFormFields: lists.contactFormFields,
       loading: false,
       preview: false,
       readonly: false,
@@ -467,6 +672,11 @@ export function useSiteTexts(): SiteTextsContextValue {
       saveNavItems: async () => {},
       savePages: async () => {},
       saveFaqItems: async () => {},
+      saveProcessSteps3d: async () => {},
+      saveProcessStepsLaser: async () => {},
+      saveExpectItems3d: async () => {},
+      saveExpectItemsLaser: async () => {},
+      saveContactFormFields: async () => {},
       updateNavItemLabel: async () => {},
     }
   }

@@ -14,6 +14,7 @@ import { mergeSiteImages } from "@/lib/admin/site-images"
 import { mergeSiteLinks } from "@/lib/admin/site-links"
 import { mergeCmsNavItems, mergeCmsPages } from "@/lib/admin/site-nav"
 import { mergeCmsFaqItems } from "@/lib/admin/cms-faq"
+import { getDefaultCmsPageContentLists } from "@/lib/admin/cms-page-content"
 import { mergeSiteTexts, sanitizeSiteTextsInput } from "@/lib/admin/site-texts"
 import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
 
@@ -35,6 +36,11 @@ export async function GET(request: Request) {
         navItems: bundle.navItems,
         pages: bundle.pages,
         faqItems: bundle.faqItems,
+        processSteps3d: bundle.processSteps3d,
+        processStepsLaser: bundle.processStepsLaser,
+        expectItems3d: bundle.expectItems3d,
+        expectItemsLaser: bundle.expectItemsLaser,
+        contactFormFields: bundle.contactFormFields,
         preview,
       },
       { headers: { "Cache-Control": "no-store, max-age=0" } }
@@ -42,6 +48,7 @@ export async function GET(request: Request) {
   } catch (error) {
     console.error("Site-Texts API: Laden fehlgeschlagen.", error)
     const texts = mergeSiteTexts(null)
+    const lists = getDefaultCmsPageContentLists()
     return NextResponse.json(
       {
         texts,
@@ -50,6 +57,11 @@ export async function GET(request: Request) {
         navItems: mergeCmsNavItems(null),
         pages: mergeCmsPages(null),
         faqItems: mergeCmsFaqItems(null, texts),
+        processSteps3d: lists.processSteps3d,
+        processStepsLaser: lists.processStepsLaser,
+        expectItems3d: lists.expectItems3d,
+        expectItemsLaser: lists.expectItemsLaser,
+        contactFormFields: lists.contactFormFields,
         preview: false,
       },
       { headers: { "Cache-Control": "no-store, max-age=0" } }
@@ -78,6 +90,11 @@ export async function PUT(request: Request) {
       navItems: saved.navItems,
       pages: saved.pages,
       faqItems: saved.faqItems,
+      processSteps3d: saved.processSteps3d,
+      processStepsLaser: saved.processStepsLaser,
+      expectItems3d: saved.expectItems3d,
+      expectItemsLaser: saved.expectItemsLaser,
+      contactFormFields: saved.contactFormFields,
       environment: "staging",
     })
   } catch (error) {
