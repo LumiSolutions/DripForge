@@ -1,20 +1,30 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import {
   ArrowRight,
+  Check,
   Coins,
   ExternalLink,
   Loader2,
+  Pencil,
   RefreshCw,
   Trash2,
   UserRound,
+  X,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -41,6 +51,7 @@ import {
 } from "@/lib/admin/types"
 import type { CustomerAccountStatus } from "@/lib/konto/account-status"
 import { normalizeAccountStatus } from "@/lib/konto/account-status"
+import type { OrderAddress } from "@/lib/dripforge/submit-order"
 import type { LoyaltyPointTransaction } from "@/lib/konto/loyalty-points-config"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
 import { cn } from "@/lib/utils"
@@ -51,6 +62,20 @@ type CustomerLoyaltyInfo = {
   hasPortalAccount: boolean
   pointValueChf: number
   enabled: boolean
+}
+
+type StatusFilter = "alle" | "aktive" | "inaktive"
+type AddressSection = "billing" | "delivery"
+
+type AddressFormState = {
+  firstName: string
+  lastName: string
+  email: string
+  phone: string
+  street: string
+  zip: string
+  city: string
+  country: string
 }
 
 function normalizeDetailStatus(status: unknown): CustomerAccountStatus {
@@ -64,6 +89,14 @@ function CustomerStatusBadge({ status }: { status: CustomerAccountStatus }) {
     return (
       <Badge variant="outline" className="border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-300">
         Gelöscht
+      </Badge>
+    )
+  }
+
+  if (status === "inaktiv") {
+    return (
+      <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-300">
+        Inaktiv
       </Badge>
     )
   }
@@ -86,12 +119,154 @@ function statusLabel(status: StoredOrder["status"]) {
   return ORDER_STATUS_OPTIONS.find((o) => o.value === status)?.label ?? status
 }
 
+function addressToForm(
+  address: OrderAddress | undefined | null,
+  fallbackEmail = ""
+): AddressFormState {
+  return {
+    firstName: address?.firstName ?? "",
+    lastName: address?.lastName ?? "",
+    email: address?.email || fallbackEmail,
+    phone: address?.phone ?? "",
+    street: address?.street ?? "",
+    zip: address?.zip ?? "",
+    city: address?.city ?? "",
+    country: address?.country || "CH",
+  }
+}
+
+function formToAddress(form: AddressFormState): OrderAddress {
+  return {
+    firstName: form.firstName.trim(),
+    lastName: form.lastName.trim(),
+    email: form.email.trim(),
+    phone: form.phone.trim(),
+    street: form.street.trim(),
+    zip: form.zip.trim(),
+    city: form.city.trim(),
+    country: form.country.trim() || "CH",
+  }
+}
+
+function AddressFields({
+  form,
+  onChange,
+  disabled,
+}: {
+  form: AddressFormState
+  onChange: (next: AddressFormState) => void
+  disabled?: boolean
+}) {
+  const set = (key: keyof AddressFormState, value: string) =>
+    onChange({ ...form, [key]: value })
+
+  return (
+    <div className="grid gap-3 sm:grid-cols-2">
+      <div className="space-y-1.5">
+        <Label className={adminUi.label}>Vorname</Label>
+        <Input
+          value={form.firstName}
+          onChange={(e) => set("firstName", e.target.value)}
+          disabled={disabled}
+          className={adminUi.input}
+        />
+      </div>
+      <div className="space-y-1.5">
+        <Label className={adminUi.label}>Nachname</Label>
+        <Input
+          value={form.lastName}
+          onChange={(e) => set("lastName", e.target.value)}
+          disabled={disabled}
+          className={adminUi.input}
+        />
+      </div>
+      <div className="space-y-1.5 sm:col-span-2">
+        <Label className={adminUi.label}>E-Mail</Label>
+        <Input
+          type="email"
+          value={form.email}
+          onChange={(e) => set("email", e.target.value)}
+          disabled={disabled}
+          className={adminUi.input}
+        />
+      </div>
+      <div className="space-y-1.5 sm:col-span-2">
+        <Label className={adminUi.label}>Telefon</Label>
+        <Input
+          value={form.phone}
+          onChange={(e) => set("phone", e.target.value)}
+          disabled={disabled}
+          className={adminUi.input}
+        />
+      </div>
+      <div className="space-y-1.5 sm:col-span-2">
+        <Label className={adminUi.label}>Strasse</Label>
+        <Input
+          value={form.street}
+          onChange={(e) => set("street", e.target.value)}
+          disabled={disabled}
+          className={adminUi.input}
+        />
+      </div>
+      <div className="space-y-1.5">
+        <Label className={adminUi.label}>PLZ</Label>
+        <Input
+          value={form.zip}
+          onChange={(e) => set("zip", e.target.value)}
+          disabled={disabled}
+          className={adminUi.input}
+        />
+      </div>
+      <div className="space-y-1.5">
+        <Label className={adminUi.label}>Ort</Label>
+        <Input
+          value={form.city}
+          onChange={(e) => set("city", e.target.value)}
+          disabled={disabled}
+          className={adminUi.input}
+        />
+      </div>
+      <div className="space-y-1.5 sm:col-span-2">
+        <Label className={adminUi.label}>Land</Label>
+        <Input
+          value={form.country}
+          onChange={(e) => set("country", e.target.value)}
+          disabled={disabled}
+          className={adminUi.input}
+        />
+      </div>
+    </div>
+  )
+}
+
+function AddressReadOnly({ address }: { address: OrderAddress }) {
+  return (
+    <dl className={cn("space-y-1 text-sm", adminUi.bodyText)}>
+      <dd>
+        {address.firstName} {address.lastName}
+      </dd>
+      <dd>{address.street}</dd>
+      <dd>
+        {address.zip} {address.city}
+      </dd>
+      <dd>{address.country}</dd>
+      <dd className={cn("pt-2", adminUi.muted)}>
+        Tel.: {address.phone || "—"}
+      </dd>
+      {address.email ? (
+        <dd className={adminUi.muted}>{address.email}</dd>
+      ) : null}
+    </dl>
+  )
+}
+
 type AdminCustomersTabProps = {
   onOpenOrder?: (orderId: string) => void
 }
 
 export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
   const [customers, setCustomers] = useState<CustomerListItem[]>([])
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("alle")
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [detail, setDetail] = useState<CustomerDetail | null>(null)
   const [orders, setOrders] = useState<StoredOrder[]>([])
@@ -107,6 +282,30 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
   const [pointsDialogOpen, setPointsDialogOpen] = useState(false)
   const [pointsSaving, setPointsSaving] = useState(false)
   const [pointsError, setPointsError] = useState<string | null>(null)
+
+  const [editingSection, setEditingSection] = useState<AddressSection | null>(null)
+  const [addressForm, setAddressForm] = useState<AddressFormState | null>(null)
+  const [statusDraft, setStatusDraft] = useState<"aktiv" | "inaktiv">("aktiv")
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+
+  const filteredCustomers = useMemo(() => {
+    if (statusFilter === "aktive") {
+      return customers.filter((c) => c.status === "aktiv")
+    }
+    if (statusFilter === "inaktive") {
+      return customers.filter(
+        (c) => c.status === "inaktiv" || c.status === "gelöscht"
+      )
+    }
+    return customers
+  }, [customers, statusFilter])
+
+  const resetEditState = useCallback(() => {
+    setEditingSection(null)
+    setAddressForm(null)
+    setSaveError(null)
+  }, [])
 
   const loadCustomers = useCallback(async () => {
     setLoading(true)
@@ -135,7 +334,12 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
       )
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? "Laden fehlgeschlagen")
-      setDetail(data.customer ?? null)
+      const customer = (data.customer ?? null) as CustomerDetail | null
+      setDetail(customer)
+      if (customer) {
+        const st = normalizeDetailStatus(customer.status)
+        setStatusDraft(st === "inaktiv" ? "inaktiv" : "aktiv")
+      }
       setOrders(data.orders ?? [])
       setLoyalty(
         data.loyalty
@@ -153,6 +357,9 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
       setPointsDelta("")
       setPointsNote("")
       setPointsError(null)
+      setEditingSection(null)
+      setAddressForm(null)
+      setSaveError(null)
     } catch (err) {
       console.warn("Admin: Kundendetails konnten nicht geladen werden.", err)
       setError(
@@ -179,13 +386,95 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
       setPointsDelta("")
       setPointsNote("")
       setPointsError(null)
+      resetEditState()
     }
-  }, [selectedId, loadCustomerDetail])
+  }, [selectedId, loadCustomerDetail, resetEditState])
 
   const selectCustomer = (kundennummer: string) => {
     setDeleteError(null)
     setPointsError(null)
     setSelectedId((prev) => (prev === kundennummer ? null : kundennummer))
+  }
+
+  const startEditAddress = (section: AddressSection) => {
+    if (!detail) return
+    setSaveError(null)
+    setEditingSection(section)
+    if (section === "billing") {
+      setAddressForm(addressToForm(detail.billing, detail.email))
+    } else {
+      setAddressForm(
+        addressToForm(detail.delivery ?? detail.billing, detail.email)
+      )
+    }
+  }
+
+  const cancelEditAddress = () => {
+    resetEditState()
+  }
+
+  const patchCustomer = async (payload: {
+    billing?: OrderAddress
+    delivery?: OrderAddress | null
+    email?: string
+    status?: "aktiv" | "inaktiv"
+  }) => {
+    if (!detail) return false
+
+    setSaving(true)
+    setSaveError(null)
+    try {
+      const res = await fetch(
+        `/api/admin/customers/${encodeURIComponent(detail.kundennummer)}`,
+        {
+          method: "PATCH",
+          credentials: "include",
+          cache: "no-store",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        }
+      )
+      const data = (await res.json()) as { error?: string }
+      if (!res.ok) {
+        throw new Error(data.error ?? "Speichern fehlgeschlagen.")
+      }
+      await Promise.all([
+        loadCustomerDetail(detail.kundennummer),
+        loadCustomers(),
+      ])
+      return true
+    } catch (err) {
+      setSaveError(
+        err instanceof Error ? err.message : "Speichern fehlgeschlagen."
+      )
+      return false
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleSaveAddress = async () => {
+    if (!detail || !addressForm || !editingSection) return
+
+    const address = formToAddress(addressForm)
+    if (editingSection === "billing") {
+      const ok = await patchCustomer({
+        billing: address,
+        email: address.email || detail.email,
+      })
+      if (ok) resetEditState()
+      return
+    }
+
+    const ok = await patchCustomer({ delivery: address })
+    if (ok) resetEditState()
+  }
+
+  const handleSaveStatus = async (next: "aktiv" | "inaktiv") => {
+    setStatusDraft(next)
+    if (!detail) return
+    if (normalizeDetailStatus(detail.status) === next) return
+    await patchCustomer({ status: next })
   }
 
   const parsedPointsDelta = (() => {
@@ -286,6 +575,9 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
     )
   }
 
+  const detailStatus = detail ? normalizeDetailStatus(detail.status) : null
+  const canEditCustomer = detailStatus != null && detailStatus !== "gelöscht"
+
   return (
     <div className="grid gap-6 lg:grid-cols-5">
       <div className="space-y-4 lg:col-span-2">
@@ -293,7 +585,10 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
           <div>
             <h2 className={cn("text-xl font-bold", adminUi.heading)}>Kundenverwaltung</h2>
             <p className={cn("text-sm", adminUi.muted)}>
-              {customers.length} Kunde{customers.length !== 1 ? "n" : ""} erfasst
+              {filteredCustomers.length}
+              {statusFilter !== "alle" ? ` von ${customers.length}` : ""} Kunde
+              {filteredCustomers.length !== 1 ? "n" : ""}
+              {statusFilter === "alle" ? " erfasst" : ""}
             </p>
           </div>
           <Button
@@ -308,12 +603,39 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
           </Button>
         </div>
 
+        <div className="flex flex-wrap gap-2">
+          {(
+            [
+              { id: "alle", label: "Alle" },
+              { id: "aktive", label: "Aktive" },
+              { id: "inaktive", label: "Inaktive" },
+            ] as const
+          ).map((tab) => (
+            <Button
+              key={tab.id}
+              type="button"
+              size="sm"
+              variant={statusFilter === tab.id ? "default" : "outline"}
+              className={
+                statusFilter === tab.id ? adminUi.primaryBtn : adminUi.outlineBtn
+              }
+              onClick={() => setStatusFilter(tab.id)}
+            >
+              {tab.label}
+            </Button>
+          ))}
+        </div>
+
         {error && !detail && <p className={adminUi.error}>{error}</p>}
 
         {customers.length === 0 ? (
           <div className={cn("rounded-xl border border-dashed py-16 text-center", adminUi.empty)}>
             Noch keine Kunden erfasst. Kunden werden bei Registrierung im Portal
             oder bei der ersten Bestellung angelegt (Format JJ-#####, z. B. 26-53719).
+          </div>
+        ) : filteredCustomers.length === 0 ? (
+          <div className={cn("rounded-xl border border-dashed py-16 text-center", adminUi.empty)}>
+            Keine Kunden für diesen Filter.
           </div>
         ) : (
           <div className={adminUi.tableWrap}>
@@ -330,7 +652,7 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {customers.map((customer) => {
+                {filteredCustomers.map((customer) => {
                   const active = selectedId === customer.kundennummer
                   return (
                     <TableRow
@@ -386,55 +708,160 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
                   <p className={cn("font-mono text-sm", adminUi.accentTitle)}>
                     {detail.kundennummer}
                   </p>
-                  <CustomerStatusBadge
-                    status={normalizeDetailStatus(detail.status)}
-                  />
+                  <CustomerStatusBadge status={detailStatus ?? "aktiv"} />
                 </div>
                 <h3 className={cn("mt-1 text-xl font-bold", adminUi.heading)}>{detail.name}</h3>
                 <p className={cn("text-sm", adminUi.muted)}>{detail.email}</p>
                 <p className={cn("mt-2 text-xs", adminUi.tableCellMuted)}>
                   Registriert / erfasst: {formatDate(detail.createdAt)}
                 </p>
+
+                {canEditCustomer && (
+                  <div className="mt-4 max-w-xs space-y-1.5">
+                    <Label className={adminUi.label}>Status</Label>
+                    <Select
+                      value={statusDraft}
+                      onValueChange={(value) => {
+                        if (value === "aktiv" || value === "inaktiv") {
+                          void handleSaveStatus(value)
+                        }
+                      }}
+                      disabled={saving}
+                    >
+                      <SelectTrigger className={cn("w-full", adminUi.input)}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="aktiv">Aktiv</SelectItem>
+                        <SelectItem value="inaktiv">Inaktiv</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
+
+              {saveError && (
+                <p className={adminUi.error} role="alert">
+                  {saveError}
+                </p>
+              )}
 
               <div className="grid gap-6 md:grid-cols-2">
                 <div className={cn("space-y-3 rounded-xl border p-4", adminUi.section)}>
-                  <h4 className={cn("text-sm font-semibold", adminUi.accentTitle)}>
-                    Rechnungsadresse
-                  </h4>
-                  <dl className={cn("space-y-1 text-sm", adminUi.bodyText)}>
-                    <dd>
-                      {detail.billing.firstName} {detail.billing.lastName}
-                    </dd>
-                    <dd>{detail.billing.street}</dd>
-                    <dd>
-                      {detail.billing.zip} {detail.billing.city}
-                    </dd>
-                    <dd>{detail.billing.country}</dd>
-                    <dd className={cn("pt-2", adminUi.muted)}>
-                      Tel.: {detail.billing.phone || "—"}
-                    </dd>
-                  </dl>
+                  <div className="flex items-center justify-between gap-2">
+                    <h4 className={cn("text-sm font-semibold", adminUi.accentTitle)}>
+                      Rechnungsadresse
+                    </h4>
+                    {canEditCustomer && editingSection !== "billing" && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className={adminUi.accentTitle}
+                        onClick={() => startEditAddress("billing")}
+                        disabled={saving || editingSection === "delivery"}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        <span className="sr-only">Bearbeiten</span>
+                      </Button>
+                    )}
+                  </div>
+                  {editingSection === "billing" && addressForm ? (
+                    <div className="space-y-3">
+                      <AddressFields
+                        form={addressForm}
+                        onChange={setAddressForm}
+                        disabled={saving}
+                      />
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          className={adminUi.primaryBtn}
+                          disabled={saving}
+                          onClick={() => void handleSaveAddress()}
+                        >
+                          {saving ? (
+                            <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Check className="mr-1.5 h-3.5 w-3.5" />
+                          )}
+                          Speichern
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className={adminUi.outlineBtn}
+                          disabled={saving}
+                          onClick={cancelEditAddress}
+                        >
+                          <X className="mr-1.5 h-3.5 w-3.5" />
+                          Abbrechen
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <AddressReadOnly address={detail.billing} />
+                  )}
                 </div>
 
                 <div className={cn("space-y-3 rounded-xl border p-4", adminUi.section)}>
-                  <h4 className={cn("text-sm font-semibold", adminUi.accentTitle)}>
-                    Lieferadresse
-                  </h4>
-                  {detail.delivery ? (
-                    <dl className={cn("space-y-1 text-sm", adminUi.bodyText)}>
-                      <dd>
-                        {detail.delivery.firstName} {detail.delivery.lastName}
-                      </dd>
-                      <dd>{detail.delivery.street}</dd>
-                      <dd>
-                        {detail.delivery.zip} {detail.delivery.city}
-                      </dd>
-                      <dd>{detail.delivery.country}</dd>
-                      <dd className={cn("pt-2", adminUi.muted)}>
-                        Tel.: {detail.delivery.phone || "—"}
-                      </dd>
-                    </dl>
+                  <div className="flex items-center justify-between gap-2">
+                    <h4 className={cn("text-sm font-semibold", adminUi.accentTitle)}>
+                      Lieferadresse
+                    </h4>
+                    {canEditCustomer && editingSection !== "delivery" && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className={adminUi.accentTitle}
+                        onClick={() => startEditAddress("delivery")}
+                        disabled={saving || editingSection === "billing"}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        <span className="sr-only">Bearbeiten</span>
+                      </Button>
+                    )}
+                  </div>
+                  {editingSection === "delivery" && addressForm ? (
+                    <div className="space-y-3">
+                      <AddressFields
+                        form={addressForm}
+                        onChange={setAddressForm}
+                        disabled={saving}
+                      />
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          className={adminUi.primaryBtn}
+                          disabled={saving}
+                          onClick={() => void handleSaveAddress()}
+                        >
+                          {saving ? (
+                            <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Check className="mr-1.5 h-3.5 w-3.5" />
+                          )}
+                          Speichern
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className={adminUi.outlineBtn}
+                          disabled={saving}
+                          onClick={cancelEditAddress}
+                        >
+                          <X className="mr-1.5 h-3.5 w-3.5" />
+                          Abbrechen
+                        </Button>
+                      </div>
+                    </div>
+                  ) : detail.delivery ? (
+                    <AddressReadOnly address={detail.delivery} />
                   ) : (
                     <p className={cn("text-sm", adminUi.muted)}>
                       Entspricht der Rechnungsadresse

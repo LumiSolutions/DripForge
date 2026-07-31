@@ -13,8 +13,6 @@ import { adminUi } from "@/lib/admin/admin-ui-classes"
 import type {
   CompanySettings,
   LaunchSettings,
-  ServiceVisibilitySettings,
-  ShopConfiguratorSettings,
 } from "@/lib/admin/types"
 import {
   DEFAULT_COMPANY_SETTINGS,
@@ -24,8 +22,12 @@ import {
 } from "@/lib/admin/types"
 import { AdminTesterPasswordSection } from "@/components/admin/admin-tester-password-section"
 import { AdminTwoFactorSection } from "@/components/admin/admin-two-factor-section"
-import { SERVICE_TOGGLE_OPTIONS } from "@/lib/dripforge/service-visibility"
-import { SHOP_CONFIGURATOR_TOGGLE_OPTIONS } from "@/lib/dripforge/shop-configurators"
+import { AdminManagedCatalogSection } from "@/components/admin/admin-managed-catalog-section"
+import {
+  applyManagedCatalogToSettings,
+  normalizeManagedCatalog,
+  type ManagedCatalogItem,
+} from "@/lib/dripforge/managed-catalog"
 import type { LaserConfiguratorSettings } from "@/lib/admin/laser-configurator-types"
 import { createDefaultLaserConfiguratorSettings } from "@/lib/admin/laser-configurator-types"
 import type { CheckoutRuntimeConfig } from "@/lib/dripforge/checkout-config"
@@ -43,14 +45,6 @@ import {
 import {
   normalizeEnableRewardPointsSystem,
 } from "@/lib/dripforge/reward-points-settings"
-import {
-  DEFAULT_SHOW_TOP_PRODUCTS_ON_HOMEPAGE,
-  DEFAULT_TOP_PRODUCTS_COUNT,
-  MAX_TOP_PRODUCTS_COUNT,
-  MIN_TOP_PRODUCTS_COUNT,
-  normalizeShowTopProductsOnHomepage,
-  normalizeTopProductsCount,
-} from "@/lib/dripforge/top-products-settings"
 import { normalizeCompanySettings } from "@/lib/dripforge/company-settings"
 import {
   DEFAULT_ORDER_EMAIL_TEMPLATES,
@@ -92,7 +86,7 @@ const SECTION_HEADERS: Record<
 > = {
   shop: {
     title: "Shop-Einstellungen",
-    subtitle: "Shop-Status, Admin-Zugang und Checkout-Grundeinstellungen",
+    subtitle: "Shop-Status, Admin-Zugang und Shop-Grundeinstellungen",
   },
   countdown: {
     title: "Coming-Soon / Countdown",
@@ -123,8 +117,9 @@ const SECTION_HEADERS: Record<
     subtitle: "Einleitung und Fusstext der Kunden-Bestätigungsmail",
   },
   accounting: {
-    title: "Checkout & Firmendaten",
-    subtitle: "MwSt., TWINT und Firmendaten für Impressum und Rechnungszahlung",
+    title: "Finanz-Setup",
+    subtitle:
+      "Checkout & MwSt., Firmendaten und Bankverbindung für Impressum und Rechnungszahlung",
   },
 }
 
@@ -139,11 +134,9 @@ export function AdminSettingsTab({
     DEFAULT_CHECKOUT_RUNTIME_CONFIG
   )
   const [company, setCompany] = useState<CompanySettings>(DEFAULT_COMPANY_SETTINGS)
-  const [services, setServices] = useState<ServiceVisibilitySettings>(
-    DEFAULT_SERVICE_VISIBILITY
+  const [managedCatalog, setManagedCatalog] = useState<ManagedCatalogItem[]>(() =>
+    normalizeManagedCatalog(null, DEFAULT_SERVICE_VISIBILITY, DEFAULT_SHOP_CONFIGURATORS)
   )
-  const [shopConfigurators, setShopConfigurators] =
-    useState<ShopConfiguratorSettings>(DEFAULT_SHOP_CONFIGURATORS)
   const [laserConfigurator, setLaserConfigurator] = useState<LaserConfiguratorSettings>(
     createDefaultLaserConfiguratorSettings()
   )
@@ -157,12 +150,6 @@ export function AdminSettingsTab({
   const [loyaltyEarnPercent, setLoyaltyEarnPercent] = useState("100")
   const [loyaltyPointValueChf, setLoyaltyPointValueChf] = useState("1")
   const [loyaltyPointsExpiryMonths, setLoyaltyPointsExpiryMonths] = useState("6")
-  const [showTopProductsOnHomepage, setShowTopProductsOnHomepage] = useState(
-    DEFAULT_SHOW_TOP_PRODUCTS_ON_HOMEPAGE
-  )
-  const [topProductsCount, setTopProductsCount] = useState(
-    String(DEFAULT_TOP_PRODUCTS_COUNT)
-  )
   const [orderEmailTemplates, setOrderEmailTemplates] =
     useState<OrderEmailTemplates>({ ...DEFAULT_ORDER_EMAIL_TEMPLATES })
   const [themeInboundTourImageUrl, setThemeInboundTourImageUrl] = useState<string | null>(
@@ -228,23 +215,19 @@ export function AdminSettingsTab({
             : 6
         )
       )
-      setShowTopProductsOnHomepage(
-        normalizeShowTopProductsOnHomepage(data.showTopProductsOnHomepage)
-      )
-      setTopProductsCount(
-        String(normalizeTopProductsCount(data.topProductsCount))
-      )
       setOrderEmailTemplates(
         normalizeOrderEmailTemplates(data.orderEmailTemplates)
       )
       setThemeInboundTourImageUrl(
         normalizeThemeInboundTourImageUrl(data.themeInboundTourImageUrl)
       )
-      setServices({ ...DEFAULT_SERVICE_VISIBILITY, ...data.services })
-      setShopConfigurators({
-        ...DEFAULT_SHOP_CONFIGURATORS,
-        ...data.shopConfigurators,
-      })
+      setManagedCatalog(
+        normalizeManagedCatalog(
+          data.managedCatalog,
+          data.services,
+          data.shopConfigurators
+        )
+      )
       if (laserData && !laserData.error) {
         setLaserConfigurator({
           ...createDefaultLaserConfiguratorSettings(),
@@ -272,14 +255,18 @@ export function AdminSettingsTab({
     setError(null)
     setSuccess(null)
     try {
+      const applied = applyManagedCatalogToSettings(managedCatalog)
+      setManagedCatalog(applied.managedCatalog)
+
       const res = await fetch("/api/admin/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           checkout,
           company,
-          services,
-          shopConfigurators,
+          services: applied.services,
+          shopConfigurators: applied.shopConfigurators,
+          managedCatalog: applied.managedCatalog,
           showSupportOnMainSite,
           showSupportOnCountdownPage,
           enableOnboardingTour,
@@ -289,8 +276,6 @@ export function AdminSettingsTab({
           loyaltyEarnPercent: Number(loyaltyEarnPercent),
           loyaltyPointValueChf: Number(loyaltyPointValueChf),
           loyaltyPointsExpiryMonths: Number(loyaltyPointsExpiryMonths),
-          showTopProductsOnHomepage,
-          topProductsCount: normalizeTopProductsCount(topProductsCount),
           orderEmailTemplates,
           launch,
         }),
@@ -349,17 +334,18 @@ export function AdminSettingsTab({
             : 6
         )
       )
-      setShowTopProductsOnHomepage(
-        normalizeShowTopProductsOnHomepage(data.showTopProductsOnHomepage)
-      )
-      setTopProductsCount(
-        String(normalizeTopProductsCount(data.topProductsCount))
-      )
       setOrderEmailTemplates(
         normalizeOrderEmailTemplates(data.orderEmailTemplates)
       )
       setThemeInboundTourImageUrl(
         normalizeThemeInboundTourImageUrl(data.themeInboundTourImageUrl)
+      )
+      setManagedCatalog(
+        normalizeManagedCatalog(
+          data.managedCatalog,
+          data.services,
+          data.shopConfigurators
+        )
       )
       if (laserData && !laserData.error) {
         setLaserConfigurator({
@@ -1003,74 +989,10 @@ export function AdminSettingsTab({
         {show("services") && (
           <Card className={adminUi.card}>
             <CardContent className="space-y-6 p-6">
-              <div>
-                <h3 className={cn("text-base font-semibold", adminUi.accentTitle)}>
-                  Dienstleistungen auf der Website
-                </h3>
-                <p className={cn("mt-1 text-sm", adminUi.muted)}>
-                  Steuert Navigation, Startseite und Kacheln. Deaktivierte Services bleiben im Code
-                  erhalten und können später aktiviert werden.
-                </p>
-              </div>
-
-              <div className="space-y-3">
-                {SERVICE_TOGGLE_OPTIONS.map((option) => (
-                  <div
-                    key={option.key}
-                    className={cn(
-                      "flex items-start justify-between gap-4 rounded-xl border p-4",
-                      adminUi.section
-                    )}
-                  >
-                    <div className="space-y-1 pr-2">
-                      <Label className={cn("text-sm font-semibold", adminUi.heading)}>
-                        {option.label}
-                      </Label>
-                      <p className={cn("text-xs", adminUi.muted)}>{option.description}</p>
-                    </div>
-                    <Switch
-                      checked={services[option.key]}
-                      onCheckedChange={(checked) =>
-                        setServices((prev) => ({ ...prev, [option.key]: checked }))
-                      }
-                    />
-                  </div>
-                ))}
-              </div>
-
-              <div className="space-y-3 border-t pt-6">
-                <div>
-                  <h4 className={cn("text-sm font-semibold", adminUi.heading)}>
-                    Konfigurator-Karten im Shop
-                  </h4>
-                  <p className={cn("mt-1 text-xs", adminUi.muted)}>
-                    Steuert die Sichtbarkeit der Karten unter «Erschaffen Sie etwas Einzigartiges» auf
-                    der Startseite und im Shop.
-                  </p>
-                </div>
-                {SHOP_CONFIGURATOR_TOGGLE_OPTIONS.map((option) => (
-                  <div
-                    key={option.key}
-                    className={cn(
-                      "flex items-start justify-between gap-4 rounded-xl border p-4",
-                      adminUi.section
-                    )}
-                  >
-                    <div className="space-y-1 pr-2">
-                      <Label className={cn("text-sm font-semibold", adminUi.heading)}>
-                        {option.label}
-                      </Label>
-                      <p className={cn("text-xs", adminUi.muted)}>{option.description}</p>
-                    </div>
-                    <Switch
-                      checked={shopConfigurators[option.key]}
-                      onCheckedChange={(checked) =>
-                        setShopConfigurators((prev) => ({ ...prev, [option.key]: checked }))
-                      }
-                    />
-                  </div>
-                ))}
-              </div>
+              <AdminManagedCatalogSection
+                catalog={managedCatalog}
+                onChange={setManagedCatalog}
+              />
             </CardContent>
           </Card>
         )}
@@ -1228,7 +1150,7 @@ export function AdminSettingsTab({
           </Card>
         )}
 
-        {show("shop", "accounting") && (
+        {show("accounting") && (
           <Card className={adminUi.card}>
             <CardContent className="space-y-6 p-6">
               <div>
@@ -1328,77 +1250,15 @@ export function AdminSettingsTab({
           </Card>
         )}
 
-        {show("shop") && (
-          <Card className={adminUi.card}>
-            <CardContent className="space-y-4 p-6">
-              <div>
-                <h3 className={cn("text-base font-semibold", adminUi.accentTitle)}>
-                  Top Produkte auf der Startseite
-                </h3>
-                <p className={cn("mt-1 text-sm", adminUi.muted)}>
-                  Zeigt die meistverkauften Produkte unter «Unsere Top Produkte». Bei zu
-                  wenigen Verkäufen werden manuell markierte Top-Produkte und danach die
-                  neuesten Artikel ergänzt.
-                </p>
-              </div>
-              <div
-                className={cn(
-                  "flex items-start justify-between gap-4 rounded-xl border p-4",
-                  adminUi.section
-                )}
-              >
-                <div className="space-y-1 pr-2">
-                  <Label className={cn("text-sm font-semibold", adminUi.heading)}>
-                    Top Produkte auf Startseite anzeigen
-                  </Label>
-                  <p className={cn("text-xs", adminUi.muted)}>
-                    Schaltet die gesamte Sektion auf der Homepage ein oder aus.
-                  </p>
-                </div>
-                <Switch
-                  checked={showTopProductsOnHomepage}
-                  onCheckedChange={setShowTopProductsOnHomepage}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label className={adminUi.label}>Anzahl angezeigter Top-Produkte</Label>
-                <Select
-                  value={String(normalizeTopProductsCount(topProductsCount))}
-                  onValueChange={(value) => setTopProductsCount(value)}
-                  disabled={!showTopProductsOnHomepage}
-                >
-                  <SelectTrigger className={cn("w-full max-w-xs", adminUi.input)}>
-                    <SelectValue placeholder="Anzahl wählen" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Array.from(
-                      { length: MAX_TOP_PRODUCTS_COUNT - MIN_TOP_PRODUCTS_COUNT + 1 },
-                      (_, i) => MIN_TOP_PRODUCTS_COUNT + i
-                    ).map((n) => (
-                      <SelectItem key={n} value={String(n)}>
-                        {n}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className={cn("text-xs", adminUi.muted)}>
-                  Standard: {DEFAULT_TOP_PRODUCTS_COUNT}. Die Liste wird nach Verkaufsrang
-                  gefüllt (meistverkauft zuerst).
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
         {show("accounting") && (
           <Card className={adminUi.card}>
             <CardContent className="space-y-4 p-6">
               <div>
                 <h3 className={cn("text-base font-semibold", adminUi.accentTitle)}>
-                  Firmendaten & Bankverbindung
+                  Firmendaten
                 </h3>
                 <p className={cn("mt-1 text-sm", adminUi.muted)}>
-                  Für Footer, Impressum und Zahlungsart «Kauf auf Rechnung» / Vorkasse
+                  Für Footer, Impressum und Kontaktangaben
                 </p>
               </div>
 
@@ -1453,6 +1313,21 @@ export function AdminSettingsTab({
                   placeholder="Strasse, PLZ Ort&#10;Schweiz"
                   className={adminUi.input}
                 />
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {show("accounting") && (
+          <Card className={adminUi.card}>
+            <CardContent className="space-y-4 p-6">
+              <div>
+                <h3 className={cn("text-base font-semibold", adminUi.accentTitle)}>
+                  Bankverbindung
+                </h3>
+                <p className={cn("mt-1 text-sm", adminUi.muted)}>
+                  Für Zahlungsart «Kauf auf Rechnung» / Vorkasse
+                </p>
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">

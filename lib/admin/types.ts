@@ -5,6 +5,7 @@ import type {
 } from "@/lib/dripforge/submit-order"
 import type { CartItem, Product } from "@/lib/dripforge/types"
 import type { PaymentMethodId, ShippingMethodId } from "@/lib/dripforge/checkout-config"
+import type { ManagedCatalogItem } from "@/lib/dripforge/managed-catalog"
 
 export type OrderStatus =
   | "ausstehend"
@@ -193,6 +194,8 @@ export type AdminSettings = {
   launch: LaunchSettings
   services: ServiceVisibilitySettings
   shopConfigurators: ShopConfiguratorSettings
+  /** Dynamischer Katalog: Dienstleistungen & Konfigurator-Kacheln (System + Custom) */
+  managedCatalog?: ManagedCatalogItem[]
   /** Support-Kampagne auf der normalen Website (Header, Mobile, /support) */
   showSupportOnMainSite: boolean
   /** Support-Link/Button auf der Countdown-Landingpage */

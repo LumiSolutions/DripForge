@@ -23,15 +23,35 @@ import {
   isLaserCapabilityVisible,
   type LaserCapabilityId,
 } from "@/lib/dripforge/service-visibility"
+import {
+  DEFAULT_MANAGED_CATALOG,
+  getEnabledCustomLaserCapabilities,
+  type ManagedCatalogItem,
+} from "@/lib/dripforge/managed-catalog"
 
 export function PageLaser({
   setCurrentView,
   services,
+  managedCatalog,
 }: {
   setCurrentView: (view: string) => void
   services: ServiceVisibilitySettings
+  managedCatalog?: ManagedCatalogItem[] | null
 }) {
   const configuratorHref = SHOP_ROUTES.konfiguratorLaser
+  const customCapabilities = getEnabledCustomLaserCapabilities(managedCatalog)
+  const catalogByBuiltin = new Map(
+    (managedCatalog ?? [])
+      .filter((item) => item.builtinServiceKey)
+      .map((item) => [item.builtinServiceKey!, item] as const)
+  )
+
+  const builtinVisibleCount = [
+    services.lasergravur,
+    services.laserschnitt,
+    services.markierungAetzung,
+  ].filter(Boolean).length
+  const totalVisible = builtinVisibleCount + customCapabilities.length
 
   return (
     <div className="space-y-12 pb-12 md:space-y-24 md:pb-24">
@@ -83,11 +103,11 @@ export function PageLaser({
           <div
             className={cn(
               "grid gap-6",
-              [services.lasergravur, services.laserschnitt, services.markierungAetzung].filter(
-                Boolean
-              ).length === 1
+              totalVisible === 1
                 ? "mx-auto max-w-md md:grid-cols-1"
-                : "md:grid-cols-3"
+                : totalVisible === 2
+                  ? "md:grid-cols-2"
+                  : "md:grid-cols-3"
             )}
           >
             {(
@@ -95,49 +115,118 @@ export function PageLaser({
                 {
                   serviceId: "lasergravur" as LaserCapabilityId,
                   icon: Zap,
-                iconBg: "bg-cyan-500/20",
-                iconColor: "text-cyan-400",
-                title: "Lasergravur",
-                description: "Hochpräzise Gravuren, die Oberflächen dauerhaft markieren. Perfekt für Logos, Text und filigrane Designs.",
-                features: ["0.1mm Präzision", "Variable Tiefenkontrolle", "Fotogravur möglich", "Vektor- & Rastermodus"],
-              },
+                  iconBg: "bg-cyan-500/20",
+                  iconColor: "text-cyan-400",
+                  title: "Lasergravur",
+                  description:
+                    "Hochpräzise Gravuren, die Oberflächen dauerhaft markieren. Perfekt für Logos, Text und filigrane Designs.",
+                  features: [
+                    "0.1mm Präzision",
+                    "Variable Tiefenkontrolle",
+                    "Fotogravur möglich",
+                    "Vektor- & Rastermodus",
+                  ],
+                },
                 {
                   serviceId: "laserschnitt" as LaserCapabilityId,
                   icon: Scissors,
-                iconBg: "bg-primary/20",
-                iconColor: "text-primary",
-                title: "Laserschnitt",
-                description: "Saubere, präzise Schnitte durch verschiedene Materialien mit versiegelten Kanten. Keine mechanische Belastung.",
-                features: ["Saubere Kanten", "Komplexe Geometrien", "Keine Materialverformung", "Enge Toleranzen"],
-              },
+                  iconBg: "bg-primary/20",
+                  iconColor: "text-primary",
+                  title: "Laserschnitt",
+                  description:
+                    "Saubere, präzise Schnitte durch verschiedene Materialien mit versiegelten Kanten. Keine mechanische Belastung.",
+                  features: [
+                    "Saubere Kanten",
+                    "Komplexe Geometrien",
+                    "Keine Materialverformung",
+                    "Enge Toleranzen",
+                  ],
+                },
                 {
                   serviceId: "markierungAetzung" as LaserCapabilityId,
                   icon: Stamp,
-                iconBg: "bg-purple-500/20",
-                iconColor: "text-purple-400",
-                title: "Markierung & Ätzung",
-                description: "Oberfl��chenmarkierung für Metalle und beschichtete Materialien. Permanente Markierungen ohne tiefe Gravur.",
-                features: ["Metallmarkierung", "Eloxiertes Aluminium", "Lackierte Oberflächen", "Hoher Kontrast"],
-              },
+                  iconBg: "bg-purple-500/20",
+                  iconColor: "text-purple-400",
+                  title: "Markierung & Ätzung",
+                  description:
+                    "Oberflächenmarkierung für Metalle und beschichtete Materialien. Permanente Markierungen ohne tiefe Gravur.",
+                  features: [
+                    "Metallmarkierung",
+                    "Eloxiertes Aluminium",
+                    "Lackierte Oberflächen",
+                    "Hoher Kontrast",
+                  ],
+                },
               ] as const
             )
               .filter((cap) => isLaserCapabilityVisible(cap.serviceId, services))
-              .map((cap) => (
-              <Card key={cap.title} className="border-border/50 bg-card/50">
+              .map((cap) => {
+                const catalogItem = catalogByBuiltin.get(cap.serviceId)
+                const systemDefault = DEFAULT_MANAGED_CATALOG.find(
+                  (item) => item.builtinServiceKey === cap.serviceId
+                )
+                const title =
+                  catalogItem?.label?.trim() &&
+                  catalogItem.label.trim() !== systemDefault?.label
+                    ? catalogItem.label.trim()
+                    : cap.title
+                const description =
+                  catalogItem?.description?.trim() &&
+                  catalogItem.description.trim() !== systemDefault?.description
+                    ? catalogItem.description.trim()
+                    : cap.description
+                return (
+                  <Card key={cap.serviceId} className="border-border/50 bg-card/50">
+                    <CardContent className="p-8">
+                      <div
+                        className={cn(
+                          "mb-6 flex h-12 w-12 items-center justify-center rounded-xl",
+                          cap.iconBg
+                        )}
+                      >
+                        <cap.icon className={cn("h-6 w-6", cap.iconColor)} />
+                      </div>
+                      <h3 className="mb-3 text-xl font-bold">{title}</h3>
+                      <p className="mb-6 text-sm text-muted-foreground">{description}</p>
+                      <ul className="space-y-2">
+                        {cap.features.map((f) => (
+                          <li
+                            key={f}
+                            className="flex items-center gap-2 text-sm text-muted-foreground"
+                          >
+                            <CheckCircle2 className="h-4 w-4 text-cyan-400" />
+                            {f}
+                          </li>
+                        ))}
+                      </ul>
+                    </CardContent>
+                  </Card>
+                )
+              })}
+
+            {customCapabilities.map((item) => (
+              <Card key={item.id} className="border-border/50 bg-card/50">
                 <CardContent className="p-8">
-                  <div className={cn("mb-6 flex h-12 w-12 items-center justify-center rounded-xl", cap.iconBg)}>
-                    <cap.icon className={cn("h-6 w-6", cap.iconColor)} />
+                  <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-xl bg-cyan-500/20">
+                    <Layers className="h-6 w-6 text-cyan-400" />
                   </div>
-                  <h3 className="mb-3 text-xl font-bold">{cap.title}</h3>
-                  <p className="mb-6 text-sm text-muted-foreground">{cap.description}</p>
-                  <ul className="space-y-2">
-                    {cap.features.map((f) => (
-                      <li key={f} className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <CheckCircle2 className="h-4 w-4 text-cyan-400" />
-                        {f}
-                      </li>
-                    ))}
-                  </ul>
+                  <h3 className="mb-3 text-xl font-bold">{item.label}</h3>
+                  <p className="mb-6 text-sm text-muted-foreground">
+                    {item.description || "Zusätzliche Laser-Dienstleistung."}
+                  </p>
+                  {(item.features?.length ?? 0) > 0 && (
+                    <ul className="space-y-2">
+                      {item.features!.map((f) => (
+                        <li
+                          key={f}
+                          className="flex items-center gap-2 text-sm text-muted-foreground"
+                        >
+                          <CheckCircle2 className="h-4 w-4 text-cyan-400" />
+                          {f}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </CardContent>
               </Card>
             ))}

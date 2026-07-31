@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from "react"
 import {
+  ChevronDown,
+  ChevronUp,
   Filter,
   Loader2,
   MoreHorizontal,
@@ -49,7 +51,14 @@ import {
 } from "@/components/ui/table"
 import type { AdminProduct } from "@/lib/admin/types"
 import type { ProductTag } from "@/lib/admin/product-tags"
-import { sortProducts, type ProductSortMode } from "@/lib/admin/list-sort-utils"
+import {
+  defaultProductColumnDirection,
+  sortProductsByColumn,
+  sortProductsWithActiveFirst,
+  toggleSortDirection,
+  type ProductColumnSort,
+  type ProductSortMode,
+} from "@/lib/admin/list-sort-utils"
 import {
   calculateSalePrice,
   type SaleRabattTyp,
@@ -77,6 +86,8 @@ type AdminProductsListPanelProps = {
 
 type TypeFilter = "all" | "3d" | "laser"
 export type StatusFilter = "all" | "active" | "inactive" | "sale"
+
+type SortableProductColumn = Exclude<ProductColumnSort["column"], "created">
 
 function statusBadgeClass(status: ProductShopStatus): string {
   switch (status) {
@@ -112,6 +123,10 @@ export function AdminProductsListPanel({
   const [saleRabattTyp, setSaleRabattTyp] = useState<SaleRabattTyp>("percent")
   const [saleRabattWert, setSaleRabattWert] = useState("10")
   const [saleFormError, setSaleFormError] = useState<string | null>(null)
+  const [columnSort, setColumnSort] = useState<ProductColumnSort | null>({
+    column: "name",
+    direction: "asc",
+  })
 
   const effectiveStatusFilter = lockedStatusFilter ?? statusFilter
 
@@ -127,10 +142,35 @@ export function AdminProductsListPanel({
     })
   }, [products, typeFilter, effectiveStatusFilter, tagFilter])
 
-  const sortedProducts = useMemo(
-    () => sortProducts(filteredProducts, productSort),
-    [filteredProducts, productSort]
-  )
+  const sortedProducts = useMemo(() => {
+    if (columnSort) {
+      return sortProductsByColumn(filteredProducts, columnSort)
+    }
+    return sortProductsWithActiveFirst(filteredProducts, productSort)
+  }, [filteredProducts, columnSort, productSort])
+
+  const handleColumnHeaderClick = (column: SortableProductColumn) => {
+    setColumnSort((prev) => {
+      if (prev?.column === column) {
+        return { column, direction: toggleSortDirection(prev.direction) }
+      }
+      return { column, direction: defaultProductColumnDirection(column) }
+    })
+  }
+
+  const handleSelectSortChange = (mode: ProductSortMode) => {
+    setColumnSort(null)
+    onProductSortChange(mode)
+  }
+
+  const renderSortIndicator = (column: SortableProductColumn) => {
+    if (columnSort?.column !== column) return null
+    return columnSort.direction === "asc" ? (
+      <ChevronUp className="ml-1 inline h-3.5 w-3.5" aria-hidden />
+    ) : (
+      <ChevronDown className="ml-1 inline h-3.5 w-3.5" aria-hidden />
+    )
+  }
 
   const visibleIds = useMemo(
     () => new Set(sortedProducts.map((product) => product.id)),
@@ -329,11 +369,13 @@ export function AdminProductsListPanel({
             )}
           </p>
           <Select
-            value={productSort}
-            onValueChange={(v) => onProductSortChange(v as ProductSortMode)}
+            value={columnSort ? undefined : productSort}
+            onValueChange={(v) => handleSelectSortChange(v as ProductSortMode)}
           >
             <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder="Sortierung" />
+              <SelectValue
+                placeholder={columnSort ? "Spalten-Sortierung aktiv" : "Sortierung"}
+              />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="name-asc">Name (A–Z)</SelectItem>
@@ -607,11 +649,75 @@ export function AdminProductsListPanel({
                   aria-label="Alle sichtbaren Produkte auswählen"
                 />
               </TableHead>
-              <TableHead>Produkt</TableHead>
-              <TableHead>Typ</TableHead>
-              <TableHead>Preis</TableHead>
+              <TableHead>
+                <button
+                  type="button"
+                  className="inline-flex items-center font-medium hover:text-foreground"
+                  onClick={() => handleColumnHeaderClick("name")}
+                  aria-sort={
+                    columnSort?.column === "name"
+                      ? columnSort.direction === "asc"
+                        ? "ascending"
+                        : "descending"
+                      : "none"
+                  }
+                >
+                  Produkt
+                  {renderSortIndicator("name")}
+                </button>
+              </TableHead>
+              <TableHead>
+                <button
+                  type="button"
+                  className="inline-flex items-center font-medium hover:text-foreground"
+                  onClick={() => handleColumnHeaderClick("type")}
+                  aria-sort={
+                    columnSort?.column === "type"
+                      ? columnSort.direction === "asc"
+                        ? "ascending"
+                        : "descending"
+                      : "none"
+                  }
+                >
+                  Typ
+                  {renderSortIndicator("type")}
+                </button>
+              </TableHead>
+              <TableHead>
+                <button
+                  type="button"
+                  className="inline-flex items-center font-medium hover:text-foreground"
+                  onClick={() => handleColumnHeaderClick("price")}
+                  aria-sort={
+                    columnSort?.column === "price"
+                      ? columnSort.direction === "asc"
+                        ? "ascending"
+                        : "descending"
+                      : "none"
+                  }
+                >
+                  Preis
+                  {renderSortIndicator("price")}
+                </button>
+              </TableHead>
               <TableHead>Tags</TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead>
+                <button
+                  type="button"
+                  className="inline-flex items-center font-medium hover:text-foreground"
+                  onClick={() => handleColumnHeaderClick("status")}
+                  aria-sort={
+                    columnSort?.column === "status"
+                      ? columnSort.direction === "asc"
+                        ? "ascending"
+                        : "descending"
+                      : "none"
+                  }
+                >
+                  Status
+                  {renderSortIndicator("status")}
+                </button>
+              </TableHead>
               <TableHead className="w-12" />
             </TableRow>
           </TableHeader>

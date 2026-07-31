@@ -15,9 +15,15 @@ import type {
 import {
   DEFAULT_LAUNCH_SETTINGS,
   DEFAULT_SERVICE_VISIBILITY,
+  DEFAULT_SHOP_CONFIGURATORS,
 } from "@/lib/admin/types"
 import { normalizeShopConfigurators } from "@/lib/dripforge/shop-configurators"
 import { normalizeServiceVisibility } from "@/lib/dripforge/service-visibility"
+import {
+  applyManagedCatalogToSettings,
+  normalizeManagedCatalog,
+  type ManagedCatalogItem,
+} from "@/lib/dripforge/managed-catalog"
 import {
   buildDefaultAdminSettings,
   normalizeSupportFlag,
@@ -524,14 +530,20 @@ async function getSettingsFromFile(): Promise<AdminSettings> {
   const stored = await readJsonFile<AdminSettings | null>(SETTINGS_FILE, null)
   if (stored?.checkout) {
     const services = normalizeServiceVisibility(stored.services)
+    const shopConfigurators = normalizeShopConfigurators(
+      stored.shopConfigurators,
+      services
+    )
     return {
       checkout: stored.checkout,
       company: normalizeCompanySettings(stored.company),
     launch: normalizeLaunchSettings(stored.launch),
       services,
-      shopConfigurators: normalizeShopConfigurators(
-        stored.shopConfigurators,
-        services
+      shopConfigurators,
+      managedCatalog: normalizeManagedCatalog(
+        stored.managedCatalog,
+        services,
+        shopConfigurators
       ),
       ...buildSupportPageSettings(stored),
       enableOnboardingTour: normalizeEnableOnboardingTour(
@@ -572,6 +584,11 @@ async function getSettingsFromFile(): Promise<AdminSettings> {
     launch: { ...DEFAULT_LAUNCH_SETTINGS },
     services: { ...DEFAULT_SERVICE_VISIBILITY },
     shopConfigurators: normalizeShopConfigurators(null, DEFAULT_SERVICE_VISIBILITY),
+    managedCatalog: normalizeManagedCatalog(
+      null,
+      DEFAULT_SERVICE_VISIBILITY,
+      DEFAULT_SHOP_CONFIGURATORS
+    ),
     showSupportOnMainSite: false,
     showSupportOnCountdownPage: false,
     enableOnboardingTour: true,
@@ -612,6 +629,7 @@ export async function saveSettings(input: {
   launch?: Partial<LaunchSettings>
   services?: Partial<AdminSettings["services"]>
   shopConfigurators?: Partial<AdminSettings["shopConfigurators"]>
+  managedCatalog?: ManagedCatalogItem[] | null
   showSupportOnMainSite?: boolean
   showSupportOnCountdownPage?: boolean
   enableOnboardingTour?: boolean
@@ -629,10 +647,32 @@ export async function saveSettings(input: {
   }
 }): Promise<AdminSettings> {
   const current = await getSettings()
-  const services = normalizeServiceVisibility({
-    ...current.services,
-    ...input.services,
-  })
+
+  let services: AdminSettings["services"]
+  let shopConfigurators: AdminSettings["shopConfigurators"]
+  let managedCatalog: ManagedCatalogItem[]
+
+  if (input.managedCatalog !== undefined && input.managedCatalog !== null) {
+    const applied = applyManagedCatalogToSettings(input.managedCatalog)
+    services = applied.services
+    shopConfigurators = applied.shopConfigurators
+    managedCatalog = applied.managedCatalog
+  } else {
+    services = normalizeServiceVisibility({
+      ...current.services,
+      ...input.services,
+    })
+    shopConfigurators = normalizeShopConfigurators(
+      { ...current.shopConfigurators, ...input.shopConfigurators },
+      services
+    )
+    managedCatalog = normalizeManagedCatalog(
+      current.managedCatalog,
+      services,
+      shopConfigurators
+    )
+  }
+
   const next: AdminSettings = {
     checkout: input.checkout,
     company: normalizeCompanySettings({
@@ -644,10 +684,8 @@ export async function saveSettings(input: {
       ...input.launch,
     }),
     services,
-    shopConfigurators: normalizeShopConfigurators(
-      { ...current.shopConfigurators, ...input.shopConfigurators },
-      services
-    ),
+    shopConfigurators,
+    managedCatalog,
     showSupportOnMainSite:
       input.showSupportOnMainSite !== undefined
         ? normalizeSupportFlag(input.showSupportOnMainSite)

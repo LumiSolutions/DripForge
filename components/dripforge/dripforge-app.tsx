@@ -27,6 +27,10 @@ import {
   normalizeServiceVisibility,
 } from "@/lib/dripforge/service-visibility"
 import { normalizeShopConfigurators } from "@/lib/dripforge/shop-configurators"
+import {
+  normalizeManagedCatalog,
+  type ManagedCatalogItem,
+} from "@/lib/dripforge/managed-catalog"
 import { HomePage } from "@/components/dripforge/views/home-page"
 import { Page3DDruck } from "@/components/dripforge/views/page-3d-druck"
 import { PageLaser } from "@/components/dripforge/views/page-laser"
@@ -58,6 +62,9 @@ export default function DripForgeApp() {
   )
   const [shopConfigurators, setShopConfigurators] =
     useState<ShopConfiguratorSettings>(DEFAULT_SHOP_CONFIGURATORS)
+  const [managedCatalog, setManagedCatalog] = useState<ManagedCatalogItem[]>(() =>
+    normalizeManagedCatalog(null, DEFAULT_SERVICE_VISIBILITY, DEFAULT_SHOP_CONFIGURATORS)
+  )
   const [servicesLoaded, setServicesLoaded] = useState(false)
   const aiPublic = useAiPublicSettings()
   const [pendingProductId, setPendingProductId] = useState<string | null>(null)
@@ -74,9 +81,18 @@ export default function DripForgeApp() {
       .then((data) => {
         if (data) {
           const normalizedServices = normalizeServiceVisibility(data)
+          const normalizedShop = normalizeShopConfigurators(
+            data.shopConfigurators,
+            normalizedServices
+          )
           setServices(normalizedServices)
-          setShopConfigurators(
-            normalizeShopConfigurators(data.shopConfigurators, normalizedServices)
+          setShopConfigurators(normalizedShop)
+          setManagedCatalog(
+            normalizeManagedCatalog(
+              data.managedCatalog,
+              normalizedServices,
+              normalizedShop
+            )
           )
         }
       })
@@ -195,7 +211,11 @@ export default function DripForgeApp() {
           />
         )}
         {currentView === "laser" && (
-          <PageLaser setCurrentView={setCurrentView} services={services} />
+          <PageLaser
+            setCurrentView={setCurrentView}
+            services={services}
+            managedCatalog={managedCatalog}
+          />
         )}
         {currentView === "shop" && (
           <PageShop

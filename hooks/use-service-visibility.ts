@@ -11,10 +11,15 @@ import {
 } from "@/lib/admin/types"
 import { normalizeServiceVisibility } from "@/lib/dripforge/service-visibility"
 import { normalizeShopConfigurators } from "@/lib/dripforge/shop-configurators"
+import {
+  normalizeManagedCatalog,
+  type ManagedCatalogItem,
+} from "@/lib/dripforge/managed-catalog"
 
 export function useServiceVisibility(): {
   services: ServiceVisibilitySettings
   shopConfigurators: ShopConfiguratorSettings
+  managedCatalog: ManagedCatalogItem[]
   isLoaded: boolean
 } {
   const [services, setServices] = useState<ServiceVisibilitySettings>(
@@ -22,6 +27,9 @@ export function useServiceVisibility(): {
   )
   const [shopConfigurators, setShopConfigurators] =
     useState<ShopConfiguratorSettings>(DEFAULT_SHOP_CONFIGURATORS)
+  const [managedCatalog, setManagedCatalog] = useState<ManagedCatalogItem[]>(() =>
+    normalizeManagedCatalog(null, DEFAULT_SERVICE_VISIBILITY, DEFAULT_SHOP_CONFIGURATORS)
+  )
   const [isLoaded, setIsLoaded] = useState(false)
 
   useEffect(() => {
@@ -30,9 +38,18 @@ export function useServiceVisibility(): {
       .then((data) => {
         if (data) {
           const normalizedServices = normalizeServiceVisibility(data)
+          const normalizedShop = normalizeShopConfigurators(
+            data.shopConfigurators,
+            normalizedServices
+          )
           setServices(normalizedServices)
-          setShopConfigurators(
-            normalizeShopConfigurators(data.shopConfigurators, normalizedServices)
+          setShopConfigurators(normalizedShop)
+          setManagedCatalog(
+            normalizeManagedCatalog(
+              data.managedCatalog,
+              normalizedServices,
+              normalizedShop
+            )
           )
         }
       })
@@ -44,5 +61,5 @@ export function useServiceVisibility(): {
       })
   }, [])
 
-  return { services, shopConfigurators, isLoaded }
+  return { services, shopConfigurators, managedCatalog, isLoaded }
 }

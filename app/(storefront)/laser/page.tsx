@@ -6,7 +6,13 @@ import { useServiceVisibility } from "@/hooks/use-service-visibility"
 
 export default function LaserInfoPage() {
   const navigate = useShopNavigate()
-  const { services } = useServiceVisibility()
+  const { services, managedCatalog } = useServiceVisibility()
 
-  return <PageLaser setCurrentView={navigate} services={services} />
+  return (
+    <PageLaser
+      setCurrentView={navigate}
+      services={services}
+      managedCatalog={managedCatalog}
+    />
+  )
 }

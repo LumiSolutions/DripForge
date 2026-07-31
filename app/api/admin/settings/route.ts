@@ -14,6 +14,11 @@ import type {
 } from "@/lib/admin/types"
 import { normalizeServiceVisibility } from "@/lib/dripforge/service-visibility"
 import { normalizeShopConfigurators } from "@/lib/dripforge/shop-configurators"
+import {
+  applyManagedCatalogToSettings,
+  normalizeManagedCatalog,
+  type ManagedCatalogItem,
+} from "@/lib/dripforge/managed-catalog"
 import { buildDefaultAdminSettings } from "@/lib/admin/safe-defaults"
 import {
   normalizeShowTopProductsOnHomepage,
@@ -45,6 +50,7 @@ export async function PUT(request: Request) {
       company?: Partial<CompanySettings>
       services?: Partial<ServiceVisibilitySettings>
       shopConfigurators?: Partial<ShopConfiguratorSettings>
+      managedCatalog?: ManagedCatalogItem[] | null
       showSupportOnMainSite?: boolean
       showSupportOnCountdownPage?: boolean
       enableOnboardingTour?: boolean
@@ -92,12 +98,26 @@ export async function PUT(request: Request) {
       telefonnummer: body.company?.telefonnummer?.trim() ?? "",
     }
 
-    const services = normalizeServiceVisibility(body.services)
+    const catalogApplied =
+      body.managedCatalog !== undefined && body.managedCatalog !== null
+        ? applyManagedCatalogToSettings(body.managedCatalog)
+        : null
+    const services = catalogApplied
+      ? catalogApplied.services
+      : normalizeServiceVisibility(body.services)
+    const shopConfigurators = catalogApplied
+      ? catalogApplied.shopConfigurators
+      : normalizeShopConfigurators(body.shopConfigurators, services)
+    const managedCatalog = catalogApplied
+      ? catalogApplied.managedCatalog
+      : normalizeManagedCatalog(body.managedCatalog, services, shopConfigurators)
+
     const settings = await saveSettings({
       checkout,
       company,
       services,
-      shopConfigurators: normalizeShopConfigurators(body.shopConfigurators, services),
+      shopConfigurators,
+      managedCatalog,
       showSupportOnMainSite: body.showSupportOnMainSite,
       showSupportOnCountdownPage: body.showSupportOnCountdownPage,
       enableOnboardingTour: body.enableOnboardingTour,

@@ -164,7 +164,7 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
       },
       {
         id: "buchhaltungseinstellungen",
-        label: "Buchhaltungseinstellungen",
+        label: "Finanz-Setup",
         href: adminRouteHref("buchhaltungseinstellungen"),
         icon: Settings2,
       },

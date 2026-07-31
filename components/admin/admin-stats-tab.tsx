@@ -1,11 +1,12 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   BarChart3,
   Clock,
   Loader2,
   RefreshCw,
+  Save,
   ShoppingCart,
   TrendingUp,
   Wallet,
@@ -25,6 +26,9 @@ import {
 } from "recharts"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 import {
   Table,
   TableBody,
@@ -34,8 +38,17 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import type { AdminAnalytics } from "@/lib/admin/analytics-types"
+import type { AdminSettings } from "@/lib/admin/types"
 import { formatChf } from "@/lib/admin/format-chf"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
+import {
+  DEFAULT_SHOW_TOP_PRODUCTS_ON_HOMEPAGE,
+  DEFAULT_TOP_PRODUCTS_COUNT,
+  MAX_TOP_PRODUCTS_COUNT,
+  MIN_TOP_PRODUCTS_COUNT,
+  normalizeShowTopProductsOnHomepage,
+  normalizeTopProductsCount,
+} from "@/lib/dripforge/top-products-settings"
 import { cn } from "@/lib/utils"
 
 const PIE_COLORS = [
@@ -92,6 +105,19 @@ export function AdminStatsTab() {
   const [data, setData] = useState<AdminAnalytics | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [showTopProductsOnHomepage, setShowTopProductsOnHomepage] = useState(
+    DEFAULT_SHOW_TOP_PRODUCTS_ON_HOMEPAGE
+  )
+  const [topProductsCount, setTopProductsCount] = useState(DEFAULT_TOP_PRODUCTS_COUNT)
+  const [topProductsSettingsLoading, setTopProductsSettingsLoading] = useState(true)
+  const [topProductsSettingsSaving, setTopProductsSettingsSaving] = useState(false)
+  const [topProductsSettingsError, setTopProductsSettingsError] = useState<string | null>(
+    null
+  )
+  const [topProductsSettingsSuccess, setTopProductsSettingsSuccess] = useState<
+    string | null
+  >(null)
+  const settingsSnapshotRef = useRef<AdminSettings | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -111,9 +137,91 @@ export function AdminStatsTab() {
     }
   }, [])
 
+  const loadTopProductsSettings = useCallback(async () => {
+    setTopProductsSettingsLoading(true)
+    setTopProductsSettingsError(null)
+    try {
+      const res = await fetch("/api/admin/settings", { cache: "no-store" })
+      const json = (await res.json()) as AdminSettings & { error?: string }
+      if (!res.ok) throw new Error(json.error ?? "Einstellungen nicht verfügbar")
+      settingsSnapshotRef.current = json
+      setShowTopProductsOnHomepage(
+        normalizeShowTopProductsOnHomepage(json.showTopProductsOnHomepage)
+      )
+      setTopProductsCount(normalizeTopProductsCount(json.topProductsCount))
+    } catch (err) {
+      console.warn("Admin: Top-Produkte-Einstellungen konnten nicht geladen werden.", err)
+      setTopProductsSettingsError(
+        err instanceof Error
+          ? err.message
+          : "Top-Produkte-Einstellungen konnten nicht geladen werden."
+      )
+    } finally {
+      setTopProductsSettingsLoading(false)
+    }
+  }, [])
+
+  const saveTopProductsSettings = useCallback(async () => {
+    const snapshot = settingsSnapshotRef.current
+    if (!snapshot?.checkout) {
+      setTopProductsSettingsError("Einstellungen noch nicht geladen.")
+      return
+    }
+    setTopProductsSettingsSaving(true)
+    setTopProductsSettingsError(null)
+    setTopProductsSettingsSuccess(null)
+    try {
+      const count = normalizeTopProductsCount(topProductsCount)
+      const res = await fetch("/api/admin/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          checkout: snapshot.checkout,
+          company: snapshot.company,
+          services: snapshot.services,
+          shopConfigurators: snapshot.shopConfigurators,
+          showSupportOnMainSite: snapshot.showSupportOnMainSite,
+          showSupportOnCountdownPage: snapshot.showSupportOnCountdownPage,
+          enableOnboardingTour: snapshot.enableOnboardingTour,
+          onboardingTourText: snapshot.onboardingTourText,
+          themeInboundTourImageUrl: snapshot.themeInboundTourImageUrl,
+          enableRewardPointsSystem: snapshot.enableRewardPointsSystem,
+          loyaltyEarnPercent: snapshot.loyaltyEarnPercent,
+          loyaltyPointValueChf: snapshot.loyaltyPointValueChf,
+          loyaltyPointsExpiryMonths: snapshot.loyaltyPointsExpiryMonths,
+          orderEmailTemplates: snapshot.orderEmailTemplates,
+          launch: snapshot.launch,
+          showTopProductsOnHomepage,
+          topProductsCount: count,
+        }),
+      })
+      const json = (await res.json()) as AdminSettings & { error?: string }
+      if (!res.ok) throw new Error(json.error ?? "Speichern fehlgeschlagen")
+      settingsSnapshotRef.current = json
+      setShowTopProductsOnHomepage(
+        normalizeShowTopProductsOnHomepage(json.showTopProductsOnHomepage)
+      )
+      setTopProductsCount(normalizeTopProductsCount(json.topProductsCount))
+      setTopProductsSettingsSuccess("Gespeichert")
+    } catch (err) {
+      console.warn("Admin: Top-Produkte-Einstellungen konnten nicht gespeichert werden.", err)
+      setTopProductsSettingsError(
+        err instanceof Error
+          ? err.message
+          : "Top-Produkte-Einstellungen konnten nicht gespeichert werden."
+      )
+    } finally {
+      setTopProductsSettingsSaving(false)
+    }
+  }, [showTopProductsOnHomepage, topProductsCount])
+
   useEffect(() => {
     void load()
   }, [load])
+
+  useEffect(() => {
+    void loadTopProductsSettings()
+  }, [loadTopProductsSettings])
 
   const chartData = useMemo(
     () =>
@@ -292,7 +400,75 @@ export function AdminStatsTab() {
             <CardTitle className={cn("text-base", adminUi.heading)}>Top-Produkte</CardTitle>
             <p className={cn("text-sm", adminUi.muted)}>Nach Umsatz und Stueckzahl</p>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            <div
+              className={cn(
+                "flex flex-col gap-3 rounded-xl border p-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between",
+                adminUi.section
+              )}
+            >
+              <div className="flex min-w-0 flex-1 items-center justify-between gap-3">
+                <Label
+                  htmlFor="top-products-homepage-switch"
+                  className={cn("text-sm font-medium leading-snug", adminUi.heading)}
+                >
+                  Top Produkte auf Startseite anzeigen
+                </Label>
+                <Switch
+                  id="top-products-homepage-switch"
+                  checked={showTopProductsOnHomepage}
+                  disabled={topProductsSettingsLoading || topProductsSettingsSaving}
+                  onCheckedChange={setShowTopProductsOnHomepage}
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <Label
+                  htmlFor="top-products-count"
+                  className={cn("shrink-0 text-sm", adminUi.label)}
+                >
+                  Anzahl
+                </Label>
+                <Input
+                  id="top-products-count"
+                  type="number"
+                  min={MIN_TOP_PRODUCTS_COUNT}
+                  max={MAX_TOP_PRODUCTS_COUNT}
+                  value={topProductsCount}
+                  disabled={
+                    topProductsSettingsLoading ||
+                    topProductsSettingsSaving ||
+                    !showTopProductsOnHomepage
+                  }
+                  onChange={(e) =>
+                    setTopProductsCount(normalizeTopProductsCount(e.target.value))
+                  }
+                  className={cn("h-9 w-16 tabular-nums", adminUi.input)}
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => void saveTopProductsSettings()}
+                  disabled={topProductsSettingsLoading || topProductsSettingsSaving}
+                  className={cn("shrink-0", adminUi.primaryBtn)}
+                >
+                  {topProductsSettingsSaving ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Save className="h-3.5 w-3.5" />
+                  )}
+                  <span className="ml-1.5">Speichern</span>
+                </Button>
+              </div>
+              {topProductsSettingsError && (
+                <p className={cn("w-full text-xs", adminUi.error)}>{topProductsSettingsError}</p>
+              )}
+              {topProductsSettingsSuccess && !topProductsSettingsError && (
+                <p className={cn("w-full text-xs text-emerald-600 dark:text-emerald-400")}>
+                  {topProductsSettingsSuccess}
+                </p>
+              )}
+            </div>
+
             {pieProducts.length === 0 ? (
               <p className={cn("py-8 text-center text-sm", adminUi.muted)}>
                 Keine Produktdaten vorhanden.

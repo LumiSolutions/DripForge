@@ -62,9 +62,10 @@ import type {
   StoredCustomer,
   StoredOrder,
 } from "@/lib/admin/types"
-import { DEFAULT_LAUNCH_SETTINGS, DEFAULT_SERVICE_VISIBILITY } from "@/lib/admin/types"
+import { DEFAULT_LAUNCH_SETTINGS, DEFAULT_SERVICE_VISIBILITY, DEFAULT_SHOP_CONFIGURATORS } from "@/lib/admin/types"
 import { normalizeServiceVisibility } from "@/lib/dripforge/service-visibility"
 import { normalizeShopConfigurators } from "@/lib/dripforge/shop-configurators"
+import { normalizeManagedCatalog } from "@/lib/dripforge/managed-catalog"
 
 export { isCosmosConfigured }
 
@@ -412,14 +413,20 @@ export async function cosmosGetSettings(): Promise<AdminSettings> {
       .read<AdminSettings & { id: string }>()
     if (resource?.checkout) {
       const services = normalizeServiceVisibility(resource.services)
+      const shopConfigurators = normalizeShopConfigurators(
+        resource.shopConfigurators,
+        services
+      )
       return {
         checkout: resource.checkout,
         company: normalizeCompanySettings(resource.company),
         launch: normalizeLaunchSettings(resource.launch),
         services,
-        shopConfigurators: normalizeShopConfigurators(
-          resource.shopConfigurators,
-          services
+        shopConfigurators,
+        managedCatalog: normalizeManagedCatalog(
+          resource.managedCatalog,
+          services,
+          shopConfigurators
         ),
         ...buildSupportPageSettings(resource),
         enableOnboardingTour: normalizeEnableOnboardingTour(
@@ -468,6 +475,11 @@ export async function cosmosGetSettings(): Promise<AdminSettings> {
     launch: { ...DEFAULT_LAUNCH_SETTINGS },
     services: { ...DEFAULT_SERVICE_VISIBILITY },
     shopConfigurators: normalizeShopConfigurators(null, DEFAULT_SERVICE_VISIBILITY),
+    managedCatalog: normalizeManagedCatalog(
+      null,
+      DEFAULT_SERVICE_VISIBILITY,
+      DEFAULT_SHOP_CONFIGURATORS
+    ),
     showSupportOnMainSite: false,
     showSupportOnCountdownPage: false,
     enableOnboardingTour: true,

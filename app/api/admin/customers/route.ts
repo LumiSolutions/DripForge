@@ -33,12 +33,14 @@ export async function GET(request: Request) {
     return NextResponse.json({
       customers: customers.map((customer) => {
         const item = toCustomerListItem(customer)
+        const crmStatus = normalizeAccountStatus(customer.status)
+        const portalStatus =
+          statusByKundennummer.get(customer.kundennummer) ??
+          statusByEmail.get(normalizeCustomerEmail(customer.email))
         const mergedStatus =
-          normalizeAccountStatus(customer.status) === "gelöscht"
-            ? "gelöscht"
-            : statusByKundennummer.get(customer.kundennummer) ??
-              statusByEmail.get(normalizeCustomerEmail(customer.email)) ??
-              item.status
+          crmStatus === "gelöscht" || crmStatus === "inaktiv"
+            ? crmStatus
+            : portalStatus ?? item.status
         return { ...item, status: mergedStatus }
       }),
     })
