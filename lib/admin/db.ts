@@ -33,6 +33,10 @@ import {
 } from "@/lib/admin/safe-defaults"
 import { buildSupportPageSettings } from "@/lib/dripforge/support-page-settings"
 import {
+  normalizeSupportFeatures,
+  normalizeSupportMilestones,
+} from "@/lib/dripforge/support-page-settings"
+import {
   normalizeEnableOnboardingTour,
   normalizeOnboardingTourText,
   normalizeThemeInboundTourImageUrl,
@@ -549,6 +553,8 @@ async function getSettingsFromFile(): Promise<AdminSettings> {
         shopConfigurators
       ),
       ...buildSupportPageSettings(stored),
+      supportMilestones: normalizeSupportMilestones(stored.supportMilestones),
+      supportFeatures: normalizeSupportFeatures(stored.supportFeatures),
       enableOnboardingTour: normalizeEnableOnboardingTour(
         stored.enableOnboardingTour ??
           (stored as { enableThemeInboundTour?: boolean }).enableThemeInboundTour
@@ -594,6 +600,8 @@ async function getSettingsFromFile(): Promise<AdminSettings> {
     ),
     showSupportOnMainSite: false,
     showSupportOnCountdownPage: false,
+    supportMilestones: normalizeSupportMilestones(undefined),
+    supportFeatures: normalizeSupportFeatures(undefined),
     enableOnboardingTour: true,
     onboardingTourText: DEFAULT_ONBOARDING_TOUR_TEXT,
     themeInboundTourImageUrl: null,
@@ -635,6 +643,8 @@ export async function saveSettings(input: {
   managedCatalog?: ManagedCatalogItem[] | null
   showSupportOnMainSite?: boolean
   showSupportOnCountdownPage?: boolean
+  supportMilestones?: AdminSettings["supportMilestones"]
+  supportFeatures?: AdminSettings["supportFeatures"]
   enableOnboardingTour?: boolean
   onboardingTourText?: string | null
   themeInboundTourImageUrl?: string | null
@@ -697,6 +707,14 @@ export async function saveSettings(input: {
       input.showSupportOnCountdownPage !== undefined
         ? normalizeSupportFlag(input.showSupportOnCountdownPage)
         : current.showSupportOnCountdownPage === true,
+    supportMilestones:
+      input.supportMilestones !== undefined
+        ? normalizeSupportMilestones(input.supportMilestones)
+        : normalizeSupportMilestones(current.supportMilestones),
+    supportFeatures:
+      input.supportFeatures !== undefined
+        ? normalizeSupportFeatures(input.supportFeatures)
+        : normalizeSupportFeatures(current.supportFeatures),
     enableOnboardingTour:
       input.enableOnboardingTour !== undefined
         ? normalizeEnableOnboardingTour(input.enableOnboardingTour)

@@ -32,6 +32,7 @@ import {
   type SupportCategoryId,
   type SupportMilestone,
 } from "@/lib/support/types"
+import type { SupportFeatureItem } from "@/lib/dripforge/support-page-settings"
 
 const PRESET_AMOUNTS = [20, 50, 100] as const
 
@@ -56,6 +57,7 @@ export function SupportPageContent({
   initialCanceled?: boolean
 }) {
   const [milestones, setMilestones] = useState<SupportMilestone[]>([])
+  const [features, setFeatures] = useState<SupportFeatureItem[]>([])
   const [totalRaisedChf, setTotalRaisedChf] = useState(0)
   const [loadingMilestones, setLoadingMilestones] = useState(true)
   const [stripeConfigured, setStripeConfigured] = useState<boolean | null>(null)
@@ -88,6 +90,9 @@ export function SupportPageContent({
       const data = await res.json()
       if (Array.isArray(data.milestones)) {
         setMilestones(data.milestones as SupportMilestone[])
+      }
+      if (Array.isArray(data.features)) {
+        setFeatures(data.features as SupportFeatureItem[])
       }
       if (typeof data.totalRaisedChf === "number") {
         setTotalRaisedChf(data.totalRaisedChf)
@@ -269,6 +274,36 @@ export function SupportPageContent({
           Tipp: Klicke auf eine Meilenstein-Karte, um sie im Formular vorzuwählen.
         </p>
       </section>
+
+      {features.length > 0 ? (
+        <section className="mx-auto max-w-5xl px-4">
+          <div className="mb-6 text-center md:mb-10">
+            <h2 className="text-3xl font-bold">Bereits ermöglicht</h2>
+            <p className="mt-3 text-muted-foreground">
+              Produkte und Features, die dank eurer Unterstützung entstanden oder
+              ausgebaut wurden.
+            </p>
+          </div>
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {features.map((feature) => (
+              <div
+                key={feature.id}
+                className="rounded-2xl border border-border/50 bg-card/60 p-6 backdrop-blur-sm"
+              >
+                <div className="mb-3 inline-flex rounded-xl bg-cyan-500/10 p-3 text-cyan-600 dark:text-cyan-300">
+                  <Sparkles className="h-5 w-5" />
+                </div>
+                <h3 className="font-semibold leading-snug">{feature.title}</h3>
+                {feature.description ? (
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    {feature.description}
+                  </p>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <section
         ref={formSectionRef}

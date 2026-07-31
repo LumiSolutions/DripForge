@@ -19,6 +19,10 @@ import {
   DEFAULT_SHOW_TOP_PRODUCTS_ON_HOMEPAGE,
   DEFAULT_TOP_PRODUCTS_COUNT,
 } from "@/lib/dripforge/top-products-settings"
+import {
+  DEFAULT_SUPPORT_FEATURES,
+  DEFAULT_SUPPORT_MILESTONES,
+} from "@/lib/dripforge/support-page-settings"
 
 /** Sichere Standard-Einstellungen wenn Cosmos/Datei nicht erreichbar sind. */
 export function buildDefaultAdminSettings(): AdminSettings {
@@ -35,6 +39,8 @@ export function buildDefaultAdminSettings(): AdminSettings {
     ),
     showSupportOnMainSite: false,
     showSupportOnCountdownPage: false,
+    supportMilestones: DEFAULT_SUPPORT_MILESTONES.map((m) => ({ ...m })),
+    supportFeatures: DEFAULT_SUPPORT_FEATURES.map((f) => ({ ...f })),
     enableOnboardingTour: true,
     onboardingTourText: "Tag-\noder\nNachtmodus?",
     themeInboundTourImageUrl: null,

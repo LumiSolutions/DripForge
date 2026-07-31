@@ -37,6 +37,13 @@ import {
 } from "@/lib/dripforge/checkout-config"
 import { buildSupportPageSettings } from "@/lib/dripforge/support-page-settings"
 import {
+  normalizeSupportFeatures,
+  normalizeSupportMilestones,
+  type SupportFeatureItem,
+  type SupportMilestoneConfig,
+} from "@/lib/dripforge/support-page-settings"
+import { AdminSupportCampaignSection } from "@/components/admin/admin-support-campaign-section"
+import {
   normalizeEnableOnboardingTour,
   normalizeOnboardingTourText,
   normalizeThemeInboundTourImageUrl,
@@ -101,7 +108,8 @@ const SECTION_HEADERS: Record<
   },
   support: {
     title: "Support-Kampagne",
-    subtitle: "Sichtbarkeit der Support-Kampagne auf Hauptwebsite und Countdown-Seite",
+    subtitle:
+      "Sichtbarkeit, Meilensteine und unterstützte Features der Support-Kampagne",
   },
   services: {
     title: "Dienstleistungen & Konfiguratoren",
@@ -147,6 +155,12 @@ export function AdminSettingsTab({
   const [launch, setLaunch] = useState<LaunchSettings>(DEFAULT_LAUNCH_SETTINGS)
   const [showSupportOnMainSite, setShowSupportOnMainSite] = useState(false)
   const [showSupportOnCountdownPage, setShowSupportOnCountdownPage] = useState(false)
+  const [supportMilestones, setSupportMilestones] = useState<
+    SupportMilestoneConfig[]
+  >(() => normalizeSupportMilestones(undefined))
+  const [supportFeatures, setSupportFeatures] = useState<SupportFeatureItem[]>(
+    () => normalizeSupportFeatures(undefined)
+  )
   const [enableOnboardingTour, setEnableOnboardingTour] = useState(true)
   const [onboardingTourText, setOnboardingTourText] = useState("")
   const [enableRewardPointsSystem, setEnableRewardPointsSystem] = useState(true)
@@ -191,6 +205,8 @@ export function AdminSettingsTab({
       const support = buildSupportPageSettings(data)
       setShowSupportOnMainSite(support.showSupportOnMainSite)
       setShowSupportOnCountdownPage(support.showSupportOnCountdownPage)
+      setSupportMilestones(normalizeSupportMilestones(data.supportMilestones))
+      setSupportFeatures(normalizeSupportFeatures(data.supportFeatures))
       setEnableOnboardingTour(
         normalizeEnableOnboardingTour(
           data.enableOnboardingTour ?? data.enableThemeInboundTour
@@ -276,6 +292,8 @@ export function AdminSettingsTab({
           managedCatalog: applied.managedCatalog,
           showSupportOnMainSite,
           showSupportOnCountdownPage,
+          supportMilestones,
+          supportFeatures,
           enableOnboardingTour,
           onboardingTourText,
           themeInboundTourImageUrl,
@@ -310,6 +328,8 @@ export function AdminSettingsTab({
       const support = buildSupportPageSettings(data)
       setShowSupportOnMainSite(support.showSupportOnMainSite)
       setShowSupportOnCountdownPage(support.showSupportOnCountdownPage)
+      setSupportMilestones(normalizeSupportMilestones(data.supportMilestones))
+      setSupportFeatures(normalizeSupportFeatures(data.supportFeatures))
       setEnableOnboardingTour(
         normalizeEnableOnboardingTour(
           data.enableOnboardingTour ?? data.enableThemeInboundTour
@@ -938,6 +958,7 @@ export function AdminSettingsTab({
         )}
 
         {show("support") && (
+          <>
           <Card className={adminUi.card}>
             <CardContent className="space-y-4 p-6">
               <div>
@@ -991,6 +1012,18 @@ export function AdminSettingsTab({
               </div>
             </CardContent>
           </Card>
+
+          <Card className={adminUi.card}>
+            <CardContent className="p-6">
+              <AdminSupportCampaignSection
+                milestones={supportMilestones}
+                features={supportFeatures}
+                onMilestonesChange={setSupportMilestones}
+                onFeaturesChange={setSupportFeatures}
+              />
+            </CardContent>
+          </Card>
+          </>
         )}
 
         {show("services") && (

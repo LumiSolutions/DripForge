@@ -6,6 +6,10 @@ import type {
 import type { CartItem, Product } from "@/lib/dripforge/types"
 import type { PaymentMethodId, ShippingMethodId } from "@/lib/dripforge/checkout-config"
 import type { ManagedCatalogItem } from "@/lib/dripforge/managed-catalog"
+import type {
+  SupportFeatureItem,
+  SupportMilestoneConfig,
+} from "@/lib/dripforge/support-page-settings"
 
 export type OrderStatus =
   | "ausstehend"
@@ -200,6 +204,10 @@ export type AdminSettings = {
   showSupportOnMainSite: boolean
   /** Support-Link/Button auf der Countdown-Landingpage */
   showSupportOnCountdownPage: boolean
+  /** Konfigurierbare Meilensteine / Ziele der Support-Kampagne */
+  supportMilestones?: SupportMilestoneConfig[]
+  /** Unterstützte Produkte / Features (Storefront-Liste) */
+  supportFeatures?: SupportFeatureItem[]
   /** Onboarding-Tropfen für Erstbesucher neben Sonne/Mond-Icon */
   enableOnboardingTour: boolean
   /** Frage-Text im Tropfen (Zeilenumbrüche via \\n); leer = kein Text im Tropfen */

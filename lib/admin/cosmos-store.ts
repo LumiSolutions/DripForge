@@ -30,6 +30,10 @@ import {
 } from "@/lib/dripforge/checkout-config"
 import { buildSupportPageSettings } from "@/lib/dripforge/support-page-settings"
 import {
+  normalizeSupportFeatures,
+  normalizeSupportMilestones,
+} from "@/lib/dripforge/support-page-settings"
+import {
   normalizeEnableOnboardingTour,
   normalizeOnboardingTourText,
   normalizeThemeInboundTourImageUrl,
@@ -432,6 +436,8 @@ export async function cosmosGetSettings(): Promise<AdminSettings> {
           shopConfigurators
         ),
         ...buildSupportPageSettings(resource),
+        supportMilestones: normalizeSupportMilestones(resource.supportMilestones),
+        supportFeatures: normalizeSupportFeatures(resource.supportFeatures),
         enableOnboardingTour: normalizeEnableOnboardingTour(
           resource.enableOnboardingTour ??
             (resource as { enableThemeInboundTour?: boolean }).enableThemeInboundTour
@@ -485,6 +491,8 @@ export async function cosmosGetSettings(): Promise<AdminSettings> {
     ),
     showSupportOnMainSite: false,
     showSupportOnCountdownPage: false,
+    supportMilestones: normalizeSupportMilestones(undefined),
+    supportFeatures: normalizeSupportFeatures(undefined),
     enableOnboardingTour: true,
     onboardingTourText: DEFAULT_ONBOARDING_TOUR_TEXT,
     themeInboundTourImageUrl: null,
