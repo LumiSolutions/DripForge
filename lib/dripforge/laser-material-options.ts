@@ -1,5 +1,7 @@
 import { laserMaterials } from "@/lib/dripforge/data"
 import type { LaserMaterial, LaserMaterialId } from "@/lib/dripforge/types"
+import type { LaserMaterialTypeDefinition } from "@/lib/admin/laser-material-types"
+import { getActiveLaserMaterialTypes } from "@/lib/admin/laser-material-types"
 
 export const CORE_LASER_MATERIAL_IDS = [
   "wood",
@@ -68,7 +70,10 @@ function formatLaserStockMaterialLabel(item: {
   return dicke ? `${name} (${dicke})` : name
 }
 
-/** Katalog + dynamische Lagermaterialien → Admin-Dropdown. */
+/**
+ * Aktive Laser-Materialarten (Katalog) + dynamische Lagermaterialien → Admin-Dropdown.
+ * Preferiert den verwaltbaren Katalog; fällt auf hardcodierte Kernmaterialien zurück.
+ */
 export function buildLaserMaterialSelectOptions(
   stockMaterials: Array<{
     id: string
@@ -76,10 +81,22 @@ export function buildLaserMaterialSelectOptions(
     category: string
     farbe?: string | null
     dicke?: string | null
-  }>
+    materialType?: string | null
+  }>,
+  laserTypes?: LaserMaterialTypeDefinition[] | null
 ): Array<{ value: LaserMaterialId; label: string }> {
-  const options: Array<{ value: LaserMaterialId; label: string }> =
-    laserMaterials.map((m) => ({ value: m.id, label: m.name }))
+  const catalog = laserTypes?.length
+    ? getActiveLaserMaterialTypes(laserTypes)
+    : laserMaterials.map((m, index) => ({
+        id: m.id,
+        name: m.name,
+        isActive: true,
+        sortOrder: index,
+      }))
+
+  const options: Array<{ value: LaserMaterialId; label: string }> = catalog.map(
+    (m) => ({ value: m.id, label: m.name })
+  )
   const seen = new Set(options.map((o) => o.value))
 
   for (const item of stockMaterials) {
@@ -87,15 +104,18 @@ export function buildLaserMaterialSelectOptions(
     const name = item.name?.trim()
     if (!name) continue
 
-    const core = matchCoreLaserMaterialId(name)
-    if (core) {
+    const typedRef = String(item.materialType ?? "").trim()
+    if (typedRef && seen.has(typedRef)) continue
+
+    const core = matchCoreLaserMaterialId(typedRef || name)
+    if (core && seen.has(core)) {
       // Kernmaterial bereits im Katalog — keine Duplikate
       continue
     }
 
-    const value = slugifyLaserMaterialId(
-      item.farbe?.trim() ? `${name}-${item.farbe}` : name
-    )
+    const value =
+      typedRef ||
+      slugifyLaserMaterialId(item.farbe?.trim() ? `${name}-${item.farbe}` : name)
     if (seen.has(value)) continue
     seen.add(value)
     options.push({
