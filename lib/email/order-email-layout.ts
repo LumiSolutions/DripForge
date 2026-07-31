@@ -16,6 +16,8 @@ export type OrderEmailLayout = {
   showLogo: boolean
   logoPosition: OrderEmailLogoPosition
   headerTitle?: string
+  /** Optionaler Override; leer = Dokumenten-Logo / Standard. */
+  logoUrl?: string
 }
 
 export const DEFAULT_ORDER_EMAIL_LAYOUT: OrderEmailLayout = {
@@ -23,6 +25,7 @@ export const DEFAULT_ORDER_EMAIL_LAYOUT: OrderEmailLayout = {
   showLogo: true,
   logoPosition: "center",
   headerTitle: "",
+  logoUrl: "",
 }
 
 export const ORDER_EMAIL_SECTION_LABELS: Record<OrderEmailSectionId, string> = {
@@ -82,5 +85,6 @@ export function normalizeOrderEmailLayout(value: unknown): OrderEmailLayout {
       typeof raw.headerTitle === "string"
         ? raw.headerTitle
         : DEFAULT_ORDER_EMAIL_LAYOUT.headerTitle,
+    logoUrl: typeof raw.logoUrl === "string" ? raw.logoUrl : "",
   }
 }

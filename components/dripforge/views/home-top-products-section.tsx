@@ -10,6 +10,7 @@ import { useSiteTexts } from "@/components/dripforge/site-texts-provider"
 import { SiteTextPhrase } from "@/components/dripforge/site-text-phrase"
 import { ProductShopPrice } from "@/components/dripforge/shared/product-shop-price"
 import { SafeProductImage } from "@/components/dripforge/shared/safe-product-image"
+import { WishlistButton } from "@/components/konto/wishlist-button"
 import { getSaleBadgePercent } from "@/lib/dripforge/product-sale"
 import { resolveProductImages } from "@/lib/dripforge/product-images-defaults"
 import type { Product } from "@/lib/dripforge/types"
@@ -170,6 +171,13 @@ export function HomeTopProductsSection() {
                         <span className="absolute right-2 top-2 z-20 rounded-md border border-amber-500/40 bg-amber-500/90 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-950">
                           Dynamisch aus Shop
                         </span>
+                      )}
+                      {!canInlineEdit && (
+                        <WishlistButton
+                          productId={product.id}
+                          size="sm"
+                          className="absolute right-2 top-2 z-20"
+                        />
                       )}
                       {canInlineEdit ? (
                         <div className="block">

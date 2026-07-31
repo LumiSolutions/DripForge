@@ -257,8 +257,7 @@ function AdminShellFrame({ children }: { children: React.ReactNode }) {
                     isAdminNavActive(pathname, item.href, {
                       exact:
                         item.id === "produkte" ||
-                        item.id === "edit" ||
-                        item.id === "test",
+                        item.id === "edit",
                     }) && !childActive
                   const groupActive = Boolean(childActive) || selfActive
                   const open = hasChildren ? isGroupOpen(item.id) : false

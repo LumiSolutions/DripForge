@@ -1,7 +1,13 @@
 "use client"
 
-import { useMemo, useState } from "react"
-import { ArrowDown, ArrowUp, RotateCcw } from "lucide-react"
+import { useEffect, useMemo, useState } from "react"
+import {
+  ArrowDown,
+  ArrowUp,
+  Monitor,
+  RotateCcw,
+  Smartphone,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -35,6 +41,8 @@ type AdminEmailTemplateBuilderProps = {
   layout: OrderEmailLayout
   onTemplatesChange: (next: OrderEmailTemplates) => void
   onLayoutChange: (next: OrderEmailLayout) => void
+  /** Logo aus Dokumenten-/Belege-Einstellungen (Fallback: Standard-Logo). */
+  documentLogoUrl?: string | null
 }
 
 function moveSection(
@@ -51,21 +59,36 @@ function moveSection(
   return next
 }
 
+type PreviewMode = "desktop" | "mobile"
+
 export function AdminEmailTemplateBuilder({
   templates,
   layout,
   onTemplatesChange,
   onLayoutChange,
+  documentLogoUrl,
 }: AdminEmailTemplateBuilderProps) {
   const [dragIndex, setDragIndex] = useState<number | null>(null)
+  const [previewMode, setPreviewMode] = useState<PreviewMode>("desktop")
+  const [logoOverride, setLogoOverride] = useState(layout.logoUrl ?? "")
+
+  useEffect(() => {
+    setLogoOverride(layout.logoUrl ?? "")
+  }, [layout.logoUrl])
+
+  const effectiveLogoUrl =
+    (layout.logoUrl && layout.logoUrl.trim()) ||
+    (documentLogoUrl && documentLogoUrl.trim()) ||
+    null
 
   const previewHtml = useMemo(
     () =>
       renderOrderEmailPreviewHtml({
         templates,
         layout,
+        logoUrl: effectiveLogoUrl,
       }),
-    [templates, layout]
+    [templates, layout, effectiveLogoUrl]
   )
 
   const resetDefaults = () => {
@@ -73,6 +96,7 @@ export function AdminEmailTemplateBuilder({
     onLayoutChange({
       ...DEFAULT_ORDER_EMAIL_LAYOUT,
       sectionOrder: [...DEFAULT_ORDER_EMAIL_LAYOUT.sectionOrder],
+      logoUrl: "",
     })
   }
 
@@ -92,6 +116,8 @@ export function AdminEmailTemplateBuilder({
     setDragIndex(null)
   }
 
+  const frameWidth = previewMode === "mobile" ? 390 : 680
+
   return (
     <div className="space-y-4">
       <div>
@@ -104,7 +130,7 @@ export function AdminEmailTemplateBuilder({
         </p>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-2">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
         <div className="space-y-4">
           <div className={cn("space-y-3 rounded-xl border p-4", adminUi.section)}>
             <div className="flex items-center justify-between gap-3">
@@ -113,7 +139,7 @@ export function AdminEmailTemplateBuilder({
                   Logo anzeigen
                 </p>
                 <p className={cn("text-xs", adminUi.muted)}>
-                  Logo aus der Dokumentenvorlage in der Kopfzeile
+                  Standard: Logo aus Dokumentenvorlage / Belege-Einstellungen
                 </p>
               </div>
               <Switch
@@ -147,6 +173,34 @@ export function AdminEmailTemplateBuilder({
                   <SelectItem value="right">Rechts</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label
+                htmlFor="orderEmailLogoUrl"
+                className={cn("text-sm font-semibold", adminUi.heading)}
+              >
+                Logo-URL (optionaler Override)
+              </Label>
+              <Input
+                id="orderEmailLogoUrl"
+                value={logoOverride}
+                disabled={!layout.showLogo}
+                onChange={(event) => {
+                  const value = event.target.value
+                  setLogoOverride(value)
+                  onLayoutChange({ ...layout, logoUrl: value })
+                }}
+                className={adminUi.input}
+                placeholder={
+                  documentLogoUrl?.trim() ||
+                  "Leer = Dokumenten-Logo / Standard"
+                }
+              />
+              <p className={cn("text-xs", adminUi.muted)}>
+                Leer lassen, um das Logo aus den Dokumenteneinstellungen zu
+                verwenden.
+              </p>
             </div>
 
             <div className="space-y-2">
@@ -308,13 +362,37 @@ export function AdminEmailTemplateBuilder({
         </div>
 
         <div className="space-y-3">
-          <div>
-            <p className={cn("text-sm font-semibold", adminUi.heading)}>
-              Live-Vorschau
-            </p>
-            <p className={cn("text-xs", adminUi.muted)}>
-              Beispielbestellung mit Platzhalterwerten
-            </p>
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <p className={cn("text-sm font-semibold", adminUi.heading)}>
+                Live-Vorschau
+              </p>
+              <p className={cn("text-xs", adminUi.muted)}>
+                Beispielbestellung mit Platzhalterwerten — volle Höhe ohne inneren Scroll
+              </p>
+            </div>
+            <div className="inline-flex rounded-lg border border-border/60 p-0.5">
+              <Button
+                type="button"
+                size="sm"
+                variant={previewMode === "desktop" ? "default" : "ghost"}
+                className="h-8 gap-1.5"
+                onClick={() => setPreviewMode("desktop")}
+              >
+                <Monitor className="h-3.5 w-3.5" />
+                Desktop
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={previewMode === "mobile" ? "default" : "ghost"}
+                className="h-8 gap-1.5"
+                onClick={() => setPreviewMode("mobile")}
+              >
+                <Smartphone className="h-3.5 w-3.5" />
+                Mobile
+              </Button>
+            </div>
           </div>
           <div
             className={cn(
@@ -329,14 +407,19 @@ export function AdminEmailTemplateBuilder({
                 adminUi.sidebarBorder
               )}
             >
-              Kunden-Bestellbestätigung
+              Kunden-Bestellbestätigung ·{" "}
+              {previewMode === "mobile" ? "Mobile" : "Desktop"}
             </div>
-            <div className="max-h-[min(780px,70vh)] overflow-auto bg-slate-100 p-3 dark:bg-zinc-950">
-              <div className="mx-auto max-w-[620px] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div className="bg-slate-100 p-4 dark:bg-zinc-950">
+              <div
+                className="mx-auto overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-[max-width] duration-200"
+                style={{ maxWidth: frameWidth }}
+              >
                 <iframe
                   title="E-Mail-Vorschau"
                   srcDoc={previewHtml}
-                  className="h-[640px] w-full border-0 bg-white"
+                  className="w-full border-0 bg-white"
+                  style={{ height: previewMode === "mobile" ? 920 : 1100 }}
                   sandbox=""
                 />
               </div>

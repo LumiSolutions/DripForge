@@ -11,8 +11,12 @@ export function KontoDesignsPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    void fetch("/api/konto/designs", { cache: "no-store" })
+    void fetch("/api/konto/designs", { cache: "no-store", credentials: "include" })
       .then(async (res) => {
+        if (res.status === 401) {
+          window.location.href = "/konto/login?next=/konto/designs"
+          return
+        }
         const data = (await res.json()) as { designs?: SavedCustomerDesign[] }
         if (res.ok) setDesigns(data.designs ?? [])
       })
@@ -28,8 +32,7 @@ export function KontoDesignsPage() {
             Meine Designs
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Gespeicherte Logos und Konfigurationen für schnelle Nachbestellungen — demnächst
-            direkt aus dem Shop speicherbar.
+            Manuell gespeicherte Logos und Konfigurationen aus Shop und Konfiguratoren.
           </p>
         </div>
 
@@ -37,10 +40,11 @@ export function KontoDesignsPage() {
           <CardContent className="flex gap-4 p-6">
             <Sparkles className="h-6 w-6 shrink-0 text-primary" />
             <div className="text-sm text-muted-foreground">
-              <p className="font-medium text-foreground">In Vorbereitung</p>
+              <p className="font-medium text-foreground">So speicherst du Designs</p>
               <p className="mt-1">
-                Nach Abschluss einer Laser- oder 3D-Bestellung kannst du dein Design hier
-                ablegen und beim nächsten Einkauf mit einem Klick wiederverwenden.
+                Im Laser- oder 3D-Konfigurator (und bei personalisierten Shop-Produkten)
+                findest du den Button «Design speichern». Gespeicherte Designs erscheinen
+                hier und sind auch im Admin-Kundenprofil sichtbar.
               </p>
             </div>
           </CardContent>
@@ -57,7 +61,15 @@ export function KontoDesignsPage() {
         ) : (
           <div className="grid gap-4 sm:grid-cols-2">
             {designs.map((design) => (
-              <Card key={design.id} className="rounded-xl border-border/50">
+              <Card key={design.id} className="overflow-hidden rounded-xl border-border/50">
+                {design.previewUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={design.previewUrl}
+                    alt={design.label}
+                    className="h-40 w-full object-contain bg-secondary/40 p-3"
+                  />
+                ) : null}
                 <CardContent className="p-5">
                   <p className="font-semibold">{design.label}</p>
                   <p className="text-xs text-muted-foreground">

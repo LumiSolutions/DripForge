@@ -22,6 +22,7 @@ import {
   syncLoyaltyAccountBalance,
 } from "@/lib/konto/loyalty-points"
 import type { LoyaltyPointTransaction } from "@/lib/konto/loyalty-points-config"
+import { getDesignsForCustomer } from "@/lib/konto/designs-db"
 
 type RouteContext = { params: Promise<{ id: string }> }
 
@@ -125,6 +126,10 @@ export async function GET(request: Request, context: RouteContext) {
         .slice(0, 30)
     }
 
+    const designs = portalAccount
+      ? await getDesignsForCustomer(portalAccount.email)
+      : await getDesignsForCustomer(customer.email)
+
     return NextResponse.json({
       customer: {
         ...customer,
@@ -132,6 +137,7 @@ export async function GET(request: Request, context: RouteContext) {
         status,
       },
       orders,
+      designs,
       loyalty: {
         points: loyaltyPoints,
         history: loyaltyHistory,

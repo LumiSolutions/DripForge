@@ -29,18 +29,24 @@ type SiteImageEditorProps = {
   imageKey: SiteImageKey
   value: SiteImageEntry
   align?: "start" | "center" | "end"
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }
 
 export function SiteImageEditor({
   imageKey,
   value,
   align = "end",
+  open: openControlled,
+  onOpenChange,
 }: SiteImageEditorProps) {
   const { saveImage, mediaLibrary } = useSiteTexts()
   const { label } = getSiteImageFieldMeta(imageKey)
   const fileInputId = useId()
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [open, setOpen] = useState(false)
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false)
+  const open = openControlled ?? uncontrolledOpen
+  const setOpen = onOpenChange ?? setUncontrolledOpen
   const [draftUrl, setDraftUrl] = useState(value.url)
   const [draftAlt, setDraftAlt] = useState(value.alt)
   const [saving, setSaving] = useState(false)
@@ -136,7 +142,10 @@ export function SiteImageEditor({
           )}
           aria-label={`${label} ändern`}
           onPointerDown={(event) => event.stopPropagation()}
-          onClick={(event) => event.stopPropagation()}
+          onClick={(event) => {
+            event.stopPropagation()
+            setOpen(true)
+          }}
         >
           <Camera className="h-4 w-4" />
         </button>
@@ -304,6 +313,7 @@ export function SiteImage({
 }: SiteImageProps) {
   const { image, canInlineEdit } = useSiteTexts()
   const entry = image(imageKey)
+  const [editorOpen, setEditorOpen] = useState(false)
 
   const img = (
     <Image
@@ -338,11 +348,17 @@ export function SiteImage({
   return (
     <span
       className={cn(
-        "group/site-image relative block",
+        "group/site-image relative block cursor-pointer",
         fill && "absolute inset-0",
         wrapperClassName,
         className
       )}
+      onClick={(event) => {
+        event.preventDefault()
+        event.stopPropagation()
+        setEditorOpen(true)
+      }}
+      onPointerDown={(event) => event.stopPropagation()}
     >
       {img}
       <div
@@ -360,7 +376,12 @@ export function SiteImage({
           Bild ändern
         </span>
       </div>
-      <SiteImageEditor imageKey={imageKey} value={entry} />
+      <SiteImageEditor
+        imageKey={imageKey}
+        value={entry}
+        open={editorOpen}
+        onOpenChange={setEditorOpen}
+      />
     </span>
   )
 }
