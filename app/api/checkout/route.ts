@@ -17,16 +17,24 @@ import {
   sumLineItemsCents,
 } from "@/lib/stripe/build-checkout-line-items"
 import { getStripeCheckoutUrls } from "@/lib/stripe/checkout-urls"
-import { getStripe, isStripeConfigured } from "@/lib/stripe/client"
+import {
+  formatStripeError,
+  getStripe,
+  getStripeEnvDiagnostics,
+  isStripeConfigured,
+} from "@/lib/stripe/client"
 import { CosmosDatabaseError } from "@/lib/admin/storage-bridge"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 
 export async function GET() {
+  const diagnostics = getStripeEnvDiagnostics()
+  // publishableKey nur wenn gesetzt — Frontend darf ihn loggen (Länge/Prefix), nicht erwarten für Elements
   return NextResponse.json({
-    configured: isStripeConfigured(),
+    configured: diagnostics.configured,
     publishableKey: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY?.trim() || null,
+    diagnostics,
   })
 }
 
@@ -139,25 +147,55 @@ export async function POST(request: Request) {
           ? ["card"]
           : ["card", "twint"]
 
-    const session = await stripe.checkout.sessions.create({
-      mode: "payment",
+    console.info("[Stripe Checkout] Session erstellen", {
+      orderId,
+      paymentMethod: payload.paymentMethod,
       payment_method_types: paymentMethodTypes,
-      customer_email: billingEmail,
-      line_items: lineItems,
-      ...(discounts ? { discounts } : {}),
-      metadata: {
-        purpose: "shop-order",
-        orderId,
-        userId,
-        customerEmail: billingEmail,
-        accountEmail: userId,
-        totalChf: boundOrder.totals.total.toFixed(2),
-        pointsRedeemed: String(boundOrder.totals.pointsRedeemed ?? 0),
-        paymentMethod: payload.paymentMethod,
-      },
-      success_url: successUrl,
-      cancel_url: cancelUrl,
+      totalCents,
+      secretKeyMode: getStripeEnvDiagnostics().secretKeyMode,
     })
+
+    let session: Awaited<ReturnType<typeof stripe.checkout.sessions.create>>
+    try {
+      session = await stripe.checkout.sessions.create({
+        mode: "payment",
+        payment_method_types: paymentMethodTypes,
+        customer_email: billingEmail,
+        line_items: lineItems,
+        ...(discounts ? { discounts } : {}),
+        metadata: {
+          purpose: "shop-order",
+          orderId,
+          userId,
+          customerEmail: billingEmail,
+          accountEmail: userId,
+          totalChf: boundOrder.totals.total.toFixed(2),
+          pointsRedeemed: String(boundOrder.totals.pointsRedeemed ?? 0),
+          paymentMethod: payload.paymentMethod,
+        },
+        success_url: successUrl,
+        cancel_url: cancelUrl,
+      })
+    } catch (stripeError) {
+      const formatted = formatStripeError(stripeError)
+      console.error("[Stripe Checkout] sessions.create fehlgeschlagen.", {
+        orderId,
+        payment_method_types: paymentMethodTypes,
+        code: formatted.code,
+        type: formatted.type,
+        message: formatted.message,
+      })
+      return NextResponse.json(
+        {
+          error: formatted.message,
+          stripeCode: formatted.code ?? null,
+          stripeType: formatted.type ?? null,
+          payment_method_types: paymentMethodTypes,
+          success: false,
+        },
+        { status: 502 }
+      )
+    }
 
     if (!session.url) {
       return NextResponse.json(
@@ -190,12 +228,22 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("Fehler beim Speichern der Bestellung:", error)
     console.error("Shop Checkout: Erstellung fehlgeschlagen.", error)
+    const stripeFormatted = formatStripeError(error)
     const message =
       error instanceof CosmosDatabaseError
         ? "Bestellung konnte nicht in der Datenbank gespeichert werden. Bitte erneut versuchen."
-        : error instanceof Error
-          ? error.message
-          : "Checkout konnte nicht gestartet werden."
-    return NextResponse.json({ error: message, success: false }, { status: 500 })
+        : stripeFormatted.message ||
+          (error instanceof Error
+            ? error.message
+            : "Checkout konnte nicht gestartet werden.")
+    return NextResponse.json(
+      {
+        error: message,
+        stripeCode: stripeFormatted.code ?? null,
+        stripeType: stripeFormatted.type ?? null,
+        success: false,
+      },
+      { status: 500 }
+    )
   }
 }

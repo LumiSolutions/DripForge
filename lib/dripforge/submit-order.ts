@@ -89,14 +89,32 @@ export async function startStripeCheckout(
       orderId?: string
       pointsOnly?: boolean
       error?: string
+      stripeCode?: string | null
+      stripeType?: string | null
+      payment_method_types?: string[]
     }
 
     if (!response.ok || !data.url) {
+      console.error("[Stripe Checkout] API-Fehler", {
+        status: response.status,
+        error: data.error,
+        stripeCode: data.stripeCode,
+        stripeType: data.stripeType,
+        payment_method_types: data.payment_method_types,
+      })
+      const detail = [data.error, data.stripeCode ? `(${data.stripeCode})` : null]
+        .filter(Boolean)
+        .join(" ")
       return {
         ok: false,
-        error: data.error ?? "Stripe Checkout konnte nicht gestartet werden.",
+        error: detail || "Stripe Checkout konnte nicht gestartet werden.",
       }
     }
+
+    console.info("[Stripe Checkout] Redirect zur Stripe-Seite", {
+      sessionId: data.sessionId,
+      orderId: data.orderId,
+    })
 
     return {
       ok: true,
