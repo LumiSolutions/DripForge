@@ -58,7 +58,17 @@ function AdminShellFrame({ children }: { children: React.ReactNode }) {
     void (async () => {
       try {
         const res = await fetch("/api/admin/auth/me", { credentials: "include" })
-        setIsLoggedIn(res.ok)
+        const data = (await res.json().catch(() => ({}))) as {
+          authenticated?: boolean
+          role?: string
+        }
+        const role = String(data.role ?? "")
+          .trim()
+          .toLowerCase()
+        // HQ erfordert Admin-Rolle — Tester-Sessions dürfen den Shell nicht öffnen.
+        setIsLoggedIn(
+          Boolean(res.ok && data.authenticated && role === "admin")
+        )
       } catch {
         setIsLoggedIn(false)
       } finally {

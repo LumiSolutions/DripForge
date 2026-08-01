@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { getAdminSessionFromRequest } from "@/lib/admin/admin-session"
-import type { StaffRole } from "@/lib/admin/staff-types"
+import { normalizeStaffRole, type StaffRole } from "@/lib/admin/staff-types"
 
 export type VerifiedAdminSession = {
   userId: StaffRole
@@ -20,13 +20,14 @@ export function requireAdminSession(
       "Nicht autorisiert. 2FA-verifizierte Admin-Session erforderlich."
     )
   }
-  if (payload.role !== "admin") {
+  const role = normalizeStaffRole(payload.role) ?? normalizeStaffRole(payload.userId)
+  if (role !== "admin") {
     return unauthorized(
       "Nur Administratoren haben Zugriff auf diesen Bereich.",
       403
     )
   }
-  return { userId: payload.userId, role: payload.role }
+  return { userId: "admin", role: "admin" }
 }
 
 export function requireStaffTwoFactorSession(
@@ -39,10 +40,11 @@ export function requireStaffTwoFactorSession(
       "Nicht autorisiert. 2FA-verifizierte Session erforderlich."
     )
   }
-  if (!allowedRoles.includes(payload.role)) {
+  const role = normalizeStaffRole(payload.role) ?? normalizeStaffRole(payload.userId)
+  if (!role || !allowedRoles.includes(role)) {
     return unauthorized("Keine Berechtigung für diese Aktion.", 403)
   }
-  return { userId: payload.userId, role: payload.role }
+  return { userId: role, role }
 }
 
 export function isAuthError(

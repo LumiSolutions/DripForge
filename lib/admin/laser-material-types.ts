@@ -129,22 +129,21 @@ export function normalizeLaserMaterialTypeDefinition(
 export function mergeLaserMaterialTypes(
   stored: LaserMaterialTypeDefinition[] | null | undefined
 ): LaserMaterialTypeDefinition[] {
-  const defaults = buildDefaultLaserMaterialTypes()
-  const byId = new Map(defaults.map((type) => [type.id, { ...type }]))
-
+  // Bestehende Daten nie mit Katalog-Defaults vermischen — verhindert
+  // Wiederauferstehung gelöschter Typen bei Restart/Deploy.
   if (Array.isArray(stored)) {
-    for (const raw of stored) {
-      const normalized = normalizeLaserMaterialTypeDefinition(
-        raw as Partial<LaserMaterialTypeDefinition> & Record<string, unknown>,
-        byId.get(String(raw?.id ?? "").trim())
+    return stored
+      .map((raw) =>
+        normalizeLaserMaterialTypeDefinition(
+          raw as Partial<LaserMaterialTypeDefinition> & Record<string, unknown>
+        )
       )
-      byId.set(normalized.id, normalized)
-    }
+      .sort(
+        (a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, "de")
+      )
   }
 
-  return Array.from(byId.values()).sort(
-    (a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, "de")
-  )
+  return buildDefaultLaserMaterialTypes()
 }
 
 export function sanitizeLaserMaterialTypesInput(

@@ -1,6 +1,5 @@
 import { promises as fs } from "fs"
 import path from "path"
-import { products as seedProducts } from "@/lib/dripforge/data"
 import {
   DEFAULT_CHECKOUT_RUNTIME_CONFIG,
   normalizeCheckoutRuntimeConfig,
@@ -509,16 +508,9 @@ export async function readLocalInvoicePdf(filename: string): Promise<Buffer | nu
 
 async function getProductsFromFile(): Promise<AdminProduct[]> {
   const stored = await readJsonFile<AdminProduct[] | null>(PRODUCTS_FILE, null)
-  if (stored && stored.length > 0) return stored
-  const seeded = seedProducts.map((p) => ({
-    ...p,
-    istAktiv: p.istAktiv !== false,
-    galerieBilder: p.galerieBilder ?? p.images ?? [],
-    modellDateiUrl: p.modellDateiUrl ?? p.modelUrl,
-    updatedAt: new Date().toISOString(),
-  }))
-  await writeJsonFile(PRODUCTS_FILE, seeded)
-  return seeded
+  // Niemals Demo-Produkte automatisch schreiben — leeres Lager bleibt leer.
+  if (Array.isArray(stored)) return stored
+  return []
 }
 
 /** Shop-Storefront: Lesen mit Datei-Fallback. */

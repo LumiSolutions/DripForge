@@ -208,29 +208,32 @@ export function normalizeMaterialTypeDefinition(
 export function migrateLegacyCategoriesToTypes(
   categories: Partial<Record<string, Partial<MaterialCategoryStat>>> | null | undefined
 ): MaterialTypeDefinition[] {
-  const defaults = buildDefaultMaterialTypes()
-  const byId = new Map(defaults.map((type) => [type.id, { ...type }]))
+  // Keine Legacy-Daten → Defaults nur für Erstbefüllung
+  if (!categories || Object.keys(categories).length === 0) {
+    return buildDefaultMaterialTypes()
+  }
 
-  if (categories) {
-    for (const [key, stat] of Object.entries(categories)) {
-      const id = normalizeMaterialTypeKey(key)
-      const name =
-        FILAMENT_MATERIAL_TYPES.find((t) => normalizeMaterialTypeKey(t) === id) ??
-        key.toUpperCase()
-      const existing = byId.get(id)
-      const normalizedStats = normalizeMaterialCategoryStat(stat, name)
-      if (existing) {
-        byId.set(id, { ...existing, ...normalizedStats, name: existing.name })
-      } else {
-        byId.set(id, {
-          id,
-          name: key,
-          isActive: true,
-          sortOrder: byId.size,
-          ...normalizedStats,
-        })
-      }
-    }
+  // Vorhandene Legacy-Keys nur migrieren — keine fehlenden Katalog-Defaults ergänzen
+  const defaultsById = new Map(
+    buildDefaultMaterialTypes().map((type) => [type.id, type])
+  )
+  const byId = new Map<string, MaterialTypeDefinition>()
+
+  for (const [key, stat] of Object.entries(categories)) {
+    const id = normalizeMaterialTypeKey(key)
+    const catalog = defaultsById.get(id)
+    const name =
+      catalog?.name ??
+      FILAMENT_MATERIAL_TYPES.find((t) => normalizeMaterialTypeKey(t) === id) ??
+      key.toUpperCase()
+    const normalizedStats = normalizeMaterialCategoryStat(stat, name)
+    byId.set(id, {
+      id,
+      name,
+      isActive: catalog?.isActive !== false,
+      sortOrder: catalog?.sortOrder ?? byId.size,
+      ...normalizedStats,
+    })
   }
 
   return Array.from(byId.values()).sort((a, b) => a.sortOrder - b.sortOrder)
@@ -243,16 +246,16 @@ export function mergeMaterialTypes(
     | null
     | undefined
 ): MaterialTypeDefinition[] {
+  // Bestehende Arrays unverändert (nur normalisiert) zurückgeben — keine
+  // Default-Typen wieder einmischen, sonst gehen Admin-Löschungen bei Deploy verloren.
   if (Array.isArray(stored)) {
-    const defaults = buildDefaultMaterialTypes()
-    const byId = new Map(defaults.map((type) => [type.id, { ...type }]))
-    for (const raw of stored) {
-      const normalized = normalizeMaterialTypeDefinition(raw, byId.get(raw.id ?? ""))
-      byId.set(normalized.id, normalized)
-    }
-    return Array.from(byId.values()).sort((a, b) => a.sortOrder - b.sortOrder)
+    return stored
+      .map((raw) => normalizeMaterialTypeDefinition(raw))
+      .sort((a, b) => a.sortOrder - b.sortOrder)
   }
 
+  // Legacy-Map / fehlendes Dokument: einmalig Defaults bzw. Migration
+  if (stored == null) return buildDefaultMaterialTypes()
   return migrateLegacyCategoriesToTypes(stored)
 }
 

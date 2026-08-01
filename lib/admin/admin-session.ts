@@ -5,6 +5,7 @@ import type {
   StaffAuthIntent,
   StaffRole,
 } from "@/lib/admin/staff-types"
+import { normalizeStaffRole } from "@/lib/admin/staff-types"
 import { resolveSigningSecret } from "@/lib/security/env-secrets"
 
 export const ADMIN_SESSION_COOKIE = "dripforge_admin_session"
@@ -82,11 +83,16 @@ export function parseAdminSessionToken(
 ): AdminSessionPayload | null {
   const payload = verifySignedToken<AdminSessionPayload>(token)
   if (!payload) return null
-  if (!payload.userId || !payload.role || typeof payload.exp !== "number") {
-    return null
-  }
+  if (typeof payload.exp !== "number") return null
   if (payload.exp < Math.floor(Date.now() / 1000)) return null
-  return payload
+  const role =
+    normalizeStaffRole(payload.role) ?? normalizeStaffRole(payload.userId)
+  if (!role) return null
+  return {
+    ...payload,
+    userId: role,
+    role,
+  }
 }
 
 export function parseAdminPendingToken(
@@ -94,18 +100,29 @@ export function parseAdminPendingToken(
 ): AdminPendingPayload | null {
   const payload = verifySignedToken<AdminPendingPayload>(token)
   if (!payload) return null
-  if (!payload.userId || !payload.role || typeof payload.exp !== "number") {
-    return null
-  }
+  if (typeof payload.exp !== "number") return null
   if (!payload.intent) return null
   if (payload.exp < Math.floor(Date.now() / 1000)) return null
-  return payload
+  const role =
+    normalizeStaffRole(payload.role) ?? normalizeStaffRole(payload.userId)
+  if (!role) return null
+  return {
+    ...payload,
+    userId: role,
+    role,
+  }
 }
 
 function readCookie(request: Request, name: string): string | undefined {
   const cookieHeader = request.headers.get("cookie") ?? ""
   const match = cookieHeader.match(new RegExp(`(?:^|;\\s*)${name}=([^;]+)`))
-  return match?.[1]
+  const raw = match?.[1]
+  if (!raw) return undefined
+  try {
+    return decodeURIComponent(raw)
+  } catch {
+    return raw
+  }
 }
 
 export function getAdminSessionFromRequest(

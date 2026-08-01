@@ -1090,8 +1090,11 @@ export function PageShop({
                       <Zap className="h-6 w-6 text-cyan-400" />
                     </div>
                     <h3 className="mb-2 text-lg font-bold"><SiteText k="shop_custom_laser_title" /></h3>
-                    <p className="mb-6 flex-1 text-sm text-muted-foreground">
+                    <p className="mb-2 flex-1 text-sm text-muted-foreground">
                       <SiteText k="shop_custom_laser_description" />
+                    </p>
+                    <p className="mb-6 text-sm font-medium text-cyan-400">
+                      Personalisiere deine Kreation ab CHF 20.00
                     </p>
                     <span className="inline-flex items-center text-sm font-medium text-foreground">
                       Jetzt Erstellen

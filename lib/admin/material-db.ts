@@ -51,12 +51,7 @@ export async function getMaterials(
       ? all.filter((m) => m.category === category)
       : all
 
-    // Leeres Lasermaterial-Lager: Katalog-Stammdaten einmalig anlegen
-    if (category === "lasermaterial" && filtered.length === 0) {
-      const seeded = await ensureLaserStockMaterialsSeeded()
-      if (seeded.length > 0) return seeded
-    }
-
+    // Kein Auto-Seed bei GET — Stammdaten nur explizit via ?seed=1 anlegen.
     return filtered
   } catch (error) {
     logCosmosError("getMaterials:total-failure", error)

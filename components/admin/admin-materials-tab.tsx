@@ -840,80 +840,41 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
               </div>
 
               {category === "filament" && (
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className={cn("space-y-3 rounded-xl border p-4", adminUi.section)}>
-                    <Label>Spulen-Bild</Label>
-                    <p className={cn("text-xs", adminUi.muted)}>
-                      Filament-Spule — erscheint links im Shop.
-                    </p>
-                    <label className="flex cursor-pointer items-center gap-2 text-sm">
-                      <Upload className="h-4 w-4" />
-                      Bild hochladen
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0]
-                          if (file) void uploadMaterialImage(file, "spuleBildUrl")
-                        }}
+                <div className={cn("space-y-3 rounded-xl border p-4", adminUi.section)}>
+                  <Label>Beispiel Print-Bild (Farbmuster)</Label>
+                  <p className={cn("text-xs", adminUi.muted)}>
+                    Ein Vorschaubild pro Filament-Farbe — erscheint im Shop.
+                  </p>
+                  <label className="flex cursor-pointer items-center gap-2 text-sm">
+                    <Upload className="h-4 w-4" />
+                    Bild hochladen
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) void uploadMaterialImage(file, "printBildUrl")
+                      }}
+                    />
+                  </label>
+                  {draft.printBildUrl || draft.spuleBildUrl ? (
+                    <div
+                      className={cn(
+                        "h-20 w-20 overflow-hidden rounded-lg border",
+                        adminUi.thumbnail
+                      )}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={draft.printBildUrl || draft.spuleBildUrl}
+                        alt={draft.farbe ?? "Print-Beispiel"}
+                        className="h-full w-full object-cover"
                       />
-                    </label>
-                    {draft.spuleBildUrl ? (
-                      <div
-                        className={cn(
-                          "h-20 w-20 overflow-hidden rounded-lg border",
-                          adminUi.thumbnail
-                        )}
-                      >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={draft.spuleBildUrl}
-                          alt={draft.farbe ?? "Spulen-Bild"}
-                          className="h-full w-full object-cover"
-                        />
-                      </div>
-                    ) : (
-                      <p className={cn("text-xs", adminUi.muted)}>Noch kein Spulen-Bild</p>
-                    )}
-                  </div>
-
-                  <div className={cn("space-y-3 rounded-xl border p-4", adminUi.section)}>
-                    <Label>Beispiel Print-Bild (Farbmuster)</Label>
-                    <p className={cn("text-xs", adminUi.muted)}>
-                      Gedrucktes Farbmuster — erscheint rechts im Shop.
-                    </p>
-                    <label className="flex cursor-pointer items-center gap-2 text-sm">
-                      <Upload className="h-4 w-4" />
-                      Bild hochladen
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0]
-                          if (file) void uploadMaterialImage(file, "printBildUrl")
-                        }}
-                      />
-                    </label>
-                    {draft.printBildUrl ? (
-                      <div
-                        className={cn(
-                          "h-20 w-20 overflow-hidden rounded-lg border",
-                          adminUi.thumbnail
-                        )}
-                      >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={draft.printBildUrl}
-                          alt={draft.farbe ?? "Print-Beispiel"}
-                          className="h-full w-full object-cover"
-                        />
-                      </div>
-                    ) : (
-                      <p className={cn("text-xs", adminUi.muted)}>Noch kein Print-Beispiel</p>
-                    )}
-                  </div>
+                    </div>
+                  ) : (
+                    <p className={cn("text-xs", adminUi.muted)}>Noch kein Print-Beispiel</p>
+                  )}
                 </div>
               )}
 

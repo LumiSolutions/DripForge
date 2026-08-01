@@ -14,6 +14,7 @@ import {
   MATERIAL_STATS_DOC_ID,
   MATERIAL_STATS_DOC_TYPE,
   mergeMaterialTypes,
+  normalizeMaterialTypeDefinition,
   sanitizeMaterialTypesInput,
   typesToLegacyMap,
   type MaterialStatsMap,
@@ -158,19 +159,20 @@ export async function cosmosSaveLaserMaterialTypes(
 ): Promise<LaserMaterialTypeDefinition[]> {
   const sanitized = sanitizeLaserMaterialTypesInput(laserTypes)
   const existing = await cosmosReadMaterialStatsDoc()
-  let filamentTypes: MaterialTypeDefinition[]
+  // Filament-Typen nur lesen/weiterreichen — niemals Defaults neu einmischen.
+  let filamentTypes: MaterialTypeDefinition[] | undefined
   if (Array.isArray(existing?.types)) {
-    filamentTypes = mergeMaterialTypes(existing.types)
+    filamentTypes = existing.types.map((raw) =>
+      normalizeMaterialTypeDefinition(raw)
+    )
   } else if (existing?.categories) {
     filamentTypes = mergeMaterialTypes(existing.categories)
-  } else {
-    filamentTypes = mergeMaterialTypes(null)
   }
 
   const doc: MaterialStatsCosmosDoc = {
     id: MATERIAL_STATS_DOC_ID,
     docType: MATERIAL_STATS_DOC_TYPE,
-    types: filamentTypes,
+    ...(filamentTypes ? { types: filamentTypes } : {}),
     laserTypes: sanitized,
     updatedAt: new Date().toISOString(),
   }

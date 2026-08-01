@@ -93,7 +93,7 @@ export function ShopProductCard({
         >
           <div
             className={cn(
-              "relative h-40 w-full shrink-0 overflow-hidden rounded-2xl p-2 sm:h-32 sm:w-40",
+              "relative h-40 w-full shrink-0 overflow-hidden rounded-xl p-2.5 sm:h-32 sm:w-40",
               surface === "brand"
                 ? "bg-gradient-to-br from-orange-500/15 to-cyan-500/15"
                 : "bg-secondary/50"
@@ -104,13 +104,13 @@ export function ShopProductCard({
                 -{salePercent}%
               </span>
             )}
-            <div className="relative h-full w-full overflow-hidden rounded-xl">
+            <div className="relative h-full w-full overflow-hidden rounded-lg">
               <SafeProductImage
                 src={coverSrc}
                 alt={product.name}
                 fill
                 sizes="200px"
-                className="object-contain p-2"
+                className="object-contain p-1.5"
               />
             </div>
           </div>
@@ -172,7 +172,7 @@ export function ShopProductCard({
       )}
       <div
         className={cn(
-          "relative w-full overflow-hidden rounded-t-2xl p-3",
+          "relative w-full overflow-hidden p-3",
           viewMode === "grid5" ? "aspect-[5/4] min-h-[10rem]" : "aspect-[4/3] min-h-[12rem]",
           surface === "brand"
             ? "bg-gradient-to-br from-orange-500/20 via-amber-500/10 to-cyan-500/20"
@@ -180,13 +180,13 @@ export function ShopProductCard({
           canInlineEdit && "pointer-events-none select-none"
         )}
       >
-        <div className="relative h-full w-full overflow-hidden rounded-2xl">
+        <div className="relative h-full w-full overflow-hidden rounded-xl">
           <SafeProductImage
             src={coverSrc}
             alt={product.name}
             fill
             sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
-            className="object-contain p-3 transition-transform duration-300 group-hover:scale-[1.02] sm:p-4"
+            className="object-contain p-2 transition-transform duration-300 group-hover:scale-[1.02] sm:p-3"
           />
         </div>
         {product.sale && salePercent != null && (
