@@ -198,10 +198,10 @@ export function FilamentColorPicker({
                     !color.inStock && "cursor-not-allowed opacity-40"
                   )}
                 >
-                  {color.image ? (
+                  {(color.printedExample ?? color.image) ? (
                     <div className="relative h-10 w-10">
                       <Image
-                        src={color.image}
+                        src={(color.printedExample ?? color.image)!}
                         alt={color.name}
                         fill
                         className="object-contain transition-transform duration-200 group-hover:scale-110"

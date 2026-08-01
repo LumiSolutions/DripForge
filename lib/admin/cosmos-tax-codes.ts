@@ -51,7 +51,8 @@ export async function cosmosGetTaxCodes(options?: {
     .fetchAll()
 
   if (resources.length === 0) {
-    return cosmosSeedDefaultTaxCodes()
+    // Kein Auto-Seed beim Lesen — Defaults nur explizit via Admin-Seed.
+    return []
   }
 
   let taxCodes = resources.map(fromTaxCodeCosmosDoc)

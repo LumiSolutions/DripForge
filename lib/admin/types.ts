@@ -226,6 +226,8 @@ export type AdminSettings = {
   showTopProductsOnHomepage: boolean
   /** Anzahl angezeigter Top-Produkte auf der Startseite (1–10) */
   topProductsCount: number
+  /** Zwei-Faktor-Authentifizierung für Admin-/Tester-Logins (Env kann erzwingen deaktivieren) */
+  requireAdmin2fa: boolean
   /** Bearbeitbare Texte für Bestell-Bestätigungsmails */
   orderEmailTemplates?: {
     receivedIntro: string

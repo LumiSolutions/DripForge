@@ -57,11 +57,11 @@ export function staffLoginStepResponse(
 /**
  * Nach Passwort: 2FA-Schritt oder — wenn ENABLE_ADMIN_2FA=false — sofort Session.
  */
-export function staffLoginAfterPassword(
+export async function staffLoginAfterPassword(
   account: StaffAccount,
   intent: StaffAuthIntent
-): NextResponse {
-  if (!isAdmin2faEnabled()) {
+): Promise<NextResponse> {
+  if (!(await isAdmin2faEnabled())) {
     return finalizeStaffAuth(account.role, intent)
   }
   return staffLoginStepResponse(account, intent)
@@ -70,9 +70,9 @@ export function staffLoginAfterPassword(
 export async function setupTotpForPending(
   request: Request
 ): Promise<NextResponse> {
-  if (!isAdmin2faEnabled()) {
+  if (!(await isAdmin2faEnabled())) {
     return NextResponse.json(
-      { error: "2FA ist per ENABLE_ADMIN_2FA deaktiviert." },
+      { error: "2FA ist deaktiviert (Admin-Einstellungen oder ENABLE_ADMIN_2FA)." },
       { status: 400 }
     )
   }
@@ -122,7 +122,7 @@ export async function completeTotpVerification(
   code: string,
   options?: { enableOnConfirm?: boolean; secretBase32?: string }
 ): Promise<NextResponse> {
-  if (!isAdmin2faEnabled()) {
+  if (!(await isAdmin2faEnabled())) {
     const pending = getAdminPendingFromRequest(request)
     if (!pending) {
       return NextResponse.json(

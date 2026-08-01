@@ -78,7 +78,7 @@ export function ShopStickyFilterChrome({
           activeId={categoryFilter}
           onChange={onCategoryChange}
         />
-        <div className="flex flex-col gap-4 pt-1 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-4 border-t border-border/50 pt-5 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm font-medium text-muted-foreground">
             {productCount} Produkt{productCount === 1 ? "" : "e"}
           </p>
@@ -108,7 +108,7 @@ export function ShopStickyFilterChrome({
       <div
         className={cn(
           stickyBarClass,
-          "-mx-4 mt-1 flex items-center justify-between gap-2 px-4 py-3 lg:hidden"
+          "-mx-4 mt-3 flex items-center justify-between gap-2 border-t border-border/50 px-4 pb-3 pt-5 lg:hidden"
         )}
       >
         <p className="truncate text-xs font-medium text-muted-foreground">

@@ -6,11 +6,13 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
 import { cn } from "@/lib/utils"
 
 export function AdminTwoFactorSection() {
   const [totpEnabled, setTotpEnabled] = useState(false)
+  const [requireAdmin2fa, setRequireAdmin2fa] = useState(true)
   const [loading, setLoading] = useState(true)
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
   const [secretBase32, setSecretBase32] = useState<string | null>(null)
@@ -25,10 +27,17 @@ export function AdminTwoFactorSection() {
   const loadStatus = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch("/api/admin/auth/me", { credentials: "include" })
-      if (res.ok) {
-        const data = await res.json()
+      const [meRes, settingsRes] = await Promise.all([
+        fetch("/api/admin/auth/me", { credentials: "include" }),
+        fetch("/api/admin/settings", { credentials: "include" }),
+      ])
+      if (meRes.ok) {
+        const data = await meRes.json()
         setTotpEnabled(Boolean(data.totpEnabled))
+      }
+      if (settingsRes.ok) {
+        const settings = await settingsRes.json()
+        setRequireAdmin2fa(settings.requireAdmin2fa !== false)
       }
     } catch {
       /* ignore */
@@ -36,6 +45,43 @@ export function AdminTwoFactorSection() {
       setLoading(false)
     }
   }, [])
+
+  const toggleRequire2fa = async (checked: boolean) => {
+    setBusy(true)
+    setError(null)
+    setSuccess(null)
+    try {
+      const currentRes = await fetch("/api/admin/settings", {
+        credentials: "include",
+      })
+      const current = await currentRes.json()
+      if (!currentRes.ok) {
+        throw new Error(current.error ?? "Einstellungen konnten nicht geladen werden.")
+      }
+      const res = await fetch("/api/admin/settings", {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          checkout: current.checkout,
+          company: current.company,
+          requireAdmin2fa: checked,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? "Speichern fehlgeschlagen")
+      setRequireAdmin2fa(data.requireAdmin2fa !== false)
+      setSuccess(
+        checked
+          ? "2FA für Admin-Logins ist aktiviert."
+          : "2FA für Admin-Logins ist deaktiviert."
+      )
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Speichern fehlgeschlagen")
+    } finally {
+      setBusy(false)
+    }
+  }
 
   useEffect(() => {
     void loadStatus()
@@ -182,13 +228,35 @@ export function AdminTwoFactorSection() {
 
         <div
           className={cn(
+            "flex items-start justify-between gap-4 rounded-xl border p-4",
+            adminUi.section
+          )}
+        >
+          <div className="space-y-1 pr-2">
+            <Label className={cn("text-sm font-semibold", adminUi.heading)}>
+              2FA für Admin-Logins
+            </Label>
+            <p className={cn("text-xs", adminUi.muted)}>
+              Schaltet die Zwei-Faktor-Authentifizierung für Admin- und Tester-Logins
+              an oder aus. Env-Override ENABLE_ADMIN_2FA=false hat Vorrang.
+            </p>
+          </div>
+          <Switch
+            checked={requireAdmin2fa}
+            disabled={busy}
+            onCheckedChange={(checked) => void toggleRequire2fa(checked)}
+          />
+        </div>
+
+        <div
+          className={cn(
             "rounded-xl border px-4 py-3 text-sm",
             totpEnabled && !qrDataUrl
               ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
               : adminUi.section
           )}
         >
-          Status:{" "}
+          Authenticator-Status:{" "}
           {totpEnabled && !qrDataUrl
             ? "Aktiv"
             : qrDataUrl

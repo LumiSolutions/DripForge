@@ -55,6 +55,14 @@ import {
   isValidContactPhone,
   type DruckanfrageContactMethod,
 } from "@/lib/admin/druckanfrage-types"
+import {
+  createDefaultPrint3dCategories,
+  DEFAULT_PRICING_FOOTNOTE,
+  formatFromPriceChf,
+  type IndividualPricingCategory,
+} from "@/lib/admin/individual-pricing-types"
+import { PricingCategoryPicker } from "@/components/dripforge/shared/pricing-category-picker"
+import { PricingFootnote } from "@/components/dripforge/shared/pricing-footnote"
 
 const SCALE_MIN = 10
 const SCALE_MAX = 200
@@ -114,6 +122,50 @@ export function PageIndividual3D() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [submitSuccess, setSubmitSuccess] = useState<string | null>(null)
+  const [pricingCategories, setPricingCategories] = useState<
+    IndividualPricingCategory[]
+  >(createDefaultPrint3dCategories)
+  const [pricingFootnote, setPricingFootnote] = useState(DEFAULT_PRICING_FOOTNOTE)
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(
+    null
+  )
+
+  useEffect(() => {
+    void fetch("/api/settings/individual-pricing", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!data?.print3d) return
+        if (
+          Array.isArray(data.print3d.categories) &&
+          data.print3d.categories.length > 0
+        ) {
+          setPricingCategories(data.print3d.categories)
+          setSelectedCategoryId(
+            (prev) => prev ?? data.print3d.categories[0]?.id ?? null
+          )
+        }
+        if (
+          typeof data.print3d.footnote === "string" &&
+          data.print3d.footnote.trim()
+        ) {
+          setPricingFootnote(data.print3d.footnote)
+        }
+      })
+      .catch(() => {
+        /* Defaults */
+      })
+  }, [])
+
+  useEffect(() => {
+    if (!selectedCategoryId && pricingCategories[0]) {
+      setSelectedCategoryId(pricingCategories[0].id)
+    }
+  }, [pricingCategories, selectedCategoryId])
+
+  const selectedCategory =
+    pricingCategories.find((c) => c.id === selectedCategoryId) ??
+    pricingCategories[0] ??
+    null
   const previewCanvasRef = useRef<HTMLCanvasElement>(null)
   const filamentMaterials = useFilamentMaterials()
 
@@ -729,15 +781,13 @@ export function PageIndividual3D() {
 
             {dimensions && priceBreakdown && (
               <Card className="border-primary/30 bg-gradient-to-b from-primary/10 to-transparent">
-                <CardContent className="p-6">
-                  <h3 className="mb-4 font-bold">
-                    Preisberechnung
-                    {priceLoading && (
-                      <span className="ml-2 text-xs font-normal text-muted-foreground">
-                        wird aktualisiert…
-                      </span>
-                    )}
-                  </h3>
+                <CardContent className="space-y-5 p-6">
+                  <PricingCategoryPicker
+                    categories={pricingCategories}
+                    selectedId={selectedCategoryId}
+                    onSelect={setSelectedCategoryId}
+                  />
+
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Abmessungen</span>
@@ -752,43 +802,7 @@ export function PageIndividual3D() {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">
-                        Gewicht (ca., {Math.round(priceBreakdown.infillFactor * 100)} % Infill)
-                      </span>
-                      <span>{Math.round(priceBreakdown.calculatedWeightG)} g</span>
-                    </div>
-                    {priceBreakdown.estimatedPrintTimeHours > 0 && (
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Druckzeit (ca.)</span>
-                        <span>
-                          {priceBreakdown.estimatedPrintTimeHours >= 1
-                            ? `${priceBreakdown.estimatedPrintTimeHours.toFixed(1)} h`
-                            : `${Math.round(priceBreakdown.estimatedPrintTimeHours * 60)} min`}
-                        </span>
-                      </div>
-                    )}
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">
                         Material ({multiColorSelection?.materialName ?? "PLA"})
-                      </span>
-                      <span>CHF {priceBreakdown.materialCost.toFixed(2)}</span>
-                    </div>
-                    {priceBreakdown.machineCost > 0 && (
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">
-                          Maschine & Strom
-                        </span>
-                        <span>CHF {priceBreakdown.machineCost.toFixed(2)}</span>
-                      </div>
-                    )}
-                    {priceBreakdown.laborCost > 0 && (
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Vorbereitung</span>
-                        <span>CHF {priceBreakdown.laborCost.toFixed(2)}</span>
-                      </div>
-                    )}
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">
-                        Farben ({priceBreakdown.colorCount})
                       </span>
                       <span className="max-w-[55%] text-right text-xs">
                         {multiColorSelection?.colors
@@ -797,45 +811,27 @@ export function PageIndividual3D() {
                           .join(", ") ?? "—"}
                       </span>
                     </div>
-                    {priceBreakdown.multiColorSurcharge > 0 && (
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">
-                          Mehrfarben-Aufschlag (
-                          {multiColorSurchargePercent}% pro Extra-Farbe)
-                        </span>
-                        <span>
-                          CHF {priceBreakdown.multiColorSurcharge.toFixed(2)}
-                        </span>
-                      </div>
-                    )}
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Setup-Gebuehr</span>
-                      <span>CHF {priceBreakdown.setupFee.toFixed(2)}</span>
-                    </div>
                     {quantity > 1 && (
-                      <>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Stueckpreis</span>
-                          <span>CHF {priceBreakdown.unitPrice.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Anzahl</span>
-                          <span>x{quantity}</span>
-                        </div>
-                      </>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Anzahl</span>
+                        <span>x{quantity}</span>
+                      </div>
                     )}
                     <div className="my-3 border-t border-border" />
                     <div className="text-lg font-bold">
                       <span>
-                        Voraussichtlicher Richtpreis: ab CHF{" "}
-                        {priceBreakdown.totalPrice.toFixed(2)}
+                        Voraussichtlicher Richtpreis:{" "}
+                        {selectedCategory
+                          ? formatFromPriceChf(selectedCategory.fromPriceChf)
+                          : `ab CHF ${priceBreakdown.totalPrice.toFixed(2)}`}
+                        {priceLoading && (
+                          <span className="ml-2 text-xs font-normal text-muted-foreground">
+                            wird aktualisiert…
+                          </span>
+                        )}
                       </span>
                     </div>
-                    <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-                      *Dies ist eine unverbindliche Schätzung. Wir prüfen Ihre Datei nach
-                      der Übermittlung in unserem Slicing-System (Bambulab) und kontaktieren
-                      Sie mit dem exakten Festpreis.
-                    </p>
+                    <PricingFootnote text={pricingFootnote} className="mt-2" />
                   </div>
 
                   <div className="mt-6 space-y-4 rounded-xl border border-border/60 bg-background/40 p-4">

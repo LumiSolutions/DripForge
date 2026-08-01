@@ -23,6 +23,7 @@ import {
 import { AdminPasswordChangeSection } from "@/components/admin/admin-password-change-section"
 import { AdminTesterPasswordSection } from "@/components/admin/admin-tester-password-section"
 import { AdminTwoFactorSection } from "@/components/admin/admin-two-factor-section"
+import { AdminIndividualPricingSection } from "@/components/admin/admin-individual-pricing-section"
 import { AdminManagedCatalogSection } from "@/components/admin/admin-managed-catalog-section"
 import {
   applyManagedCatalogToSettings,
@@ -1072,9 +1073,48 @@ export function AdminSettingsTab({
                   className={adminUi.input}
                 />
               </div>
+              <div>
+                <h4 className={cn("mb-2 text-sm font-semibold", adminUi.heading)}>
+                  Max. Gravurfläche (L × B × H)
+                </h4>
+                <p className={cn("mb-3 text-xs", adminUi.muted)}>
+                  Wird im Laser-Konfigurator als Info-Banner angezeigt.
+                </p>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  {(
+                    [
+                      ["lengthMm", "Länge (mm)"],
+                      ["widthMm", "Breite (mm)"],
+                      ["heightMm", "Höhe (mm)"],
+                    ] as const
+                  ).map(([key, label]) => (
+                    <div key={key} className="space-y-1">
+                      <Label className={adminUi.label}>{label}</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        step="0.1"
+                        value={laserConfigurator.maxWorkAreaMm[key]}
+                        onChange={(e) =>
+                          setLaserConfigurator((prev) => ({
+                            ...prev,
+                            maxWorkAreaMm: {
+                              ...prev.maxWorkAreaMm,
+                              [key]: Number(e.target.value) || 0,
+                            },
+                          }))
+                        }
+                        className={adminUi.input}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
             </CardContent>
           </Card>
         )}
+
+        {show("laser") && <AdminIndividualPricingSection />}
 
         {show("loyalty") && (
           <Card className={adminUi.card}>

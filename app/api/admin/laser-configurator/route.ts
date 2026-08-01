@@ -39,6 +39,7 @@ export async function PUT(request: Request) {
       ...current,
       allowCustomerShipping: body.allowCustomerShipping,
       customerShippingInstructions: body.customerShippingInstructions,
+      maxWorkAreaMm: body.maxWorkAreaMm ?? current.maxWorkAreaMm,
     })
     const saved = await saveLaserConfiguratorSettings(next)
     return NextResponse.json(saved)

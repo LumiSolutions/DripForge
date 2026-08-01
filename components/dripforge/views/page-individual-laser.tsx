@@ -8,18 +8,28 @@ import {
   useState,
   type ChangeEvent,
 } from "react"
-import { ImagePlus, Loader2, Minus, Package, Plus, ShoppingCart, X } from "lucide-react"
+import { ImagePlus, Loader2, Mail, Minus, Package, Plus, X } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
-import { calculateLaserPrice } from "@/lib/dripforge/calculate-laser-price"
 import { isCustomerShippingOptionEnabled } from "@/lib/dripforge/customer-shipping-visibility"
 import {
-  formatIndividualLaserFromPrice,
-  getIndividualLaserBasePrice,
-} from "@/lib/dripforge/laser-individual-config"
+  DEFAULT_LASER_MAX_WORK_AREA_MM,
+  formatLaserMaxWorkAreaLabel,
+  type LaserMaxWorkAreaMm,
+} from "@/lib/admin/laser-configurator-types"
+import {
+  createDefaultLaserCategories,
+  DEFAULT_PRICING_FOOTNOTE,
+  formatFromPriceChf,
+  type IndividualPricingCategory,
+} from "@/lib/admin/individual-pricing-types"
+import { PricingCategoryPicker } from "@/components/dripforge/shared/pricing-category-picker"
+import { PricingFootnote } from "@/components/dripforge/shared/pricing-footnote"
 import {
   CUSTOMER_INBOUND_MATERIAL_ID,
   CUSTOMER_INBOUND_MATERIAL_LABEL,
@@ -38,10 +48,6 @@ import {
   type LaserFontId,
 } from "@/lib/dripforge/laser-design"
 import type { LaserDesignLayer } from "@/lib/dripforge/laser-layers"
-import {
-  DEFAULT_LASER_PRICING_CONFIG,
-  type LaserPricingConfig,
-} from "@/lib/dripforge/laser-pricing-config"
 import { DEFAULT_WORK_AREA_MM } from "@/lib/dripforge/laser-work-area"
 import {
   LaserDesignerStudio,
@@ -64,11 +70,13 @@ const PRICE_ON_REQUEST_LABEL = "Auf Anfrage / gemäss Offerte"
 
 export function PageIndividualLaser({
   setCurrentView,
-  addToCart,
+  addToCart: _addToCart,
 }: {
   setCurrentView: (view: string) => void
   addToCart: (item: CartItem) => void
 }) {
+  void _addToCart
+  void setCurrentView
   const { materials: laserMaterials } = useLaserMaterialsCatalog()
   const defaultMaterial = laserMaterials[0]
 
@@ -95,13 +103,29 @@ export function PageIndividualLaser({
   const [quantity, setQuantity] = useState(1)
   const [engravingMetrics, setEngravingMetrics] =
     useState<LaserEngravingMetrics | null>(null)
-  const [pricingConfig] = useState<LaserPricingConfig>(
-    DEFAULT_LASER_PRICING_CONFIG
-  )
   const [allowCustomerShipping, setAllowCustomerShipping] = useState(false)
   const [customerShippingInstructions, setCustomerShippingInstructions] =
     useState("")
-  const [cartCapturing, setCartCapturing] = useState(false)
+  const [maxWorkAreaMm, setMaxWorkAreaMm] = useState<LaserMaxWorkAreaMm>({
+    ...DEFAULT_LASER_MAX_WORK_AREA_MM,
+  })
+  const [pricingCategories, setPricingCategories] = useState<
+    IndividualPricingCategory[]
+  >(createDefaultLaserCategories)
+  const [pricingFootnote, setPricingFootnote] = useState(DEFAULT_PRICING_FOOTNOTE)
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(
+    null
+  )
+  const [productLengthMm, setProductLengthMm] = useState("")
+  const [productWidthMm, setProductWidthMm] = useState("")
+  const [productHeightMm, setProductHeightMm] = useState("")
+  const [customerName, setCustomerName] = useState("")
+  const [customerEmail, setCustomerEmail] = useState("")
+  const [customerPhone, setCustomerPhone] = useState("")
+  const [customerMessage, setCustomerMessage] = useState("")
+  const [inquirySending, setInquirySending] = useState(false)
+  const [inquiryError, setInquiryError] = useState<string | null>(null)
+  const [inquirySuccess, setInquirySuccess] = useState<string | null>(null)
   const laserPreviewRef = useRef<HTMLDivElement>(null)
   const productFileInputRef = useRef<HTMLInputElement>(null)
 
@@ -112,18 +136,48 @@ export function PageIndividualLaser({
         (data: {
           allowCustomerShipping?: boolean
           customerShippingInstructions?: string
+          maxWorkAreaMm?: LaserMaxWorkAreaMm
         } | null) => {
           if (!data) return
           setAllowCustomerShipping(Boolean(data.allowCustomerShipping))
           setCustomerShippingInstructions(
             String(data.customerShippingInstructions ?? "")
           )
+          if (data.maxWorkAreaMm) {
+            setMaxWorkAreaMm({
+              lengthMm: Number(data.maxWorkAreaMm.lengthMm) || DEFAULT_LASER_MAX_WORK_AREA_MM.lengthMm,
+              widthMm: Number(data.maxWorkAreaMm.widthMm) || DEFAULT_LASER_MAX_WORK_AREA_MM.widthMm,
+              heightMm: Number(data.maxWorkAreaMm.heightMm) || DEFAULT_LASER_MAX_WORK_AREA_MM.heightMm,
+            })
+          }
         }
       )
       .catch(() => {
         /* Defaults: Einsendung deaktiviert */
       })
+
+    void fetch("/api/settings/individual-pricing", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!data?.laser) return
+        if (Array.isArray(data.laser.categories) && data.laser.categories.length > 0) {
+          setPricingCategories(data.laser.categories)
+          setSelectedCategoryId((prev) => prev ?? data.laser.categories[0]?.id ?? null)
+        }
+        if (typeof data.laser.footnote === "string" && data.laser.footnote.trim()) {
+          setPricingFootnote(data.laser.footnote)
+        }
+      })
+      .catch(() => {
+        /* Defaults */
+      })
   }, [])
+
+  useEffect(() => {
+    if (!selectedCategoryId && pricingCategories[0]) {
+      setSelectedCategoryId(pricingCategories[0].id)
+    }
+  }, [pricingCategories, selectedCategoryId])
 
   // Katalog kann asynchron laden — Default-Material nachziehen, wenn noch keines gewählt
   useEffect(() => {
@@ -204,30 +258,10 @@ export function PageIndividualLaser({
     []
   )
 
-  const materialBase = isPriceOnRequest
-    ? 0
-    : getIndividualLaserBasePrice(selectedMaterialId)
-  // Kein Grössen-Multiplikator — feste Medium-Arbeitsfläche
-  const basePrice = materialBase
-
-  const priceBreakdown = useMemo(() => {
-    if (isPriceOnRequest) {
-      return {
-        basePrice: 0,
-        areaSurcharge: 0,
-        unitPrice: 0,
-        totalPrice: 0,
-      }
-    }
-    const area = engravingMetrics?.maxAreaMm2 ?? 0
-    return calculateLaserPrice(basePrice, area, quantity, pricingConfig)
-  }, [
-    isPriceOnRequest,
-    basePrice,
-    engravingMetrics,
-    quantity,
-    pricingConfig,
-  ])
+  const selectedCategory =
+    pricingCategories.find((c) => c.id === selectedCategoryId) ??
+    pricingCategories[0] ??
+    null
 
   const hasDesign = laserDesignHasContent(laserDesign)
 
@@ -237,8 +271,22 @@ export function PageIndividualLaser({
       ? customMaterialNote.trim() || OTHER_MATERIAL_LABEL
       : material.name
 
-  const handleAddToCart = async () => {
-    if (!hasDesign || cartCapturing) return
+  const handleSendInquiry = async () => {
+    if (!hasDesign || inquirySending) return
+    setInquiryError(null)
+    setInquirySuccess(null)
+
+    const length = Number(productLengthMm)
+    const width = Number(productWidthMm)
+    const height = Number(productHeightMm)
+    if (![length, width, height].every((n) => Number.isFinite(n) && n > 0)) {
+      setInquiryError("Bitte Produktmasse (Länge, Breite, Höhe) in mm angeben.")
+      return
+    }
+    if (!customerName.trim() || !customerEmail.trim()) {
+      setInquiryError("Bitte Name und E-Mail angeben.")
+      return
+    }
 
     const designSnapshot: LaserDesignerState = {
       ...laserDesign,
@@ -247,7 +295,7 @@ export function PageIndividualLaser({
       imageLayout: { ...laserDesign.imageLayout },
     }
 
-    setCartCapturing(true)
+    setInquirySending(true)
     setActiveLayerId(null)
 
     try {
@@ -280,34 +328,54 @@ export function PageIndividualLaser({
         console.warn("Produktions-Layer: Laser-Export fehlgeschlagen.")
       }
 
-      const gravurSize = engravingMetrics?.active
-      addToCart({
-        id: `custom-laser-${Date.now()}`,
-        name: isCustomerInbound
-          ? "Personalisierte Laserkreation (Kunden-Einsendung)"
-          : isOther
-            ? "Personalisierte Laserkreation (Anderes Material)"
-            : "Personalisierte Laserkreation",
-        price: isPriceOnRequest ? 0 : priceBreakdown.unitPrice,
-        quantity,
-        type: "laser",
-        leitbild: previewMockup,
-        previewMockup,
-        productionLayer,
-        customDetails: buildLaserCartCustomDetails(designSnapshot, {
-          material: materialLabel,
-          productBackgroundUrl,
-          materialVariant: designSnapshot.selectedVariant,
-          isCustomerInbound,
-          dimensions: gravurSize
-            ? `${gravurSize.widthMm.toFixed(1)} x ${gravurSize.heightMm.toFixed(1)} mm`
-            : undefined,
-        }),
+      const details = buildLaserCartCustomDetails(designSnapshot, {
+        material: materialLabel,
+        productBackgroundUrl,
+        materialVariant: designSnapshot.selectedVariant,
+        isCustomerInbound,
+        dimensions: `${length} x ${width} x ${height} mm`,
       })
 
-      setCurrentView("shop")
+      const res = await fetch("/api/laser-anfragen", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customerName: customerName.trim(),
+          customerEmail: customerEmail.trim(),
+          customerPhone: customerPhone.trim() || undefined,
+          message: customerMessage.trim() || undefined,
+          material: materialLabel,
+          categoryLabel: selectedCategory
+            ? `${selectedCategory.label} (${selectedCategory.sizeHint})`
+            : undefined,
+          categoryFromPriceChf: isPriceOnRequest
+            ? undefined
+            : selectedCategory?.fromPriceChf,
+          productLengthMm: length,
+          productWidthMm: width,
+          productHeightMm: height,
+          quantity,
+          engravingText: designSnapshot.engravingText,
+          mockupDataUrl: previewMockup,
+          productionLayerDataUrl: productionLayer,
+          productBackgroundDataUrl: productBackgroundUrl,
+          uploadedImageDataUrls: details.uploadedImages ?? [],
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(data.error ?? "Anfrage konnte nicht gesendet werden.")
+      }
+      setInquirySuccess(
+        data.message ??
+          "Unverbindliche Anfrage wurde gesendet. Wir melden uns bei Ihnen."
+      )
+    } catch (err) {
+      setInquiryError(
+        err instanceof Error ? err.message : "Anfrage fehlgeschlagen."
+      )
     } finally {
-      setCartCapturing(false)
+      setInquirySending(false)
     }
   }
 
@@ -337,12 +405,23 @@ export function PageIndividualLaser({
 
       <div className="mx-auto max-w-3xl px-4">
         <IndividualProcessBar
-          steps={["Design", "Produkt & Material", "Warenkorb"]}
+          steps={["Design", "Produkt & Material", "Anfrage"]}
           activeStep={activeStep}
         />
       </div>
 
       <div className="mx-auto max-w-6xl space-y-6 px-4">
+        <Card className="rounded-2xl border-cyan-500/30 bg-cyan-500/5 shadow-sm">
+          <CardContent className="flex flex-col gap-1 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+            <p className="text-sm font-semibold text-cyan-700 dark:text-cyan-300">
+              {formatLaserMaxWorkAreaLabel(maxWorkAreaMm)}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Bitte Produktmasse Ihres Gegenstands unten angeben.
+            </p>
+          </CardContent>
+        </Card>
+
         <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2 lg:gap-8">
           <div className="flex min-w-0 flex-col gap-6">
             <LaserDesignerStudio
@@ -357,8 +436,50 @@ export function PageIndividualLaser({
             />
 
             <Card className="rounded-2xl border-border/50 bg-card/50 shadow-sm">
-              <CardContent className="p-6">
-                <h3 className="mb-4 font-bold">Material wählen</h3>
+              <CardContent className="space-y-4 p-6">
+                <div>
+                  <h3 className="mb-3 font-bold">Produktmasse (mm)</h3>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="space-y-1">
+                      <Label htmlFor="product-length">Länge</Label>
+                      <Input
+                        id="product-length"
+                        type="number"
+                        min={0.1}
+                        step="0.1"
+                        value={productLengthMm}
+                        onChange={(e) => setProductLengthMm(e.target.value)}
+                        placeholder="mm"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="product-width">Breite</Label>
+                      <Input
+                        id="product-width"
+                        type="number"
+                        min={0.1}
+                        step="0.1"
+                        value={productWidthMm}
+                        onChange={(e) => setProductWidthMm(e.target.value)}
+                        placeholder="mm"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="product-height">Höhe</Label>
+                      <Input
+                        id="product-height"
+                        type="number"
+                        min={0.1}
+                        step="0.1"
+                        value={productHeightMm}
+                        onChange={(e) => setProductHeightMm(e.target.value)}
+                        placeholder="mm"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <h3 className="font-bold">Material wählen</h3>
                 <div className="grid grid-cols-2 gap-3">
                   {laserMaterials.map((m) => (
                     <button
@@ -375,7 +496,9 @@ export function PageIndividualLaser({
                       <span className="text-2xl">{m.icon}</span>
                       <p className="mt-2 font-bold">{m.name}</p>
                       <p className="text-xs text-muted-foreground">
-                        {formatIndividualLaserFromPrice()}
+                        {selectedCategory
+                          ? formatFromPriceChf(selectedCategory.fromPriceChf)
+                          : "ab CHF 9.99"}
                       </p>
                     </button>
                   ))}
@@ -506,129 +629,139 @@ export function PageIndividualLaser({
 
         <div className="grid grid-cols-1 items-stretch gap-6 md:grid-cols-2">
           <Card className="flex min-h-[280px] flex-col rounded-2xl border border-sky-200/80 bg-sky-50 shadow-sm dark:border-cyan-500/25 dark:bg-gradient-to-b dark:from-cyan-500/10 dark:via-sky-950/20">
-            <CardContent className="flex h-full flex-col p-6">
-              <h3 className="mb-4 font-bold">Preisberechnung</h3>
-              <div className="flex flex-1 flex-col justify-between gap-4 text-sm">
-                <div className="space-y-2">
+            <CardContent className="flex h-full flex-col gap-4 p-6">
+              <PricingCategoryPicker
+                categories={pricingCategories}
+                selectedId={selectedCategoryId}
+                onSelect={setSelectedCategoryId}
+                accentClassName="border-cyan-500 bg-cyan-500/10"
+              />
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between gap-3">
+                  <span className="text-muted-foreground">Material</span>
+                  <span className="text-right font-medium">{materialLabel}</span>
+                </div>
+                {engravingMetrics && engravingMetrics.maxAreaMm2 > 0 && (
                   <div className="flex justify-between gap-3">
-                    <span className="text-muted-foreground">Material</span>
-                    <span className="text-right font-medium">
-                      {materialLabel}
+                    <span className="text-muted-foreground">Gravurfläche (ca.)</span>
+                    <span className="font-medium">
+                      {engravingMetrics.maxAreaMm2.toFixed(0)} mm²
                     </span>
                   </div>
-                  {isPriceOnRequest ? (
-                    <p className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-sm font-medium text-amber-800 dark:text-amber-200">
-                      {PRICE_ON_REQUEST_LABEL}
-                    </p>
-                  ) : (
-                    <>
-                      {engravingMetrics && engravingMetrics.maxAreaMm2 > 0 && (
-                        <div className="flex justify-between gap-3">
-                          <span className="text-muted-foreground">
-                            Gravurfläche (ca.)
-                          </span>
-                          <span className="font-medium">
-                            {engravingMetrics.maxAreaMm2.toFixed(0)} mm²
-                          </span>
-                        </div>
-                      )}
-                      <div className="flex justify-between gap-3">
-                        <span className="text-muted-foreground">Basispreis</span>
-                        <span className="font-medium">
-                          CHF {priceBreakdown.basePrice.toFixed(2)}
-                        </span>
-                      </div>
-                      {priceBreakdown.areaSurcharge > 0 && (
-                        <div className="flex justify-between gap-3">
-                          <span className="text-muted-foreground">
-                            Aufschlag Grossfläche
-                          </span>
-                          <span className="font-medium">
-                            CHF {priceBreakdown.areaSurcharge.toFixed(2)}
-                          </span>
-                        </div>
-                      )}
-                      {quantity > 1 && (
-                        <>
-                          <div className="flex justify-between gap-3">
-                            <span className="text-muted-foreground">
-                              Stueckpreis
-                            </span>
-                            <span className="font-medium">
-                              CHF {priceBreakdown.unitPrice.toFixed(2)}
-                            </span>
-                          </div>
-                          <div className="flex justify-between gap-3">
-                            <span className="text-muted-foreground">Anzahl</span>
-                            <span className="font-medium">x{quantity}</span>
-                          </div>
-                        </>
-                      )}
-                    </>
-                  )}
-                </div>
-                <div>
-                  <div className="mb-3 border-t border-sky-200/80 dark:border-cyan-500/20" />
+                )}
+                {isPriceOnRequest ? (
+                  <p className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-sm font-medium text-amber-800 dark:text-amber-200">
+                    {PRICE_ON_REQUEST_LABEL}
+                  </p>
+                ) : (
                   <div className="flex justify-between gap-3 text-lg font-bold">
-                    <span>Gesamtpreis</span>
+                    <span>Richtpreis</span>
                     <span className="text-cyan-600 dark:text-cyan-400">
-                      {isPriceOnRequest
-                        ? PRICE_ON_REQUEST_LABEL
-                        : `CHF ${priceBreakdown.totalPrice.toFixed(2)}`}
+                      {selectedCategory
+                        ? formatFromPriceChf(selectedCategory.fromPriceChf)
+                        : "—"}
                     </span>
                   </div>
-                </div>
+                )}
               </div>
+              <PricingFootnote text={pricingFootnote} />
             </CardContent>
           </Card>
 
           <Card className="flex min-h-[280px] flex-col rounded-2xl border border-gray-100 bg-white shadow-sm dark:border-border/60 dark:bg-card">
-            <CardContent className="flex h-full flex-col justify-between p-6">
-              <div>
-                <h3 className="mb-4 font-bold">Anzahl</h3>
-                <div className="flex items-center gap-3">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                    aria-label="Anzahl verringern"
-                  >
-                    <Minus className="h-4 w-4" />
-                  </Button>
-                  <span className="w-12 text-center text-lg font-bold tabular-nums">
-                    {quantity}
-                  </span>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setQuantity(quantity + 1)}
-                    aria-label="Anzahl erhöhen"
-                  >
-                    <Plus className="h-4 w-4" />
-                  </Button>
+            <CardContent className="flex h-full flex-col justify-between gap-4 p-6">
+              <div className="space-y-4">
+                <div>
+                  <h3 className="mb-3 font-bold">Anzahl</h3>
+                  <div className="flex items-center gap-3">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                      aria-label="Anzahl verringern"
+                    >
+                      <Minus className="h-4 w-4" />
+                    </Button>
+                    <span className="w-12 text-center text-lg font-bold tabular-nums">
+                      {quantity}
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setQuantity(quantity + 1)}
+                      aria-label="Anzahl erhöhen"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
-                <p className="mt-4 text-sm text-muted-foreground">
-                  {isPriceOnRequest
-                    ? PRICE_ON_REQUEST_LABEL
-                    : `Stueckpreis: CHF ${priceBreakdown.unitPrice.toFixed(2)}`}
-                </p>
+
+                <div className="space-y-3">
+                  <h3 className="font-bold">Kontaktdaten für Anfrage</h3>
+                  <div className="space-y-1">
+                    <Label htmlFor="laser-customer-name">Name *</Label>
+                    <Input
+                      id="laser-customer-name"
+                      value={customerName}
+                      onChange={(e) => setCustomerName(e.target.value)}
+                      placeholder="Vor- und Nachname"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="laser-customer-email">E-Mail *</Label>
+                    <Input
+                      id="laser-customer-email"
+                      type="email"
+                      value={customerEmail}
+                      onChange={(e) => setCustomerEmail(e.target.value)}
+                      placeholder="name@example.com"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="laser-customer-phone">Telefon</Label>
+                    <Input
+                      id="laser-customer-phone"
+                      value={customerPhone}
+                      onChange={(e) => setCustomerPhone(e.target.value)}
+                      placeholder="+41 …"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="laser-customer-message">Nachricht</Label>
+                    <Textarea
+                      id="laser-customer-message"
+                      value={customerMessage}
+                      onChange={(e) => setCustomerMessage(e.target.value)}
+                      rows={3}
+                      placeholder="Optionale Hinweise zur Gravur…"
+                    />
+                  </div>
+                </div>
               </div>
 
-              <div className="mt-6 space-y-2">
+              <div className="space-y-2">
+                {inquiryError && (
+                  <p className="text-sm text-red-500">{inquiryError}</p>
+                )}
+                {inquirySuccess && (
+                  <p className="text-sm text-emerald-600 dark:text-emerald-400">
+                    {inquirySuccess}
+                  </p>
+                )}
                 <Button
-                  onClick={() => void handleAddToCart()}
-                  disabled={!hasDesign || cartCapturing}
+                  onClick={() => void handleSendInquiry()}
+                  disabled={!hasDesign || inquirySending}
                   className="w-full bg-cyan-500 hover:bg-cyan-600"
                   size="lg"
                 >
-                  {cartCapturing ? (
+                  {inquirySending ? (
                     <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                   ) : (
-                    <ShoppingCart className="mr-2 h-5 w-5" />
+                    <Mail className="mr-2 h-5 w-5" />
                   )}
-                  {cartCapturing
-                    ? "Design wird gespeichert…"
-                    : "In den Warenkorb"}
+                  {inquirySending
+                    ? "Anfrage wird gesendet…"
+                    : "Unverbindliche Anfrage senden"}
                 </Button>
                 <SaveDesignButton
                   designType="laser"

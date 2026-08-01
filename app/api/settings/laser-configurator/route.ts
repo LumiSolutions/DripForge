@@ -12,6 +12,7 @@ export async function GET() {
     return NextResponse.json({
       allowCustomerShipping: settings.allowCustomerShipping,
       customerShippingInstructions: settings.customerShippingInstructions,
+      maxWorkAreaMm: settings.maxWorkAreaMm,
     })
   } catch (error) {
     console.error("Shop-API: Laser-Konfigurator-Einstellungen nicht verfügbar.", error)
@@ -19,6 +20,7 @@ export async function GET() {
     return NextResponse.json({
       allowCustomerShipping: defaults.allowCustomerShipping,
       customerShippingInstructions: defaults.customerShippingInstructions,
+      maxWorkAreaMm: defaults.maxWorkAreaMm,
     })
   }
 }
