@@ -83,7 +83,7 @@ export async function startStripeCheckout(
       body: JSON.stringify(payload),
     })
 
-    const data = (await response.json()) as {
+    let data: {
       url?: string
       sessionId?: string
       orderId?: string
@@ -92,12 +92,25 @@ export async function startStripeCheckout(
       stripeCode?: string | null
       stripeType?: string | null
       payment_method_types?: string[]
+      success?: boolean
+    }
+
+    try {
+      data = (await response.json()) as typeof data
+    } catch (parseError) {
+      console.error("Stripe Checkout Error:", parseError)
+      console.error("[Stripe Checkout] Ungültige JSON-Antwort", {
+        status: response.status,
+      })
+      return {
+        ok: false,
+        error: `Checkout-Server antwortete ungültig (HTTP ${response.status}).`,
+      }
     }
 
     if (!response.ok || !data.url) {
-      console.error("[Stripe Checkout] API-Fehler", {
+      console.error("Stripe Checkout Error:", data.error ?? "keine url", {
         status: response.status,
-        error: data.error,
         stripeCode: data.stripeCode,
         stripeType: data.stripeType,
         payment_method_types: data.payment_method_types,
@@ -107,13 +120,28 @@ export async function startStripeCheckout(
         .join(" ")
       return {
         ok: false,
-        error: detail || "Stripe Checkout konnte nicht gestartet werden.",
+        error: detail || "Stripe Checkout konnte nicht gestartet werden (keine Redirect-URL).",
+      }
+    }
+
+    if (!/^https?:\/\//i.test(data.url)) {
+      console.error("Stripe Checkout Error:", "Ungültige Redirect-URL", data.url)
+      return {
+        ok: false,
+        error: "Stripe lieferte eine ungültige Checkout-URL.",
       }
     }
 
     console.info("[Stripe Checkout] Redirect zur Stripe-Seite", {
       sessionId: data.sessionId,
       orderId: data.orderId,
+      urlHost: (() => {
+        try {
+          return new URL(data.url!).host
+        } catch {
+          return "invalid"
+        }
+      })(),
     })
 
     return {
@@ -123,6 +151,7 @@ export async function startStripeCheckout(
       orderId: data.orderId ?? "",
     }
   } catch (error) {
+    console.error("Stripe Checkout Error:", error)
     console.error("Checkout: Netzwerkfehler.", error)
     return {
       ok: false,

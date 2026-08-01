@@ -16,7 +16,10 @@ import {
   buildCheckoutLineItems,
   sumLineItemsCents,
 } from "@/lib/stripe/build-checkout-line-items"
-import { getStripeCheckoutUrls } from "@/lib/stripe/checkout-urls"
+import {
+  assertStripeCheckoutUrls,
+  getStripeCheckoutUrls,
+} from "@/lib/stripe/checkout-urls"
 import {
   formatStripeError,
   getStripe,
@@ -107,6 +110,21 @@ export async function POST(request: Request) {
 
     const totalCents = Math.round(boundOrder.totals.total * 100)
     const { successUrl, cancelUrl } = getStripeCheckoutUrls()
+    try {
+      assertStripeCheckoutUrls(successUrl, cancelUrl)
+    } catch (urlError) {
+      console.error("Stripe Checkout Error:", urlError)
+      return NextResponse.json(
+        {
+          error:
+            urlError instanceof Error
+              ? urlError.message
+              : "Ungültige success_url/cancel_url.",
+          success: false,
+        },
+        { status: 500 }
+      )
+    }
 
     if (totalCents < 50) {
       try {
@@ -138,21 +156,36 @@ export async function POST(request: Request) {
 
     const stripe = getStripe()
     const lineItems = buildCheckoutLineItems(boundOrder)
+    if (lineItems.length === 0) {
+      console.error("Stripe Checkout Error:", "Keine gültigen line_items (alle Preise 0/ungültig).")
+      return NextResponse.json(
+        {
+          error:
+            "Checkout konnte nicht gestartet werden: keine gültigen Positionen mit Preis.",
+          success: false,
+        },
+        { status: 400 }
+      )
+    }
+
     const lineTotalCents = sumLineItemsCents(lineItems)
     const discounts = await buildCheckoutDiscounts(stripe, lineTotalCents, totalCents)
 
+    // Nur explizit angeforderte Methoden — keine Test-Price-IDs, nur price_data
     const paymentMethodTypes: Array<"card" | "twint"> =
       payload.paymentMethod === "twint"
         ? ["twint"]
-        : payload.paymentMethod === "card"
-          ? ["card"]
-          : ["card", "twint"]
+        : ["card"]
 
     console.info("[Stripe Checkout] Session erstellen", {
       orderId,
       paymentMethod: payload.paymentMethod,
       payment_method_types: paymentMethodTypes,
       totalCents,
+      lineItemCount: lineItems.length,
+      lineTotalCents,
+      successUrl,
+      cancelUrl,
       secretKeyMode: getStripeEnvDiagnostics().secretKeyMode,
     })
 
@@ -178,6 +211,7 @@ export async function POST(request: Request) {
         cancel_url: cancelUrl,
       })
     } catch (stripeError) {
+      console.error("Stripe Checkout Error:", stripeError)
       const formatted = formatStripeError(stripeError)
       console.error("[Stripe Checkout] sessions.create fehlgeschlagen.", {
         orderId,
@@ -185,6 +219,8 @@ export async function POST(request: Request) {
         code: formatted.code,
         type: formatted.type,
         message: formatted.message,
+        successUrl,
+        cancelUrl,
       })
       return NextResponse.json(
         {
@@ -199,8 +235,11 @@ export async function POST(request: Request) {
     }
 
     if (!session.url) {
+      console.error("Stripe Checkout Error:", "Session ohne url", {
+        sessionId: session.id,
+      })
       return NextResponse.json(
-        { error: "Stripe Checkout konnte nicht erstellt werden.", success: false },
+        { error: "Stripe Checkout konnte nicht erstellt werden (keine Redirect-URL).", success: false },
         { status: 500 }
       )
     }
@@ -227,6 +266,7 @@ export async function POST(request: Request) {
       orderId,
     })
   } catch (error) {
+    console.error("Stripe Checkout Error:", error)
     console.error("Fehler beim Speichern der Bestellung:", error)
     console.error("Shop Checkout: Erstellung fehlgeschlagen.", error)
     const stripeFormatted = formatStripeError(error)
