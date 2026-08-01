@@ -179,6 +179,9 @@ export function AdminAccountingReportsPanel({
     entryId: string
     belegNummer: string
   } | null>(null)
+  /** 1 = erste Bestätigung, 2 = finale Sicherheitsbestätigung */
+  const [deleteConfirmStep, setDeleteConfirmStep] = useState<1 | 2 | null>(null)
+  const [deleteConfirmInput, setDeleteConfirmInput] = useState("")
   const [success, setSuccess] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [data, setData] = useState<ReportsPayload>(() =>
@@ -241,10 +244,40 @@ export function AdminAccountingReportsPanel({
     }
   }, [from, to, account])
 
-  const confirmDeleteEntry = async () => {
-    if (!pendingDelete) return
-    const { entryId } = pendingDelete
+  const resetDeleteFlow = () => {
     setPendingDelete(null)
+    setDeleteConfirmStep(null)
+    setDeleteConfirmInput("")
+  }
+
+  const openDeleteFlow = (entry: { entryId: string; belegNummer: string }) => {
+    setActionError(null)
+    setSuccess(null)
+    setPendingDelete(entry)
+    setDeleteConfirmStep(1)
+    setDeleteConfirmInput("")
+  }
+
+  const advanceToSecondDeleteConfirm = () => {
+    if (!pendingDelete) return
+    setDeleteConfirmStep(2)
+    setDeleteConfirmInput("")
+  }
+
+  const confirmDeleteEntry = async () => {
+    if (!pendingDelete || deleteConfirmStep !== 2) return
+    const expected = pendingDelete.belegNummer.trim()
+    if (
+      expected &&
+      deleteConfirmInput.trim().toLowerCase() !== expected.toLowerCase()
+    ) {
+      setActionError(
+        `Bitte tippe die Belegnummer «${expected}» zur Bestätigung ein.`
+      )
+      return
+    }
+    const { entryId } = pendingDelete
+    resetDeleteFlow()
     setDeletingId(entryId)
     setSuccess(null)
     setActionError(null)
@@ -267,6 +300,11 @@ export function AdminAccountingReportsPanel({
       setDeletingId(null)
     }
   }
+
+  const expectedBeleg = pendingDelete?.belegNummer?.trim() ?? ""
+  const belegConfirmMatches =
+    Boolean(expectedBeleg) &&
+    deleteConfirmInput.trim().toLowerCase() === expectedBeleg.toLowerCase()
 
   useEffect(() => {
     void loadReports()
@@ -668,7 +706,7 @@ export function AdminAccountingReportsPanel({
                             disabled={deletingId === row.entryId}
                             className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-red-600 transition-colors hover:bg-red-50 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-red-950/40"
                             onClick={() =>
-                              setPendingDelete({
+                              openDeleteFlow({
                                 entryId: row.entryId,
                                 belegNummer: row.belegNummer,
                               })
@@ -825,28 +863,82 @@ export function AdminAccountingReportsPanel({
       </div>
 
       <AlertDialog
-        open={Boolean(pendingDelete)}
+        open={deleteConfirmStep === 1 && Boolean(pendingDelete)}
         onOpenChange={(open) => {
-          if (!open) setPendingDelete(null)
+          if (!open) resetDeleteFlow()
         }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Buchung wirklich löschen?</AlertDialogTitle>
+            <AlertDialogTitle>
+              Möchtest du diese Journalbuchung wirklich löschen?
+            </AlertDialogTitle>
             <AlertDialogDescription>
               Die Buchung{" "}
               <span className="font-mono font-semibold text-foreground">
                 {pendingDelete?.belegNummer || "ohne Belegnummer"}
               </span>{" "}
-              wird dauerhaft entfernt. Kontosalden und Berichte werden neu
-              berechnet. Diese Aktion kann nicht rückgängig gemacht werden.
+              wird zur Löschung vorbereitet. Kontosalden und Berichte werden
+              danach neu berechnet.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Abbrechen</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-red-600 text-white hover:bg-red-600/90"
-              onClick={() => void confirmDeleteEntry()}
+              className="bg-orange-600 text-white hover:bg-orange-600/90"
+              onClick={(e) => {
+                e.preventDefault()
+                advanceToSecondDeleteConfirm()
+              }}
+            >
+              Ja, weiter zur Sicherheitsbestätigung
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={deleteConfirmStep === 2 && Boolean(pendingDelete)}
+        onOpenChange={(open) => {
+          if (!open) resetDeleteFlow()
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              ACHTUNG: Dies verändert die Buchhaltung nachhaltig. Bist du absolut
+              sicher?
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 text-sm text-muted-foreground">
+                <p>
+                  Tippe zur Bestätigung die Belegnummer{" "}
+                  <span className="font-mono font-semibold text-foreground">
+                    {pendingDelete?.belegNummer || "BESTÄTIGEN"}
+                  </span>{" "}
+                  ein. Erst danach wird die Buchung dauerhaft aus der Datenbank
+                  gelöscht.
+                </p>
+                <Input
+                  autoFocus
+                  value={deleteConfirmInput}
+                  onChange={(e) => setDeleteConfirmInput(e.target.value)}
+                  placeholder={pendingDelete?.belegNummer || "Belegnummer"}
+                  className={adminUi.input}
+                  aria-label="Belegnummer zur Löschbestätigung"
+                />
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 text-white hover:bg-red-600/90 disabled:opacity-50"
+              disabled={Boolean(expectedBeleg) && !belegConfirmMatches}
+              onClick={(e) => {
+                e.preventDefault()
+                void confirmDeleteEntry()
+              }}
             >
               Endgültig löschen
             </AlertDialogAction>
