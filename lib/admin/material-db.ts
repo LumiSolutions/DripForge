@@ -13,20 +13,37 @@ import {
   type MaterialCategory,
   type MaterialItem,
 } from "@/lib/admin/material-types"
-import { withCosmosFallback } from "@/lib/admin/storage-bridge"
+import {
+  CosmosDatabaseError,
+  withCosmosFallback,
+  withCosmosRequired,
+} from "@/lib/admin/storage-bridge"
+import { isCosmosConfigured } from "@/lib/cosmos/client"
 import { logCosmosError } from "@/lib/cosmos/log-error"
 import { buildDefaultLaserStockMaterials } from "@/lib/admin/seed-laser-materials"
 
 const DATA_DIR = path.join(process.cwd(), "data", "admin")
 const MATERIALS_FILE = "materials.json"
 
+/**
+ * Lokales JSON-Fallback nur in Entwicklung oder wenn explizit erlaubt.
+ * Produktion (Azure SWA) ist flüchtig — Lagerdaten müssen in Cosmos liegen.
+ */
+function allowMaterialsFileFallback(): boolean {
+  if (process.env.ALLOW_FS_ADMIN_FALLBACK === "1") return true
+  if (process.env.NODE_ENV === "production" && isCosmosConfigured()) return false
+  if (process.env.NODE_ENV === "production") return false
+  return true
+}
+
 async function readMaterialsFile(): Promise<MaterialItem[]> {
   const filePath = path.join(DATA_DIR, MATERIALS_FILE)
   try {
-    await fs.mkdir(DATA_DIR, { recursive: true })
     const raw = await fs.readFile(filePath, "utf-8")
     const parsed = JSON.parse(raw) as MaterialItem[]
-    return parsed.map((m) => normalizeMaterialItem({ ...m, id: m.id }))
+    return Array.isArray(parsed)
+      ? parsed.map((m) => normalizeMaterialItem({ ...m, id: m.id }))
+      : []
   } catch {
     return []
   }
@@ -38,40 +55,61 @@ async function writeMaterialsFile(materials: MaterialItem[]): Promise<void> {
   await fs.writeFile(filePath, JSON.stringify(materials, null, 2), "utf-8")
 }
 
+/** Optional: Snapshot vor Migrationen (bestehende Datei/Cosmos-Export). */
+export async function backupMaterialsFileSnapshot(): Promise<string | null> {
+  try {
+    const materials = await readMaterialsFile()
+    if (materials.length === 0) return null
+    await fs.mkdir(DATA_DIR, { recursive: true })
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-")
+    const target = path.join(DATA_DIR, `materials.backup-${stamp}.json`)
+    await fs.writeFile(target, JSON.stringify(materials, null, 2), "utf-8")
+    return target
+  } catch {
+    return null
+  }
+}
+
 export async function getMaterials(
   category?: MaterialCategory
 ): Promise<MaterialItem[]> {
+  if (!allowMaterialsFileFallback()) {
+    const all = await withCosmosRequired("getMaterials", () =>
+      cosmosGetMaterials(category)
+    )
+    return category ? all.filter((m) => m.category === category) : all
+  }
+
   try {
     const all = await withCosmosFallback(
       "getMaterials",
       () => cosmosGetMaterials(category),
       readMaterialsFile
     )
-    const filtered = category
-      ? all.filter((m) => m.category === category)
-      : all
-
-    // Kein Auto-Seed bei GET — Stammdaten nur explizit via ?seed=1 anlegen.
-    return filtered
+    return category ? all.filter((m) => m.category === category) : all
   } catch (error) {
     logCosmosError("getMaterials:total-failure", error)
+    if (error instanceof CosmosDatabaseError) throw error
     const all = await readMaterialsFile().catch(() => [])
     return category ? all.filter((m) => m.category === category) : all
   }
 }
 
-/** Legt fehlende Standard-Lasermaterialien an (nur wenn Lager leer). */
+/**
+ * Laser-Seed nur manuell (?seed=1) und nur wenn Kategorie leer.
+ * Niemals Filamente seeden. Niemals bestehende Daten löschen.
+ * In Produktion nur mit ALLOW_LASER_SEED_IN_PROD=1.
+ */
 export async function ensureLaserStockMaterialsSeeded(): Promise<MaterialItem[]> {
-  const existing = await withCosmosFallback(
-    "ensureLaserStock:list",
-    () => cosmosGetMaterials("lasermaterial"),
-    async () => {
-      const all = await readMaterialsFile()
-      return all.filter((m) => m.category === "lasermaterial")
-    }
-  ).catch(() => [] as MaterialItem[])
-
+  const existing = await getMaterials("lasermaterial")
   if (existing.length > 0) return existing
+
+  if (
+    process.env.NODE_ENV === "production" &&
+    process.env.ALLOW_LASER_SEED_IN_PROD !== "1"
+  ) {
+    return existing
+  }
 
   const defaults = buildDefaultLaserStockMaterials()
   const saved: MaterialItem[] = []
@@ -86,6 +124,9 @@ export async function ensureLaserStockMaterialsSeeded(): Promise<MaterialItem[]>
 }
 
 export async function getMaterialById(id: string): Promise<MaterialItem | null> {
+  if (!allowMaterialsFileFallback()) {
+    return withCosmosRequired("getMaterialById", () => cosmosGetMaterialById(id))
+  }
   return withCosmosFallback(
     "getMaterialById",
     () => cosmosGetMaterialById(id),
@@ -102,6 +143,14 @@ export async function upsertMaterial(material: MaterialItem): Promise<MaterialIt
     docType: MATERIAL_DOC_TYPE,
     updatedAt: new Date().toISOString(),
   })
+
+  // Produktion: immer Cosmos — kein stilles Schreiben auf flüchtiges Dateisystem.
+  if (!allowMaterialsFileFallback()) {
+    await withCosmosRequired("upsertMaterial", async () => {
+      await cosmosUpsertMaterial(next)
+    })
+    return next
+  }
 
   await withCosmosFallback(
     "upsertMaterial",
@@ -120,6 +169,9 @@ export async function upsertMaterial(material: MaterialItem): Promise<MaterialIt
 }
 
 export async function deleteMaterial(id: string): Promise<boolean> {
+  if (!allowMaterialsFileFallback()) {
+    return withCosmosRequired("deleteMaterial", () => cosmosDeleteMaterial(id))
+  }
   const result = await withCosmosFallback(
     "deleteMaterial",
     () => cosmosDeleteMaterial(id),

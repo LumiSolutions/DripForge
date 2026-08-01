@@ -123,13 +123,22 @@ export function AdminStatsTab() {
   >(null)
   const [visitors, setVisitors] = useState<VisitorAnalyticsSnapshot | null>(null)
   const [visitorsLoading, setVisitorsLoading] = useState(true)
+  const [chartDays, setChartDays] = useState<30 | 90 | 365>(90)
+  const [viewsMode, setViewsMode] = useState<"day" | "month" | "year">("day")
+  const [viewsYearFilter, setViewsYearFilter] = useState<string>("all")
+  const [viewsMonthFilter, setViewsMonthFilter] = useState<string>("all")
+  const [peakMode, setPeakMode] = useState<"weekday" | "month" | "hour">(
+    "weekday"
+  )
   const settingsSnapshotRef = useRef<AdminSettings | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch("/api/admin/analytics", { cache: "no-store" })
+      const res = await fetch(`/api/admin/analytics?days=${chartDays}`, {
+        cache: "no-store",
+      })
       const json = (await res.json()) as AdminAnalytics
       if (!res.ok) throw new Error("Statistiken nicht verfügbar")
       setData(json)
@@ -141,7 +150,7 @@ export function AdminStatsTab() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [chartDays])
 
   const loadTopProductsSettings = useCallback(async () => {
     setTopProductsSettingsLoading(true)
@@ -258,6 +267,46 @@ export function AdminStatsTab() {
     [data?.timeSeries]
   )
 
+  const viewsChartData = useMemo(() => {
+    if (!visitors) return []
+    if (viewsMode === "day") {
+      let rows = visitors.viewsByDay ?? []
+      if (viewsYearFilter !== "all") {
+        rows = rows.filter((r) => r.key.startsWith(`${viewsYearFilter}-`))
+      }
+      if (viewsMonthFilter !== "all") {
+        rows = rows.filter((r) => r.key.slice(5, 7) === viewsMonthFilter)
+      }
+      return rows
+    }
+    if (viewsMode === "month") {
+      let rows = visitors.viewsByMonth ?? []
+      if (viewsYearFilter !== "all") {
+        rows = rows.filter((r) => r.key.startsWith(`${viewsYearFilter}-`))
+      }
+      return rows
+    }
+    return visitors.viewsByYear ?? []
+  }, [visitors, viewsMode, viewsYearFilter, viewsMonthFilter])
+
+  const viewsYearOptions = useMemo(() => {
+    const years = new Set<string>()
+    for (const row of visitors?.viewsByDay ?? []) {
+      years.add(row.key.slice(0, 4))
+    }
+    for (const row of visitors?.viewsByYear ?? []) {
+      years.add(row.key)
+    }
+    return Array.from(years).sort()
+  }, [visitors])
+
+  const peakChartData = useMemo(() => {
+    if (!visitors) return []
+    if (peakMode === "weekday") return visitors.heatmapWeekday ?? []
+    if (peakMode === "month") return visitors.heatmapMonth ?? []
+    return visitors.heatmapHour ?? []
+  }, [visitors, peakMode])
+
   const pieProducts = useMemo(
     () =>
       (data?.topProducts ?? []).map((p) => ({
@@ -319,9 +368,10 @@ export function AdminStatsTab() {
 
       {error && <p className={adminUi.errorLg}>{error}</p>}
 
+      {/* Zeile 1: 3 Besucher-Karten */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <MetricCard
-          label="Besucher aktuell online"
+          label="Aktuelle aktive Besucher"
           value={visitors ? String(visitors.onlineCount) : visitorsLoading ? "…" : "0"}
           hint="Aktiv in den letzten 2 Minuten (anonymisiert)"
           icon={Users}
@@ -346,21 +396,189 @@ export function AdminStatsTab() {
         />
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-2">
+      {/* Zeile 2: 4 Kennzahlen */}
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <MetricCard
+          label="Gesamtumsatz"
+          value={formatChf(summary?.totalRevenueChf ?? 0)}
+          hint="Stornierungen abgezogen"
+          icon={Wallet}
+        />
+        <MetricCard
+          label="Bestellungen"
+          value={String(summary?.orderCount ?? 0)}
+          icon={ShoppingCart}
+        />
+        <MetricCard
+          label="Offene Bestellungen"
+          value={String(summary?.openOrderCount ?? 0)}
+          hint="Ausstehend & in Produktion"
+          icon={Clock}
+        />
+        <MetricCard
+          label="Durchschnittlicher Bestellwert"
+          value={formatChf(summary?.averageOrderValueChf ?? 0)}
+          icon={TrendingUp}
+        />
+      </div>
+
+      {/* Zeile 3: 3 Charts nebeneinander */}
+      <div className="grid gap-4 xl:grid-cols-3">
         <Card className={adminUi.card}>
-          <CardHeader className="pb-2">
-            <CardTitle className={cn("flex items-center gap-2 text-base", adminUi.heading)}>
-              <BarChart3 className="h-4 w-4 text-orange-500" />
-              Aufrufe pro Tag
-            </CardTitle>
+          <CardHeader className="space-y-3 pb-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <CardTitle className={cn("flex items-center gap-2 text-base", adminUi.heading)}>
+                <BarChart3 className="h-4 w-4 text-orange-500" />
+                Verlauf
+              </CardTitle>
+              <select
+                aria-label="Zeitraum Verlauf"
+                value={chartDays}
+                onChange={(e) =>
+                  setChartDays(Number(e.target.value) as 30 | 90 | 365)
+                }
+                className={cn(
+                  "h-9 rounded-md border px-2 text-sm",
+                  adminUi.input
+                )}
+              >
+                <option value={30}>Letzte 30 Tage</option>
+                <option value={90}>Letzte 90 Tage</option>
+                <option value={365}>Letzte 365 Tage</option>
+              </select>
+            </div>
+            <p className={cn("text-sm", adminUi.muted)}>
+              Bestellungen und Umsatz (Schweizer Zeit)
+            </p>
           </CardHeader>
-          <CardContent className="h-64">
-            {visitors?.viewsByDay?.length ? (
+          <CardContent className="h-[260px] w-full pb-4">
+            {chartData.length === 0 ? (
+              <div
+                className={cn(
+                  "flex h-full items-center justify-center rounded-xl border border-dashed text-sm",
+                  adminUi.empty
+                )}
+              >
+                Noch keine Bestelldaten für den Verlauf.
+              </div>
+            ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={visitors.viewsByDay}>
+                <LineChart
+                  data={chartData}
+                  margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-zinc-700/40" />
+                  <XAxis dataKey="label" tick={{ fontSize: 10 }} />
+                  <YAxis yAxisId="left" allowDecimals={false} tick={{ fontSize: 10 }} />
+                  <YAxis
+                    yAxisId="right"
+                    orientation="right"
+                    tick={{ fontSize: 10 }}
+                    tickFormatter={(v) => `${v}`}
+                  />
+                  <Tooltip
+                    formatter={(value, name) => {
+                      const num = Number(value)
+                      if (name === "Umsatz") return [formatChf(num), name]
+                      return [num, name]
+                    }}
+                  />
+                  <Legend />
+                  <Line
+                    yAxisId="left"
+                    type="monotone"
+                    dataKey="orders"
+                    name="Bestellungen"
+                    stroke="#06b6d4"
+                    strokeWidth={2}
+                    dot={false}
+                  />
+                  <Line
+                    yAxisId="right"
+                    type="monotone"
+                    dataKey="revenueChf"
+                    name="Umsatz"
+                    stroke="#f97316"
+                    strokeWidth={2}
+                    dot={false}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className={adminUi.card}>
+          <CardHeader className="space-y-3 pb-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <CardTitle className={cn("flex items-center gap-2 text-base", adminUi.heading)}>
+                <BarChart3 className="h-4 w-4 text-orange-500" />
+                Aufrufe
+              </CardTitle>
+              <select
+                aria-label="Aufrufe Aggregation"
+                value={viewsMode}
+                onChange={(e) =>
+                  setViewsMode(e.target.value as "day" | "month" | "year")
+                }
+                className={cn("h-9 rounded-md border px-2 text-sm", adminUi.input)}
+              >
+                <option value="day">Pro Tag</option>
+                <option value="month">Pro Monat</option>
+                <option value="year">Pro Jahr</option>
+              </select>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <select
+                aria-label="Jahr filtern"
+                value={viewsYearFilter}
+                onChange={(e) => setViewsYearFilter(e.target.value)}
+                className={cn("h-9 rounded-md border px-2 text-sm", adminUi.input)}
+              >
+                <option value="all">Alle Jahre</option>
+                {viewsYearOptions.map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </select>
+              {viewsMode === "day" && (
+                <select
+                  aria-label="Monat filtern"
+                  value={viewsMonthFilter}
+                  onChange={(e) => setViewsMonthFilter(e.target.value)}
+                  className={cn("h-9 rounded-md border px-2 text-sm", adminUi.input)}
+                >
+                  <option value="all">Alle Monate</option>
+                  {[
+                    ["01", "Jan"],
+                    ["02", "Feb"],
+                    ["03", "Mär"],
+                    ["04", "Apr"],
+                    ["05", "Mai"],
+                    ["06", "Jun"],
+                    ["07", "Jul"],
+                    ["08", "Aug"],
+                    ["09", "Sep"],
+                    ["10", "Okt"],
+                    ["11", "Nov"],
+                    ["12", "Dez"],
+                  ].map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent className="h-[260px] pb-4">
+            {viewsChartData.length ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={viewsChartData}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                  <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                  <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                  <XAxis dataKey="label" tick={{ fontSize: 10 }} />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 10 }} />
                   <Tooltip />
                   <Line
                     type="monotone"
@@ -373,101 +591,42 @@ export function AdminStatsTab() {
                 </LineChart>
               </ResponsiveContainer>
             ) : (
-              <p className={cn("text-sm", adminUi.muted)}>Noch keine Tagesdaten.</p>
+              <p className={cn("text-sm", adminUi.muted)}>Noch keine Aufrufdaten.</p>
             )}
           </CardContent>
         </Card>
 
         <Card className={adminUi.card}>
-          <CardHeader className="pb-2">
-            <CardTitle className={cn("flex items-center gap-2 text-base", adminUi.heading)}>
-              <BarChart3 className="h-4 w-4 text-orange-500" />
-              Aufrufe pro Monat / Jahr
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="h-40">
-              {visitors?.viewsByMonth?.length ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={visitors.viewsByMonth}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                    <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                    <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
-                    <Tooltip />
-                    <Line
-                      type="monotone"
-                      dataKey="count"
-                      name="Monat"
-                      stroke="#06b6d4"
-                      strokeWidth={2}
-                      dot={false}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              ) : (
-                <p className={cn("text-sm", adminUi.muted)}>Noch keine Monatsdaten.</p>
-              )}
+          <CardHeader className="space-y-3 pb-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <CardTitle className={cn("flex items-center gap-2 text-base", adminUi.heading)}>
+                Peak-Zeiten
+              </CardTitle>
+              <select
+                aria-label="Peak-Zeiten Ansicht"
+                value={peakMode}
+                onChange={(e) =>
+                  setPeakMode(e.target.value as "weekday" | "month" | "hour")
+                }
+                className={cn("h-9 rounded-md border px-2 text-sm", adminUi.input)}
+              >
+                <option value="weekday">Wochentage (Mo–So)</option>
+                <option value="month">Monate (Jan–Dez)</option>
+                <option value="hour">Uhrzeit (00:00–23:59)</option>
+              </select>
             </div>
-            {visitors?.viewsByYear?.length ? (
-              <div className="flex flex-wrap gap-3">
-                {visitors.viewsByYear.map((row) => (
-                  <div
-                    key={row.key}
-                    className="rounded-lg border border-border/60 px-3 py-2 text-sm"
-                  >
-                    <span className={adminUi.muted}>{row.label}: </span>
-                    <span className="font-semibold tabular-nums">{row.count}</span>
-                  </div>
-                ))}
-              </div>
-            ) : null}
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-4 xl:grid-cols-2">
-        <Card className={adminUi.card}>
-          <CardHeader className="pb-2">
-            <CardTitle className={cn("flex items-center gap-2 text-base", adminUi.heading)}>
-              Peak-Zeiten · Wochentage
-            </CardTitle>
           </CardHeader>
-          <CardContent className="h-56">
-            {visitors?.heatmapWeekday?.length ? (
+          <CardContent className="h-[260px] pb-4">
+            {peakChartData.length ? (
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={visitors.heatmapWeekday}>
+                <LineChart data={peakChartData}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                  <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                  <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
-                  <Tooltip />
-                  <Line
-                    type="monotone"
-                    dataKey="count"
-                    name="Aufrufe"
-                    stroke="#a855f7"
-                    strokeWidth={2}
+                  <XAxis
+                    dataKey="label"
+                    tick={{ fontSize: 10 }}
+                    interval={peakMode === "hour" ? 3 : 0}
                   />
-                </LineChart>
-              </ResponsiveContainer>
-            ) : (
-              <p className={cn("text-sm", adminUi.muted)}>Noch keine Wochentagsdaten.</p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className={adminUi.card}>
-          <CardHeader className="pb-2">
-            <CardTitle className={cn("flex items-center gap-2 text-base", adminUi.heading)}>
-              Peak-Zeiten · Uhrzeit
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="h-56">
-            {visitors?.heatmapHour?.length ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={visitors.heatmapHour}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                  <XAxis dataKey="label" tick={{ fontSize: 10 }} interval={3} />
-                  <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 10 }} />
                   <Tooltip />
                   <Line
                     type="monotone"
@@ -475,23 +634,288 @@ export function AdminStatsTab() {
                     name="Aufrufe"
                     stroke="#22c55e"
                     strokeWidth={2}
-                    dot={false}
+                    dot={peakMode !== "hour"}
                   />
                 </LineChart>
               </ResponsiveContainer>
             ) : (
-              <p className={cn("text-sm", adminUi.muted)}>Noch keine Stundendaten.</p>
+              <p className={cn("text-sm", adminUi.muted)}>Noch keine Peak-Daten.</p>
             )}
           </CardContent>
         </Card>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-2">
+      {/* Zeile 4: 5 Tabellen */}
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
+        <Card className={adminUi.card}>
+          <CardHeader>
+            <CardTitle className={cn("text-base", adminUi.heading)}>Top Produkte</CardTitle>
+            <p className={cn("text-sm", adminUi.muted)}>Nach Umsatz und Stueckzahl</p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div
+              className={cn(
+                "flex flex-col gap-2 rounded-xl border p-2",
+                adminUi.section
+              )}
+            >
+              <div className="flex min-w-0 items-center justify-between gap-2">
+                <Label
+                  htmlFor="top-products-homepage-switch"
+                  className={cn("text-sm font-medium leading-snug", adminUi.heading)}
+                >
+                  Auf Startseite
+                </Label>
+                <Switch
+                  id="top-products-homepage-switch"
+                  checked={showTopProductsOnHomepage}
+                  disabled={topProductsSettingsLoading || topProductsSettingsSaving}
+                  onCheckedChange={setShowTopProductsOnHomepage}
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <Label
+                  htmlFor="top-products-count"
+                  className={cn("shrink-0 text-sm", adminUi.label)}
+                >
+                  Anzahl
+                </Label>
+                <Input
+                  id="top-products-count"
+                  type="number"
+                  min={MIN_TOP_PRODUCTS_COUNT}
+                  max={MAX_TOP_PRODUCTS_COUNT}
+                  value={topProductsCount}
+                  disabled={
+                    topProductsSettingsLoading ||
+                    topProductsSettingsSaving ||
+                    !showTopProductsOnHomepage
+                  }
+                  onChange={(e) =>
+                    setTopProductsCount(normalizeTopProductsCount(e.target.value))
+                  }
+                  className={cn("h-9 w-16 tabular-nums", adminUi.input)}
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => void saveTopProductsSettings()}
+                  disabled={topProductsSettingsLoading || topProductsSettingsSaving}
+                  className={cn("shrink-0", adminUi.primaryBtn)}
+                >
+                  {topProductsSettingsSaving ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Save className="h-3.5 w-3.5" />
+                  )}
+                </Button>
+              </div>
+              {topProductsSettingsError && (
+                <p className={cn("w-full text-xs", adminUi.error)}>
+                  {topProductsSettingsError}
+                </p>
+              )}
+              {topProductsSettingsSuccess && !topProductsSettingsError && (
+                <p className="w-full text-xs text-emerald-600 dark:text-emerald-400">
+                  {topProductsSettingsSuccess}
+                </p>
+              )}
+            </div>
+
+            {pieProducts.length === 0 ? (
+              <p className={cn("py-6 text-center text-sm", adminUi.muted)}>
+                Keine Produktdaten vorhanden.
+              </p>
+            ) : (
+              <div className="flex flex-col gap-4">
+                <div className="mx-auto h-[140px] w-full max-w-[160px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={pieProducts}
+                        dataKey="value"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={30}
+                        outerRadius={52}
+                        paddingAngle={2}
+                      >
+                        {pieProducts.map((_, index) => (
+                          <Cell
+                            key={`cell-${index}`}
+                            fill={PIE_COLORS[index % PIE_COLORS.length]}
+                          />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        formatter={(value, _name, item) => {
+                          const payload = item?.payload as {
+                            fullName?: string
+                            revenueChf?: number
+                          }
+                          return [
+                            `${value} Stk. · ${formatChf(payload?.revenueChf ?? 0)}`,
+                            payload?.fullName ?? "",
+                          ]
+                        }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className={cn("min-w-0", adminUi.tableWrap)}>
+                  <Table>
+                    <TableHeader>
+                      <TableRow className={adminUi.tableHeadRow}>
+                        <TableHead className={cn("py-1.5", adminUi.tableHead)}>
+                          Produkt
+                        </TableHead>
+                        <TableHead className={cn("py-1.5 text-right", adminUi.tableHead)}>
+                          Stk.
+                        </TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {(data?.topProducts ?? []).map((row) => (
+                        <TableRow key={row.name} className={adminUi.tableRow}>
+                          <TableCell
+                            className={cn(
+                              "max-w-[120px] truncate py-1.5",
+                              adminUi.tableCell
+                            )}
+                          >
+                            {row.name}
+                          </TableCell>
+                          <TableCell
+                            className={cn(
+                              "py-1.5 text-right tabular-nums",
+                              adminUi.bodyText
+                            )}
+                          >
+                            {row.quantity}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className={adminUi.card}>
+          <CardHeader>
+            <CardTitle className={cn("text-base", adminUi.heading)}>
+              Beliebte Optionen
+            </CardTitle>
+            <p className={cn("text-sm", adminUi.muted)}>
+              Materialien, Farben, Filamente
+            </p>
+          </CardHeader>
+          <CardContent>
+            {(data?.topOptions ?? []).length === 0 ? (
+              <p className={cn("py-6 text-center text-sm", adminUi.muted)}>
+                Noch keine Konfigurationsdaten.
+              </p>
+            ) : (
+              <div className={adminUi.tableWrap}>
+                <Table>
+                  <TableHeader>
+                    <TableRow className={adminUi.tableHeadRow}>
+                      <TableHead className={cn("py-1.5", adminUi.tableHead)}>
+                        Option
+                      </TableHead>
+                      <TableHead className={cn("py-1.5 text-right", adminUi.tableHead)}>
+                        #
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {data?.topOptions.map((row) => (
+                      <TableRow
+                        key={`${row.category}-${row.label}`}
+                        className={adminUi.tableRow}
+                      >
+                        <TableCell className={cn("py-1.5", adminUi.tableCell)}>
+                          <span className={cn("block text-xs", adminUi.muted)}>
+                            {row.category}
+                          </span>
+                          {row.label}
+                        </TableCell>
+                        <TableCell
+                          className={cn(
+                            "py-1.5 text-right font-semibold tabular-nums",
+                            adminUi.accentTitle
+                          )}
+                        >
+                          {row.count}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className={adminUi.card}>
+          <CardHeader>
+            <CardTitle className={cn("text-base", adminUi.heading)}>Top Käufer</CardTitle>
+            <p className={cn("text-sm", adminUi.muted)}>
+              Ohne stornierte Bestellungen
+            </p>
+          </CardHeader>
+          <CardContent>
+            {(data?.topBuyers ?? []).length === 0 ? (
+              <p className={cn("py-6 text-center text-sm", adminUi.muted)}>
+                Noch keine Kundendaten.
+              </p>
+            ) : (
+              <div className={adminUi.tableWrap}>
+                <Table>
+                  <TableHeader>
+                    <TableRow className={adminUi.tableHeadRow}>
+                      <TableHead className={cn("py-1.5", adminUi.tableHead)}>
+                        Kunde
+                      </TableHead>
+                      <TableHead className={cn("py-1.5 text-right", adminUi.tableHead)}>
+                        Umsatz
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {data?.topBuyers.map((row) => (
+                      <TableRow key={row.email} className={adminUi.tableRow}>
+                        <TableCell className={cn("py-1.5", adminUi.tableCell)}>
+                          <p className="truncate font-medium">{row.name}</p>
+                          <p className={cn("truncate text-xs", adminUi.muted)}>
+                            {row.orderCount} Best.
+                          </p>
+                        </TableCell>
+                        <TableCell
+                          className={cn(
+                            "py-1.5 text-right font-medium tabular-nums",
+                            adminUi.accentTitle
+                          )}
+                        >
+                          {formatChf(row.revenueChf)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         <Card className={adminUi.card}>
           <CardHeader className="pb-2">
             <CardTitle className={cn("flex items-center gap-2 text-base", adminUi.heading)}>
               <Globe2 className="h-4 w-4 text-orange-500" />
-              Top-Länder
+              Top Länder
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -538,12 +962,11 @@ export function AdminStatsTab() {
             {visitorsLoading && !visitors ? (
               <p className={cn("flex items-center text-sm", adminUi.muted)}>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Regionen werden geladen…
+                Regionen…
               </p>
             ) : !visitors?.byRegion.length ? (
               <p className={cn("text-sm", adminUi.muted)}>
-                Noch keine regionalen Aufrufe erfasst. Sobald Besucher den Shop öffnen,
-                erscheinen hier Land und Kanton/Bundesland (Geo-IP, anonymisiert).
+                Noch keine regionalen Aufrufe erfasst.
               </p>
             ) : (
               <div className="overflow-x-auto">
@@ -551,7 +974,6 @@ export function AdminStatsTab() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Region</TableHead>
-                      <TableHead>Land</TableHead>
                       <TableHead className="text-right">Aufrufe</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -560,418 +982,14 @@ export function AdminStatsTab() {
                       <TableRow
                         key={`${row.countryCode}-${row.regionCode}-${row.regionLabel}`}
                       >
-                        <TableCell className="font-medium">{row.regionLabel}</TableCell>
-                        <TableCell>{row.countryCode}</TableCell>
+                        <TableCell className="font-medium">
+                          <span className="block">{row.regionLabel}</span>
+                          <span className={cn("text-xs", adminUi.muted)}>
+                            {row.countryCode}
+                          </span>
+                        </TableCell>
                         <TableCell className="text-right tabular-nums">
                           {row.count}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {summary && (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <MetricCard
-            label="Gesamtumsatz"
-            value={formatChf(summary.totalRevenueChf)}
-            hint="Ohne stornierte Bestellungen"
-            icon={Wallet}
-          />
-          <MetricCard
-            label="Anzahl Bestellungen"
-            value={String(summary.orderCount)}
-            icon={ShoppingCart}
-          />
-          <MetricCard
-            label="Offene Bestellungen"
-            value={String(summary.openOrderCount)}
-            hint="Ausstehend & in Produktion"
-            icon={Clock}
-          />
-          <MetricCard
-            label="Ø Bestellwert"
-            value={formatChf(summary.averageOrderValueChf)}
-            icon={TrendingUp}
-          />
-        </div>
-      )}
-
-      <Card className={adminUi.card}>
-        <CardHeader className="pb-2">
-          <CardTitle className={cn("flex items-center gap-2 text-base", adminUi.heading)}>
-            <BarChart3 className="h-4 w-4 text-orange-500" />
-            Verlauf (letzte 90 Tage)
-          </CardTitle>
-          <p className={cn("text-sm", adminUi.muted)}>
-            Bestellungen und Umsatz nach Tag (Schweizer Zeit)
-          </p>
-        </CardHeader>
-        <CardContent className="h-[320px] w-full pb-4">
-          {chartData.length === 0 ? (
-            <div
-              className={cn(
-                "flex h-full items-center justify-center rounded-xl border border-dashed text-sm",
-                adminUi.empty
-              )}
-            >
-              Noch keine Bestelldaten für den Verlauf.
-            </div>
-          ) : (
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-zinc-700/40" />
-                <XAxis
-                  dataKey="label"
-                  tick={{ fill: "currentColor", fontSize: 11 }}
-                  className="text-zinc-500"
-                />
-                <YAxis
-                  yAxisId="left"
-                  allowDecimals={false}
-                  tick={{ fill: "currentColor", fontSize: 11 }}
-                  className="text-zinc-500"
-                />
-                <YAxis
-                  yAxisId="right"
-                  orientation="right"
-                  tick={{ fill: "currentColor", fontSize: 11 }}
-                  tickFormatter={(v) => `CHF ${v}`}
-                  className="text-zinc-500"
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "rgb(24 24 27)",
-                    border: "1px solid rgb(63 63 70)",
-                    borderRadius: "0.75rem",
-                  }}
-                  labelStyle={{ color: "#fafafa" }}
-                  formatter={(value, name) => {
-                    const num = Number(value)
-                    if (name === "Umsatz") return [formatChf(num), name]
-                    return [num, name]
-                  }}
-                />
-                <Legend />
-                <Line
-                  yAxisId="left"
-                  type="monotone"
-                  dataKey="orders"
-                  name="Bestellungen"
-                  stroke="#06b6d4"
-                  strokeWidth={2}
-                  dot={false}
-                  activeDot={{ r: 4 }}
-                />
-                <Line
-                  yAxisId="right"
-                  type="monotone"
-                  dataKey="revenueChf"
-                  name="Umsatz"
-                  stroke="#f97316"
-                  strokeWidth={2}
-                  dot={false}
-                  activeDot={{ r: 4 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          )}
-        </CardContent>
-      </Card>
-
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card className={adminUi.card}>
-          <CardHeader>
-            <CardTitle className={cn("text-base", adminUi.heading)}>Top-Produkte</CardTitle>
-            <p className={cn("text-sm", adminUi.muted)}>Nach Umsatz und Stueckzahl</p>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div
-              className={cn(
-                "flex flex-col gap-2 rounded-xl border p-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between",
-                adminUi.section
-              )}
-            >
-              <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
-                <Label
-                  htmlFor="top-products-homepage-switch"
-                  className={cn("text-sm font-medium leading-snug", adminUi.heading)}
-                >
-                  Top Produkte auf Startseite anzeigen
-                </Label>
-                <Switch
-                  id="top-products-homepage-switch"
-                  checked={showTopProductsOnHomepage}
-                  disabled={topProductsSettingsLoading || topProductsSettingsSaving}
-                  onCheckedChange={setShowTopProductsOnHomepage}
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <Label
-                  htmlFor="top-products-count"
-                  className={cn("shrink-0 text-sm", adminUi.label)}
-                >
-                  Anzahl
-                </Label>
-                <Input
-                  id="top-products-count"
-                  type="number"
-                  min={MIN_TOP_PRODUCTS_COUNT}
-                  max={MAX_TOP_PRODUCTS_COUNT}
-                  value={topProductsCount}
-                  disabled={
-                    topProductsSettingsLoading ||
-                    topProductsSettingsSaving ||
-                    !showTopProductsOnHomepage
-                  }
-                  onChange={(e) =>
-                    setTopProductsCount(normalizeTopProductsCount(e.target.value))
-                  }
-                  className={cn("h-9 w-16 tabular-nums", adminUi.input)}
-                />
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={() => void saveTopProductsSettings()}
-                  disabled={topProductsSettingsLoading || topProductsSettingsSaving}
-                  className={cn("shrink-0", adminUi.primaryBtn)}
-                >
-                  {topProductsSettingsSaving ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <Save className="h-3.5 w-3.5" />
-                  )}
-                  <span className="ml-1.5">Speichern</span>
-                </Button>
-              </div>
-              {topProductsSettingsError && (
-                <p className={cn("w-full text-xs", adminUi.error)}>{topProductsSettingsError}</p>
-              )}
-              {topProductsSettingsSuccess && !topProductsSettingsError && (
-                <p className={cn("w-full text-xs text-emerald-600 dark:text-emerald-400")}>
-                  {topProductsSettingsSuccess}
-                </p>
-              )}
-            </div>
-
-            {pieProducts.length === 0 ? (
-              <p className={cn("py-8 text-center text-sm", adminUi.muted)}>
-                Keine Produktdaten vorhanden.
-              </p>
-            ) : (
-              <div className="flex flex-col gap-4">
-                <div className="mx-auto h-[160px] w-full max-w-[180px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={pieProducts}
-                        dataKey="value"
-                        nameKey="name"
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={36}
-                        outerRadius={60}
-                        paddingAngle={2}
-                      >
-                        {pieProducts.map((_, index) => (
-                          <Cell
-                            key={`cell-${index}`}
-                            fill={PIE_COLORS[index % PIE_COLORS.length]}
-                          />
-                        ))}
-                      </Pie>
-                      <Tooltip
-                        formatter={(value, _name, item) => {
-                          const payload = item?.payload as {
-                            fullName?: string
-                            revenueChf?: number
-                          }
-                          return [
-                            `${value} Stk. · ${formatChf(payload?.revenueChf ?? 0)}`,
-                            payload?.fullName ?? "",
-                          ]
-                        }}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-                <div className={cn("min-w-0", adminUi.tableWrap)}>
-                  <Table>
-                    <TableHeader>
-                      <TableRow className={adminUi.tableHeadRow}>
-                        <TableHead className={cn("py-1.5", adminUi.tableHead)}>
-                          Produkt
-                        </TableHead>
-                        <TableHead className={cn("py-1.5 text-right", adminUi.tableHead)}>
-                          Stk.
-                        </TableHead>
-                        <TableHead className={cn("py-1.5 text-right", adminUi.tableHead)}>
-                          Umsatz
-                        </TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {(data?.topProducts ?? []).map((row) => (
-                        <TableRow key={row.name} className={cn("py-1.5", adminUi.tableRow)}>
-                          <TableCell
-                            className={cn(
-                              "max-w-[140px] truncate py-1.5",
-                              adminUi.tableCell
-                            )}
-                          >
-                            {row.name}
-                          </TableCell>
-                          <TableCell
-                            className={cn(
-                              "py-1.5 text-right tabular-nums",
-                              adminUi.bodyText
-                            )}
-                          >
-                            {row.quantity}
-                          </TableCell>
-                          <TableCell
-                            className={cn(
-                              "py-1.5 text-right font-medium tabular-nums",
-                              adminUi.accentTitle
-                            )}
-                          >
-                            {formatChf(row.revenueChf)}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className={adminUi.card}>
-          <CardHeader>
-            <CardTitle className={cn("text-base", adminUi.heading)}>
-              Beliebte Optionen
-            </CardTitle>
-            <p className={cn("text-sm", adminUi.muted)}>
-              Materialien, Farben, Filamente und Varianten
-            </p>
-          </CardHeader>
-          <CardContent>
-            {(data?.topOptions ?? []).length === 0 ? (
-              <p className={cn("py-8 text-center text-sm", adminUi.muted)}>
-                Noch keine Konfigurationsdaten in Bestellpositionen.
-              </p>
-            ) : (
-              <div className={adminUi.tableWrap}>
-                <Table>
-                  <TableHeader>
-                    <TableRow className={adminUi.tableHeadRow}>
-                      <TableHead className={cn("py-1.5", adminUi.tableHead)}>
-                        Kategorie
-                      </TableHead>
-                      <TableHead className={cn("py-1.5", adminUi.tableHead)}>
-                        Option
-                      </TableHead>
-                      <TableHead className={cn("py-1.5 text-right", adminUi.tableHead)}>
-                        Häufigkeit
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {data?.topOptions.map((row) => (
-                      <TableRow
-                        key={`${row.category}-${row.label}`}
-                        className={adminUi.tableRow}
-                      >
-                        <TableCell className={cn("py-1.5 text-sm", adminUi.muted)}>
-                          {row.category}
-                        </TableCell>
-                        <TableCell className={cn("py-1.5", adminUi.tableCell)}>
-                          {row.label}
-                        </TableCell>
-                        <TableCell
-                          className={cn(
-                            "py-1.5 text-right font-semibold tabular-nums",
-                            adminUi.accentTitle
-                          )}
-                        >
-                          {row.count}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className={adminUi.card}>
-          <CardHeader>
-            <CardTitle className={cn("text-base", adminUi.heading)}>
-              Top Käufer (Top 10)
-            </CardTitle>
-            <p className={cn("text-sm", adminUi.muted)}>
-              Nach Gesamtumsatz ohne stornierte Bestellungen
-            </p>
-          </CardHeader>
-          <CardContent>
-            {(data?.topBuyers ?? []).length === 0 ? (
-              <p className={cn("py-8 text-center text-sm", adminUi.muted)}>
-                Noch keine Kundendaten vorhanden.
-              </p>
-            ) : (
-              <div className={adminUi.tableWrap}>
-                <Table>
-                  <TableHeader>
-                    <TableRow className={adminUi.tableHeadRow}>
-                      <TableHead className={cn("w-10 py-1.5", adminUi.tableHead)}>
-                        Rang
-                      </TableHead>
-                      <TableHead className={cn("py-1.5", adminUi.tableHead)}>Kunde</TableHead>
-                      <TableHead className={cn("py-1.5 text-right", adminUi.tableHead)}>
-                        Bestellungen
-                      </TableHead>
-                      <TableHead className={cn("py-1.5 text-right", adminUi.tableHead)}>
-                        Gesamtumsatz
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {data?.topBuyers.map((row, index) => (
-                      <TableRow key={row.email} className={adminUi.tableRow}>
-                        <TableCell
-                          className={cn(
-                            "py-1.5 font-semibold tabular-nums",
-                            adminUi.accentTitle
-                          )}
-                        >
-                          #{index + 1}
-                        </TableCell>
-                        <TableCell className={cn("py-1.5", adminUi.tableCell)}>
-                          <p className="truncate font-medium">{row.name}</p>
-                          <p className={cn("truncate text-xs", adminUi.muted)}>{row.email}</p>
-                        </TableCell>
-                        <TableCell
-                          className={cn(
-                            "py-1.5 text-right tabular-nums",
-                            adminUi.bodyText
-                          )}
-                        >
-                          {row.orderCount}
-                        </TableCell>
-                        <TableCell
-                          className={cn(
-                            "py-1.5 text-right font-medium tabular-nums",
-                            adminUi.accentTitle
-                          )}
-                        >
-                          {formatChf(row.revenueChf)}
                         </TableCell>
                       </TableRow>
                     ))}

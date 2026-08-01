@@ -27,6 +27,9 @@ if (existsSync(publicSrc)) {
 }
 
 if (existsSync(dataAdminSrc)) {
+  // Nur Dev-/Seed-Dateien; Produktions-Lager (Filament etc.) liegt in Cosmos — nicht hier.
   cpSync(dataAdminSrc, dataAdminDest, { recursive: true })
-  console.log("prepare-standalone: data/admin kopiert (Cosmos-Fallback).")
+  console.log(
+    "prepare-standalone: data/admin kopiert (lokaler Dev-Fallback; Inventar in Prod = Cosmos)."
+  )
 }
