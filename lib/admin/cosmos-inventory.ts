@@ -30,16 +30,9 @@ export async function cosmosGetInventoryMaterials(): Promise<
     })
   }
 
-  const now = new Date().toISOString()
-  const seeded = DEFAULT_INVENTORY_MATERIALS.map((m) => ({
-    ...m,
-    updatedAt: now,
-  }))
-
-  for (const material of seeded) {
-    await container.items.upsert({ ...material, id: material.id })
-  }
-  return seeded
+  // Leeres Lager bewusst nicht mit Demo-Daten befüllen (kein Datenverlust / Überschreiben).
+  void DEFAULT_INVENTORY_MATERIALS
+  return []
 }
 
 export async function cosmosGetInventoryMaterialById(

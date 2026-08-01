@@ -36,8 +36,8 @@ import {
   normalizeEnableOnboardingTour,
   normalizeOnboardingTourText,
   normalizeThemeInboundTourImageUrl,
-  DEFAULT_ONBOARDING_TOUR_TEXT,
 } from "@/lib/dripforge/theme-inbound-tour-settings"
+import { buildDefaultAdminSettings } from "@/lib/admin/safe-defaults"
 import { normalizeLaunchSettings } from "@/lib/dripforge/countdown-settings"
 import { normalizeEnableRewardPointsSystem } from "@/lib/dripforge/reward-points-settings"
 import { normalizeCompanySettings } from "@/lib/dripforge/company-settings"
@@ -52,7 +52,6 @@ import {
 import { normalizeOrderEmailTemplates } from "@/lib/email/order-email-templates"
 import { normalizeOrderEmailLayout } from "@/lib/email/order-email-layout"
 import {
-  DEFAULT_SHOW_TOP_PRODUCTS_ON_HOMEPAGE,
   DEFAULT_TOP_PRODUCTS_COUNT,
   normalizeShowTopProductsOnHomepage,
   normalizeTopProductsCount,
@@ -464,6 +463,7 @@ export async function cosmosGetSettings(): Promise<AdminSettings> {
         topProductsCount: normalizeTopProductsCount(
           resource.topProductsCount ?? DEFAULT_TOP_PRODUCTS_COUNT
         ),
+        requireAdmin2fa: resource.requireAdmin2fa !== false,
         orderEmailTemplates: normalizeOrderEmailTemplates(
           resource.orderEmailTemplates
         ),
@@ -479,40 +479,11 @@ export async function cosmosGetSettings(): Promise<AdminSettings> {
     }
   }
 
-  const defaults: AdminSettings = {
-    checkout: { ...DEFAULT_CHECKOUT_RUNTIME_CONFIG },
-    company: normalizeCompanySettings(null),
-    launch: { ...DEFAULT_LAUNCH_SETTINGS },
-    services: { ...DEFAULT_SERVICE_VISIBILITY },
-    shopConfigurators: normalizeShopConfigurators(null, DEFAULT_SERVICE_VISIBILITY),
-    managedCatalog: normalizeManagedCatalog(
-      null,
-      DEFAULT_SERVICE_VISIBILITY,
-      DEFAULT_SHOP_CONFIGURATORS
-    ),
-    showSupportOnMainSite: false,
-    showSupportOnCountdownPage: false,
-    supportMilestones: normalizeSupportMilestones(undefined),
-    supportFeatures: normalizeSupportFeatures(undefined),
-    enableOnboardingTour: true,
-    onboardingTourText: DEFAULT_ONBOARDING_TOUR_TEXT,
-    themeInboundTourImageUrl: null,
-    enableRewardPointsSystem: true,
-    loyaltyEarnPercent: DEFAULT_LOYALTY_EARN_PERCENT,
-    loyaltyPointValueChf: DEFAULT_LOYALTY_POINT_VALUE_CHF,
-    loyaltyPointsExpiryMonths: DEFAULT_LOYALTY_EXPIRY_MONTHS,
-    showTopProductsOnHomepage: DEFAULT_SHOW_TOP_PRODUCTS_ON_HOMEPAGE,
-    topProductsCount: DEFAULT_TOP_PRODUCTS_COUNT,
-    orderEmailTemplates: normalizeOrderEmailTemplates(undefined),
-    orderEmailLayout: normalizeOrderEmailLayout(undefined),
+  // Fehlendes Settings-Dokument: Defaults nur im Speicher — kein Auto-Write.
+  return {
+    ...buildDefaultAdminSettings(),
     updatedAt: new Date().toISOString(),
   }
-  try {
-    await cosmosSaveSettings(defaults)
-  } catch (seedError) {
-    logCosmosError("cosmosGetSettings:seed-defaults", seedError)
-  }
-  return defaults
 }
 
 export async function cosmosSaveSettings(

@@ -95,6 +95,7 @@ const EMPTY_FORM: ProductFormState = {
   variantenText: "",
   materialLinks: [],
   tags: [],
+  imageShape: "rounded",
 }
 
 type MediaUploadCategory = "gallery" | "customization" | "model"
@@ -339,6 +340,7 @@ export function AdminProductsTab() {
       additionalBaseCostChf: product.additionalBaseCostChf ?? 0,
       purchasePriceChf: product.purchasePriceChf ?? 0,
       tags: product.tags ?? [],
+      imageShape: product.imageShape ?? "rounded",
     })
     setLaserMaterialFilter("")
     setMaterialLinkFilters({})
@@ -1441,6 +1443,23 @@ export function AdminProductsTab() {
                       onChange={(next) => updateField("galerieBilder", next)}
                     />
                   )}
+                  <div className="space-y-1 pt-2">
+                    <Label className={adminUi.label}>Anzeigeform im Shop</Label>
+                    <select
+                      value={form.imageShape ?? "rounded"}
+                      onChange={(e) =>
+                        updateField(
+                          "imageShape",
+                          e.target.value as "rounded" | "square" | "circle"
+                        )
+                      }
+                      className={cn("h-10 w-full rounded-md border px-3 text-sm", adminUi.select)}
+                    >
+                      <option value="rounded">Abgerundete Ecken (Standard)</option>
+                      <option value="square">Quadratisch (scharfe Kanten)</option>
+                      <option value="circle">Rund (Circle)</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div className="space-y-2">

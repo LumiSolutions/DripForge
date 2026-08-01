@@ -69,6 +69,7 @@ export async function PUT(request: Request) {
       loyaltyPointsExpiryMonths?: number
       showTopProductsOnHomepage?: boolean
       topProductsCount?: number
+      requireAdmin2fa?: boolean
       orderEmailTemplates?: {
         receivedIntro?: string
         receivedFooter?: string
@@ -166,6 +167,10 @@ export async function PUT(request: Request) {
       topProductsCount:
         body.topProductsCount !== undefined
           ? normalizeTopProductsCount(body.topProductsCount)
+          : undefined,
+      requireAdmin2fa:
+        body.requireAdmin2fa !== undefined
+          ? body.requireAdmin2fa !== false
           : undefined,
       orderEmailTemplates: body.orderEmailTemplates,
       orderEmailLayout: body.orderEmailLayout,

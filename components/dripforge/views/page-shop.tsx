@@ -1094,7 +1094,7 @@ export function PageShop({
                       <SiteText k="shop_custom_laser_description" />
                     </p>
                     <p className="mb-6 text-sm font-medium text-cyan-400">
-                      Personalisiere deine Kreation ab CHF 20.00
+                      Personalisiere deine Kreation ab CHF 9.99
                     </p>
                     <span className="inline-flex items-center text-sm font-medium text-foreground">
                       Jetzt Erstellen

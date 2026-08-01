@@ -604,6 +604,7 @@ async function getSettingsFromFile(): Promise<AdminSettings> {
       topProductsCount: normalizeTopProductsCount(
         stored.topProductsCount ?? DEFAULT_TOP_PRODUCTS_COUNT
       ),
+      requireAdmin2fa: stored.requireAdmin2fa !== false,
       orderEmailTemplates: normalizeOrderEmailTemplates(
         stored.orderEmailTemplates
       ),
@@ -635,18 +636,12 @@ async function getSettingsFromFile(): Promise<AdminSettings> {
     loyaltyPointsExpiryMonths: DEFAULT_LOYALTY_EXPIRY_MONTHS,
     showTopProductsOnHomepage: DEFAULT_SHOW_TOP_PRODUCTS_ON_HOMEPAGE,
     topProductsCount: DEFAULT_TOP_PRODUCTS_COUNT,
+    requireAdmin2fa: true,
     orderEmailTemplates: normalizeOrderEmailTemplates(undefined),
     orderEmailLayout: normalizeOrderEmailLayout(undefined),
     updatedAt: new Date().toISOString(),
   }
-  try {
-    await writeJsonFile(SETTINGS_FILE, defaults)
-  } catch (error) {
-    console.warn(
-      "Dateispeicher: settings.json konnte nicht angelegt werden — Defaults werden nur im Speicher verwendet.",
-      error
-    )
-  }
+  // Fehlende settings.json: Defaults nur im Speicher — kein Auto-Write bei Restart.
   return defaults
 }
 
@@ -679,6 +674,7 @@ export async function saveSettings(input: {
   loyaltyPointsExpiryMonths?: number
   showTopProductsOnHomepage?: boolean
   topProductsCount?: number
+  requireAdmin2fa?: boolean
   orderEmailTemplates?: {
     receivedIntro?: string
     receivedFooter?: string
@@ -785,6 +781,10 @@ export async function saveSettings(input: {
         : normalizeTopProductsCount(
             current.topProductsCount ?? DEFAULT_TOP_PRODUCTS_COUNT
           ),
+    requireAdmin2fa:
+      input.requireAdmin2fa !== undefined
+        ? input.requireAdmin2fa !== false
+        : current.requireAdmin2fa !== false,
     orderEmailTemplates:
       input.orderEmailTemplates !== undefined
         ? normalizeOrderEmailTemplates({

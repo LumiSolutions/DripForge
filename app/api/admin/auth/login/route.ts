@@ -53,7 +53,7 @@ export async function POST(request: Request) {
       )
     }
 
-    return staffLoginAfterPassword(account, intent)
+    return await staffLoginAfterPassword(account, intent)
   } catch (error) {
     console.error("Admin-Auth: Login fehlgeschlagen.", error)
     return NextResponse.json({ error: "Login fehlgeschlagen." }, { status: 500 })

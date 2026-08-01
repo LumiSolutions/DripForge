@@ -76,6 +76,31 @@ export type Product = {
   createdAt?: string
   /** Zugewiesene Produkt-Tag-IDs (Shop-Filter) */
   tags?: string[]
+  /**
+   * Anzeigeform der Produktbilder im Shop-Grid:
+   * rounded = abgerundete Ecken (Standard), square = scharfe Kanten, circle = rund
+   */
+  imageShape?: "rounded" | "square" | "circle"
+}
+
+export type ProductImageShape = NonNullable<Product["imageShape"]>
+
+export function normalizeProductImageShape(
+  value: unknown
+): ProductImageShape {
+  if (value === "square" || value === "circle" || value === "rounded") return value
+  return "rounded"
+}
+
+export function productImageShapeClass(shape?: ProductImageShape | null): string {
+  switch (normalizeProductImageShape(shape)) {
+    case "square":
+      return "rounded-none"
+    case "circle":
+      return "rounded-full"
+    default:
+      return "rounded-xl"
+  }
 }
 
 export type LayoutPosition = {

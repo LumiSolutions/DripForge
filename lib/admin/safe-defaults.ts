@@ -51,6 +51,7 @@ export function buildDefaultAdminSettings(): AdminSettings {
     loyaltyPointsExpiryMonths: DEFAULT_LOYALTY_EXPIRY_MONTHS,
     showTopProductsOnHomepage: DEFAULT_SHOW_TOP_PRODUCTS_ON_HOMEPAGE,
     topProductsCount: DEFAULT_TOP_PRODUCTS_COUNT,
+    requireAdmin2fa: true,
     orderEmailTemplates: { ...DEFAULT_ORDER_EMAIL_TEMPLATES },
     orderEmailLayout: {
       ...DEFAULT_ORDER_EMAIL_LAYOUT,

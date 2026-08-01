@@ -6,7 +6,10 @@ import { SafeProductImage } from "@/components/dripforge/shared/safe-product-ima
 import { ProductShopPrice } from "@/components/dripforge/shared/product-shop-price"
 import { WishlistButton } from "@/components/konto/wishlist-button"
 import { getSaleBadgePercent } from "@/lib/dripforge/product-sale"
-import type { Product } from "@/lib/dripforge/types"
+import {
+  productImageShapeClass,
+  type Product,
+} from "@/lib/dripforge/types"
 import { cn } from "@/lib/utils"
 
 export type ShopCardSurface = "brand" | "neutral"
@@ -104,7 +107,12 @@ export function ShopProductCard({
                 -{salePercent}%
               </span>
             )}
-            <div className="relative h-full w-full overflow-hidden rounded-lg">
+            <div
+              className={cn(
+                "relative h-full w-full overflow-hidden",
+                productImageShapeClass(product.imageShape)
+              )}
+            >
               <SafeProductImage
                 src={coverSrc}
                 alt={product.name}
@@ -180,7 +188,12 @@ export function ShopProductCard({
           canInlineEdit && "pointer-events-none select-none"
         )}
       >
-        <div className="relative h-full w-full overflow-hidden rounded-xl">
+        <div
+          className={cn(
+            "relative h-full w-full overflow-hidden",
+            productImageShapeClass(product.imageShape)
+          )}
+        >
           <SafeProductImage
             src={coverSrc}
             alt={product.name}
