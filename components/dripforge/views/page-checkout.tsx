@@ -738,47 +738,71 @@ export function PageCheckout({
       return
     }
 
-    if (activePaymentMethod === "card" && stripeConfigured) {
-      const stripeResult = await startStripeCheckout(orderPayload)
-      setIsSubmitting(false)
-      if (!stripeResult.ok) {
-        setSubmitError(stripeResult.error)
+    try {
+      if (activePaymentMethod === "card" && stripeConfigured) {
+        const stripeResult = await startStripeCheckout(orderPayload)
+        if (!stripeResult.ok) {
+          console.error("Stripe Checkout Error:", stripeResult.error)
+          setIsSubmitting(false)
+          setSubmitError(stripeResult.error)
+          return
+        }
+        if (!stripeResult.url) {
+          console.error("Stripe Checkout Error:", "API ohne url")
+          setIsSubmitting(false)
+          setSubmitError(
+            "Stripe Checkout lieferte keine Weiterleitungs-URL. Bitte erneut versuchen."
+          )
+          return
+        }
+
+        // Zuerst redirecten — clearCart darf den Stripe-Redirect nie blockieren
+        const checkoutUrl = stripeResult.url
+        console.info("[Checkout] Redirect zu Stripe:", checkoutUrl.slice(0, 64) + "…")
+        void clearCart().catch((err) => {
+          console.warn("Checkout: Warenkorb vor Redirect nicht geleert.", err)
+        })
+        window.location.assign(checkoutUrl)
         return
       }
-      // Warenkorb vor Stripe-Redirect leeren (Erfolgsseite als Fallback zusätzlich)
-      await clearCart()
-      window.location.href = stripeResult.url
-      return
-    }
 
-    if (activePaymentMethod === "card" && !stripeConfigured) {
+      if (activePaymentMethod === "card" && !stripeConfigured) {
+        setIsSubmitting(false)
+        setSubmitError(
+          "Kreditkartenzahlung ist derzeit nicht verfügbar (Stripe nicht konfiguriert). Prüfe STRIPE_SECRET_KEY in Azure."
+        )
+        return
+      }
+
+      if (activePaymentMethod === "twint" && !twintPaymentLinkConfigured) {
+        setIsSubmitting(false)
+        setSubmitError(
+          "TWINT-Zahlungslink ist derzeit nicht verfügbar. Bitte eine andere Zahlungsart wählen."
+        )
+        return
+      }
+
+      const result = await submitOrder(orderPayload)
+      setIsSubmitting(false)
+
+      if (!result.ok) {
+        setSubmitError(result.error)
+        return
+      }
+
+      const orderId = result.data.orderId
+      onOrderComplete?.(orderId)
+      setSuccessPaymentMethod(activePaymentMethod)
+      setSuccessOrderId(orderId)
+    } catch (error) {
+      console.error("Stripe Checkout Error:", error)
       setIsSubmitting(false)
       setSubmitError(
-        "Kreditkartenzahlung ist derzeit nicht verfügbar (Stripe nicht konfiguriert)."
+        error instanceof Error
+          ? error.message
+          : "Checkout fehlgeschlagen. Bitte erneut versuchen."
       )
-      return
     }
-
-    if (activePaymentMethod === "twint" && !twintPaymentLinkConfigured) {
-      setIsSubmitting(false)
-      setSubmitError(
-        "TWINT-Zahlungslink ist derzeit nicht verfügbar. Bitte eine andere Zahlungsart wählen."
-      )
-      return
-    }
-
-    const result = await submitOrder(orderPayload)
-    setIsSubmitting(false)
-
-    if (!result.ok) {
-      setSubmitError(result.error)
-      return
-    }
-
-    const orderId = result.data.orderId
-    onOrderComplete?.(orderId)
-    setSuccessPaymentMethod(activePaymentMethod)
-    setSuccessOrderId(orderId)
   }
 
   if (successOrderId) {
@@ -1536,9 +1560,12 @@ export function PageCheckout({
               </Button>
 
               {submitError && (
-                <p className="mt-3 text-center text-sm font-medium text-red-500">
+                <div
+                  role="alert"
+                  className="mt-3 rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-3 text-center text-sm font-medium text-red-700 dark:text-red-300"
+                >
                   {submitError}
-                </p>
+                </div>
               )}
 
               <p className="mt-3 text-center text-xs leading-relaxed text-muted-foreground">
