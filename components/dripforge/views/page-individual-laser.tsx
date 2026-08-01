@@ -422,9 +422,9 @@ export function PageIndividualLaser({
           </CardContent>
         </Card>
 
-        <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2 xl:grid-cols-3 xl:gap-8">
+        <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2 xl:grid-cols-12 xl:gap-8">
           {/* Spalte 1: Produkt hochladen + Live-Vorschau / Werkzeuge */}
-          <div className="flex min-w-0 flex-col gap-6">
+          <div className="flex min-w-0 flex-col gap-6 xl:col-span-5">
             <div className="flex flex-wrap items-center gap-2">
               <input
                 ref={productFileInputRef}
@@ -468,7 +468,7 @@ export function PageIndividualLaser({
           </div>
 
           {/* Spalte 2: Text-Layer, Masse, Material */}
-          <div className="flex min-w-0 flex-col gap-6">
+          <div className="flex min-w-0 flex-col gap-6 xl:col-span-3">
             <LaserDesignerStudio
               column="settings"
               material={previewMaterial}
@@ -629,7 +629,7 @@ export function PageIndividualLaser({
           </div>
 
           {/* Spalte 3: Menge, Preiskategorie, Kontakt, Anfrage */}
-          <div className="flex min-w-0 flex-col gap-6 lg:col-span-2 xl:col-span-1">
+          <div className="flex min-w-0 flex-col gap-6 lg:col-span-2 xl:col-span-4">
             <Card className="rounded-2xl border border-sky-200/80 bg-sky-50 shadow-sm dark:border-cyan-500/25 dark:bg-gradient-to-b dark:from-cyan-500/10 dark:via-sky-950/20">
               <CardContent className="flex flex-col gap-4 p-6">
                 <div>

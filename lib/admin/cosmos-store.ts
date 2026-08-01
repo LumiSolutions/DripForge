@@ -57,6 +57,10 @@ import {
   normalizeTopProductsCount,
 } from "@/lib/dripforge/top-products-settings"
 import {
+  normalizeWishlistIcon,
+  normalizeWishlistIconCustomUrl,
+} from "@/lib/dripforge/wishlist-icon-settings"
+import {
   buildCustomerFromOrder,
   mergeOrderIntoCustomer,
   normalizeCustomerEmail,
@@ -464,6 +468,10 @@ export async function cosmosGetSettings(): Promise<AdminSettings> {
           resource.topProductsCount ?? DEFAULT_TOP_PRODUCTS_COUNT
         ),
         requireAdmin2fa: resource.requireAdmin2fa !== false,
+        wishlistIcon: normalizeWishlistIcon(resource.wishlistIcon),
+        wishlistIconCustomUrl: normalizeWishlistIconCustomUrl(
+          resource.wishlistIconCustomUrl
+        ),
         orderEmailTemplates: normalizeOrderEmailTemplates(
           resource.orderEmailTemplates
         ),

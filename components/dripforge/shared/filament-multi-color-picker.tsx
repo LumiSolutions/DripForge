@@ -316,7 +316,7 @@ export function FilamentMultiColorPicker({
             {currentMaterial?.colors?.filter((c) => c.inStock).length ?? 0} Farben auf
             Lager
           </p>
-          <div className="grid grid-cols-4 gap-2 sm:grid-cols-5">
+          <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 sm:gap-4 md:grid-cols-5">
             {(currentMaterial?.colors ?? []).map((color) => {
               const inSelection = currentSlots?.some((c) => c.colorId === color.id)
               return (
@@ -326,7 +326,7 @@ export function FilamentMultiColorPicker({
                   disabled={!color.inStock}
                   onClick={() => assignColor(color)}
                   className={cn(
-                    "relative flex flex-col items-center gap-1 rounded-lg border p-1.5 transition-all",
+                    "relative flex min-h-[5.5rem] flex-col items-center gap-2 rounded-xl border p-2.5 transition-all",
                     inSelection
                       ? "border-primary bg-primary/10"
                       : "border-border/50 hover:border-primary/40",
@@ -334,7 +334,7 @@ export function FilamentMultiColorPicker({
                   )}
                 >
                   {color.image ? (
-                    <div className="relative h-9 w-9">
+                    <div className="relative h-12 w-12 shrink-0 sm:h-14 sm:w-14">
                       <Image
                         src={color.image}
                         alt={color.name}
@@ -344,14 +344,12 @@ export function FilamentMultiColorPicker({
                     </div>
                   ) : (
                     <div
-                      className="h-9 w-9 rounded-full border border-border/50"
+                      className="h-12 w-12 shrink-0 rounded-full border border-border/50 sm:h-14 sm:w-14"
                       style={{ backgroundColor: color.hex }}
                     />
                   )}
-                  <span className="text-[10px] leading-tight text-muted-foreground">
-                    {color.name.length > 7
-                      ? `${color.name.slice(0, 6)}.`
-                      : color.name}
+                  <span className="w-full break-words text-center text-[11px] font-medium leading-snug text-muted-foreground line-clamp-2 sm:text-xs">
+                    {color.name}
                   </span>
                   {inSelection && (
                     <CheckCircle2 className="absolute -right-0.5 -top-0.5 h-3.5 w-3.5 text-primary" />

@@ -21,6 +21,8 @@ export async function POST(request: Request) {
     const body = (await request.json()) as {
       name?: string
       email?: string
+      phone?: string
+      telefon?: string
       company?: string
       inquiryType?: string
       subject?: string
@@ -30,6 +32,7 @@ export async function POST(request: Request) {
 
     const name = body.name?.trim() ?? ""
     const email = body.email?.trim() ?? ""
+    const phone = (body.phone ?? body.telefon)?.trim() ?? ""
     const company = body.company?.trim() ?? ""
     const subject = body.subject?.trim() ?? ""
     const message = body.message?.trim() ?? ""
@@ -83,11 +86,13 @@ export async function POST(request: Request) {
       {
         name,
         email,
+        phone: phone || undefined,
         company: company || undefined,
         inquiryType,
         subject,
         message,
         extraFields,
+        status: "offen",
       },
       createKontaktanfrageId()
     )

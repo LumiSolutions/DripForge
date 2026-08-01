@@ -1,8 +1,15 @@
 "use client"
 
 import { useCallback, useEffect, useState, type MouseEvent } from "react"
-import { Heart, Loader2 } from "lucide-react"
+import { Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import {
+  DEFAULT_WISHLIST_ICON,
+  normalizeWishlistIcon,
+  normalizeWishlistIconCustomUrl,
+  WISHLIST_ICON_GLYPHS,
+  type WishlistIconPreset,
+} from "@/lib/dripforge/wishlist-icon-settings"
 
 type WishlistButtonProps = {
   productId: string
@@ -19,6 +26,8 @@ export function WishlistButton({
   const [loggedIn, setLoggedIn] = useState(false)
   const [busy, setBusy] = useState(false)
   const [ready, setReady] = useState(false)
+  const [icon, setIcon] = useState<WishlistIconPreset>(DEFAULT_WISHLIST_ICON)
+  const [customUrl, setCustomUrl] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
     try {
@@ -55,6 +64,19 @@ export function WishlistButton({
     void refresh()
   }, [refresh])
 
+  useEffect(() => {
+    void fetch("/api/settings/wishlist-icon", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!data) return
+        setIcon(normalizeWishlistIcon(data.wishlistIcon))
+        setCustomUrl(normalizeWishlistIconCustomUrl(data.wishlistIconCustomUrl))
+      })
+      .catch(() => {
+        /* defaults */
+      })
+  }, [])
+
   const toggle = async (event: MouseEvent) => {
     event.preventDefault()
     event.stopPropagation()
@@ -87,6 +109,34 @@ export function WishlistButton({
 
   if (!ready) return null
 
+  const glyphSize = size === "sm" ? "text-sm" : "text-base"
+  const presetGlyphKey: Exclude<WishlistIconPreset, "custom"> =
+    icon === "heart" || icon === "bookmark" || icon === "fire" ? icon : "star"
+  const iconNode =
+    icon === "custom" && customUrl ? (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={customUrl}
+        alt=""
+        className={cn(
+          size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4",
+          active && "opacity-100",
+          !active && "opacity-80"
+        )}
+      />
+    ) : (
+      <span
+        className={cn(
+          "leading-none",
+          glyphSize,
+          active ? "text-primary" : "text-muted-foreground"
+        )}
+        aria-hidden
+      >
+        {WISHLIST_ICON_GLYPHS[presetGlyphKey]}
+      </span>
+    )
+
   return (
     <button
       type="button"
@@ -108,9 +158,7 @@ export function WishlistButton({
       {busy ? (
         <Loader2 className={cn("animate-spin", size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4")} />
       ) : (
-        <Heart
-          className={cn(size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4", active && "fill-current")}
-        />
+        iconNode
       )}
     </button>
   )

@@ -601,8 +601,8 @@ export function PageShop({
           {detailProduct.type === "laser" && shopLaserMaterial && laserDesign ? (
             <div className="space-y-6">
               <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-12 xl:gap-6">
-                {/* Spalte 1: Galerie / Settings */}
-                <div className="order-1 flex min-w-0 max-w-full flex-col gap-4 xl:col-span-4">
+                {/* Spalte 1: Galerie / Text / Settings */}
+                <div className="order-1 flex min-w-0 max-w-full flex-col gap-4 xl:col-span-3">
                   <ProductImageGallery
                     images={galleryImages}
                     alt={detailProduct.name}
@@ -654,8 +654,29 @@ export function PageShop({
                   />
                 </div>
 
-                {/* Spalte 2: Preis / Varianten / Warenkorb — auf Mobile unter der Vorschau */}
+                {/* Spalte 2: Desktop Variante → Preis/Warenkorb; mobil unter Vorschau */}
                 <div className="order-3 flex min-w-0 max-w-full flex-col gap-4 xl:order-2 xl:col-span-4 xl:sticky xl:top-[calc(var(--header-height,4rem)+1rem)]">
+                  {/* Desktop: Variante direkt über Preis */}
+                  {shopProductVarianten.length > 0 && (
+                    <div className="hidden xl:block">
+                      <LaserDesignerStudio
+                        column="settings"
+                        material={shopLaserMaterial}
+                        productName={detailProduct.name}
+                        state={laserDesign}
+                        varianten={shopProductVarianten}
+                        showMaterialCard={false}
+                        showVariantPicker
+                        showTextLayers={false}
+                        onStateChange={(patch) =>
+                          setLaserDesign((prev) =>
+                            prev ? { ...prev, ...patch } : prev
+                          )
+                        }
+                      />
+                    </div>
+                  )}
+
                   <Card className="rounded-2xl border-2 border-primary/25 bg-card/80 shadow-md shadow-primary/5">
                     <CardContent className="space-y-4 p-4 sm:p-5">
                       <div className="flex flex-col gap-1">
@@ -705,31 +726,10 @@ export function PageShop({
                       </Button>
                     </CardContent>
                   </Card>
-
-                  {/* Desktop: Varianten unter Preis/Warenkorb */}
-                  {shopProductVarianten.length > 0 && (
-                    <div className="hidden xl:block">
-                      <LaserDesignerStudio
-                        column="settings"
-                        material={shopLaserMaterial}
-                        productName={detailProduct.name}
-                        state={laserDesign}
-                        varianten={shopProductVarianten}
-                        showMaterialCard={false}
-                        showVariantPicker
-                        showTextLayers={false}
-                        onStateChange={(patch) =>
-                          setLaserDesign((prev) =>
-                            prev ? { ...prev, ...patch } : prev
-                          )
-                        }
-                      />
-                    </div>
-                  )}
                 </div>
 
-                {/* Spalte 3: Live-Vorschau — mobil Varianten darüber */}
-                <div className="order-2 flex min-w-0 max-w-full flex-col gap-4 xl:order-3 xl:col-span-4 xl:sticky xl:top-[calc(var(--header-height,4rem)+1rem)]">
+                {/* Spalte 3: Live-Vorschau (Desktop breiter/quadratisch) — mobil Varianten darüber */}
+                <div className="order-2 flex min-w-0 max-w-full flex-col gap-4 xl:order-3 xl:col-span-5 xl:sticky xl:top-[calc(var(--header-height,4rem)+1rem)]">
                   {shopProductVarianten.length > 0 && (
                     <div className="xl:hidden">
                       <LaserDesignerStudio
@@ -749,44 +749,27 @@ export function PageShop({
                       />
                     </div>
                   )}
-                  <LaserDesignerStudio
-                    column="preview"
-                    material={shopLaserMaterial}
-                    productName={detailProduct.name}
-                    state={laserDesign}
-                    customizationBackgroundUrl={customizationBackgroundUrl}
-                    previewSurfaceRef={laserPreviewRef}
-                    onStateChange={(patch) =>
-                      setLaserDesign((prev) =>
-                        prev ? { ...prev, ...patch } : prev
-                      )
-                    }
-                  />
+                  <div className="xl:min-h-[32rem]">
+                    <LaserDesignerStudio
+                      column="preview"
+                      material={shopLaserMaterial}
+                      productName={detailProduct.name}
+                      state={laserDesign}
+                      customizationBackgroundUrl={customizationBackgroundUrl}
+                      previewSurfaceRef={laserPreviewRef}
+                      onStateChange={(patch) =>
+                        setLaserDesign((prev) =>
+                          prev ? { ...prev, ...patch } : prev
+                        )
+                      }
+                    />
+                  </div>
                 </div>
               </div>
             </div>
           ) : (
                 <>
-                  <header className="mx-auto mb-8 max-w-2xl text-center">
-                    <div className="mb-4 flex flex-wrap items-center justify-center gap-2">
-                      <Badge className="border border-cyan-600/30 bg-cyan-600/15 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-cyan-800 shadow-sm dark:text-cyan-200">
-                        3D-Druck
-                      </Badge>
-                      {detailProduct.sale && (
-                        <Badge className="bg-red-500 text-white hover:bg-red-500">
-                          Rabatt
-                        </Badge>
-                      )}
-                    </div>
-                    <h1 className="text-2xl font-bold text-slate-900 lg:text-3xl dark:text-slate-50">
-                      {detailProduct.name}
-                    </h1>
-                    <p className="mt-3 text-base leading-relaxed text-muted-foreground">
-                      {detailProduct.description}
-                    </p>
-                  </header>
-
-                  <div className="grid grid-cols-1 items-start gap-12 lg:grid-cols-2">
+                  <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-2 lg:gap-12">
                     <div className="flex min-w-0 flex-col gap-6">
                       <ProductImageGallery
                         images={galleryImages}
@@ -807,6 +790,27 @@ export function PageShop({
                     </div>
 
                     <div className="flex min-w-0 flex-col gap-6 lg:min-h-[640px]">
+                      <Card className="rounded-2xl border-border/50 bg-card/50 shadow-sm">
+                        <CardContent className="p-4 sm:p-5">
+                          <div className="mb-2 flex flex-wrap items-center gap-2">
+                            <Badge className="border border-cyan-600/30 bg-cyan-600/15 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-cyan-800 shadow-sm dark:text-cyan-200">
+                              3D-Druck
+                            </Badge>
+                            {detailProduct.sale && (
+                              <Badge className="bg-red-500 text-white hover:bg-red-500">
+                                Rabatt
+                              </Badge>
+                            )}
+                          </div>
+                          <h1 className="text-xl font-bold sm:text-2xl lg:text-3xl">
+                            {detailProduct.name}
+                          </h1>
+                          <p className="mt-2 text-sm leading-relaxed text-muted-foreground sm:text-base">
+                            {detailProduct.description}
+                          </p>
+                        </CardContent>
+                      </Card>
+
                       <FilamentColorPicker
                         materials={filamentMaterials}
                         activeTab={filamentTab}

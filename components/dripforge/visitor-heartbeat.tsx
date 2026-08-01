@@ -1,0 +1,50 @@
+"use client"
+
+import { useEffect } from "react"
+import { usePathname } from "next/navigation"
+
+const STORAGE_KEY = "df-visitor-session"
+const INTERVAL_MS = 45_000
+
+export function VisitorHeartbeat() {
+  const pathname = usePathname()
+
+  useEffect(() => {
+    let cancelled = false
+
+    const beat = async () => {
+      if (cancelled) return
+      try {
+        const sessionId =
+          typeof window !== "undefined"
+            ? window.sessionStorage.getItem(STORAGE_KEY)
+            : null
+        const res = await fetch("/api/analytics/heartbeat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sessionId,
+            path: pathname || "/",
+          }),
+          keepalive: true,
+        })
+        if (!res.ok) return
+        const data = (await res.json()) as { sessionId?: string | null }
+        if (data.sessionId && typeof window !== "undefined") {
+          window.sessionStorage.setItem(STORAGE_KEY, data.sessionId)
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+
+    void beat()
+    const id = window.setInterval(() => void beat(), INTERVAL_MS)
+    return () => {
+      cancelled = true
+      window.clearInterval(id)
+    }
+  }, [pathname])
+
+  return null
+}

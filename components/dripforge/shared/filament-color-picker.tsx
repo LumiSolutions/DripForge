@@ -184,7 +184,7 @@ export function FilamentColorPicker({
           <p className="mb-4 text-sm font-medium text-muted-foreground">
             {currentMaterial.colors.filter((c) => c.inStock).length} von {currentMaterial.colors.length} Farben verfügbar
           </p>
-          <div className="grid grid-cols-4 gap-2 sm:grid-cols-5 md:grid-cols-6">
+          <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 sm:gap-4 md:grid-cols-5 lg:grid-cols-6">
             {currentMaterial.colors.map((color) => {
               const isSelected = selectedColors[activeTab] === color.id
               return (
@@ -193,13 +193,13 @@ export function FilamentColorPicker({
                   onClick={() => color.inStock && setSelectedColors((prev) => ({ ...prev, [activeTab]: color.id }))}
                   disabled={!color.inStock}
                   className={cn(
-                    "group relative flex flex-col items-center gap-1 rounded-lg border p-1.5 transition-all duration-200",
+                    "group relative flex min-h-[5.5rem] flex-col items-center gap-2 rounded-xl border p-2.5 transition-all duration-200",
                     isSelected ? "border-primary bg-primary/10 shadow-md shadow-primary/20" : "border-border/50 bg-card/50 hover:border-primary/40 hover:bg-secondary/50",
                     !color.inStock && "cursor-not-allowed opacity-40"
                   )}
                 >
                   {(color.printedExample ?? color.image) ? (
-                    <div className="relative h-10 w-10">
+                    <div className="relative h-12 w-12 shrink-0 sm:h-14 sm:w-14">
                       <Image
                         src={(color.printedExample ?? color.image)!}
                         alt={color.name}
@@ -209,12 +209,17 @@ export function FilamentColorPicker({
                     </div>
                   ) : (
                     <div
-                      className="h-10 w-10 rounded-full border border-border/50 transition-transform duration-200 group-hover:scale-110"
+                      className="h-12 w-12 shrink-0 rounded-full border border-border/50 transition-transform duration-200 group-hover:scale-110 sm:h-14 sm:w-14"
                       style={{ backgroundColor: color.hex }}
                     />
                   )}
-                  <span className={cn("text-xs leading-tight text-center", isSelected ? "font-semibold text-primary" : "text-muted-foreground")}>
-                    {color.name.length > 6 ? color.name.slice(0, 5) + "." : color.name}
+                  <span
+                    className={cn(
+                      "w-full break-words text-center text-[11px] leading-snug line-clamp-2 sm:text-xs",
+                      isSelected ? "font-semibold text-primary" : "font-medium text-muted-foreground"
+                    )}
+                  >
+                    {color.name}
                   </span>
                   {isSelected && (
                     <span className="absolute -right-1 -top-1 flex h-3 w-3 items-center justify-center rounded-full bg-primary">
@@ -222,7 +227,7 @@ export function FilamentColorPicker({
                     </span>
                   )}
                   {!color.inStock && (
-                    <span className="absolute inset-0 flex items-center justify-center rounded-lg bg-background/40">
+                    <span className="absolute inset-0 flex items-center justify-center rounded-xl bg-background/40">
                       <X className="h-3 w-3 text-muted-foreground" />
                     </span>
                   )}

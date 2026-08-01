@@ -1,4 +1,5 @@
 import type { Product, ProductDimensionsMm } from "@/lib/dripforge/types"
+import { normalizeProductImageShape } from "@/lib/dripforge/types"
 import { PRODUCT_DOC_TYPE } from "@/lib/cosmos/products-container"
 import { normalizeProductTagIds } from "@/lib/admin/product-tags"
 
@@ -195,6 +196,11 @@ export function normalizeShopProduct(
           ? source.createdAt.trim()
           : undefined,
       tags: normalizeProductTagIds(source.tags),
+      imageShape: normalizeProductImageShape(source.imageShape),
+      sku:
+        typeof source.sku === "string" && source.sku.trim()
+          ? source.sku.trim()
+          : undefined,
     }
   } catch (error) {
     console.error("Shop: normalizeShopProduct fehlgeschlagen.", error, raw)
