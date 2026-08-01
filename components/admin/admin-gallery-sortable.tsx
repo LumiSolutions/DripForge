@@ -68,7 +68,7 @@ function SortableThumb({
       <button
         type="button"
         onClick={onRemove}
-        className="absolute right-0.5 top-0.5 rounded bg-black/70 p-0.5 text-zinc-200 opacity-0 transition-opacity group-hover:opacity-100"
+        className="absolute right-0.5 top-0.5 z-10 rounded bg-black/80 p-1 text-white shadow-sm ring-1 ring-white/30"
         aria-label="Bild entfernen"
       >
         <X className="h-3 w-3" />

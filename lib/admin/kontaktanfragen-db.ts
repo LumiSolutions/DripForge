@@ -1,12 +1,20 @@
 import { promises as fs } from "fs"
 import path from "path"
 import { withCosmosFallback } from "@/lib/admin/storage-bridge"
-import { cosmosSaveKontaktanfrage } from "@/lib/admin/cosmos-kontaktanfragen"
+import {
+  cosmosGetKontaktanfrageById,
+  cosmosListKontaktanfragen,
+  cosmosSaveKontaktanfrage,
+} from "@/lib/admin/cosmos-kontaktanfragen"
 import {
   createKontaktanfrageId,
+  extractKontaktPhone,
   KONTAKTANFRAGE_DOC_TYPE,
+  normalizeKontaktStatus,
+  normalizeKontaktanfrage,
   type CreateKontaktanfrageInput,
   type Kontaktanfrage,
+  type KontaktStatus,
 } from "@/lib/admin/kontaktanfrage-types"
 
 const DATA_DIR = path.join(process.cwd(), "data", "admin")
@@ -17,7 +25,11 @@ async function readKontaktanfragenFile(): Promise<Kontaktanfrage[]> {
   try {
     const raw = await fs.readFile(filePath, "utf-8")
     const parsed = JSON.parse(raw) as Kontaktanfrage[]
-    return Array.isArray(parsed) ? parsed : []
+    if (!Array.isArray(parsed)) return []
+    return parsed
+      .map((entry) => normalizeKontaktanfrage(entry))
+      .filter((entry): entry is Kontaktanfrage => Boolean(entry))
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
   } catch {
     return []
   }
@@ -44,10 +56,20 @@ export async function createKontaktanfrage(
   id?: string
 ): Promise<Kontaktanfrage> {
   const now = new Date().toISOString()
+  const phone =
+    extractKontaktPhone(input.phone, input.extraFields) ?? undefined
   const anfrage: Kontaktanfrage = {
     id: id ?? createKontaktanfrageId(),
     docType: KONTAKTANFRAGE_DOC_TYPE,
-    ...input,
+    name: input.name,
+    email: input.email,
+    phone,
+    company: input.company,
+    inquiryType: input.inquiryType,
+    subject: input.subject,
+    message: input.message,
+    status: normalizeKontaktStatus(input.status ?? "offen"),
+    extraFields: input.extraFields,
     createdAt: now,
     updatedAt: now,
   }
@@ -56,5 +78,44 @@ export async function createKontaktanfrage(
     "createKontaktanfrage",
     () => cosmosSaveKontaktanfrage(anfrage),
     () => saveKontaktanfrageToFile(anfrage)
+  )
+}
+
+export async function listKontaktanfragen(): Promise<Kontaktanfrage[]> {
+  return withCosmosFallback(
+    "listKontaktanfragen",
+    () => cosmosListKontaktanfragen(),
+    () => readKontaktanfragenFile()
+  )
+}
+
+export async function getKontaktanfrageById(
+  id: string
+): Promise<Kontaktanfrage | null> {
+  return withCosmosFallback(
+    "getKontaktanfrageById",
+    () => cosmosGetKontaktanfrageById(id),
+    async () => {
+      const all = await readKontaktanfragenFile()
+      return all.find((entry) => entry.id === id) ?? null
+    }
+  )
+}
+
+export async function updateKontaktanfrageStatus(
+  id: string,
+  status: KontaktStatus
+): Promise<Kontaktanfrage | null> {
+  const current = await getKontaktanfrageById(id)
+  if (!current) return null
+  const next: Kontaktanfrage = {
+    ...current,
+    status: normalizeKontaktStatus(status),
+    updatedAt: new Date().toISOString(),
+  }
+  return withCosmosFallback(
+    "updateKontaktanfrageStatus",
+    () => cosmosSaveKontaktanfrage(next),
+    () => saveKontaktanfrageToFile(next)
   )
 }

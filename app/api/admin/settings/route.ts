@@ -29,6 +29,10 @@ import {
   normalizeShowTopProductsOnHomepage,
   normalizeTopProductsCount,
 } from "@/lib/dripforge/top-products-settings"
+import {
+  normalizeWishlistIcon,
+  normalizeWishlistIconCustomUrl,
+} from "@/lib/dripforge/wishlist-icon-settings"
 
 export async function GET(request: Request) {
   const auth = requireAdminSession(request)
@@ -70,6 +74,8 @@ export async function PUT(request: Request) {
       showTopProductsOnHomepage?: boolean
       topProductsCount?: number
       requireAdmin2fa?: boolean
+      wishlistIcon?: string
+      wishlistIconCustomUrl?: string | null
       orderEmailTemplates?: {
         receivedIntro?: string
         receivedFooter?: string
@@ -171,6 +177,14 @@ export async function PUT(request: Request) {
       requireAdmin2fa:
         body.requireAdmin2fa !== undefined
           ? body.requireAdmin2fa !== false
+          : undefined,
+      wishlistIcon:
+        body.wishlistIcon !== undefined
+          ? normalizeWishlistIcon(body.wishlistIcon)
+          : undefined,
+      wishlistIconCustomUrl:
+        body.wishlistIconCustomUrl !== undefined
+          ? normalizeWishlistIconCustomUrl(body.wishlistIconCustomUrl)
           : undefined,
       orderEmailTemplates: body.orderEmailTemplates,
       orderEmailLayout: body.orderEmailLayout,

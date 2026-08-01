@@ -2943,7 +2943,7 @@ function LaserDesignerPreview({
           ref={assignPreviewSurfaceRef}
           {...{ [LEITBILD_LASER_PREVIEW_ATTR]: "true" }}
           className={cn(
-            "relative z-0 order-2 mx-auto aspect-square min-h-[min(100%,22rem)] min-w-0 w-full max-w-full flex-1 overflow-hidden rounded-xl border-2 border-cyan-500/25 shadow-inner [contain:layout_paint] sm:min-h-[26rem] lg:min-h-[30rem]",
+            "relative z-0 order-2 mx-auto aspect-square min-h-[min(100%,22rem)] min-w-0 w-full max-w-full flex-1 overflow-hidden rounded-xl border-2 border-cyan-500/25 shadow-inner [contain:layout_paint] sm:min-h-[26rem] lg:min-h-[30rem] xl:min-h-[34rem]",
             CANVAS_TOUCH_LOCK_CLASS,
             canvasStyle.surface
           )}

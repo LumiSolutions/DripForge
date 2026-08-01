@@ -85,6 +85,14 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
+import {
+  DEFAULT_WISHLIST_ICON,
+  normalizeWishlistIcon,
+  normalizeWishlistIconCustomUrl,
+  WISHLIST_ICON_LABELS,
+  WISHLIST_ICON_PRESETS,
+  type WishlistIconPreset,
+} from "@/lib/dripforge/wishlist-icon-settings"
 
 export type AdminSettingsSection =
   | "shop"
@@ -189,8 +197,15 @@ export function AdminSettingsTab({
   )
   const [uploadingThemeTourImage, setUploadingThemeTourImage] = useState(false)
   const [uploadingCountdownHero, setUploadingCountdownHero] = useState(false)
+  const [uploadingWishlistIcon, setUploadingWishlistIcon] = useState(false)
   const themeTourImageInputRef = useRef<HTMLInputElement>(null)
   const countdownHeroInputRef = useRef<HTMLInputElement>(null)
+  const wishlistIconInputRef = useRef<HTMLInputElement>(null)
+  const [wishlistIcon, setWishlistIcon] =
+    useState<WishlistIconPreset>(DEFAULT_WISHLIST_ICON)
+  const [wishlistIconCustomUrl, setWishlistIconCustomUrl] = useState<string | null>(
+    null
+  )
   const [goingLive, setGoingLive] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -259,6 +274,10 @@ export function AdminSettingsTab({
       setOrderEmailLayout(normalizeOrderEmailLayout(data.orderEmailLayout))
       setThemeInboundTourImageUrl(
         normalizeThemeInboundTourImageUrl(data.themeInboundTourImageUrl)
+      )
+      setWishlistIcon(normalizeWishlistIcon(data.wishlistIcon))
+      setWishlistIconCustomUrl(
+        normalizeWishlistIconCustomUrl(data.wishlistIconCustomUrl)
       )
       setManagedCatalog(
         normalizeManagedCatalog(
@@ -335,6 +354,8 @@ export function AdminSettingsTab({
           orderEmailTemplates,
           orderEmailLayout,
           launch,
+          wishlistIcon,
+          wishlistIconCustomUrl,
         }),
       })
       const data = await res.json()
@@ -399,6 +420,10 @@ export function AdminSettingsTab({
       setOrderEmailLayout(normalizeOrderEmailLayout(data.orderEmailLayout))
       setThemeInboundTourImageUrl(
         normalizeThemeInboundTourImageUrl(data.themeInboundTourImageUrl)
+      )
+      setWishlistIcon(normalizeWishlistIcon(data.wishlistIcon))
+      setWishlistIconCustomUrl(
+        normalizeWishlistIconCustomUrl(data.wishlistIconCustomUrl)
       )
       setManagedCatalog(
         normalizeManagedCatalog(
@@ -611,6 +636,147 @@ export function AdminSettingsTab({
                   Website offiziell live schalten
                 </Button>
               )}
+            </CardContent>
+          </Card>
+        )}
+
+        {show("shop") && (
+          <Card className={adminUi.card}>
+            <CardContent className="space-y-4 p-6">
+              <div>
+                <h3 className={cn("text-lg font-bold", adminUi.heading)}>
+                  Favoriten- / Wunschzettel-Symbol
+                </h3>
+                <p className={cn("mt-1 text-sm", adminUi.muted)}>
+                  Wählen Sie das Symbol auf den Produktkarten im Shop. Standard ist der Stern (★).
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+                {WISHLIST_ICON_PRESETS.filter((p) => p !== "custom").map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => setWishlistIcon(preset)}
+                    className={cn(
+                      "flex flex-col items-center gap-1 rounded-xl border px-3 py-3 text-sm transition",
+                      wishlistIcon === preset
+                        ? "border-orange-500 bg-orange-500/10"
+                        : "border-border/60 hover:border-orange-500/40"
+                    )}
+                  >
+                    <span className="text-xl leading-none" aria-hidden>
+                      {preset === "star"
+                        ? "★"
+                        : preset === "heart"
+                          ? "♥"
+                          : preset === "bookmark"
+                            ? "🔖"
+                            : "🔥"}
+                    </span>
+                    <span className={adminUi.muted}>
+                      {WISHLIST_ICON_LABELS[preset].replace(/\s*\(.*\)$/, "")}
+                    </span>
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setWishlistIcon("custom")}
+                  className={cn(
+                    "flex flex-col items-center gap-1 rounded-xl border px-3 py-3 text-sm transition",
+                    wishlistIcon === "custom"
+                      ? "border-orange-500 bg-orange-500/10"
+                      : "border-border/60 hover:border-orange-500/40"
+                  )}
+                >
+                  <span className="text-xl leading-none" aria-hidden>
+                    {wishlistIconCustomUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={wishlistIconCustomUrl}
+                        alt=""
+                        className="mx-auto h-6 w-6 object-contain"
+                      />
+                    ) : (
+                      "SVG"
+                    )}
+                  </span>
+                  <span className={adminUi.muted}>Custom</span>
+                </button>
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <input
+                  ref={wishlistIconInputRef}
+                  type="file"
+                  accept=".svg,image/svg+xml,image/png,image/webp"
+                  className="hidden"
+                  onChange={(event: ChangeEvent<HTMLInputElement>) => {
+                    const file = event.target.files?.[0]
+                    event.target.value = ""
+                    if (!file) return
+                    void (async () => {
+                      setUploadingWishlistIcon(true)
+                      setError(null)
+                      try {
+                        const form = new FormData()
+                        form.append("file", file)
+                        const res = await fetch(
+                          "/api/admin/settings/wishlist-icon",
+                          { method: "POST", body: form }
+                        )
+                        const data = (await res.json()) as {
+                          error?: string
+                          wishlistIcon?: WishlistIconPreset
+                          wishlistIconCustomUrl?: string | null
+                        }
+                        if (!res.ok) {
+                          throw new Error(data.error ?? "Upload fehlgeschlagen")
+                        }
+                        setWishlistIcon(
+                          normalizeWishlistIcon(data.wishlistIcon ?? "custom")
+                        )
+                        setWishlistIconCustomUrl(
+                          normalizeWishlistIconCustomUrl(data.wishlistIconCustomUrl)
+                        )
+                        setSuccess("Custom-Wunschzettel-Symbol hochgeladen.")
+                      } catch (err) {
+                        setError(
+                          err instanceof Error
+                            ? err.message
+                            : "Upload fehlgeschlagen"
+                        )
+                      } finally {
+                        setUploadingWishlistIcon(false)
+                      }
+                    })()
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={uploadingWishlistIcon}
+                  onClick={() => wishlistIconInputRef.current?.click()}
+                  className={adminUi.outlineBtn}
+                >
+                  {uploadingWishlistIcon ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Upload className="mr-2 h-4 w-4" />
+                  )}
+                  Custom-SVG hochladen
+                </Button>
+                {wishlistIconCustomUrl && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => {
+                      setWishlistIconCustomUrl(null)
+                      if (wishlistIcon === "custom") setWishlistIcon(DEFAULT_WISHLIST_ICON)
+                    }}
+                  >
+                    Custom entfernen
+                  </Button>
+                )}
+              </div>
             </CardContent>
           </Card>
         )}

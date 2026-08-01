@@ -2,6 +2,7 @@ import { getSettingsContainer } from "@/lib/cosmos/client"
 import { logCosmosError } from "@/lib/cosmos/log-error"
 import {
   KONTAKTANFRAGE_DOC_TYPE,
+  normalizeKontaktanfrage,
   type Kontaktanfrage,
 } from "@/lib/admin/kontaktanfrage-types"
 
@@ -20,11 +21,30 @@ export async function cosmosGetKontaktanfrageById(
   try {
     const { resource } = await container.item(id, id).read<Kontaktanfrage>()
     if (!resource || resource.docType !== KONTAKTANFRAGE_DOC_TYPE) return null
-    return resource
+    return normalizeKontaktanfrage(resource)
   } catch (error) {
     const code = (error as { code?: number }).code
     if (code === 404) return null
     logCosmosError(`cosmosGetKontaktanfrageById:${id}`, error)
+    throw error
+  }
+}
+
+export async function cosmosListKontaktanfragen(): Promise<Kontaktanfrage[]> {
+  const container = await getSettingsContainer()
+  try {
+    const { resources } = await container.items
+      .query<Kontaktanfrage>({
+        query:
+          "SELECT * FROM c WHERE c.docType = @docType ORDER BY c.createdAt DESC",
+        parameters: [{ name: "@docType", value: KONTAKTANFRAGE_DOC_TYPE }],
+      })
+      .fetchAll()
+    return (resources ?? [])
+      .map((entry) => normalizeKontaktanfrage(entry))
+      .filter((entry): entry is Kontaktanfrage => Boolean(entry))
+  } catch (error) {
+    logCosmosError("cosmosListKontaktanfragen", error)
     throw error
   }
 }

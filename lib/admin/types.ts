@@ -228,6 +228,10 @@ export type AdminSettings = {
   topProductsCount: number
   /** Zwei-Faktor-Authentifizierung für Admin-/Tester-Logins (Env kann erzwingen deaktivieren) */
   requireAdmin2fa: boolean
+  /** Wunschzettel-/Favoriten-Symbol im Shop (Standard: Stern) */
+  wishlistIcon?: "star" | "heart" | "bookmark" | "fire" | "custom"
+  /** Custom-SVG/URL wenn wishlistIcon === "custom" */
+  wishlistIconCustomUrl?: string | null
   /** Bearbeitbare Texte für Bestell-Bestätigungsmails */
   orderEmailTemplates?: {
     receivedIntro: string

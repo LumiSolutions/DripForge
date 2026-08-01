@@ -4,11 +4,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   BarChart3,
   Clock,
+  Globe2,
   Loader2,
+  MapPin,
   RefreshCw,
   Save,
   ShoppingCart,
   TrendingUp,
+  Users,
   Wallet,
 } from "lucide-react"
 import {
@@ -38,6 +41,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import type { AdminAnalytics } from "@/lib/admin/analytics-types"
+import type { VisitorAnalyticsSnapshot } from "@/lib/admin/visitor-sessions"
 import type { AdminSettings } from "@/lib/admin/types"
 import { formatChf } from "@/lib/admin/format-chf"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
@@ -117,6 +121,8 @@ export function AdminStatsTab() {
   const [topProductsSettingsSuccess, setTopProductsSettingsSuccess] = useState<
     string | null
   >(null)
+  const [visitors, setVisitors] = useState<VisitorAnalyticsSnapshot | null>(null)
+  const [visitorsLoading, setVisitorsLoading] = useState(true)
   const settingsSnapshotRef = useRef<AdminSettings | null>(null)
 
   const load = useCallback(async () => {
@@ -216,6 +222,19 @@ export function AdminStatsTab() {
     }
   }, [showTopProductsOnHomepage, topProductsCount])
 
+  const loadVisitors = useCallback(async () => {
+    setVisitorsLoading(true)
+    try {
+      const res = await fetch("/api/admin/visitors", { cache: "no-store" })
+      const json = (await res.json()) as VisitorAnalyticsSnapshot
+      if (res.ok) setVisitors(json)
+    } catch (err) {
+      console.warn("Admin: Besucherstatistik nicht verfügbar.", err)
+    } finally {
+      setVisitorsLoading(false)
+    }
+  }, [])
+
   useEffect(() => {
     void load()
   }, [load])
@@ -223,6 +242,12 @@ export function AdminStatsTab() {
   useEffect(() => {
     void loadTopProductsSettings()
   }, [loadTopProductsSettings])
+
+  useEffect(() => {
+    void loadVisitors()
+    const id = window.setInterval(() => void loadVisitors(), 30_000)
+    return () => window.clearInterval(id)
+  }, [loadVisitors])
 
   const chartData = useMemo(
     () =>
@@ -275,16 +300,98 @@ export function AdminStatsTab() {
         <Button
           type="button"
           variant="outline"
-          onClick={() => void load()}
-          disabled={loading}
+          onClick={() => {
+            void load()
+            void loadVisitors()
+          }}
+          disabled={loading || visitorsLoading}
           className={adminUi.outlineBtn}
         >
-          <RefreshCw className={cn("mr-2 h-4 w-4", loading && "animate-spin")} />
+          <RefreshCw
+            className={cn(
+              "mr-2 h-4 w-4",
+              (loading || visitorsLoading) && "animate-spin"
+            )}
+          />
           Aktualisieren
         </Button>
       </div>
 
       {error && <p className={adminUi.errorLg}>{error}</p>}
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <MetricCard
+          label="Besucher aktuell online"
+          value={visitors ? String(visitors.onlineCount) : visitorsLoading ? "…" : "0"}
+          hint="Aktiv in den letzten 2 Minuten (anonymisiert)"
+          icon={Users}
+        />
+        <MetricCard
+          label="Regionen erfasst"
+          value={visitors ? String(visitors.byRegion.length) : "—"}
+          hint="Land / Kanton / Bundesland"
+          icon={Globe2}
+        />
+        <MetricCard
+          label="Live-Stand"
+          value={
+            visitors?.generatedAt
+              ? new Intl.DateTimeFormat("de-CH", { timeStyle: "medium" }).format(
+                  new Date(visitors.generatedAt)
+                )
+              : "—"
+          }
+          hint="Automatische Aktualisierung alle 30 s"
+          icon={MapPin}
+        />
+      </div>
+
+      <Card className={adminUi.card}>
+        <CardHeader className="pb-2">
+          <CardTitle className={cn("flex items-center gap-2 text-base", adminUi.heading)}>
+            <MapPin className="h-4 w-4 text-orange-500" />
+            Besucher nach Region
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {visitorsLoading && !visitors ? (
+            <p className={cn("flex items-center text-sm", adminUi.muted)}>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Regionen werden geladen…
+            </p>
+          ) : !visitors?.byRegion.length ? (
+            <p className={cn("text-sm", adminUi.muted)}>
+              Noch keine regionalen Aufrufe erfasst. Sobald Besucher den Shop öffnen,
+              erscheinen hier Land und Kanton/Bundesland (Geo-IP, anonymisiert).
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Region</TableHead>
+                    <TableHead>Land</TableHead>
+                    <TableHead className="text-right">Aufrufe</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {visitors.byRegion.map((row) => (
+                    <TableRow
+                      key={`${row.countryCode}-${row.regionCode}-${row.regionLabel}`}
+                    >
+                      <TableCell className="font-medium">{row.regionLabel}</TableCell>
+                      <TableCell>{row.countryCode}</TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {row.count}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {summary && (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

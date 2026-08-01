@@ -24,6 +24,9 @@ import {
   DEFAULT_SUPPORT_FEATURES,
   DEFAULT_SUPPORT_MILESTONES,
 } from "@/lib/dripforge/support-page-settings"
+import {
+  DEFAULT_WISHLIST_ICON,
+} from "@/lib/dripforge/wishlist-icon-settings"
 
 /** Sichere Standard-Einstellungen wenn Cosmos/Datei nicht erreichbar sind. */
 export function buildDefaultAdminSettings(): AdminSettings {
@@ -52,6 +55,8 @@ export function buildDefaultAdminSettings(): AdminSettings {
     showTopProductsOnHomepage: DEFAULT_SHOW_TOP_PRODUCTS_ON_HOMEPAGE,
     topProductsCount: DEFAULT_TOP_PRODUCTS_COUNT,
     requireAdmin2fa: true,
+    wishlistIcon: DEFAULT_WISHLIST_ICON,
+    wishlistIconCustomUrl: null,
     orderEmailTemplates: { ...DEFAULT_ORDER_EMAIL_TEMPLATES },
     orderEmailLayout: {
       ...DEFAULT_ORDER_EMAIL_LAYOUT,

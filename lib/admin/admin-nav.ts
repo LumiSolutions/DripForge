@@ -17,6 +17,7 @@ import {
   Tag,
   Users,
   HeartHandshake,
+  Inbox,
   Layers,
   Wrench,
 } from "lucide-react"
@@ -26,6 +27,7 @@ import { adminPortalPath } from "@/lib/admin/admin-portal-path"
 export type AdminRouteId =
   | "dashboard"
   | "produktionscockpit"
+  | "anfragen"
   | "kundenverwaltung"
   | "belege"
   | "produkte"
@@ -73,6 +75,7 @@ export type AdminNavSection = {
 export const ADMIN_ROUTE_PATHS: Record<AdminRouteId, string> = {
   dashboard: "/dashboard",
   produktionscockpit: "/produktionscockpit",
+  anfragen: "/anfragen",
   kundenverwaltung: "/kundenverwaltung",
   belege: "/belege",
   produkte: "/produkte",
@@ -123,6 +126,12 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
   {
     title: "TAGESGESCHÄFT",
     items: [
+      {
+        id: "anfragen",
+        label: "Kontaktanfragen",
+        href: adminRouteHref("anfragen"),
+        icon: Inbox,
+      },
       {
         id: "kundenverwaltung",
         label: "Kundenverwaltung",

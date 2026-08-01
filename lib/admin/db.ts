@@ -61,6 +61,11 @@ import {
   normalizeTopProductsCount,
 } from "@/lib/dripforge/top-products-settings"
 import {
+  DEFAULT_WISHLIST_ICON,
+  normalizeWishlistIcon,
+  normalizeWishlistIconCustomUrl,
+} from "@/lib/dripforge/wishlist-icon-settings"
+import {
   CosmosDatabaseError,
   withCosmosFallback,
   withCosmosRequired,
@@ -605,6 +610,10 @@ async function getSettingsFromFile(): Promise<AdminSettings> {
         stored.topProductsCount ?? DEFAULT_TOP_PRODUCTS_COUNT
       ),
       requireAdmin2fa: stored.requireAdmin2fa !== false,
+      wishlistIcon: normalizeWishlistIcon(stored.wishlistIcon),
+      wishlistIconCustomUrl: normalizeWishlistIconCustomUrl(
+        stored.wishlistIconCustomUrl
+      ),
       orderEmailTemplates: normalizeOrderEmailTemplates(
         stored.orderEmailTemplates
       ),
@@ -637,6 +646,8 @@ async function getSettingsFromFile(): Promise<AdminSettings> {
     showTopProductsOnHomepage: DEFAULT_SHOW_TOP_PRODUCTS_ON_HOMEPAGE,
     topProductsCount: DEFAULT_TOP_PRODUCTS_COUNT,
     requireAdmin2fa: true,
+    wishlistIcon: DEFAULT_WISHLIST_ICON,
+    wishlistIconCustomUrl: null,
     orderEmailTemplates: normalizeOrderEmailTemplates(undefined),
     orderEmailLayout: normalizeOrderEmailLayout(undefined),
     updatedAt: new Date().toISOString(),
@@ -675,6 +686,8 @@ export async function saveSettings(input: {
   showTopProductsOnHomepage?: boolean
   topProductsCount?: number
   requireAdmin2fa?: boolean
+  wishlistIcon?: AdminSettings["wishlistIcon"]
+  wishlistIconCustomUrl?: string | null
   orderEmailTemplates?: {
     receivedIntro?: string
     receivedFooter?: string
@@ -785,6 +798,14 @@ export async function saveSettings(input: {
       input.requireAdmin2fa !== undefined
         ? input.requireAdmin2fa !== false
         : current.requireAdmin2fa !== false,
+    wishlistIcon:
+      input.wishlistIcon !== undefined
+        ? normalizeWishlistIcon(input.wishlistIcon)
+        : normalizeWishlistIcon(current.wishlistIcon),
+    wishlistIconCustomUrl:
+      input.wishlistIconCustomUrl !== undefined
+        ? normalizeWishlistIconCustomUrl(input.wishlistIconCustomUrl)
+        : normalizeWishlistIconCustomUrl(current.wishlistIconCustomUrl),
     orderEmailTemplates:
       input.orderEmailTemplates !== undefined
         ? normalizeOrderEmailTemplates({
