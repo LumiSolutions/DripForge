@@ -6,6 +6,11 @@ import { CheckCircle2, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { FilamentMaterial } from "@/lib/dripforge/types"
 import { FilamentStatsPanel } from "@/components/dripforge/shared/filament-stats-panel"
+import {
+  FILAMENT_SWATCH_GRID_CLASS,
+  FILAMENT_SWATCH_LABEL_CLASS,
+  FILAMENT_SWATCH_TILE_CLASS,
+} from "@/components/dripforge/shared/filament-swatch-grid"
 
 export type FilamentSelection = {
   materialId: string
@@ -151,8 +156,8 @@ export function FilamentColorPicker({
         </div>
       </div>
 
-      {/* Main display — ein Vorschaubild + Swatch-Grid */}
-      <div className="grid gap-6 lg:grid-cols-[1fr_2fr]">
+      {/* Vorschau oben, Swatch-Grid darunter — verhindert gequetschte Spalten im Shop-Sidebar */}
+      <div className="flex flex-col gap-6">
         <div className="flex flex-col rounded-2xl border border-border/50 bg-card/50 p-4">
           <div className="flex flex-1 flex-col items-center">
             <FilamentImageSlot
@@ -162,14 +167,14 @@ export function FilamentColorPicker({
           </div>
 
           <div className="mt-4 flex items-center justify-between border-t border-border/50 pt-3">
-            <div>
+            <div className="min-w-0">
               <p className="text-xs text-muted-foreground">{currentMaterial.name}</p>
-              <p className="text-base font-bold">
+              <p className="truncate text-base font-bold">
                 {selectedColor?.displayName ?? selectedColor?.name ?? "—"}
               </p>
             </div>
             <span className={cn(
-              "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium",
+              "inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium",
               selectedColor?.inStock ? "bg-green-500/20 text-green-400" : "bg-red-500/20 text-red-400"
             )}>
               {selectedColor?.inStock ? <CheckCircle2 className="h-3 w-3" /> : <X className="h-3 w-3" />}
@@ -179,21 +184,22 @@ export function FilamentColorPicker({
           <FilamentStatsPanel color={selectedColor} />
         </div>
 
-        {/* Right: color swatch grid */}
-        <div className="rounded-2xl border border-border/50 bg-card/50 p-6">
+        <div className="rounded-2xl border border-border/50 bg-card/50 p-4 sm:p-6">
           <p className="mb-4 text-sm font-medium text-muted-foreground">
             {currentMaterial.colors.filter((c) => c.inStock).length} von {currentMaterial.colors.length} Farben verfügbar
           </p>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 sm:gap-5 md:grid-cols-4 lg:grid-cols-5">
+          <div className={FILAMENT_SWATCH_GRID_CLASS}>
             {currentMaterial.colors.map((color) => {
               const isSelected = selectedColors[activeTab] === color.id
               return (
                 <button
                   key={color.id}
+                  type="button"
                   onClick={() => color.inStock && setSelectedColors((prev) => ({ ...prev, [activeTab]: color.id }))}
                   disabled={!color.inStock}
                   className={cn(
-                    "group relative flex min-h-[7rem] flex-col items-center gap-2.5 rounded-xl border p-3.5 transition-all duration-200",
+                    FILAMENT_SWATCH_TILE_CLASS,
+                    "group",
                     isSelected ? "border-primary bg-primary/10 shadow-md shadow-primary/20" : "border-border/50 bg-card/50 hover:border-primary/40 hover:bg-secondary/50",
                     !color.inStock && "cursor-not-allowed opacity-40"
                   )}
@@ -215,8 +221,8 @@ export function FilamentColorPicker({
                   )}
                   <span
                     className={cn(
-                      "w-full break-words text-center text-xs leading-snug sm:text-sm",
-                      isSelected ? "font-semibold text-primary" : "font-medium text-muted-foreground"
+                      FILAMENT_SWATCH_LABEL_CLASS,
+                      isSelected ? "font-semibold text-primary" : "text-muted-foreground"
                     )}
                   >
                     {color.name}

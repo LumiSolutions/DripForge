@@ -5,7 +5,11 @@ import {
 } from "@/lib/admin/require-admin-session"
 import { reorderMaterials } from "@/lib/admin/material-db"
 import { CosmosDatabaseError } from "@/lib/admin/storage-bridge"
-import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
+import {
+  getInventoryContainer,
+  isCosmosConfigured,
+  warmCosmosInfrastructure,
+} from "@/lib/cosmos/client"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -16,6 +20,9 @@ export async function POST(request: Request) {
 
   try {
     await warmCosmosInfrastructure()
+    if (isCosmosConfigured()) {
+      await getInventoryContainer()
+    }
     const body = (await request.json()) as { orderedIds?: string[] }
     const orderedIds = Array.isArray(body.orderedIds)
       ? body.orderedIds.filter((id): id is string => typeof id === "string" && id.trim().length > 0)

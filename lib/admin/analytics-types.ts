@@ -2,6 +2,9 @@ export type OrderAnalyticsRow = {
   orderId: string
   createdAt: string
   status: string
+  /** true = Stripe/TWINT/Rechnung bestätigt bezahlt */
+  paymentConfirmed?: boolean
+  paymentStatus?: "pending" | "paid" | string
   billing?: {
     firstName?: string
     lastName?: string

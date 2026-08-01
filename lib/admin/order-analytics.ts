@@ -30,6 +30,14 @@ function isCancelled(status: string): boolean {
   return status === "storniert"
 }
 
+/** Umsatz nur aus bezahlten Bestellungen (aligniert mit Buchhaltungs-Journal). */
+export function isPaidOrderForRevenue(order: OrderAnalyticsRow): boolean {
+  if (isCancelled(order.status)) return false
+  if (order.paymentConfirmed === true) return true
+  if (order.paymentStatus === "paid") return true
+  return false
+}
+
 function orderTotalChf(order: OrderAnalyticsRow): number {
   const total = Number(order.totals?.total ?? 0)
   return Number.isFinite(total) ? total : 0
@@ -40,6 +48,8 @@ function mapStoredOrderToRow(order: StoredOrder): OrderAnalyticsRow {
     orderId: order.orderId,
     createdAt: order.createdAt,
     status: order.status,
+    paymentConfirmed: order.paymentConfirmed,
+    paymentStatus: order.paymentStatus,
     billing: {
       firstName: order.billing.firstName,
       lastName: order.billing.lastName,
@@ -122,14 +132,15 @@ export function aggregateOrderAnalytics(
   >()
 
   for (const order of orders) {
-    if (OPEN_STATUSES.has(order.status)) {
+    if (OPEN_STATUSES.has(order.status) && !isCancelled(order.status)) {
       openOrderCount += 1
     }
 
     const cancelled = isCancelled(order.status)
+    const countsForRevenue = isPaidOrderForRevenue(order)
     const total = orderTotalChf(order)
 
-    if (!cancelled) {
+    if (countsForRevenue) {
       totalRevenueChf += total
       revenueOrderCount += 1
 
@@ -163,7 +174,7 @@ export function aggregateOrderAnalytics(
       const lineRevenue = Number(item.price) * qty
       const safeRevenue = Number.isFinite(lineRevenue) ? lineRevenue : 0
 
-      if (!cancelled) {
+      if (countsForRevenue) {
         const productKey = item.name?.trim() || "Unbenannt"
         const product = productMap.get(productKey) ?? {
           name: productKey,
@@ -174,6 +185,8 @@ export function aggregateOrderAnalytics(
         product.revenueChf += safeRevenue
         productMap.set(productKey, product)
       }
+
+      if (cancelled || !countsForRevenue) continue
 
       const details = item.customDetails
       if (!details) continue
@@ -228,7 +241,7 @@ export function aggregateOrderAnalytics(
   return {
     summary: {
       totalRevenueChf: Math.round(totalRevenueChf * 100) / 100,
-      // Anzahl ohne Stornierungen (konsistent zu Umsatz / Ø-Bestellwert)
+      // Nur bezahlte Bestellungen (paymentConfirmed / paid) — Storno/Entwurf raus
       orderCount: revenueOrderCount,
       openOrderCount,
       averageOrderValueChf,

@@ -6,6 +6,11 @@ import { CheckCircle2, Plus, Star, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import type { FilamentMaterial } from "@/lib/dripforge/types"
+import {
+  FILAMENT_SWATCH_GRID_CLASS,
+  FILAMENT_SWATCH_LABEL_CLASS,
+  FILAMENT_SWATCH_TILE_CLASS,
+} from "@/components/dripforge/shared/filament-swatch-grid"
 
 export type MultiColorSlot = {
   slot: number
@@ -289,7 +294,7 @@ export function FilamentMultiColorPicker({
         )}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
+      <div className="flex flex-col gap-4">
         <div className="rounded-2xl border border-border/50 bg-card/50 p-4">
           <div className="relative mx-auto h-32 w-full max-w-[200px]">
             {primaryColor ? (
@@ -317,7 +322,7 @@ export function FilamentMultiColorPicker({
             {currentMaterial?.colors?.filter((c) => c.inStock).length ?? 0} Farben auf
             Lager
           </p>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 sm:gap-5 md:grid-cols-4">
+          <div className={FILAMENT_SWATCH_GRID_CLASS}>
             {(currentMaterial?.colors ?? []).map((color) => {
               const inSelection = currentSlots?.some((c) => c.colorId === color.id)
               return (
@@ -327,7 +332,7 @@ export function FilamentMultiColorPicker({
                   disabled={!color.inStock}
                   onClick={() => assignColor(color)}
                   className={cn(
-                    "relative flex min-h-[7rem] flex-col items-center gap-2.5 rounded-xl border p-3.5 transition-all",
+                    FILAMENT_SWATCH_TILE_CLASS,
                     inSelection
                       ? "border-primary bg-primary/10"
                       : "border-border/50 hover:border-primary/40",
@@ -349,7 +354,7 @@ export function FilamentMultiColorPicker({
                       style={{ backgroundColor: color.hex || "#1a1a1a" }}
                     />
                   )}
-                  <span className="w-full break-words text-center text-xs font-medium leading-snug text-muted-foreground sm:text-sm">
+                  <span className={cn(FILAMENT_SWATCH_LABEL_CLASS, "text-muted-foreground")}>
                     {color.name}
                   </span>
                   {inSelection && (
