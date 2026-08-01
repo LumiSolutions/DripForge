@@ -56,6 +56,11 @@ export type Product = {
   gewicht?: number
   /** Varianten-Stichworte (Admin: kommagetrennt, z. B. "Echtleder Braun, Echtleder Schwarz") */
   varianten?: string[]
+  /**
+   * Shop-Varianten mit Preis und optionalem STL-Override (3D).
+   * Ohne modellDateiUrl → Standard-Modell des Produkts.
+   */
+  shopVariants?: ProductShopVariant[]
   /** Verknüpfung zu Rohmaterialien (Lagerverwaltung) */
   materialLinks?: import("@/lib/admin/material-types").ProductMaterialLink[]
   /**
@@ -85,7 +90,45 @@ export type Product = {
   imageShape?: "rounded" | "square" | "circle"
 }
 
+export type ProductShopVariant = {
+  id: string
+  name: string
+  /** Absoluter Preis in CHF; wenn gesetzt, ersetzt den Basispreis */
+  price?: number
+  /** Aufpreis relativ zum Basispreis (wird genutzt wenn price fehlt) */
+  priceDelta?: number
+  /** Optionale STL/GLB für diese Variante (sonst Produkt-Standard) */
+  modellDateiUrl?: string
+}
+
 export type ProductImageShape = NonNullable<Product["imageShape"]>
+
+export function resolveShopVariantUnitPrice(
+  product: Pick<Product, "price" | "shopVariants">,
+  variantId?: string | null
+): number {
+  const base = Number(product.price) || 0
+  if (!variantId || !product.shopVariants?.length) return base
+  const variant = product.shopVariants.find((v) => v.id === variantId)
+  if (!variant) return base
+  if (variant.price != null && Number.isFinite(Number(variant.price))) {
+    return Math.max(0, Number(variant.price))
+  }
+  const delta = Number(variant.priceDelta) || 0
+  return Math.max(0, base + delta)
+}
+
+export function resolveShopVariantModelUrl(
+  product: Pick<Product, "modellDateiUrl" | "modelUrl" | "shopVariants">,
+  variantId?: string | null
+): string | undefined {
+  if (variantId && product.shopVariants?.length) {
+    const variant = product.shopVariants.find((v) => v.id === variantId)
+    const override = variant?.modellDateiUrl?.trim()
+    if (override) return override
+  }
+  return product.modellDateiUrl?.trim() || product.modelUrl?.trim() || undefined
+}
 
 export function normalizeProductImageShape(
   value: unknown
@@ -99,7 +142,19 @@ export function productImageShapeClass(shape?: ProductImageShape | null): string
     case "square":
       return "rounded-none"
     case "circle":
-      return "rounded-full"
+      return "rounded-full aspect-square"
+    default:
+      return "rounded-xl"
+  }
+}
+
+/** Äusserer Medien-Rahmen der Shop-Kachel — Form muss hier greifen, nicht nur innen. */
+export function productImageBayClass(shape?: ProductImageShape | null): string {
+  switch (normalizeProductImageShape(shape)) {
+    case "square":
+      return "rounded-none"
+    case "circle":
+      return "rounded-full aspect-square mx-auto max-w-[85%]"
     default:
       return "rounded-xl"
   }

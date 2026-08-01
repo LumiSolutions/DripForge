@@ -6,6 +6,7 @@ import {
 } from "@/lib/chat/chat-db"
 import { publishChatMessage } from "@/lib/chat/chat-realtime"
 import { sendWhatsAppTextToAdmin } from "@/lib/chat/whatsapp-gateway"
+import { answerFaqBot } from "@/lib/chat/faq-bot"
 
 export const dynamic = "force-dynamic"
 
@@ -15,6 +16,8 @@ export async function POST(request: Request) {
       sessionId?: string
       content?: string
       visitorName?: string
+      path?: string
+      forceHandoff?: boolean
     }
 
     const sessionId = body.sessionId?.trim()
@@ -59,14 +62,32 @@ export async function POST(request: Request) {
 
     publishChatMessage(message)
 
+    const faq = answerFaqBot(content)
+    const handoff = Boolean(body.forceHandoff) || faq.handoffSuggested
+
+    let botMessage = null
+    if (!handoff) {
+      botMessage = await appendChatMessage({
+        sessionId,
+        role: "admin",
+        content: `[Assistent] ${faq.answer}`,
+        source: "web",
+      })
+      if (botMessage) publishChatMessage(botMessage)
+    }
+
     const whatsapp = await sendWhatsAppTextToAdmin(
       sessionId,
       body.visitorName?.trim() || session.visitorName,
-      content
+      handoff
+        ? `[LIVE-HANDOVER${body.path ? ` @ ${body.path}` : ""}] ${content}`
+        : content
     )
 
     return NextResponse.json({
       message,
+      botMessage,
+      handoffSuggested: handoff,
       whatsappDelivered: whatsapp.ok && !whatsapp.skipped,
       whatsappSkipped: Boolean(whatsapp.skipped),
       whatsappError: whatsapp.error,

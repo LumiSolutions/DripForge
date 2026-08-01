@@ -1,5 +1,6 @@
 import type { Product, ProductDimensionsMm } from "@/lib/dripforge/types"
 import { normalizeProductImageShape } from "@/lib/dripforge/types"
+import { normalizeShopVariants } from "@/lib/dripforge/product-shop-variants"
 import { PRODUCT_DOC_TYPE } from "@/lib/cosmos/products-container"
 import { normalizeProductTagIds } from "@/lib/admin/product-tags"
 import { NEUTRAL_PRODUCT_PLACEHOLDER } from "@/lib/dripforge/neutral-placeholder"
@@ -186,6 +187,7 @@ export function normalizeShopProduct(
           ? Number(source.gewicht)
           : undefined,
       varianten: safeVariantenArray(source.varianten),
+      shopVariants: normalizeShopVariants(source.shopVariants),
       istAktiv: source.istAktiv !== false,
       isTopProduct: Boolean(source.isTopProduct),
       individualisierungsBild:

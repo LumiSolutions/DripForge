@@ -529,10 +529,13 @@ export function PageCheckout({
     return Object.keys(next).length === 0
   }
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (methodOverride?: PaymentMethodId) => {
     setSubmitted(true)
     setSubmitError(null)
     if (!validate()) return
+
+    const activePaymentMethod = methodOverride ?? paymentMethod
+    if (methodOverride) setPaymentMethod(methodOverride)
 
     if (
       rewardPointsEnabled &&
@@ -594,7 +597,7 @@ export function PageCheckout({
       billing,
       delivery,
       shippingMethod,
-      paymentMethod,
+      paymentMethod: activePaymentMethod,
       items: checkoutItems,
       couponCode: appliedCouponCode ?? undefined,
       pointsToRedeem: effectivePoints > 0 ? effectivePoints : undefined,
@@ -621,7 +624,7 @@ export function PageCheckout({
     }
 
     // Offizieller TWINT-Zahlungslink: Bestellung pending + Erfolgsseite mit Pay-Button/Redirect
-    if (paymentMethod === "twint" && twintPaymentLinkConfigured) {
+    if (activePaymentMethod === "twint" && twintPaymentLinkConfigured) {
       const twintResult = await startTwintCheckout(orderPayload)
       setIsSubmitting(false)
       if (!twintResult.ok) {
@@ -641,7 +644,7 @@ export function PageCheckout({
       return
     }
 
-    if (paymentMethod === "card" && stripeConfigured) {
+    if (activePaymentMethod === "card" && stripeConfigured) {
       const stripeResult = await startStripeCheckout(orderPayload)
       setIsSubmitting(false)
       if (!stripeResult.ok) {
@@ -654,7 +657,7 @@ export function PageCheckout({
       return
     }
 
-    if (paymentMethod === "card" && !stripeConfigured) {
+    if (activePaymentMethod === "card" && !stripeConfigured) {
       setIsSubmitting(false)
       setSubmitError(
         "Kreditkartenzahlung ist derzeit nicht verfügbar (Stripe nicht konfiguriert)."
@@ -662,7 +665,7 @@ export function PageCheckout({
       return
     }
 
-    if (paymentMethod === "twint" && !twintPaymentLinkConfigured) {
+    if (activePaymentMethod === "twint" && !twintPaymentLinkConfigured) {
       setIsSubmitting(false)
       setSubmitError(
         "TWINT-Zahlungslink ist derzeit nicht verfügbar. Bitte eine andere Zahlungsart wählen."
@@ -680,7 +683,7 @@ export function PageCheckout({
 
     const orderId = result.data.orderId
     onOrderComplete?.(orderId)
-    setSuccessPaymentMethod(paymentMethod)
+    setSuccessPaymentMethod(activePaymentMethod)
     setSuccessOrderId(orderId)
   }
 
@@ -805,33 +808,54 @@ export function PageCheckout({
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                   <button
                     type="button"
-                    disabled
-                    title="Demnächst verfügbar"
-                    className="flex h-11 cursor-not-allowed items-center justify-center rounded-xl border border-border bg-black/60 px-4 text-sm font-semibold text-white/60"
+                    disabled={isSubmitting || !stripeConfigured}
+                    title={
+                      stripeConfigured
+                        ? "Stripe Checkout mit Apple Pay / Wallets"
+                        : "Stripe noch nicht konfiguriert"
+                    }
+                    onClick={() => void handleSubmit("card")}
+                    className={cn(
+                      "flex h-11 items-center justify-center rounded-xl border border-border bg-black px-4 text-sm font-semibold text-white transition-opacity",
+                      (!stripeConfigured || isSubmitting) &&
+                        "cursor-not-allowed opacity-50"
+                    )}
                   >
                     Apple Pay
                   </button>
                   <button
                     type="button"
-                    disabled
-                    title="Demnächst verfügbar"
-                    className="flex h-11 cursor-not-allowed items-center justify-center rounded-xl border border-border bg-white/60 px-4 text-sm font-semibold text-slate-500 shadow-sm dark:bg-background/60"
+                    disabled={isSubmitting || !stripeConfigured}
+                    title={
+                      stripeConfigured
+                        ? "Stripe Checkout mit Google Pay / Karte"
+                        : "Stripe noch nicht konfiguriert"
+                    }
+                    onClick={() => void handleSubmit("card")}
+                    className={cn(
+                      "flex h-11 items-center justify-center rounded-xl border border-border bg-white px-4 text-sm font-semibold text-slate-800 shadow-sm transition-opacity dark:bg-background dark:text-foreground",
+                      (!stripeConfigured || isSubmitting) &&
+                        "cursor-not-allowed opacity-50"
+                    )}
                   >
                     Google Pay
                   </button>
                   <button
                     type="button"
-                    onClick={() => setPaymentMethod("twint")}
+                    disabled={isSubmitting}
+                    onClick={() => void handleSubmit("twint")}
                     className={cn(
                       "flex h-11 items-center justify-center rounded-xl border px-4 text-sm font-bold transition-colors",
-                      "border-cyan-600/40 bg-cyan-500/10 text-cyan-700 hover:bg-cyan-500/20 dark:text-cyan-300"
+                      "border-cyan-600/40 bg-cyan-500/10 text-cyan-700 hover:bg-cyan-500/20 dark:text-cyan-300",
+                      isSubmitting && "cursor-not-allowed opacity-50"
                     )}
                   >
                     TWINT
                   </button>
                 </div>
                 <p className="mt-3 text-center text-xs text-muted-foreground">
-                  oder mit den Angaben unten fortfahren
+                  Adresse unten ausfüllen, dann Express tippen — Apple/Google Pay
+                  erscheinen im Stripe-Checkout sofern verfügbar.
                 </p>
               </CardContent>
             </Card>
@@ -1343,7 +1367,7 @@ export function PageCheckout({
               <Button
                 type="button"
                 size="lg"
-                onClick={handleSubmit}
+                onClick={() => void handleSubmit()}
                 disabled={isSubmitting}
                 className="mt-6 w-full bg-primary text-base font-bold hover:bg-primary/90"
               >

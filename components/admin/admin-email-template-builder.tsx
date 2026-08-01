@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ArrowDown,
   ArrowUp,
@@ -74,10 +74,44 @@ export function AdminEmailTemplateBuilder({
   const [dragIndex, setDragIndex] = useState<number | null>(null)
   const [previewMode, setPreviewMode] = useState<PreviewMode>("desktop")
   const [logoOverride, setLogoOverride] = useState(layout.logoUrl ?? "")
+  const [logoUploading, setLogoUploading] = useState(false)
+  const [logoUploadError, setLogoUploadError] = useState<string | null>(null)
+  const logoFileInputRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => {
     setLogoOverride(layout.logoUrl ?? "")
   }, [layout.logoUrl])
+
+  const uploadEmailLogo = useCallback(
+    async (file: File) => {
+      setLogoUploading(true)
+      setLogoUploadError(null)
+      try {
+        const formData = new FormData()
+        formData.append("file", file)
+        formData.append("productId", "email-logo")
+        formData.append("category", "email-logo")
+        const res = await fetch("/api/admin/upload", {
+          method: "POST",
+          credentials: "include",
+          body: formData,
+        })
+        const data = (await res.json()) as { url?: string; error?: string }
+        if (!res.ok || !data.url) {
+          throw new Error(data.error ?? "Logo-Upload fehlgeschlagen")
+        }
+        setLogoOverride(data.url)
+        onLayoutChange({ ...layout, logoUrl: data.url })
+      } catch (err) {
+        setLogoUploadError(
+          err instanceof Error ? err.message : "Logo-Upload fehlgeschlagen"
+        )
+      } finally {
+        setLogoUploading(false)
+      }
+    },
+    [layout, onLayoutChange]
+  )
 
   const effectiveLogoUrl =
     (layout.logoUrl && layout.logoUrl.trim()) ||
@@ -184,7 +218,7 @@ export function AdminEmailTemplateBuilder({
                 htmlFor="orderEmailLogoUrl"
                 className={cn("text-sm font-semibold", adminUi.heading)}
               >
-                Logo-URL (optionaler Override)
+                E-Mail-Logo (Azure Upload)
               </Label>
               {documentLogoUrl?.trim() ? (
                 <div className="flex items-center gap-3 rounded-lg border border-border/60 bg-muted/30 p-2">
@@ -220,9 +254,60 @@ export function AdminEmailTemplateBuilder({
                 </div>
               ) : (
                 <p className={cn("text-xs", adminUi.muted)}>
-                  Noch kein Dokumenten-Logo hinterlegt — unter «Belege /
-                  Dokumenten-Vorlagen» hochladen.
+                  Noch kein Dokumenten-Logo hinterlegt — Upload unten oder unter
+                  «Belege / Dokumenten-Vorlagen».
                 </p>
+              )}
+              {(layout.logoUrl?.trim() || logoOverride.trim()) && (
+                <div className="flex items-center gap-3 rounded-lg border border-border/60 bg-muted/20 p-2">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={(layout.logoUrl || logoOverride).trim()}
+                    alt="E-Mail-Logo Override"
+                    className="h-10 w-auto max-w-[120px] object-contain"
+                  />
+                  <p className={cn("text-xs", adminUi.muted)}>Override aktiv</p>
+                </div>
+              )}
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className={adminUi.outlineBtn}
+                  disabled={!layout.showLogo || logoUploading}
+                  onClick={() => logoFileInputRef.current?.click()}
+                >
+                  {logoUploading ? "Upload…" : "↑ Logo hochladen"}
+                </Button>
+                <input
+                  ref={logoFileInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                  className="hidden"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0]
+                    event.target.value = ""
+                    if (file) void uploadEmailLogo(file)
+                  }}
+                />
+                {(layout.logoUrl?.trim() ?? "") ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    disabled={!layout.showLogo}
+                    onClick={() => {
+                      setLogoOverride("")
+                      onLayoutChange({ ...layout, logoUrl: "" })
+                    }}
+                  >
+                    Override entfernen
+                  </Button>
+                ) : null}
+              </div>
+              {logoUploadError && (
+                <p className={cn("text-xs", adminUi.error)}>{logoUploadError}</p>
               )}
               <Input
                 id="orderEmailLogoUrl"
@@ -234,14 +319,11 @@ export function AdminEmailTemplateBuilder({
                   onLayoutChange({ ...layout, logoUrl: value })
                 }}
                 className={adminUi.input}
-                placeholder={
-                  documentLogoUrl?.trim() ||
-                  "Leer = Dokumenten-Logo / Standard"
-                }
+                placeholder="Optional: URL manuell (sonst Upload)"
               />
               <p className={cn("text-xs", adminUi.muted)}>
-                Leer lassen, um das Logo aus den Dokumenteneinstellungen zu
-                verwenden.
+                Upload speichert nach Azure Blob; die URL wird automatisch
+                übernommen. Leer = Dokumenten-Logo / Standard.
               </p>
             </div>
 

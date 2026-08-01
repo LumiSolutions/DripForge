@@ -42,10 +42,18 @@ export type VisitorTimeBucket = {
   count: number
 }
 
+export type VisitorLivePage = {
+  sessionId: string
+  path: string
+  regionLabel: string
+  lastSeenAt: string
+}
+
 export type VisitorAnalyticsSnapshot = {
   onlineCount: number
   byRegion: VisitorRegionStat[]
   byCountry: VisitorRegionStat[]
+  livePages: VisitorLivePage[]
   viewsByDay: VisitorTimeBucket[]
   viewsByMonth: VisitorTimeBucket[]
   viewsByYear: VisitorTimeBucket[]
@@ -638,10 +646,21 @@ export async function getVisitorAnalyticsSnapshot(): Promise<VisitorAnalyticsSna
   await writeJsonFile(SESSIONS_FILE, sessions)
   await writeJsonFile(PAGEVIEWS_FILE, pageviews)
 
+  const livePages: VisitorLivePage[] = online
+    .map((session) => ({
+      sessionId: session.id,
+      path: session.path || "/",
+      regionLabel: session.regionLabel || session.countryCode || "Unbekannt",
+      lastSeenAt: session.lastSeenAt,
+    }))
+    .sort((a, b) => Date.parse(b.lastSeenAt) - Date.parse(a.lastSeenAt))
+    .slice(0, 40)
+
   return {
     onlineCount: online.length,
     byRegion,
     byCountry,
+    livePages,
     viewsByDay,
     viewsByMonth,
     viewsByYear,

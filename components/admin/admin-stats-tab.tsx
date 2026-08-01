@@ -396,6 +396,55 @@ export function AdminStatsTab() {
         />
       </div>
 
+      <Card className={adminUi.card}>
+        <CardHeader className="pb-2">
+          <CardTitle className={cn("flex items-center gap-2 text-base", adminUi.heading)}>
+            <Users className="h-4 w-4 text-orange-500" />
+            Live-Besucher (Seiten)
+          </CardTitle>
+          <p className={cn("text-sm", adminUi.muted)}>
+            Aktuelle Seitenaufrufe der letzten 2 Minuten — für Smart-Chat &amp; Support.
+          </p>
+        </CardHeader>
+        <CardContent>
+          {visitorsLoading && !visitors ? (
+            <p className={cn("flex items-center text-sm", adminUi.muted)}>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Live-Seiten…
+            </p>
+          ) : !visitors?.livePages?.length ? (
+            <p className={cn("text-sm", adminUi.muted)}>
+              Gerade keine aktiven Besucher auf dem Shop.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Seite</TableHead>
+                    <TableHead>Region</TableHead>
+                    <TableHead className="text-right">Zuletzt</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {visitors.livePages.map((row) => (
+                    <TableRow key={`${row.sessionId}-${row.path}-${row.lastSeenAt}`}>
+                      <TableCell className="font-medium">{row.path}</TableCell>
+                      <TableCell className={adminUi.muted}>{row.regionLabel}</TableCell>
+                      <TableCell className="text-right tabular-nums text-sm">
+                        {new Intl.DateTimeFormat("de-CH", {
+                          timeStyle: "medium",
+                        }).format(new Date(row.lastSeenAt))}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Zeile 2: 4 Kennzahlen */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard

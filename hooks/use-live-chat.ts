@@ -109,16 +109,24 @@ export function useLiveChat(enabled: boolean) {
         const res = await fetch("/api/chat/send", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sessionId, content: content.trim() }),
+          body: JSON.stringify({
+            sessionId,
+            content: content.trim(),
+            path:
+              typeof window !== "undefined" ? window.location.pathname : undefined,
+          }),
         })
         const data = (await res.json()) as {
           message?: PublicChatMessage
+          botMessage?: PublicChatMessage
+          handoffSuggested?: boolean
           whatsappError?: string
           error?: string
         }
         if (!res.ok) throw new Error(data.error ?? "Senden fehlgeschlagen.")
 
         if (data.message) appendMessage(data.message)
+        if (data.botMessage) appendMessage(data.botMessage)
         if (data.whatsappError) {
           console.warn("[Chat] WhatsApp:", data.whatsappError)
         }

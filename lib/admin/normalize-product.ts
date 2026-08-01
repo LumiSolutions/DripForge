@@ -1,4 +1,5 @@
 import { parseVariantenFromAdmin } from "@/lib/dripforge/product-varianten"
+import { normalizeShopVariants } from "@/lib/dripforge/product-shop-variants"
 import {
   applySaleToProductFields,
   resolveProductBasisPreis,
@@ -148,6 +149,9 @@ export function normalizeAdminProductInput(
         ? Number(input.gewicht)
         : existing?.gewicht,
     varianten,
+    shopVariants: normalizeShopVariants(
+      input.shopVariants ?? existing?.shopVariants
+    ),
     materialLinks: input.materialLinks ?? existing?.materialLinks ?? [],
     tags: normalizeProductTagIds(input.tags ?? existing?.tags),
     imageShape: normalizeProductImageShape(

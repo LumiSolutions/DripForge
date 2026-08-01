@@ -1,4 +1,11 @@
-import { cpSync, existsSync, mkdirSync } from "fs"
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from "fs"
 import { join } from "path"
 
 const root = process.cwd()
@@ -9,6 +16,22 @@ const publicSrc = join(root, "public")
 const publicDest = join(standaloneDir, "public")
 const dataAdminSrc = join(root, "data", "admin")
 const dataAdminDest = join(standaloneDir, "data", "admin")
+
+/**
+ * Diese Dateien dürfen NIEMALS aus dem Repo in ein Produktions-Paket übernommen werden.
+ * Sonst erscheinen nach Deploy Seed-/Demo-Daten statt Cosmos-Inhalten (oder leerem Zustand).
+ */
+const NEVER_SHIP_ADMIN_FILES = new Set([
+  "materials.json",
+  "inventory.json",
+  "products.json",
+  "orders.json",
+  "customers.json",
+  "staff-accounts.json",
+  "visitor-sessions.json",
+  "visitor-pageviews.json",
+  "visitor-geo-cache.json",
+])
 
 if (!existsSync(standaloneDir)) {
   console.error("prepare-standalone: .next/standalone fehlt — zuerst next build ausfuehren.")
@@ -27,9 +50,26 @@ if (existsSync(publicSrc)) {
 }
 
 if (existsSync(dataAdminSrc)) {
-  // Nur Dev-/Seed-Dateien; Produktions-Lager (Filament etc.) liegt in Cosmos — nicht hier.
-  cpSync(dataAdminSrc, dataAdminDest, { recursive: true })
+  mkdirSync(dataAdminDest, { recursive: true })
+  // Selektives Kopieren: keine Lager-/Produkt-/Order-Seeds in Prod-Artefakt
+  for (const entry of readdirSync(dataAdminSrc, { withFileTypes: true })) {
+    const name = entry.name
+    if (NEVER_SHIP_ADMIN_FILES.has(name)) continue
+    if (name.startsWith("materials.backup-")) continue
+    if (name.startsWith("visitor-")) continue
+    const src = join(dataAdminSrc, name)
+    const dest = join(dataAdminDest, name)
+    if (entry.isDirectory()) {
+      cpSync(src, dest, { recursive: true })
+    } else {
+      cpSync(src, dest)
+    }
+  }
+  // Leere Stubs — FS-Fallback darf niemals Seed-Filamente/Produkte vortäuschen
+  for (const emptyFile of ["materials.json", "inventory.json", "products.json"]) {
+    writeFileSync(join(dataAdminDest, emptyFile), "[]\n", "utf-8")
+  }
   console.log(
-    "prepare-standalone: data/admin kopiert (lokaler Dev-Fallback; Inventar in Prod = Cosmos)."
+    "prepare-standalone: data/admin selektiv kopiert (materials/products/inventory = leere Stubs; Inventar in Prod = Cosmos)."
   )
 }
