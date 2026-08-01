@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useLayoutEffect, useEffect, useRef, useState } from "react"
-import type { CSSProperties, RefObject } from "react"
+import type { CSSProperties, ReactNode, RefObject } from "react"
 import {
   CheckCircle2,
   ChevronDown,
@@ -144,6 +144,8 @@ type LaserDesignerStudioProps = LaserDesignerBaseProps & {
   onEngravingMetricsChange?: (metrics: LaserEngravingMetrics) => void
   /** Ref auf die Live-Vorschau-Fläche für Leitbild-Snapshot beim Warenkorb */
   previewSurfaceRef?: RefObject<HTMLDivElement | null>
+  /** Slot direkt unter «Live-Vorschau», oberhalb Canvas/Werkzeuge */
+  belowPreviewTitle?: ReactNode
 }
 
 function FeatureTag({ label, allowed }: { label: string; allowed: boolean }) {
@@ -1576,11 +1578,13 @@ function LaserDesignerPreview({
   onEngravingMetricsChange,
   previewSurfaceRef,
   customizationBackgroundUrl,
+  belowPreviewTitle,
 }: Omit<LaserDesignerBaseProps, "productName"> & {
   workAreaMm?: WorkAreaMm
   onEngravingMetricsChange?: (metrics: LaserEngravingMetrics) => void
   previewSurfaceRef?: RefObject<HTMLDivElement | null>
   customizationBackgroundUrl?: string
+  belowPreviewTitle?: ReactNode
 }) {
   const { selectedFont, layers, activeLayerId } = state
   const canvasRef = useRef<HTMLDivElement>(null)
@@ -2690,6 +2694,10 @@ function LaserDesignerPreview({
           </Badge>
         </div>
 
+        {belowPreviewTitle ? (
+          <div className="mb-3 w-full">{belowPreviewTitle}</div>
+        ) : null}
+
         <p className="mb-3 text-xs text-muted-foreground">
           Innen ziehen = verschieben · Griff oben rechts = drehen · 8 Griffe =
           skalieren · zwei Finger = Pinch-Zoom. Alles bleibt innerhalb von{" "}
@@ -3592,6 +3600,7 @@ export function LaserDesignerStudio({
   customizationBackgroundUrl,
   onEngravingMetricsChange,
   previewSurfaceRef,
+  belowPreviewTitle,
 }: LaserDesignerStudioProps) {
   // Defensive: ensure layers array exists for consumers that omit it
   const safeState: LaserDesignerState = {
@@ -3610,6 +3619,7 @@ export function LaserDesignerStudio({
         onEngravingMetricsChange={onEngravingMetricsChange}
         previewSurfaceRef={previewSurfaceRef}
         customizationBackgroundUrl={customizationBackgroundUrl}
+        belowPreviewTitle={belowPreviewTitle}
       />
     )
   }

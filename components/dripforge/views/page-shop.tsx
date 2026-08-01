@@ -716,19 +716,6 @@ export function PageShop({
                       )
                     }
                   />
-                  <LoadSavedDesignButton
-                    designType="laser"
-                    className="w-full justify-center"
-                    onSelect={(design) => {
-                      setLaserDesign(
-                        hydrateLaserDesignerFromConfig(
-                          design.config ?? {},
-                          shopLaserMaterial,
-                          shopProductVarianten
-                        )
-                      )
-                    }}
-                  />
                 </div>
 
                 {/* Spalte 2: Desktop Variante → Preis/Warenkorb; mobil unter Vorschau */}
@@ -837,6 +824,21 @@ export function PageShop({
                       state={laserDesign}
                       customizationBackgroundUrl={customizationBackgroundUrl}
                       previewSurfaceRef={laserPreviewRef}
+                      belowPreviewTitle={
+                        <LoadSavedDesignButton
+                          designType="laser"
+                          className="w-full justify-center"
+                          onSelect={(design) => {
+                            setLaserDesign(
+                              hydrateLaserDesignerFromConfig(
+                                design.config ?? {},
+                                shopLaserMaterial,
+                                shopProductVarianten
+                              )
+                            )
+                          }}
+                        />
+                      }
                       onStateChange={(patch) =>
                         setLaserDesign((prev) =>
                           prev ? { ...prev, ...patch } : prev
@@ -850,8 +852,8 @@ export function PageShop({
           ) : (
                 <>
                   <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 md:gap-10">
-                    {/* PC: oben 2 Spalten — Bild+Text | Preis/Filament/Warenkorb */}
-                    <div className="grid grid-cols-1 items-start gap-8 md:grid-cols-2 md:gap-10 lg:gap-12">
+                    {/* PC: 2 Spalten — Bild+Text | Filament → Spezifikationen → Preisberechnung (unten) */}
+                    <div className="grid grid-cols-1 items-start gap-8 md:grid-cols-2 md:gap-10 lg:items-stretch lg:gap-12">
                       <div className="flex min-w-0 flex-col gap-6">
                         <ProductImageGallery
                           images={galleryImages}
@@ -879,8 +881,7 @@ export function PageShop({
                         </Card>
                       </div>
 
-                      <div className="flex min-w-0 flex-col gap-6">
-                        {/* 1. Variante → 2. Filament → 3. Preisberechnung → 4. Warenkorb */}
+                      <div className="flex min-w-0 flex-col gap-6 lg:h-full">
                         {shopVariantPicker}
                         <FilamentColorPicker
                           materials={filamentMaterials}
@@ -890,205 +891,206 @@ export function PageShop({
                           className="mt-0 border-0 pt-0"
                         />
 
-                        <Card className="rounded-xl border-red-500/35 bg-gradient-to-b from-red-500/10 via-red-500/5 to-transparent shadow-sm">
-                          <CardContent className="space-y-5 p-6">
-                            <h3 className="font-bold">Preisberechnung</h3>
-                            <div className="space-y-2 text-sm">
-                              <div className="flex justify-between gap-3">
-                                <span className="text-muted-foreground">
-                                  Stueckpreis
-                                </span>
-                                <span className="font-medium">
-                                  CHF {unitPrice.toFixed(2)}
-                                </span>
+                        <Card className="rounded-xl border-border/50 bg-card/50 shadow-sm">
+                          <CardContent className="p-5 sm:p-6">
+                            <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                              Feste Masse
+                            </h3>
+                            <dl className="divide-y divide-border/60 rounded-lg border border-border/50 bg-muted/30">
+                              <div className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
+                                <dt className="text-muted-foreground">Länge</dt>
+                                <dd className="font-mono font-semibold tabular-nums">
+                                  {productDimensions.length.toFixed(1)} mm
+                                </dd>
                               </div>
-                              {detailShopVariants.length > 0 && (
-                                <div className="flex justify-between gap-3">
-                                  <span className="text-muted-foreground">
-                                    Variante
-                                  </span>
-                                  <span className="font-medium">
-                                    {detailShopVariants.find(
-                                      (v) => v.id === selectedShopVariantId
-                                    )?.name ?? "—"}
-                                  </span>
-                                </div>
-                              )}
-                              {detailProduct.sale &&
-                                detailProduct.originalPrice != null && (
-                                  <div className="flex justify-between gap-3">
-                                    <span className="text-muted-foreground">
-                                      UVP
-                                    </span>
-                                    <span className="text-muted-foreground line-through">
-                                      CHF {detailProduct.originalPrice.toFixed(2)}
-                                    </span>
-                                  </div>
-                                )}
-                              <div className="flex justify-between gap-3">
-                                <span className="text-muted-foreground">
-                                  Material (
-                                  {effectiveFilamentSelection?.materialName ??
-                                    "PLA"}
-                                  )
-                                </span>
-                                <span className="font-medium">
-                                  {effectiveFilamentSelection?.colorName ?? "—"}
-                                </span>
+                              <div className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
+                                <dt className="text-muted-foreground">Breite</dt>
+                                <dd className="font-mono font-semibold tabular-nums">
+                                  {productDimensions.width.toFixed(1)} mm
+                                </dd>
                               </div>
-                              <div className="flex justify-between gap-3">
-                                <span className="text-muted-foreground">
-                                  Masse
-                                </span>
-                                <span className="max-w-[55%] text-right font-mono text-xs font-medium leading-snug">
+                              <div className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
+                                <dt className="text-muted-foreground">Höhe</dt>
+                                <dd className="font-mono font-semibold tabular-nums">
+                                  {productDimensions.height.toFixed(1)} mm
+                                </dd>
+                              </div>
+                              <div className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
+                                <dt className="text-muted-foreground">Volumen</dt>
+                                <dd className="font-mono font-semibold tabular-nums">
+                                  {detailProduct.volumen != null
+                                    ? formatProductVolume(
+                                        detailProduct.volumen,
+                                        detailProduct.volumenEinheit
+                                      )
+                                    : "—"}
+                                </dd>
+                              </div>
+                              <div className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
+                                <dt className="text-muted-foreground">Gewicht</dt>
+                                <dd className="font-mono font-semibold tabular-nums">
+                                  {detailProduct.gewicht != null
+                                    ? formatProductWeight(detailProduct.gewicht)
+                                    : "—"}
+                                </dd>
+                              </div>
+                              <div className="flex items-center justify-between gap-4 bg-background/60 px-4 py-3 text-sm">
+                                <dt className="font-medium">Gesamt</dt>
+                                <dd className="font-mono text-base font-bold tabular-nums text-primary">
                                   {formatProductDimensionsText(productDimensions)}
-                                </span>
+                                </dd>
                               </div>
-                            </div>
-
-                            <div className="space-y-3 border-t border-red-500/20 pt-4">
-                              <span className="text-sm font-medium">Anzahl</span>
-                              <div className="flex items-center gap-3">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() =>
-                                    setQuantity(Math.max(1, quantity - 1))
-                                  }
-                                  aria-label="Anzahl verringern"
-                                >
-                                  <Minus className="h-4 w-4" />
-                                </Button>
-                                <span className="w-12 text-center text-lg font-bold tabular-nums">
-                                  {quantity}
-                                </span>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => setQuantity(quantity + 1)}
-                                  aria-label="Anzahl erhöhen"
-                                >
-                                  <Plus className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </div>
-
-                            <div className="border-t border-red-500/20 pt-3">
-                              <div className="flex justify-between gap-3 text-lg font-bold">
-                                <span>Gesamtpreis</span>
-                                <span className="text-red-500 dark:text-red-400">
-                                  CHF {(unitPrice * quantity).toFixed(2)}
-                                </span>
-                              </div>
-                            </div>
+                            </dl>
                           </CardContent>
                         </Card>
 
-                        <Button
-                          onClick={() => void handleAddToCart()}
-                          disabled={!canAddToCart}
-                          className="w-full bg-primary hover:bg-primary/90"
-                          size="lg"
-                        >
-                          {cartCapturing ? (
-                            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                          ) : (
-                            <ShoppingCart className="mr-2 h-5 w-5" />
-                          )}
-                          {cartCapturing
-                            ? "Wird hinzugefügt…"
-                            : "In den Warenkorb"}
-                        </Button>
-                        {effectiveFilamentSelection &&
-                          !effectiveFilamentSelection.inStock && (
-                            <p className="text-center text-sm text-red-500">
-                              Gewaehlte Farbe ist derzeit nicht auf Lager.
-                            </p>
-                          )}
+                        {/* lg: Preisberechnung am unteren Ende der rechten Spalte */}
+                        <div className="flex flex-col gap-6 lg:mt-auto">
+                          <Card className="rounded-xl border-red-500/35 bg-gradient-to-b from-red-500/10 via-red-500/5 to-transparent shadow-sm">
+                            <CardContent className="space-y-5 p-6">
+                              <h3 className="font-bold">Preisberechnung</h3>
+                              <div className="space-y-2 text-sm">
+                                <div className="flex justify-between gap-3">
+                                  <span className="text-muted-foreground">
+                                    Stueckpreis
+                                  </span>
+                                  <span className="font-medium">
+                                    CHF {unitPrice.toFixed(2)}
+                                  </span>
+                                </div>
+                                {detailShopVariants.length > 0 && (
+                                  <div className="flex justify-between gap-3">
+                                    <span className="text-muted-foreground">
+                                      Variante
+                                    </span>
+                                    <span className="font-medium">
+                                      {detailShopVariants.find(
+                                        (v) => v.id === selectedShopVariantId
+                                      )?.name ?? "—"}
+                                    </span>
+                                  </div>
+                                )}
+                                {detailProduct.sale &&
+                                  detailProduct.originalPrice != null && (
+                                    <div className="flex justify-between gap-3">
+                                      <span className="text-muted-foreground">
+                                        UVP
+                                      </span>
+                                      <span className="text-muted-foreground line-through">
+                                        CHF {detailProduct.originalPrice.toFixed(2)}
+                                      </span>
+                                    </div>
+                                  )}
+                                <div className="flex justify-between gap-3">
+                                  <span className="text-muted-foreground">
+                                    Material (
+                                    {effectiveFilamentSelection?.materialName ??
+                                      "PLA"}
+                                    )
+                                  </span>
+                                  <span className="font-medium">
+                                    {effectiveFilamentSelection?.colorName ?? "—"}
+                                  </span>
+                                </div>
+                                <div className="flex justify-between gap-3">
+                                  <span className="text-muted-foreground">
+                                    Masse
+                                  </span>
+                                  <span className="max-w-[55%] text-right font-mono text-xs font-medium leading-snug">
+                                    {formatProductDimensionsText(productDimensions)}
+                                  </span>
+                                </div>
+                              </div>
 
-                        <p className="rounded-xl border border-border/40 bg-muted/20 px-4 py-3 text-sm leading-relaxed text-muted-foreground">
-                          <SiteText k="shop_delivery_notice" />{" "}
-                          <Link
-                            href="/kontakt"
-                            className="font-medium text-primary underline-offset-2 hover:underline"
+                              <div className="space-y-3 border-t border-red-500/20 pt-4">
+                                <span className="text-sm font-medium">Anzahl</span>
+                                <div className="flex items-center gap-3">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() =>
+                                      setQuantity(Math.max(1, quantity - 1))
+                                    }
+                                    aria-label="Anzahl verringern"
+                                  >
+                                    <Minus className="h-4 w-4" />
+                                  </Button>
+                                  <span className="w-12 text-center text-lg font-bold tabular-nums">
+                                    {quantity}
+                                  </span>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => setQuantity(quantity + 1)}
+                                    aria-label="Anzahl erhöhen"
+                                  >
+                                    <Plus className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </div>
+
+                              <div className="border-t border-red-500/20 pt-3">
+                                <div className="flex justify-between gap-3 text-lg font-bold">
+                                  <span>Gesamtpreis</span>
+                                  <span className="text-red-500 dark:text-red-400">
+                                    CHF {(unitPrice * quantity).toFixed(2)}
+                                  </span>
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+
+                          <Button
+                            onClick={() => void handleAddToCart()}
+                            disabled={!canAddToCart}
+                            className="w-full bg-primary hover:bg-primary/90"
+                            size="lg"
                           >
-                            Kontaktformular
-                          </Link>
-                        </p>
+                            {cartCapturing ? (
+                              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                            ) : (
+                              <ShoppingCart className="mr-2 h-5 w-5" />
+                            )}
+                            {cartCapturing
+                              ? "Wird hinzugefügt…"
+                              : "In den Warenkorb"}
+                          </Button>
+                          {effectiveFilamentSelection &&
+                            !effectiveFilamentSelection.inStock && (
+                              <p className="text-center text-sm text-red-500">
+                                Gewaehlte Farbe ist derzeit nicht auf Lager.
+                              </p>
+                            )}
+
+                          <p className="rounded-xl border border-border/40 bg-muted/20 px-4 py-3 text-sm leading-relaxed text-muted-foreground">
+                            <SiteText k="shop_delivery_notice" />{" "}
+                            <Link
+                              href="/kontakt"
+                              className="font-medium text-primary underline-offset-2 hover:underline"
+                            >
+                              Kontaktformular
+                            </Link>
+                          </p>
+                        </div>
                       </div>
                     </div>
 
-                    {/* PC: unten 2 Spalten — Live-Vorschau | Feste Masse */}
-                    <div className="grid grid-cols-1 items-start gap-8 md:grid-cols-2 md:gap-10 lg:gap-12">
-                      <div className="min-w-0">
-                        {productModelUrl ? (
-                          <Product3DPreview
-                            ref={product3dCanvasRef}
-                            key={`${detailProduct.id}-${productModelUrl}`}
-                            modelUrl={productModelUrl}
-                            color={
-                              effectiveFilamentSelection?.colorHex?.trim() ||
-                              "#1a1a1a"
-                            }
-                            fixedDimensionsMm={productDimensionsToViewerMm(
-                              productDimensions
-                            )}
-                          />
-                        ) : null}
-                      </div>
-
-                      <Card className="rounded-xl border-border/50 bg-card/50 shadow-sm">
-                        <CardContent className="p-6">
-                          <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                            Feste Masse
-                          </h3>
-                          <dl className="divide-y divide-border/60 rounded-lg border border-border/50 bg-muted/30">
-                            <div className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
-                              <dt className="text-muted-foreground">Länge</dt>
-                              <dd className="font-mono font-semibold tabular-nums">
-                                {productDimensions.length.toFixed(1)} mm
-                              </dd>
-                            </div>
-                            <div className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
-                              <dt className="text-muted-foreground">Breite</dt>
-                              <dd className="font-mono font-semibold tabular-nums">
-                                {productDimensions.width.toFixed(1)} mm
-                              </dd>
-                            </div>
-                            <div className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
-                              <dt className="text-muted-foreground">Höhe</dt>
-                              <dd className="font-mono font-semibold tabular-nums">
-                                {productDimensions.height.toFixed(1)} mm
-                              </dd>
-                            </div>
-                            <div className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
-                              <dt className="text-muted-foreground">Volumen</dt>
-                              <dd className="font-mono font-semibold tabular-nums">
-                                {detailProduct.volumen != null
-                                  ? formatProductVolume(
-                                      detailProduct.volumen,
-                                      detailProduct.volumenEinheit
-                                    )
-                                  : "—"}
-                              </dd>
-                            </div>
-                            <div className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
-                              <dt className="text-muted-foreground">Gewicht</dt>
-                              <dd className="font-mono font-semibold tabular-nums">
-                                {detailProduct.gewicht != null
-                                  ? formatProductWeight(detailProduct.gewicht)
-                                  : "—"}
-                              </dd>
-                            </div>
-                            <div className="flex items-center justify-between gap-4 bg-background/60 px-4 py-3 text-sm">
-                              <dt className="font-medium">Gesamt</dt>
-                              <dd className="font-mono text-base font-bold tabular-nums text-primary">
-                                {formatProductDimensionsText(productDimensions)}
-                              </dd>
-                            </div>
-                          </dl>
-                        </CardContent>
-                      </Card>
+                    {/* Live-Vorschau unter den Spalten */}
+                    <div className="min-w-0">
+                      {productModelUrl ? (
+                        <Product3DPreview
+                          ref={product3dCanvasRef}
+                          key={`${detailProduct.id}-${productModelUrl}`}
+                          modelUrl={productModelUrl}
+                          color={
+                            effectiveFilamentSelection?.colorHex?.trim() ||
+                            "#1a1a1a"
+                          }
+                          fixedDimensionsMm={productDimensionsToViewerMm(
+                            productDimensions
+                          )}
+                        />
+                      ) : null}
                     </div>
                   </div>
                 </>
