@@ -67,6 +67,7 @@ import {
   productDimensionsToViewerMm,
 } from "@/lib/dripforge/product-dimensions"
 import { ProductImageGallery } from "@/components/dripforge/shared/product-image-gallery"
+import { PricingCategoriesSubtitle } from "@/components/dripforge/shared/pricing-categories-subtitle"
 import {
   ShopProductCard,
   type ShopCardSurface,
@@ -1043,9 +1044,10 @@ export function PageShop({
                       <Printer className="h-6 w-6 text-primary" />
                     </div>
                     <h3 className="mb-2 text-lg font-bold"><SiteText k="shop_custom_3d_title" /></h3>
-                    <p className="mb-6 flex-1 text-sm text-muted-foreground">
+                    <p className="mb-2 flex-1 text-sm text-muted-foreground">
                       <SiteText k="shop_custom_3d_description" />
                     </p>
+                    <PricingCategoriesSubtitle service="print3d" className="mb-6" />
                     <span className="inline-flex items-center text-sm font-medium text-foreground">
                       Jetzt Erstellen
                       <ArrowRight className="ml-1 h-4 w-4" />
@@ -1093,9 +1095,7 @@ export function PageShop({
                     <p className="mb-2 flex-1 text-sm text-muted-foreground">
                       <SiteText k="shop_custom_laser_description" />
                     </p>
-                    <p className="mb-6 text-sm font-medium text-cyan-400">
-                      Personalisiere deine Kreation ab CHF 9.99
-                    </p>
+                    <PricingCategoriesSubtitle service="laser" className="mb-6" />
                     <span className="inline-flex items-center text-sm font-medium text-foreground">
                       Jetzt Erstellen
                       <ArrowRight className="ml-1 h-4 w-4" />

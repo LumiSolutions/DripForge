@@ -26,6 +26,8 @@ export type Product = {
   id: string
   name: string
   description: string
+  /** Fortlaufende numerische Artikelnummer (z. B. 10001) */
+  sku?: string
   price: number
   originalPrice: number | null
   type: "3d" | "laser"

@@ -157,3 +157,18 @@ export function mergeIndividualPricingSettings(
 export function formatFromPriceChf(price: number): string {
   return `ab CHF ${Number(price).toFixed(2)}`
 }
+
+/** Kompakte Subline für Shop-Kacheln: «Kat. 1 ab 14.99 | Kat. 2 ab 24.99 | …» */
+export function formatPricingCategoriesSubtitle(
+  categories: IndividualPricingCategory[]
+): string {
+  return categories
+    .slice()
+    .sort((a, b) => a.sortOrder - b.sortOrder || a.label.localeCompare(b.label, "de"))
+    .map((cat) => {
+      const price = Number(cat.fromPriceChf)
+      const priceLabel = Number.isFinite(price) ? price.toFixed(2) : "—"
+      return `${cat.label} ab ${priceLabel}`
+    })
+    .join(" | ")
+}

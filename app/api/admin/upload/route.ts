@@ -10,7 +10,7 @@ import {
   requireAdminSession,
 } from "@/lib/admin/require-admin-session"
 
-const MODEL_EXTENSIONS = [".stl", ".obj", ".glb", ".gltf"]
+const MODEL_EXTENSIONS = [".stl", ".obj", ".glb", ".gltf", ".3mf"]
 
 export async function POST(request: Request) {
   const auth = requireAdminSession(request)
@@ -34,7 +34,7 @@ export async function POST(request: Request) {
 
     if (category === "model" && !MODEL_EXTENSIONS.includes(ext)) {
       return NextResponse.json(
-        { error: "Nur .stl, .obj, .glb oder .gltf erlaubt." },
+        { error: "Nur .stl, .obj, .glb, .gltf oder .3mf erlaubt." },
         { status: 400 }
       )
     }
