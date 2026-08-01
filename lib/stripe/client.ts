@@ -7,8 +7,20 @@ function secretKeyRaw(): string {
   return process.env.STRIPE_SECRET_KEY?.trim() ?? ""
 }
 
+/**
+ * Publishable Key zur Laufzeit (Server).
+ * Bevorzugt NEXT_PUBLIC_…, Fallback STRIPE_PUBLISHABLE_KEY (Azure App Setting ohne Rebuild).
+ */
+export function getStripePublishableKey(): string {
+  return (
+    process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY?.trim() ||
+    process.env.STRIPE_PUBLISHABLE_KEY?.trim() ||
+    ""
+  )
+}
+
 function publishableKeyRaw(): string {
-  return process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY?.trim() ?? ""
+  return getStripePublishableKey()
 }
 
 export function isStripeConfigured(): boolean {
@@ -28,7 +40,7 @@ export type StripeEnvDiagnostics = {
   publishableKeyMode: "live" | "test" | "unknown" | "missing"
   modeMismatch: boolean
   webhookSecretPresent: boolean
-  /** Hinweis: Shop nutzt Stripe Hosted Checkout (Redirect), kein loadStripe/Elements. */
+  /** Shop-Zahlung: Stripe Hosted Checkout (Redirect); Browser-SDK via Runtime-Key. */
   checkoutMode: "hosted_redirect"
 }
 

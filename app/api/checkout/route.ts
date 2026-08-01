@@ -21,6 +21,7 @@ import {
   formatStripeError,
   getStripe,
   getStripeEnvDiagnostics,
+  getStripePublishableKey,
   isStripeConfigured,
 } from "@/lib/stripe/client"
 import { CosmosDatabaseError } from "@/lib/admin/storage-bridge"
@@ -30,10 +31,10 @@ export const runtime = "nodejs"
 
 export async function GET() {
   const diagnostics = getStripeEnvDiagnostics()
-  // publishableKey nur wenn gesetzt — Frontend darf ihn loggen (Länge/Prefix), nicht erwarten für Elements
+  // Runtime-Key (auch STRIPE_PUBLISHABLE_KEY) — nicht nur Build-Zeit NEXT_PUBLIC_
   return NextResponse.json({
     configured: diagnostics.configured,
-    publishableKey: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY?.trim() || null,
+    publishableKey: getStripePublishableKey() || null,
     diagnostics,
   })
 }

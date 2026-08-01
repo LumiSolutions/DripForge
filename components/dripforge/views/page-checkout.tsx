@@ -55,6 +55,11 @@ import { useCompanySettings } from "@/components/dripforge/company-settings-prov
 import { submitOrder, startStripeCheckout, startTwintCheckout, type OrderPayload } from "@/lib/dripforge/submit-order"
 import { CheckoutSuccessModal } from "@/components/dripforge/checkout-success-modal"
 import { ensureCartLaserMockups } from "@/lib/dripforge/ensure-laser-mockup"
+import {
+  fetchStripePublishableKey,
+  loadBrowserStripe,
+} from "@/lib/stripe/load-browser-stripe"
+import type { Stripe } from "@stripe/stripe-js"
 
 type CheckoutForm = {
   firstName: string
@@ -210,6 +215,11 @@ export function PageCheckout({
     discountValue: number
   } | null>(null)
   const [stripeConfigured, setStripeConfigured] = useState(false)
+  const [stripeJsReady, setStripeJsReady] = useState(false)
+  const [stripePublishableKey, setStripePublishableKey] = useState<string | null>(
+    null
+  )
+  const stripeRef = useRef<Stripe | null>(null)
   const [stripeDiag, setStripeDiag] = useState<{
     secretKeyMode?: string
     publishableKeyPresent?: boolean
@@ -250,15 +260,49 @@ export function PageCheckout({
         console.warn("Checkout: Admin-Einstellungen konnten nicht geladen werden.")
       })
 
-    // Diagnose: NEXT_PUBLIC_* wird zur Build-Zeit eingebettet — in DevTools prüfen
-    console.log(
-      "Stripe Key present:",
-      !!process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
-    )
-    console.log(
-      "Stripe publishable key prefix:",
-      process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY?.slice(0, 8) ?? "(undefined)"
-    )
+    // 1) Publishable Key zur Laufzeit von Azure holen (nicht Build-Zeit NEXT_PUBLIC_)
+    // 2) Erst danach loadStripe(publishableKey)
+    void (async () => {
+      try {
+        const config = await fetchStripePublishableKey()
+        const key = config.publishableKey?.trim() || null
+        setStripePublishableKey(key)
+        console.log("Stripe Key present (runtime API):", Boolean(key))
+        console.log(
+          "Stripe publishable key prefix:",
+          key?.slice(0, 8) ?? "(undefined)"
+        )
+        // Build-Zeit-Wert nur zur Diagnose — darf undefined sein
+        console.log(
+          "Stripe Key present (build-time NEXT_PUBLIC_):",
+          !!process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+        )
+
+        if (!key) {
+          console.error(
+            "[Checkout] Publishable Key fehlt in /api/stripe/config — setze STRIPE_PUBLISHABLE_KEY oder NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY in Azure App Settings."
+          )
+          setStripeJsReady(false)
+          return
+        }
+
+        const stripe = await loadBrowserStripe(key)
+        stripeRef.current = stripe
+        setStripeJsReady(Boolean(stripe))
+        if (!stripe) {
+          console.error(
+            "[Checkout] loadStripe lieferte null — Key ungültig oder Stripe.js blockiert."
+          )
+        } else {
+          console.info("[Checkout] loadStripe OK (Runtime-Key).", {
+            mode: key.startsWith("pk_live_") ? "live" : "test",
+          })
+        }
+      } catch (error) {
+        console.error("[Checkout] /api/stripe/config fehlgeschlagen.", error)
+        setStripeJsReady(false)
+      }
+    })()
 
     void fetch("/api/checkout")
       .then((res) => (res.ok ? res.json() : null))
@@ -283,7 +327,7 @@ export function PageCheckout({
             publishableKeyPrefix: data?.publishableKey?.slice(0, 8) ?? null,
             diagnostics: data?.diagnostics ?? null,
             note:
-              "Kartenfelder erscheinen erst nach Redirect auf checkout.stripe.com (Hosted Checkout). Es gibt kein loadStripe/Elements auf /checkout.",
+              "Publishable Key kommt von /api/stripe/config (Runtime). Kartenzahlung: Redirect zu Stripe Hosted Checkout.",
           })
           if (data?.diagnostics?.modeMismatch) {
             console.error(
@@ -866,6 +910,21 @@ export function PageCheckout({
                     Details in der Browser-Konsole unter «[Checkout] Stripe server
                     diagnostics».
                   </div>
+                ) : !stripePublishableKey || !stripeJsReady ? (
+                  <div
+                    role="alert"
+                    className="mb-4 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-100"
+                  >
+                    Publishable Key fehlt oder `loadStripe` ist noch nicht bereit.
+                    In Azure bitte{" "}
+                    <code className="font-mono">STRIPE_PUBLISHABLE_KEY</code>{" "}
+                    (oder{" "}
+                    <code className="font-mono">
+                      NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+                    </code>
+                    ) setzen — der Key wird zur Laufzeit über{" "}
+                    <code className="font-mono">/api/stripe/config</code> geladen.
+                  </div>
                 ) : stripeDiag?.modeMismatch ? (
                   <div
                     role="alert"
@@ -877,9 +936,9 @@ export function PageCheckout({
                   </div>
                 ) : (
                   <div className="mb-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-900 dark:text-emerald-100">
-                    Stripe verbunden ({stripeDiag?.secretKeyMode ?? "ok"}).
-                    Karten-/Wallet-Felder erscheinen nach dem Absenden auf der
-                    sicheren Stripe-Checkout-Seite — nicht direkt auf /checkout.
+                    Stripe verbunden ({stripeDiag?.secretKeyMode ?? "ok"}, JS
+                    ready). Karten-/Wallet-Felder erscheinen nach dem Absenden auf
+                    der sicheren Stripe-Checkout-Seite.
                   </div>
                 )}
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -1262,10 +1321,12 @@ export function PageCheckout({
                       Sichere Stripe-Zahlungsseite
                     </p>
                     <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                      Auf /checkout gibt es absichtlich keine eingebetteten
-                      Kartenfelder (`loadStripe` / Elements werden nicht
-                      verwendet). Nach «Jetzt bezahlen» öffnet Stripe die
-                      Karten-Eingabe (und Wallets) auf{" "}
+                      Stripe.js wird mit dem Runtime-Publishable-Key geladen
+                      {stripeJsReady
+                        ? " (bereit)."
+                        : " …"}{" "}
+                      Nach «Jetzt bezahlen» öffnet die sichere Stripe-Checkout-Seite
+                      die Karten-Eingabe (und Wallets) auf{" "}
                       <span className="font-mono">checkout.stripe.com</span>.
                     </p>
                   </div>
