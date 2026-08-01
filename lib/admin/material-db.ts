@@ -138,6 +138,7 @@ export function createMaterialInput(input: {
   name: string
   category: MaterialCategory
   stockUnit?: MaterialItem["stockUnit"]
+  sortOrder?: number
 }): MaterialItem {
   const now = new Date().toISOString()
   return normalizeMaterialItem({
@@ -148,6 +149,25 @@ export function createMaterialInput(input: {
     stockUnit: input.stockUnit ?? (input.category === "filament" ? "gram" : "piece"),
     stockAvailable: 0,
     stockReserved: 0,
+    sortOrder: input.sortOrder ?? 0,
     updatedAt: now,
   })
+}
+
+/** Persistiert eine neue Anzeigereihenfolge ohne sonstige Felder zu überschreiben. */
+export async function reorderMaterials(
+  orderedIds: string[]
+): Promise<MaterialItem[]> {
+  const updated: MaterialItem[] = []
+  for (let index = 0; index < orderedIds.length; index++) {
+    const id = orderedIds[index]!
+    const current = await getMaterialById(id)
+    if (!current) continue
+    if ((current.sortOrder ?? 0) === index) {
+      updated.push(current)
+      continue
+    }
+    updated.push(await upsertMaterial({ ...current, sortOrder: index }))
+  }
+  return updated
 }

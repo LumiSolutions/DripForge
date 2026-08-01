@@ -184,7 +184,7 @@ export function FilamentColorPicker({
           <p className="mb-4 text-sm font-medium text-muted-foreground">
             {currentMaterial.colors.filter((c) => c.inStock).length} von {currentMaterial.colors.length} Farben verfügbar
           </p>
-          <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 sm:gap-4 md:grid-cols-5 lg:grid-cols-6">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 sm:gap-5 md:grid-cols-4 lg:grid-cols-5">
             {currentMaterial.colors.map((color) => {
               const isSelected = selectedColors[activeTab] === color.id
               return (
@@ -193,13 +193,13 @@ export function FilamentColorPicker({
                   onClick={() => color.inStock && setSelectedColors((prev) => ({ ...prev, [activeTab]: color.id }))}
                   disabled={!color.inStock}
                   className={cn(
-                    "group relative flex min-h-[5.5rem] flex-col items-center gap-2 rounded-xl border p-2.5 transition-all duration-200",
+                    "group relative flex min-h-[7rem] flex-col items-center gap-2.5 rounded-xl border p-3.5 transition-all duration-200",
                     isSelected ? "border-primary bg-primary/10 shadow-md shadow-primary/20" : "border-border/50 bg-card/50 hover:border-primary/40 hover:bg-secondary/50",
                     !color.inStock && "cursor-not-allowed opacity-40"
                   )}
                 >
                   {(color.printedExample ?? color.image) ? (
-                    <div className="relative h-12 w-12 shrink-0 sm:h-14 sm:w-14">
+                    <div className="relative h-14 w-14 shrink-0 sm:h-16 sm:w-16">
                       <Image
                         src={(color.printedExample ?? color.image)!}
                         alt={color.name}
@@ -209,13 +209,13 @@ export function FilamentColorPicker({
                     </div>
                   ) : (
                     <div
-                      className="h-12 w-12 shrink-0 rounded-full border border-border/50 transition-transform duration-200 group-hover:scale-110 sm:h-14 sm:w-14"
-                      style={{ backgroundColor: color.hex }}
+                      className="h-14 w-14 shrink-0 rounded-full border border-border/50 transition-transform duration-200 group-hover:scale-110 sm:h-16 sm:w-16"
+                      style={{ backgroundColor: color.hex || "#1a1a1a" }}
                     />
                   )}
                   <span
                     className={cn(
-                      "w-full break-words text-center text-[11px] leading-snug line-clamp-2 sm:text-xs",
+                      "w-full break-words text-center text-xs leading-snug sm:text-sm",
                       isSelected ? "font-semibold text-primary" : "font-medium text-muted-foreground"
                     )}
                   >

@@ -262,7 +262,7 @@ export function KontoReorderPage() {
               const cover =
                 item.designPreviewUrl?.trim() ||
                 item.imageUrl?.trim() ||
-                "/filaments/printed-pla-schwarz.png"
+                "/placeholder.svg"
               return (
                 <Card
                   key={`${item.productId}-${item.name}`}

@@ -346,52 +346,234 @@ export function AdminStatsTab() {
         />
       </div>
 
-      <Card className={adminUi.card}>
-        <CardHeader className="pb-2">
-          <CardTitle className={cn("flex items-center gap-2 text-base", adminUi.heading)}>
-            <MapPin className="h-4 w-4 text-orange-500" />
-            Besucher nach Region
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {visitorsLoading && !visitors ? (
-            <p className={cn("flex items-center text-sm", adminUi.muted)}>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Regionen werden geladen…
-            </p>
-          ) : !visitors?.byRegion.length ? (
-            <p className={cn("text-sm", adminUi.muted)}>
-              Noch keine regionalen Aufrufe erfasst. Sobald Besucher den Shop öffnen,
-              erscheinen hier Land und Kanton/Bundesland (Geo-IP, anonymisiert).
-            </p>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Region</TableHead>
-                    <TableHead>Land</TableHead>
-                    <TableHead className="text-right">Aufrufe</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {visitors.byRegion.map((row) => (
-                    <TableRow
-                      key={`${row.countryCode}-${row.regionCode}-${row.regionLabel}`}
-                    >
-                      <TableCell className="font-medium">{row.regionLabel}</TableCell>
-                      <TableCell>{row.countryCode}</TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {row.count}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+      <div className="grid gap-4 xl:grid-cols-2">
+        <Card className={adminUi.card}>
+          <CardHeader className="pb-2">
+            <CardTitle className={cn("flex items-center gap-2 text-base", adminUi.heading)}>
+              <BarChart3 className="h-4 w-4 text-orange-500" />
+              Aufrufe pro Tag
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="h-64">
+            {visitors?.viewsByDay?.length ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={visitors.viewsByDay}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                  <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                  <Tooltip />
+                  <Line
+                    type="monotone"
+                    dataKey="count"
+                    name="Aufrufe"
+                    stroke="#f97316"
+                    strokeWidth={2}
+                    dot={false}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className={cn("text-sm", adminUi.muted)}>Noch keine Tagesdaten.</p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className={adminUi.card}>
+          <CardHeader className="pb-2">
+            <CardTitle className={cn("flex items-center gap-2 text-base", adminUi.heading)}>
+              <BarChart3 className="h-4 w-4 text-orange-500" />
+              Aufrufe pro Monat / Jahr
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="h-40">
+              {visitors?.viewsByMonth?.length ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={visitors.viewsByMonth}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                    <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                    <Tooltip />
+                    <Line
+                      type="monotone"
+                      dataKey="count"
+                      name="Monat"
+                      stroke="#06b6d4"
+                      strokeWidth={2}
+                      dot={false}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <p className={cn("text-sm", adminUi.muted)}>Noch keine Monatsdaten.</p>
+              )}
             </div>
-          )}
-        </CardContent>
-      </Card>
+            {visitors?.viewsByYear?.length ? (
+              <div className="flex flex-wrap gap-3">
+                {visitors.viewsByYear.map((row) => (
+                  <div
+                    key={row.key}
+                    className="rounded-lg border border-border/60 px-3 py-2 text-sm"
+                  >
+                    <span className={adminUi.muted}>{row.label}: </span>
+                    <span className="font-semibold tabular-nums">{row.count}</span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        <Card className={adminUi.card}>
+          <CardHeader className="pb-2">
+            <CardTitle className={cn("flex items-center gap-2 text-base", adminUi.heading)}>
+              Peak-Zeiten · Wochentage
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="h-56">
+            {visitors?.heatmapWeekday?.length ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={visitors.heatmapWeekday}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                  <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                  <Tooltip />
+                  <Line
+                    type="monotone"
+                    dataKey="count"
+                    name="Aufrufe"
+                    stroke="#a855f7"
+                    strokeWidth={2}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className={cn("text-sm", adminUi.muted)}>Noch keine Wochentagsdaten.</p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className={adminUi.card}>
+          <CardHeader className="pb-2">
+            <CardTitle className={cn("flex items-center gap-2 text-base", adminUi.heading)}>
+              Peak-Zeiten · Uhrzeit
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="h-56">
+            {visitors?.heatmapHour?.length ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={visitors.heatmapHour}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                  <XAxis dataKey="label" tick={{ fontSize: 10 }} interval={3} />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                  <Tooltip />
+                  <Line
+                    type="monotone"
+                    dataKey="count"
+                    name="Aufrufe"
+                    stroke="#22c55e"
+                    strokeWidth={2}
+                    dot={false}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className={cn("text-sm", adminUi.muted)}>Noch keine Stundendaten.</p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        <Card className={adminUi.card}>
+          <CardHeader className="pb-2">
+            <CardTitle className={cn("flex items-center gap-2 text-base", adminUi.heading)}>
+              <Globe2 className="h-4 w-4 text-orange-500" />
+              Top-Länder
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {visitorsLoading && !visitors ? (
+              <p className={cn("flex items-center text-sm", adminUi.muted)}>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Laden…
+              </p>
+            ) : !visitors?.byCountry?.length ? (
+              <p className={cn("text-sm", adminUi.muted)}>Noch keine Länderdaten.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Land</TableHead>
+                      <TableHead className="text-right">Aufrufe</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {visitors.byCountry.slice(0, 12).map((row) => (
+                      <TableRow key={`country-${row.countryCode}`}>
+                        <TableCell className="font-medium">{row.regionLabel}</TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {row.count}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className={adminUi.card}>
+          <CardHeader className="pb-2">
+            <CardTitle className={cn("flex items-center gap-2 text-base", adminUi.heading)}>
+              <MapPin className="h-4 w-4 text-orange-500" />
+              Besucher nach Region
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {visitorsLoading && !visitors ? (
+              <p className={cn("flex items-center text-sm", adminUi.muted)}>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Regionen werden geladen…
+              </p>
+            ) : !visitors?.byRegion.length ? (
+              <p className={cn("text-sm", adminUi.muted)}>
+                Noch keine regionalen Aufrufe erfasst. Sobald Besucher den Shop öffnen,
+                erscheinen hier Land und Kanton/Bundesland (Geo-IP, anonymisiert).
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Region</TableHead>
+                      <TableHead>Land</TableHead>
+                      <TableHead className="text-right">Aufrufe</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {visitors.byRegion.slice(0, 20).map((row) => (
+                      <TableRow
+                        key={`${row.countryCode}-${row.regionCode}-${row.regionLabel}`}
+                      >
+                        <TableCell className="font-medium">{row.regionLabel}</TableCell>
+                        <TableCell>{row.countryCode}</TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {row.count}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       {summary && (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

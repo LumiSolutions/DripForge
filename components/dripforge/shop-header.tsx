@@ -108,6 +108,15 @@ export function ShopHeader(props: ShopHeaderProps) {
   }, [theme])
 
   useEffect(() => {
+    if (!mobileMenuOpen) return
+    const previous = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+    return () => {
+      document.body.style.overflow = previous
+    }
+  }, [mobileMenuOpen])
+
+  useEffect(() => {
     void fetch("/api/settings/services")
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
@@ -509,8 +518,8 @@ export function ShopHeader(props: ShopHeaderProps) {
       </div>
 
       {mobileMenuOpen && (
-        <div className="max-h-[min(70vh,calc(100dvh-4rem))] overflow-y-auto border-t border-border bg-background/98 p-4 shadow-md backdrop-blur-md md:hidden">
-          <nav className="flex flex-col gap-2">
+        <div className="max-h-[calc(100dvh-var(--header-height,4rem))] overflow-y-auto overscroll-contain border-t border-border bg-background/98 p-4 shadow-md backdrop-blur-md touch-pan-y md:hidden landscape:max-h-[calc(100dvh-3.5rem)]">
+          <nav className="flex min-h-0 flex-col gap-2 pb-[max(1rem,env(safe-area-inset-bottom))]">
             {useCmsNav
               ? visibleCmsNav.map((item) => {
                   const Icon = resolveCmsNavIcon(item.icon)

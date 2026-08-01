@@ -29,7 +29,8 @@ export function getPrimaryColorHex(
   const primary =
     selection.colors.find((c) => c.slot === selection.primarySlot) ??
     selection.colors[0]
-  return primary.colorHex
+  const hex = primary?.colorHex?.trim()
+  return hex || "#1a1a1a"
 }
 
 export function assignColorsToMeshParts(
@@ -316,7 +317,7 @@ export function FilamentMultiColorPicker({
             {currentMaterial?.colors?.filter((c) => c.inStock).length ?? 0} Farben auf
             Lager
           </p>
-          <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 sm:gap-4 md:grid-cols-5">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 sm:gap-5 md:grid-cols-4">
             {(currentMaterial?.colors ?? []).map((color) => {
               const inSelection = currentSlots?.some((c) => c.colorId === color.id)
               return (
@@ -326,7 +327,7 @@ export function FilamentMultiColorPicker({
                   disabled={!color.inStock}
                   onClick={() => assignColor(color)}
                   className={cn(
-                    "relative flex min-h-[5.5rem] flex-col items-center gap-2 rounded-xl border p-2.5 transition-all",
+                    "relative flex min-h-[7rem] flex-col items-center gap-2.5 rounded-xl border p-3.5 transition-all",
                     inSelection
                       ? "border-primary bg-primary/10"
                       : "border-border/50 hover:border-primary/40",
@@ -334,7 +335,7 @@ export function FilamentMultiColorPicker({
                   )}
                 >
                   {color.image ? (
-                    <div className="relative h-12 w-12 shrink-0 sm:h-14 sm:w-14">
+                    <div className="relative h-14 w-14 shrink-0 sm:h-16 sm:w-16">
                       <Image
                         src={color.image}
                         alt={color.name}
@@ -344,11 +345,11 @@ export function FilamentMultiColorPicker({
                     </div>
                   ) : (
                     <div
-                      className="h-12 w-12 shrink-0 rounded-full border border-border/50 sm:h-14 sm:w-14"
-                      style={{ backgroundColor: color.hex }}
+                      className="h-14 w-14 shrink-0 rounded-full border border-border/50 sm:h-16 sm:w-16"
+                      style={{ backgroundColor: color.hex || "#1a1a1a" }}
                     />
                   )}
-                  <span className="w-full break-words text-center text-[11px] font-medium leading-snug text-muted-foreground line-clamp-2 sm:text-xs">
+                  <span className="w-full break-words text-center text-xs font-medium leading-snug text-muted-foreground sm:text-sm">
                     {color.name}
                   </span>
                   {inSelection && (

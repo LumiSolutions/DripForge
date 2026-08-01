@@ -1,42 +1,21 @@
-/** Beispiel-Galeriebilder pro Shop-Produkt (Admin-Portal spaeter) */
-export const PRODUCT_IMAGE_GALLERIES: Record<string, string[]> = {
-  "1": [
-    "/filaments/printed-pla-schwarz.png",
-    "/filaments/printed-pla-weiss.png",
-    "/filaments/printed-pla-blau.png",
-    "/filaments/pla-schwarz.png",
-  ],
-  "2": [
-    "/filaments/printed-pla-grau.png",
-    "/filaments/printed-pla-schwarz.png",
-    "/filaments/pla-grau.png",
-    "/filaments/printed-pla-blau.png",
-  ],
-  "3": [
-    "/filaments/printed-pla-silber.png",
-    "/filaments/printed-pla-schwarz.png",
-    "/filaments/pla-silber.png",
-    "/filaments/printed-pla-rot.png",
-  ],
-  "4": [
-    "/filaments/printed-pla-gruen.png",
-    "/filaments/printed-pla-weiss.png",
-    "/filaments/pla-gruen.png",
-    "/filaments/printed-pla-orange.png",
-  ],
-}
+import { NEUTRAL_PRODUCT_PLACEHOLDER } from "@/lib/dripforge/neutral-placeholder"
 
-const FALLBACK_GALLERY = [
-  "/filaments/printed-pla-schwarz.png",
-  "/filaments/printed-pla-weiss.png",
-  "/filaments/pla-schwarz.png",
-]
+/**
+ * Keine hardcodierten Produkt-/KI-Galerien mehr.
+ * Nur dynamische Galeriebilder aus der DB; sonst neutraler Platzhalter.
+ */
+export const PRODUCT_IMAGE_GALLERIES: Record<string, string[]> = {}
 
 function sanitizeGallery(images: string[] | null | undefined): string[] {
   if (!Array.isArray(images)) return []
   return images
     .map((src) => (typeof src === "string" ? src.trim() : ""))
-    .filter(Boolean)
+    .filter((src) => {
+      if (!src) return false
+      // Alte hardcodierte Filament-/KI-Demo-Pfade bewusst ausblenden
+      if (src.startsWith("/filaments/")) return false
+      return true
+    })
 }
 
 export function resolveProductImages(
@@ -44,9 +23,10 @@ export function resolveProductImages(
   images?: string[] | null,
   galerieBilder?: string[] | null
 ): string[] {
+  void productId
   const gallery = sanitizeGallery(galerieBilder)
   if (gallery.length > 0) return gallery
   const legacy = sanitizeGallery(images)
   if (legacy.length > 0) return legacy
-  return PRODUCT_IMAGE_GALLERIES[productId] ?? FALLBACK_GALLERY
+  return [NEUTRAL_PRODUCT_PLACEHOLDER]
 }

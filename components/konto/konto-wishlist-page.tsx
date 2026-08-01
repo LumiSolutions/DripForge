@@ -113,7 +113,7 @@ export function KontoWishlistPage() {
         <div className="grid gap-4 sm:grid-cols-2">
           {sorted.map((row) => {
             const cover =
-              row.product.images?.[0]?.trim() || "/filaments/printed-pla-schwarz.png"
+              row.product.images?.[0]?.trim() || "/placeholder.svg"
             return (
               <Card key={row.productId} className="overflow-hidden rounded-2xl border-border/50">
                 <CardContent className="flex gap-4 p-4">

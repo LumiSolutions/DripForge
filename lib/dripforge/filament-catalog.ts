@@ -10,6 +10,7 @@ import {
   type MaterialTypeDefinition,
 } from "@/lib/admin/material-stats-types"
 import type { FilamentColor, FilamentMaterial } from "@/lib/dripforge/types"
+import { NEUTRAL_FILAMENT_HEX } from "@/lib/dripforge/neutral-placeholder"
 
 function normalizeFilamentMatchKey(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, " ")
@@ -59,14 +60,28 @@ const FILAMENT_COLOR_HEX: Record<string, string> = {
   gold: "#ca8a04",
 }
 
-export function inferFilamentColorHex(farbe?: string): string {
-  if (!farbe?.trim()) return "#888888"
+export function inferFilamentColorHex(farbe?: string, explicitHex?: string): string {
+  const fromExplicit = explicitHex?.trim()
+  if (
+    fromExplicit &&
+    /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(fromExplicit)
+  ) {
+    return fromExplicit
+  }
+  if (!farbe?.trim()) return NEUTRAL_FILAMENT_HEX
   const key = farbe
     .trim()
     .toLowerCase()
     .normalize("NFD")
     .replace(/\p{Diacritic}/gu, "")
-  return FILAMENT_COLOR_HEX[key] ?? "#888888"
+  return FILAMENT_COLOR_HEX[key] ?? NEUTRAL_FILAMENT_HEX
+}
+
+function compareInventoryColors(a: MaterialItem, b: MaterialItem): number {
+  const ao = a.sortOrder ?? 0
+  const bo = b.sortOrder ?? 0
+  if (ao !== bo) return ao - bo
+  return (a.farbe ?? a.name).localeCompare(b.farbe ?? b.name, "de")
 }
 
 export function materialItemToColor(
@@ -74,18 +89,18 @@ export function materialItemToColor(
   stats: MaterialCategoryStat
 ): FilamentColor {
   const colorName = item.farbe?.trim() || "—"
+  const image =
+    item.printBildUrl?.trim() || item.spuleBildUrl?.trim() || null
 
   return applyCategoryStats(
     {
       id: item.id,
       name: colorName,
-      hex: inferFilamentColorHex(item.farbe),
+      hex: inferFilamentColorHex(item.farbe, item.colorHex),
       inStock: item.stockAvailable > 0,
-      // Ein Bild: Beispiel-Druck (Legacy-Spulenbild nur als Fallback)
-      image:
-        item.printBildUrl?.trim() || item.spuleBildUrl?.trim() || null,
-      printedExample:
-        item.printBildUrl?.trim() || item.spuleBildUrl?.trim() || null,
+      // Nur dynamisch hochgeladene Bilder — keine hardcodierten Filament-PNGs
+      image,
+      printedExample: image,
       displayName: formatPublicFilamentDisplayName({
         name: item.name,
         colorName,
@@ -122,7 +137,10 @@ export function groupInventoryForConfigurator(
       flexibility: type.flexibility,
       heatResistance: type.heatResistance,
       easeOfUse: type.easeOfUse,
-      colors: (groups.get(type.id) ?? []).map((item) => materialItemToColor(item, type)),
+      colors: (groups.get(type.id) ?? [])
+        .slice()
+        .sort(compareInventoryColors)
+        .map((item) => materialItemToColor(item, type)),
     }))
 }
 
@@ -287,6 +305,7 @@ export function groupFilamentsForConfigurator(
 export function legacyMaterialsFallback(
   materialTypes: MaterialTypeDefinition[] = buildDefaultMaterialTypes()
 ): FilamentMaterial[] {
+  // Notfall-Fallback ohne hardcodierte KI-/Filament-Bilder — nur Hex-Swatches.
   const activeTypes = getActiveMaterialTypes(materialTypes)
   const result: FilamentMaterial[] = []
   for (const material of materials3D) {
@@ -305,10 +324,10 @@ export function legacyMaterialsFallback(
           {
             id: color.id,
             name: color.name,
-            hex: color.hex,
+            hex: color.hex || NEUTRAL_FILAMENT_HEX,
             inStock: color.inStock,
-            image: color.image,
-            printedExample: color.printedExample ?? null,
+            image: null,
+            printedExample: null,
           },
           typeDef
         )

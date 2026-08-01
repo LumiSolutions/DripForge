@@ -13,7 +13,7 @@ export function formatChf(amount: number): string {
 }
 
 export const DRIPFORGE_LOGO_URL =
-  "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/ChatGPT%20Image%2016.%20Mai%202026%2C%2022_19_51-CjFqSwPCG95cJ4BMP2Ono6hKObBX8y.png"
+  "/placeholder.svg"
 
 export const INVOICE_PAYMENT_TERMS_DAYS = 30
 

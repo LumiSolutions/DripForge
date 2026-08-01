@@ -70,10 +70,18 @@ export async function POST(request: Request) {
         ? body.category
         : "filament"
 
+    const existing = await getMaterials(category)
+    const nextSortOrder =
+      body.sortOrder != null && Number.isFinite(Number(body.sortOrder))
+        ? Math.max(0, Math.round(Number(body.sortOrder)))
+        : existing.reduce((max, item) => Math.max(max, item.sortOrder ?? 0), -1) +
+          1
+
     const base = createMaterialInput({
       name: body.name,
       category,
       stockUnit: body.stockUnit,
+      sortOrder: nextSortOrder,
     })
 
     const material = normalizeMaterialItem({
@@ -81,6 +89,7 @@ export async function POST(request: Request) {
       ...body,
       id: base.id,
       name: body.name.trim(),
+      sortOrder: nextSortOrder,
     })
 
     const saved = await upsertMaterial(material)

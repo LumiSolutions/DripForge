@@ -177,7 +177,7 @@ function AdminShellFrame({ children }: { children: React.ReactNode }) {
         </button>
         <Link href="/" className="flex min-w-0 flex-1 items-center gap-2">
           <Image
-            src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/ChatGPT%20Image%2016.%20Mai%202026%2C%2022_19_51-CjFqSwPCG95cJ4BMP2Ono6hKObBX8y.png"
+            src="/placeholder.svg"
             alt="DripForge"
             width={24}
             height={24}
@@ -226,7 +226,7 @@ function AdminShellFrame({ children }: { children: React.ReactNode }) {
         <div className={cn("border-b p-6 pr-14 lg:pr-6", adminUi.sidebarBorder)}>
           <Link href={adminPortalPath("/dashboard")} className="flex items-center gap-2">
             <Image
-              src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/ChatGPT%20Image%2016.%20Mai%202026%2C%2022_19_51-CjFqSwPCG95cJ4BMP2Ono6hKObBX8y.png"
+              src="/placeholder.svg"
               alt="DripForge"
               width={28}
               height={28}

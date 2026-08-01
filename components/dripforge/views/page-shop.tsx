@@ -326,7 +326,7 @@ export function PageShop({
     }
     const normalized = normalizeShopProduct(selectedProduct)
     setQuantity(1)
-    setFilamentTab("pla")
+    setFilamentTab(filamentMaterials[0]?.id ?? "pla")
     setFilamentSelection(null)
     if (normalized.type === "laser") {
       const mat = getLaserMaterialForProduct(normalized)
@@ -769,48 +769,54 @@ export function PageShop({
             </div>
           ) : (
                 <>
-                  <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-2 lg:gap-12">
-                    <div className="flex min-w-0 flex-col gap-6">
-                      <ProductImageGallery
-                        images={galleryImages}
-                        alt={detailProduct.name}
-                      />
+                  <div className="mx-auto flex w-full max-w-5xl flex-col gap-8">
+                    {/* 1. Haupt-Produktbild / Galerie */}
+                    <ProductImageGallery
+                      images={galleryImages}
+                      alt={detailProduct.name}
+                    />
 
-                      {productModelUrl ? (
-                        <Product3DPreview
-                          ref={product3dCanvasRef}
-                          key={`${detailProduct.id}-${productModelUrl}`}
-                          modelUrl={productModelUrl}
-                          color={filamentSelection?.colorHex ?? "#1a1a1a"}
-                          fixedDimensionsMm={productDimensionsToViewerMm(
-                            productDimensions
-                          )}
-                        />
-                      ) : null}
-                    </div>
-
-                    <div className="flex min-w-0 flex-col gap-6 lg:min-h-[640px]">
-                      <Card className="rounded-2xl border-border/50 bg-card/50 shadow-sm">
-                        <CardContent className="p-4 sm:p-5">
-                          <div className="mb-2 flex flex-wrap items-center gap-2">
-                            <Badge className="border border-cyan-600/30 bg-cyan-600/15 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-cyan-800 shadow-sm dark:text-cyan-200">
-                              3D-Druck
+                    {/* 2. Produkttitel + Beschreibung */}
+                    <Card className="rounded-2xl border-border/50 bg-card/50 shadow-sm">
+                      <CardContent className="p-4 sm:p-6">
+                        <div className="mb-2 flex flex-wrap items-center gap-2">
+                          <Badge className="border border-cyan-600/30 bg-cyan-600/15 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-cyan-800 shadow-sm dark:text-cyan-200">
+                            3D-Druck
+                          </Badge>
+                          {detailProduct.sale && (
+                            <Badge className="bg-red-500 text-white hover:bg-red-500">
+                              Rabatt
                             </Badge>
-                            {detailProduct.sale && (
-                              <Badge className="bg-red-500 text-white hover:bg-red-500">
-                                Rabatt
-                              </Badge>
-                            )}
-                          </div>
-                          <h1 className="text-xl font-bold sm:text-2xl lg:text-3xl">
-                            {detailProduct.name}
-                          </h1>
-                          <p className="mt-2 text-sm leading-relaxed text-muted-foreground sm:text-base">
-                            {detailProduct.description}
-                          </p>
-                        </CardContent>
-                      </Card>
+                          )}
+                        </div>
+                        <h1 className="text-xl font-bold sm:text-2xl lg:text-3xl">
+                          {detailProduct.name}
+                        </h1>
+                        <p className="mt-3 text-sm leading-relaxed text-muted-foreground sm:text-base">
+                          {detailProduct.description}
+                        </p>
+                      </CardContent>
+                    </Card>
 
+                    {/* 3. Live-Vorschau Canvas erst darunter */}
+                    {productModelUrl ? (
+                      <Product3DPreview
+                        ref={product3dCanvasRef}
+                        key={`${detailProduct.id}-${productModelUrl}`}
+                        modelUrl={productModelUrl}
+                        color={
+                          effectiveFilamentSelection?.colorHex?.trim() ||
+                          "#1a1a1a"
+                        }
+                        fixedDimensionsMm={productDimensionsToViewerMm(
+                          productDimensions
+                        )}
+                      />
+                    ) : null}
+                  </div>
+
+                  <div className="mt-10 grid grid-cols-1 items-start gap-8 lg:grid-cols-2 lg:gap-12">
+                    <div className="flex min-w-0 flex-col gap-6">
                       <FilamentColorPicker
                         materials={filamentMaterials}
                         activeTab={filamentTab}
@@ -818,7 +824,9 @@ export function PageShop({
                         onSelectionChange={setFilamentSelection}
                         className="mt-0 border-0 pt-0"
                       />
+                    </div>
 
+                    <div className="flex min-w-0 flex-col gap-6 lg:min-h-[480px]">
                       <Card className="rounded-xl border-border/50 bg-card/50 shadow-sm">
                         <CardContent className="p-6">
                           <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
@@ -907,10 +915,10 @@ export function PageShop({
                               <div className="flex justify-between gap-3">
                                 <span className="text-muted-foreground">
                                   Material (
-                                  {filamentSelection?.materialName ?? "PLA"})
+                                  {effectiveFilamentSelection?.materialName ?? "PLA"})
                                 </span>
                                 <span className="font-medium">
-                                  {filamentSelection?.colorName ?? "—"}
+                                  {effectiveFilamentSelection?.colorName ?? "—"}
                                 </span>
                               </div>
                               <div className="flex justify-between gap-3">
@@ -972,7 +980,8 @@ export function PageShop({
                                 ? "Wird hinzugefügt…"
                                 : "In den Warenkorb"}
                             </Button>
-                            {filamentSelection && !filamentSelection.inStock && (
+                            {effectiveFilamentSelection &&
+                              !effectiveFilamentSelection.inStock && (
                               <p className="text-center text-sm text-red-500">
                                 Gewaehlte Farbe ist derzeit nicht auf Lager.
                               </p>
@@ -1225,7 +1234,7 @@ export function PageShop({
               const coverSrc =
                 product.images?.[0]?.trim() ||
                 cardImages[0] ||
-                "/filaments/printed-pla-schwarz.png"
+                "/placeholder.svg"
               return (
                 <ShopProductCard
                   key={product.id}

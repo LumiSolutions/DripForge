@@ -196,7 +196,7 @@ export function StaffAuthFlow({
         <div className="mb-8 text-center">
           <Link href="/" className="inline-flex items-center gap-2">
             <Image
-              src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/ChatGPT%20Image%2016.%20Mai%202026%2C%2022_19_51-CjFqSwPCG95cJ4BMP2Ono6hKObBX8y.png"
+              src="/placeholder.svg"
               alt="DripForge"
               width={36}
               height={36}

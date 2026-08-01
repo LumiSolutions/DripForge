@@ -23,6 +23,7 @@ export type TagColumnSort = {
 }
 
 export type StockSortMode =
+  | "sort-order"
   | "material-type"
   | "manufacturer"
   | "color-asc"
@@ -211,6 +212,13 @@ export function sortStockItems(
   )
 
   switch (mode) {
+    case "sort-order":
+      return copy.sort((a, b) => {
+        const ao = a.sortOrder ?? 0
+        const bo = b.sortOrder ?? 0
+        if (ao !== bo) return ao - bo
+        return (a.farbe ?? a.name).localeCompare(b.farbe ?? b.name, "de")
+      })
     case "material-type":
       return copy.sort((a, b) => {
         const keyA = materialTypeSortKey(a, typeOrder)

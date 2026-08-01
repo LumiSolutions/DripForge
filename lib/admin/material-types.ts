@@ -65,6 +65,13 @@ export type MaterialItem = {
   /** Einkaufspreis pro Einheit (CHF): pro 1000g-Rolle oder pro Stück */
   purchasePrice?: number
   lieferant?: string
+  /**
+   * Anzeige-Reihenfolge im Admin & Shop-Konfigurator (niedriger = weiter vorne).
+   * Persistiert in Cosmos/Datei — wird nicht bei Deploy zurückgesetzt.
+   */
+  sortOrder?: number
+  /** Optionale Hex-Farbe für die 3D-Live-Vorschau (z. B. #1a1a1a) */
+  colorHex?: string
   updatedAt: string
 }
 

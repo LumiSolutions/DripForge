@@ -26,7 +26,7 @@ export function SafeProductImage({
   sizes,
   priority,
 }: SafeProductImageProps) {
-  const safeSrc = src?.trim() || "/filaments/printed-pla-schwarz.png"
+  const safeSrc = src?.trim() || "/placeholder.svg"
 
   if (!isOptimizableImageSrc(safeSrc)) {
     return (
