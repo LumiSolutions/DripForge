@@ -64,7 +64,7 @@ export const PAYMENT_OPTIONS: {
     id: "card",
     label: "Kreditkarte (Stripe)",
     description:
-      "Visa, Mastercard, American Express, Apple Pay, Google Pay via Stripe",
+      "Nach «Jetzt bezahlen» öffnet sich die sichere Stripe-Seite mit Kartenfeldern, Apple Pay und Google Pay (kein Inline-Formular auf dieser Seite).",
   },
   {
     id: "twint",

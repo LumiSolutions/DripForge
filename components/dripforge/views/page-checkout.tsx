@@ -210,6 +210,14 @@ export function PageCheckout({
     discountValue: number
   } | null>(null)
   const [stripeConfigured, setStripeConfigured] = useState(false)
+  const [stripeDiag, setStripeDiag] = useState<{
+    secretKeyMode?: string
+    publishableKeyPresent?: boolean
+    publishableKeyMode?: string
+    modeMismatch?: boolean
+    webhookSecretPresent?: boolean
+    checkoutMode?: string
+  } | null>(null)
   const [twintPaymentLinkConfigured, setTwintPaymentLinkConfigured] =
     useState(true)
   const [pointsToRedeem, setPointsToRedeem] = useState(0)
@@ -242,11 +250,53 @@ export function PageCheckout({
         console.warn("Checkout: Admin-Einstellungen konnten nicht geladen werden.")
       })
 
+    // Diagnose: NEXT_PUBLIC_* wird zur Build-Zeit eingebettet — in DevTools prüfen
+    console.log(
+      "Stripe Key present:",
+      !!process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+    )
+    console.log(
+      "Stripe publishable key prefix:",
+      process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY?.slice(0, 8) ?? "(undefined)"
+    )
+
     void fetch("/api/checkout")
       .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        setStripeConfigured(Boolean(data?.configured))
-      })
+      .then(
+        (data: {
+          configured?: boolean
+          publishableKey?: string | null
+          diagnostics?: {
+            secretKeyMode?: string
+            publishableKeyPresent?: boolean
+            publishableKeyMode?: string
+            modeMismatch?: boolean
+            webhookSecretPresent?: boolean
+            checkoutMode?: string
+          }
+        } | null) => {
+          setStripeConfigured(Boolean(data?.configured))
+          setStripeDiag(data?.diagnostics ?? null)
+          console.info("[Checkout] Stripe server diagnostics", {
+            configured: Boolean(data?.configured),
+            publishableKeyFromApi: Boolean(data?.publishableKey),
+            publishableKeyPrefix: data?.publishableKey?.slice(0, 8) ?? null,
+            diagnostics: data?.diagnostics ?? null,
+            note:
+              "Kartenfelder erscheinen erst nach Redirect auf checkout.stripe.com (Hosted Checkout). Es gibt kein loadStripe/Elements auf /checkout.",
+          })
+          if (data?.diagnostics?.modeMismatch) {
+            console.error(
+              "[Checkout] Stripe Mode-Mismatch: Secret- und Publishable-Key sind nicht beide live bzw. beide test."
+            )
+          }
+          if (!data?.configured) {
+            console.error(
+              "[Checkout] STRIPE_SECRET_KEY fehlt oder ist ungültig auf dem Server — Kartenzahlung deaktiviert."
+            )
+          }
+        }
+      )
       .catch(() => setStripeConfigured(false))
 
     void fetch("/api/checkout/twint")
@@ -805,13 +855,40 @@ export function PageCheckout({
                   <Wallet className="h-4 w-4 text-primary" />
                   <h2 className="font-bold">Express-Checkout</h2>
                 </div>
+                {!stripeConfigured ? (
+                  <div
+                    role="alert"
+                    className="mb-4 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-100"
+                  >
+                    Stripe ist auf dem Server nicht bereit (`STRIPE_SECRET_KEY`).
+                    Ohne gültigen Live-Secret-Key gibt es keinen Redirect zur
+                    Stripe-Zahlungsseite — deshalb erscheinen keine Kartenfelder.
+                    Details in der Browser-Konsole unter «[Checkout] Stripe server
+                    diagnostics».
+                  </div>
+                ) : stripeDiag?.modeMismatch ? (
+                  <div
+                    role="alert"
+                    className="mb-4 rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-800 dark:text-red-200"
+                  >
+                    Stripe Mode-Mismatch: Secret ist «{stripeDiag.secretKeyMode}»,
+                    Publishable «{stripeDiag.publishableKeyMode}». Beide müssen
+                    live bzw. beide test sein.
+                  </div>
+                ) : (
+                  <div className="mb-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-900 dark:text-emerald-100">
+                    Stripe verbunden ({stripeDiag?.secretKeyMode ?? "ok"}).
+                    Karten-/Wallet-Felder erscheinen nach dem Absenden auf der
+                    sicheren Stripe-Checkout-Seite — nicht direkt auf /checkout.
+                  </div>
+                )}
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                   <button
                     type="button"
                     disabled={isSubmitting || !stripeConfigured}
                     title={
                       stripeConfigured
-                        ? "Stripe Checkout mit Apple Pay / Wallets"
+                        ? "Weiterleitung zu Stripe Checkout (Apple Pay / Wallets)"
                         : "Stripe noch nicht konfiguriert"
                     }
                     onClick={() => void handleSubmit("card")}
@@ -828,7 +905,7 @@ export function PageCheckout({
                     disabled={isSubmitting || !stripeConfigured}
                     title={
                       stripeConfigured
-                        ? "Stripe Checkout mit Google Pay / Karte"
+                        ? "Weiterleitung zu Stripe Checkout (Google Pay / Karte)"
                         : "Stripe noch nicht konfiguriert"
                     }
                     onClick={() => void handleSubmit("card")}
@@ -854,8 +931,9 @@ export function PageCheckout({
                   </button>
                 </div>
                 <p className="mt-3 text-center text-xs text-muted-foreground">
-                  Adresse unten ausfüllen, dann Express tippen — Apple/Google Pay
-                  erscheinen im Stripe-Checkout sofern verfügbar.
+                  Adresse unten ausfüllen, dann Express tippen — du wirst zu
+                  Stripe weitergeleitet. Apple/Google Pay erscheinen dort, sofern
+                  Gerät/Browser sie anbieten.
                 </p>
               </CardContent>
             </Card>
@@ -1175,6 +1253,21 @@ export function PageCheckout({
                         </div>
                       </div>
                     )}
+                  </div>
+                )}
+
+                {paymentMethod === "card" && (
+                  <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
+                    <p className="text-sm font-semibold text-foreground">
+                      Sichere Stripe-Zahlungsseite
+                    </p>
+                    <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                      Auf /checkout gibt es absichtlich keine eingebetteten
+                      Kartenfelder (`loadStripe` / Elements werden nicht
+                      verwendet). Nach «Jetzt bezahlen» öffnet Stripe die
+                      Karten-Eingabe (und Wallets) auf{" "}
+                      <span className="font-mono">checkout.stripe.com</span>.
+                    </p>
                   </div>
                 )}
 
