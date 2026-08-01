@@ -107,6 +107,18 @@ export async function POST(request: Request) {
       )
     }
 
+    const settings = await getSettings()
+    if (!isPaymentMethodEnabled("twint", settings.checkout)) {
+      return NextResponse.json(
+        {
+          error:
+            "TWINT ist im Admin deaktiviert und kann nicht verwendet werden.",
+          success: false,
+        },
+        { status: 403 }
+      )
+    }
+
     const sessionEmail = await getSessionEmailFromRequest()
 
     // Pending: wartet auf TWINT-Zahlung — keine Credits/Punkte bis Zahlung bestätigt
