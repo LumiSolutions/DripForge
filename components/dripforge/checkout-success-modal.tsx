@@ -10,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { OrderThanksAnimation } from "@/components/dripforge/order-thanks-animation"
 import type { PaymentMethodId } from "@/lib/dripforge/checkout-config"
 
 type CheckoutSuccessModalProps = {
@@ -39,6 +40,7 @@ export function CheckoutSuccessModal({
           <div className="mb-2 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600">
             <CheckCircle2 className="h-8 w-8" />
           </div>
+          {open ? <OrderThanksAnimation className="mb-3 w-full" active={open} /> : null}
           <DialogTitle className="text-2xl">
             {isPrepaid
               ? "Bestellung erhalten — wartet auf Zahlung"

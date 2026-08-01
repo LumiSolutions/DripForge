@@ -20,8 +20,17 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import type { Account } from "@/lib/accounting/account-types"
-import { confirmJournalEntryDeletion } from "@/lib/accounting/confirm-journal-delete"
 import { downloadCsv } from "@/lib/accounting/export-csv"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { downloadAccountingPdf } from "@/lib/accounting/export-pdf"
 import {
   emptyBalanceSheetLayout,
@@ -166,6 +175,10 @@ export function AdminAccountingReportsPanel({
   const [search, setSearch] = useState("")
   const [loading, setLoading] = useState(true)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<{
+    entryId: string
+    belegNummer: string
+  } | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [data, setData] = useState<ReportsPayload>(() =>
@@ -228,9 +241,10 @@ export function AdminAccountingReportsPanel({
     }
   }, [from, to, account])
 
-  const handleDeleteEntry = async (entryId: string, belegNummer: string) => {
-    if (!confirmJournalEntryDeletion(belegNummer)) return
-
+  const confirmDeleteEntry = async () => {
+    if (!pendingDelete) return
+    const { entryId } = pendingDelete
+    setPendingDelete(null)
     setDeletingId(entryId)
     setSuccess(null)
     setActionError(null)
@@ -249,7 +263,6 @@ export function AdminAccountingReportsPanel({
       const message =
         err instanceof Error ? err.message : "Buchung konnte nicht gelöscht werden."
       setActionError(message)
-      window.alert(message)
     } finally {
       setDeletingId(null)
     }
@@ -655,7 +668,10 @@ export function AdminAccountingReportsPanel({
                             disabled={deletingId === row.entryId}
                             className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-red-600 transition-colors hover:bg-red-50 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-red-950/40"
                             onClick={() =>
-                              void handleDeleteEntry(row.entryId, row.belegNummer)
+                              setPendingDelete({
+                                entryId: row.entryId,
+                                belegNummer: row.belegNummer,
+                              })
                             }
                           >
                             {deletingId === row.entryId ? (
@@ -807,6 +823,36 @@ export function AdminAccountingReportsPanel({
           </div>
         )}
       </div>
+
+      <AlertDialog
+        open={Boolean(pendingDelete)}
+        onOpenChange={(open) => {
+          if (!open) setPendingDelete(null)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Buchung wirklich löschen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Die Buchung{" "}
+              <span className="font-mono font-semibold text-foreground">
+                {pendingDelete?.belegNummer || "ohne Belegnummer"}
+              </span>{" "}
+              wird dauerhaft entfernt. Kontosalden und Berichte werden neu
+              berechnet. Diese Aktion kann nicht rückgängig gemacht werden.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 text-white hover:bg-red-600/90"
+              onClick={() => void confirmDeleteEntry()}
+            >
+              Endgültig löschen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </section>
   )
 }

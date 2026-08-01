@@ -1,7 +1,17 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react"
-import { Archive, ChevronDown, ChevronRight, Loader2, Plus, Save, Trash2, X } from "lucide-react"
+import {
+  Archive,
+  ChevronDown,
+  ChevronRight,
+  Loader2,
+  Plus,
+  Save,
+  Trash2,
+  Upload,
+  X,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
@@ -95,6 +105,7 @@ const EMPTY_FORM: ProductFormState = {
   individualisierungsBild: "",
   modellDateiUrl: "",
   variantenText: "",
+  shopVariants: [],
   materialLinks: [],
   tags: [],
   imageShape: "rounded",
@@ -340,6 +351,7 @@ export function AdminProductsTab() {
       individualisierungsBild: product.individualisierungsBild ?? "",
       modellDateiUrl: product.modellDateiUrl ?? product.modelUrl ?? "",
       variantenText: formatVariantenForAdmin(product.varianten ?? []),
+      shopVariants: product.shopVariants ?? [],
       materialLinks: product.materialLinks ?? [],
       additionalBaseCostChf: product.additionalBaseCostChf ?? 0,
       purchasePriceChf: product.purchasePriceChf ?? 0,
@@ -1077,16 +1089,197 @@ export function AdminProductsTab() {
                 open={Boolean(openSections.varianten)}
                 onToggle={() => toggleSection("varianten")}
               >
-                <Input
-                  value={form.variantenText ?? ""}
-                  onChange={(e) => updateField("variantenText", e.target.value)}
-                  placeholder="z. B. Schwarz, Weiss, Rot"
-                  className={adminUi.input}
-                />
-                <p className={cn("text-xs", adminUi.muted)}>
-                  Kommagetrennt — definiert Shop-Auswahl und Auswahl bei
-                  Rohmaterial-Links. Leer = keine Varianten.
-                </p>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label className={adminUi.label}>Stichworte (Laser / Rohmaterial)</Label>
+                    <Input
+                      value={form.variantenText ?? ""}
+                      onChange={(e) => updateField("variantenText", e.target.value)}
+                      placeholder="z. B. Schwarz, Weiss, Rot"
+                      className={adminUi.input}
+                    />
+                    <p className={cn("text-xs", adminUi.muted)}>
+                      Kommagetrennt — für Laser-Auswahl und Rohmaterial-Links.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <Label className={adminUi.label}>
+                        Shop-Varianten (Preis / STL)
+                      </Label>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className={adminUi.outlineBtn}
+                        onClick={() => {
+                          const next = [
+                            ...(form.shopVariants ?? []),
+                            {
+                              id: `sv-${Date.now().toString(36)}`,
+                              name: "Neue Variante",
+                              priceDelta: 0,
+                            },
+                          ]
+                          updateField("shopVariants", next)
+                        }}
+                      >
+                        <Plus className="mr-1 h-3 w-3" />
+                        Variante
+                      </Button>
+                    </div>
+                    <p className={cn("text-xs", adminUi.muted)}>
+                      Sets, Grössen, Stückzahlen — mit Aufpreis oder Festpreis.
+                      STL-Override nur wenn gesetzt, sonst Produkt-Standard.
+                    </p>
+                    {(form.shopVariants ?? []).length === 0 ? (
+                      <p className={cn("text-xs", adminUi.muted)}>
+                        Noch keine Shop-Varianten.
+                      </p>
+                    ) : (
+                      <div className="space-y-3">
+                        {(form.shopVariants ?? []).map((variant, index) => (
+                          <div
+                            key={variant.id}
+                            className="space-y-2 rounded-lg border border-border/60 p-3"
+                          >
+                            <div className="grid gap-2 sm:grid-cols-2">
+                              <div className="space-y-1">
+                                <Label className="text-xs">Name</Label>
+                                <Input
+                                  value={variant.name}
+                                  className={adminUi.input}
+                                  onChange={(e) => {
+                                    const next = [...(form.shopVariants ?? [])]
+                                    next[index] = {
+                                      ...variant,
+                                      name: e.target.value,
+                                    }
+                                    updateField("shopVariants", next)
+                                  }}
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-xs">Festpreis CHF (optional)</Label>
+                                <Input
+                                  type="number"
+                                  step="0.05"
+                                  min={0}
+                                  value={variant.price ?? ""}
+                                  className={adminUi.input}
+                                  placeholder="leer = Basis + Aufpreis"
+                                  onChange={(e) => {
+                                    const next = [...(form.shopVariants ?? [])]
+                                    const raw = e.target.value
+                                    next[index] = {
+                                      ...variant,
+                                      price:
+                                        raw === ""
+                                          ? undefined
+                                          : Math.max(0, Number(raw) || 0),
+                                    }
+                                    updateField("shopVariants", next)
+                                  }}
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-xs">Aufpreis CHF</Label>
+                                <Input
+                                  type="number"
+                                  step="0.05"
+                                  value={variant.priceDelta ?? 0}
+                                  className={adminUi.input}
+                                  onChange={(e) => {
+                                    const next = [...(form.shopVariants ?? [])]
+                                    next[index] = {
+                                      ...variant,
+                                      priceDelta: Number(e.target.value) || 0,
+                                    }
+                                    updateField("shopVariants", next)
+                                  }}
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-xs">STL-Override URL</Label>
+                                <Input
+                                  value={variant.modellDateiUrl ?? ""}
+                                  className={adminUi.input}
+                                  placeholder="leer = Standard-Modell"
+                                  onChange={(e) => {
+                                    const next = [...(form.shopVariants ?? [])]
+                                    next[index] = {
+                                      ...variant,
+                                      modellDateiUrl: e.target.value.trim() || undefined,
+                                    }
+                                    updateField("shopVariants", next)
+                                  }}
+                                />
+                              </div>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className={adminUi.outlineBtn}
+                                onClick={() => {
+                                  const input = document.createElement("input")
+                                  input.type = "file"
+                                  input.accept = ".stl,.obj,.glb,.gltf,.3mf"
+                                  input.onchange = () => {
+                                    const file = input.files?.[0]
+                                    if (!file) return
+                                    void (async () => {
+                                      const fd = new FormData()
+                                      fd.append("file", file)
+                                      fd.append("productId", form.id || "temp")
+                                      fd.append("category", "model")
+                                      const res = await fetch("/api/admin/upload", {
+                                        method: "POST",
+                                        credentials: "include",
+                                        body: fd,
+                                      })
+                                      const data = (await res.json()) as {
+                                        url?: string
+                                        error?: string
+                                      }
+                                      if (!res.ok || !data.url) return
+                                      const next = [...(form.shopVariants ?? [])]
+                                      next[index] = {
+                                        ...variant,
+                                        modellDateiUrl: data.url,
+                                      }
+                                      updateField("shopVariants", next)
+                                    })()
+                                  }
+                                  input.click()
+                                }}
+                              >
+                                <Upload className="mr-1 h-3 w-3" />
+                                STL hochladen
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => {
+                                  updateField(
+                                    "shopVariants",
+                                    (form.shopVariants ?? []).filter((_, i) => i !== index)
+                                  )
+                                }}
+                              >
+                                <Trash2 className="mr-1 h-3 w-3" />
+                                Entfernen
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
               </ProductEditAccordion>
 
               <ProductEditAccordion

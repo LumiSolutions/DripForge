@@ -48,6 +48,14 @@ import { useFilamentCatalog } from "@/hooks/use-filament-materials"
 import { useAiPublicSettings } from "@/hooks/use-ai-public-settings"
 import { getLaserMaterialForProduct } from "@/lib/dripforge/laser"
 import { resolveProductVarianten } from "@/lib/dripforge/product-varianten"
+import {
+  productHasShopVariants,
+  resolveProductShopVariants,
+} from "@/lib/dripforge/product-shop-variants"
+import {
+  resolveShopVariantModelUrl,
+  resolveShopVariantUnitPrice,
+} from "@/lib/dripforge/types"
 import { resolveProductModelUrl } from "@/lib/dripforge/product-model-defaults"
 import { resolveProductPrintFile } from "@/lib/dripforge/product-print-file"
 import {
@@ -72,7 +80,6 @@ import {
   ShopProductCard,
   type ShopCardSurface,
 } from "@/components/dripforge/shared/shop-product-card"
-import { ProductShopPrice } from "@/components/dripforge/shared/product-shop-price"
 import type { CartItem, Product, ProductDimensionsMm } from "@/lib/dripforge/types"
 import type { ServiceVisibilitySettings, ShopConfiguratorSettings } from "@/lib/admin/types"
 import { DEFAULT_SHOP_CONFIGURATORS } from "@/lib/admin/types"
@@ -190,6 +197,9 @@ export function PageShop({
   const showAiKonfigurator = showCustom3d && Boolean(aiPublic?.enabled)
   const [filamentTab, setFilamentTab] = useState("pla")
   const [filamentSelection, setFilamentSelection] = useState<FilamentSelection | null>(null)
+  const [selectedShopVariantId, setSelectedShopVariantId] = useState<string | null>(
+    null
+  )
   const [laserDesign, setLaserDesign] = useState<LaserDesignerState | null>(null)
   const laserDesignRef = useRef<LaserDesignerState | null>(null)
   laserDesignRef.current = laserDesign
@@ -328,6 +338,8 @@ export function PageShop({
     setQuantity(1)
     setFilamentTab(filamentMaterials[0]?.id ?? "pla")
     setFilamentSelection(null)
+    const shopVariants = resolveProductShopVariants(normalized)
+    setSelectedShopVariantId(shopVariants[0]?.id ?? null)
     if (normalized.type === "laser") {
       const mat = getLaserMaterialForProduct(normalized)
       setLaserDesign(
@@ -363,6 +375,17 @@ export function PageShop({
     if (selectedProduct.type === "3d") {
       const selection = effectiveFilamentSelection
       if (!selection?.inStock) return
+      const shopVariants = resolveProductShopVariants(selectedProduct)
+      if (shopVariants.length > 0 && !selectedShopVariantId) return
+      const activeShopVariant = shopVariants.find((v) => v.id === selectedShopVariantId)
+      const unitPrice = resolveShopVariantUnitPrice(
+        selectedProduct,
+        selectedShopVariantId
+      )
+      const variantModelUrl = resolveShopVariantModelUrl(
+        selectedProduct,
+        selectedShopVariantId
+      )
 
       setCartCapturing(true)
       try {
@@ -375,25 +398,27 @@ export function PageShop({
         }
 
         const printFile = resolveProductPrintFile(selectedProduct)
+        const modelForCart = variantModelUrl || printFile?.fileUrl || undefined
 
         addToCart({
           id: `${selectedProduct.id}-${Date.now()}`,
           name: selectedProduct.name,
-          price: selectedProduct.price,
+          price: unitPrice,
           quantity,
           type: "3d",
           leitbild,
           customDetails: {
             filament: selection.materialName,
             color: selection.colorName,
+            variant: activeShopVariant?.name,
             dimensions: selectedProduct.dimensionsMm
               ? formatProductDimensionsText(selectedProduct.dimensionsMm)
               : undefined,
-            ...(printFile
+            ...(printFile || modelForCart
               ? {
-                  fileName: printFile.fileName,
-                  fileUrl: printFile.fileUrl,
-                  modelUrl: printFile.fileUrl,
+                  fileName: printFile?.fileName,
+                  fileUrl: modelForCart ?? printFile?.fileUrl,
+                  modelUrl: modelForCart ?? printFile?.fileUrl,
                 }
               : {}),
           },
@@ -410,11 +435,18 @@ export function PageShop({
     const productVarianten = resolveProductVarianten(selectedProduct)
     const needsVariant = productVarianten.length > 0
     const { selectedVariant } = designSnapshot
+    const shopVariants = resolveProductShopVariants(selectedProduct)
     if (
       !laserDesignHasContent(designSnapshot) ||
-      (needsVariant && !selectedVariant)
+      (needsVariant && !selectedVariant) ||
+      (shopVariants.length > 0 && !selectedShopVariantId)
     )
       return
+    const activeShopVariant = shopVariants.find((v) => v.id === selectedShopVariantId)
+    const laserUnitPrice = resolveShopVariantUnitPrice(
+      selectedProduct,
+      selectedShopVariantId
+    )
 
     setCartCapturing(true)
     // Auswahl-Chrome ausblenden — Snapshot der Layer bleibt unverändert
@@ -463,7 +495,7 @@ export function PageShop({
       const newItem: CartItem = {
         id: `${selectedProduct.id}-${Date.now()}`,
         name: selectedProduct.name,
-        price: selectedProduct.price,
+        price: laserUnitPrice,
         quantity,
         type: "laser",
         leitbild: previewMockup,
@@ -471,7 +503,7 @@ export function PageShop({
         productionLayer,
         customDetails: buildLaserCartCustomDetails(designSnapshot, {
           material: selectedProduct.name,
-          variant: selectedVariant,
+          variant: activeShopVariant?.name || selectedVariant,
           productBackgroundUrl:
             selectedProduct.individualisierungsBild?.trim() ||
             resolveProductImages(
@@ -497,12 +529,17 @@ export function PageShop({
 
   const canAddToCart =
     !cartCapturing &&
+    Boolean(selectedProduct) &&
     (selectedProduct?.type === "3d"
-      ? !filamentsLoading && Boolean(effectiveFilamentSelection?.inStock)
+      ? !filamentsLoading &&
+        Boolean(effectiveFilamentSelection?.inStock) &&
+        (!productHasShopVariants(selectedProduct!) || Boolean(selectedShopVariantId))
       : Boolean(
           laserDesign &&
             (selectedProductVarianten.length === 0 ||
               laserDesign.selectedVariant) &&
+            (!productHasShopVariants(selectedProduct!) ||
+              Boolean(selectedShopVariantId)) &&
             (laserDesign.engravingText.trim() ||
               laserDesign.imageLayout.src ||
               laserDesignHasContent(laserDesign))
@@ -510,7 +547,11 @@ export function PageShop({
 
   if (selectedProduct) {
     const detailProduct = normalizeShopProduct(selectedProduct)
-    const unitPrice = Number.isFinite(detailProduct.price) ? detailProduct.price : 0
+    const detailShopVariants = resolveProductShopVariants(detailProduct)
+    const unitPrice = resolveShopVariantUnitPrice(
+      detailProduct,
+      selectedShopVariantId
+    )
     const shopLaserMaterial =
       detailProduct.type === "laser"
         ? getLaserMaterialForProduct(detailProduct)
@@ -526,11 +567,47 @@ export function PageShop({
       detailProduct.galerieBilder
     )
 
-    const productModelUrl = resolveProductModelUrl(
-      detailProduct.id,
-      detailProduct.modelUrl,
-      detailProduct.modellDateiUrl
-    )
+    const productModelUrl =
+      resolveShopVariantModelUrl(detailProduct, selectedShopVariantId) ||
+      resolveProductModelUrl(
+        detailProduct.id,
+        detailProduct.modelUrl,
+        detailProduct.modellDateiUrl
+      )
+
+    const shopVariantPicker =
+      detailShopVariants.length > 0 ? (
+        <div className="space-y-2">
+          <p className="text-sm font-medium">Variante</p>
+          <div className="flex flex-wrap gap-2">
+            {detailShopVariants.map((variant) => {
+              const active = selectedShopVariantId === variant.id
+              const priceLabel = resolveShopVariantUnitPrice(
+                detailProduct,
+                variant.id
+              )
+              return (
+                <button
+                  key={variant.id}
+                  type="button"
+                  onClick={() => setSelectedShopVariantId(variant.id)}
+                  className={cn(
+                    "rounded-full border px-3 py-1.5 text-sm transition-colors",
+                    active
+                      ? "border-primary bg-primary/10 font-semibold text-foreground"
+                      : "border-border/60 bg-background text-muted-foreground hover:border-primary/40 hover:text-foreground"
+                  )}
+                >
+                  {variant.name}
+                  <span className="ml-1.5 tabular-nums text-xs opacity-80">
+                    CHF {priceLabel.toFixed(2)}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      ) : null
 
     const customizationBackgroundUrl =
       detailProduct.individualisierungsBild?.trim() || undefined
@@ -679,11 +756,14 @@ export function PageShop({
 
                   <Card className="rounded-2xl border-2 border-primary/25 bg-card/80 shadow-md shadow-primary/5">
                     <CardContent className="space-y-4 p-4 sm:p-5">
+                      {shopVariantPicker}
                       <div className="flex flex-col gap-1">
                         <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                           Preis
                         </h3>
-                        <ProductShopPrice product={detailProduct} size="lg" />
+                        <p className="text-2xl font-bold tabular-nums text-primary">
+                          CHF {unitPrice.toFixed(2)}
+                        </p>
                       </div>
                       <div className="flex items-center gap-3">
                         <Button
@@ -800,7 +880,8 @@ export function PageShop({
                       </div>
 
                       <div className="flex min-w-0 flex-col gap-6">
-                        {/* 1. Filament → 2. Preisberechnung → 3. Warenkorb */}
+                        {/* 1. Variante → 2. Filament → 3. Preisberechnung → 4. Warenkorb */}
+                        {shopVariantPicker}
                         <FilamentColorPicker
                           materials={filamentMaterials}
                           activeTab={filamentTab}
@@ -821,6 +902,18 @@ export function PageShop({
                                   CHF {unitPrice.toFixed(2)}
                                 </span>
                               </div>
+                              {detailShopVariants.length > 0 && (
+                                <div className="flex justify-between gap-3">
+                                  <span className="text-muted-foreground">
+                                    Variante
+                                  </span>
+                                  <span className="font-medium">
+                                    {detailShopVariants.find(
+                                      (v) => v.id === selectedShopVariantId
+                                    )?.name ?? "—"}
+                                  </span>
+                                </div>
+                              )}
                               {detailProduct.sale &&
                                 detailProduct.originalPrice != null && (
                                   <div className="flex justify-between gap-3">

@@ -7,6 +7,7 @@ import { ProductShopPrice } from "@/components/dripforge/shared/product-shop-pri
 import { WishlistButton } from "@/components/konto/wishlist-button"
 import { getSaleBadgePercent } from "@/lib/dripforge/product-sale"
 import {
+  productImageBayClass,
   productImageShapeClass,
   type Product,
 } from "@/lib/dripforge/types"
@@ -21,6 +22,21 @@ type ShopProductCardProps = {
   surface?: ShopCardSurface
   onOpen: () => void
   canInlineEdit?: boolean
+}
+
+function normalizeShapeAspect(
+  shape: Product["imageShape"],
+  viewMode: ShopProductCardProps["viewMode"]
+): string {
+  if (shape === "circle") return "aspect-square min-h-[12rem]"
+  if (shape === "square") {
+    return viewMode === "grid5"
+      ? "aspect-square min-h-[10rem]"
+      : "aspect-square min-h-[12rem]"
+  }
+  return viewMode === "grid5"
+    ? "aspect-[5/4] min-h-[10rem]"
+    : "aspect-[4/3] min-h-[12rem]"
 }
 
 export function ShopProductCard({
@@ -96,7 +112,8 @@ export function ShopProductCard({
         >
           <div
             className={cn(
-              "relative h-40 w-full shrink-0 overflow-hidden rounded-xl p-2.5 sm:h-32 sm:w-40",
+              "relative h-40 w-full shrink-0 overflow-hidden p-2.5 sm:h-32 sm:w-40",
+              productImageBayClass(product.imageShape),
               surface === "brand"
                 ? "bg-gradient-to-br from-orange-500/15 to-cyan-500/15"
                 : "bg-secondary/50"
@@ -181,7 +198,8 @@ export function ShopProductCard({
       <div
         className={cn(
           "relative w-full overflow-hidden p-3",
-          viewMode === "grid5" ? "aspect-[5/4] min-h-[10rem]" : "aspect-[4/3] min-h-[12rem]",
+          normalizeShapeAspect(product.imageShape, viewMode),
+          productImageBayClass(product.imageShape),
           surface === "brand"
             ? "bg-gradient-to-br from-orange-500/20 via-amber-500/10 to-cyan-500/20"
             : "bg-secondary/40",
@@ -190,7 +208,7 @@ export function ShopProductCard({
       >
         <div
           className={cn(
-            "relative h-full w-full overflow-hidden",
+            "relative h-full w-full overflow-hidden bg-background/40",
             productImageShapeClass(product.imageShape)
           )}
         >

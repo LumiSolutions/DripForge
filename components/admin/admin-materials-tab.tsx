@@ -3,8 +3,6 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react"
 import {
   AlertTriangle,
-  ArrowDown,
-  ArrowUp,
   Copy,
   Loader2,
   Minus,
@@ -16,6 +14,10 @@ import {
   Trash2,
   Upload,
 } from "lucide-react"
+import {
+  AdminMaterialsSortableGrid,
+  SortableMaterialShell,
+} from "@/components/admin/admin-materials-sortable"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -277,20 +279,20 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
     [load]
   )
 
-  const moveMaterial = useCallback(
-    async (materialId: string, direction: -1 | 1) => {
-      const ordered = sortStockItems(materials, "sort-order", materialTypes)
-      const index = ordered.findIndex((m) => m.id === materialId)
-      if (index < 0) return
-      const nextIndex = index + direction
-      if (nextIndex < 0 || nextIndex >= ordered.length) return
-      const next = [...ordered]
-      const [item] = next.splice(index, 1)
-      next.splice(nextIndex, 0, item!)
+  const handleDragReorder = useCallback(
+    async (orderedIds: string[]) => {
+      const byId = new Map(materials.map((m) => [m.id, m]))
+      const next = orderedIds
+        .map((id) => byId.get(id))
+        .filter((m): m is MaterialItem => Boolean(m))
+      // Append any filtered-out items (search) at the end in prior order
+      for (const m of materials) {
+        if (!next.some((x) => x.id === m.id)) next.push(m)
+      }
       setMaterials(next)
       await persistOrder(next)
     },
-    [materials, materialTypes, persistOrder]
+    [materials, persistOrder]
   )
 
   const openCreate = () => {
@@ -599,126 +601,122 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
           )}
         </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {displayedMaterials.map((material) => (
-            <div
-              key={material.id}
-              className={cn(
-                "rounded-xl border p-4",
-                adminUi.section,
-                isMaterialLowStock(material) && "border-amber-500/40"
-              )}
-            >
-              <div className="mb-3 flex items-start justify-between gap-2">
-                <div className="min-w-0 flex-1">
-                  {material.materialType && (
-                    <Badge variant="secondary" className="mb-1 text-xs">
-                      {materialTypeLabel(material.materialType)}
-                    </Badge>
-                  )}
-                  <h3 className={cn("font-semibold", adminUi.heading)}>
-                    {formatMaterialCardTitle(material)}
-                  </h3>
-                  {formatMaterialFarbeDisplay(material) && (
-                    <p className={cn("text-xs text-muted-foreground", adminUi.muted)}>
-                      {formatMaterialFarbeDisplay(material)}
-                    </p>
-                  )}
-                </div>
-                {(resolveMaterialPreviewImage(material) ?? null) && (
-                  <div
-                    className={cn(
-                      "h-12 w-12 shrink-0 overflow-hidden rounded-lg border",
-                      adminUi.thumbnail
-                    )}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={resolveMaterialPreviewImage(material)}
-                      alt={material.farbe ?? material.name}
-                      className="h-full w-full object-cover"
-                    />
-                  </div>
-                )}
-                {isMaterialLowStock(material) && (
-                  <Badge variant="outline" className="border-amber-500/50 text-amber-600">
-                    <AlertTriangle className="mr-1 h-3 w-3" />
-                    Niedrig
-                  </Badge>
-                )}
-              </div>
-              <StockDisplay
-                material={material}
-                adjusting={adjustingStockId === material.id}
-                onAdjustAvailable={
-                  material.stockUnit === "gram"
-                    ? (delta) => void adjustStockQuick(material.id, delta)
-                    : undefined
+        <div className="space-y-3">
+          <p className={cn("text-xs", adminUi.muted)}>
+            Shop-Reihenfolge per Drag &amp; Drop ändern (Griff oben links). Oben =
+            erste Stelle im Konfigurator.
+            {reordering ? " Speichern…" : ""}
+          </p>
+          <AdminMaterialsSortableGrid
+            ids={displayedMaterials.map((m) => m.id)}
+            disabled={reordering || Boolean(searchQuery.trim()) || artFilter !== "all"}
+            onReorder={(orderedIds) => void handleDragReorder(orderedIds)}
+          >
+            {displayedMaterials.map((material) => (
+              <SortableMaterialShell
+                key={material.id}
+                id={material.id}
+                disabled={
+                  reordering || Boolean(searchQuery.trim()) || artFilter !== "all"
                 }
-              />
-              <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
-                <span>Position:</span>
-                <span className="font-mono font-semibold tabular-nums text-foreground">
-                  {(material.sortOrder ?? 0) + 1}
-                </span>
-                <div className="ml-auto flex gap-1">
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="outline"
-                    className="h-7 w-7"
-                    disabled={reordering || sortMode !== "sort-order"}
-                    aria-label="Nach oben"
-                    onClick={() => void moveMaterial(material.id, -1)}
-                  >
-                    <ArrowUp className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="outline"
-                    className="h-7 w-7"
-                    disabled={reordering || sortMode !== "sort-order"}
-                    aria-label="Nach unten"
-                    onClick={() => void moveMaterial(material.id, 1)}
-                  >
-                    <ArrowDown className="h-3.5 w-3.5" />
-                  </Button>
+              >
+                <div
+                  className={cn(
+                    "rounded-xl border p-4 pt-10",
+                    adminUi.section,
+                    isMaterialLowStock(material) && "border-amber-500/40"
+                  )}
+                >
+                  <div className="mb-3 flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      {material.materialType && (
+                        <Badge variant="secondary" className="mb-1 text-xs">
+                          {materialTypeLabel(material.materialType)}
+                        </Badge>
+                      )}
+                      <h3 className={cn("font-semibold", adminUi.heading)}>
+                        {formatMaterialCardTitle(material)}
+                      </h3>
+                      {formatMaterialFarbeDisplay(material) && (
+                        <p
+                          className={cn(
+                            "text-xs text-muted-foreground",
+                            adminUi.muted
+                          )}
+                        >
+                          {formatMaterialFarbeDisplay(material)}
+                        </p>
+                      )}
+                    </div>
+                    {(resolveMaterialPreviewImage(material) ?? null) && (
+                      <div
+                        className={cn(
+                          "h-12 w-12 shrink-0 overflow-hidden rounded-lg border",
+                          adminUi.thumbnail
+                        )}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={resolveMaterialPreviewImage(material)}
+                          alt={material.farbe ?? material.name}
+                          className="h-full w-full object-cover"
+                        />
+                      </div>
+                    )}
+                    {isMaterialLowStock(material) && (
+                      <Badge
+                        variant="outline"
+                        className="border-amber-500/50 text-amber-600"
+                      >
+                        <AlertTriangle className="mr-1 h-3 w-3" />
+                        Niedrig
+                      </Badge>
+                    )}
+                  </div>
+                  <StockDisplay
+                    material={material}
+                    adjusting={adjustingStockId === material.id}
+                    onAdjustAvailable={
+                      material.stockUnit === "gram"
+                        ? (delta) => void adjustStockQuick(material.id, delta)
+                        : undefined
+                    }
+                  />
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className={adminUi.outlineBtn}
+                      onClick={() => openEdit(material)}
+                    >
+                      <Pencil className="mr-1 h-3 w-3" />
+                      Bearbeiten
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className={adminUi.outlineBtn}
+                      onClick={() => openDuplicate(material)}
+                    >
+                      <Copy className="mr-1 h-3 w-3" />
+                      Duplizieren
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className={adminUi.outlineBtn}
+                      onClick={() => void deleteMaterial(material.id)}
+                    >
+                      <Trash2 className="mr-1 h-3 w-3" />
+                    </Button>
+                  </div>
                 </div>
-              </div>
-              <div className="mt-4 flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className={adminUi.outlineBtn}
-                  onClick={() => openEdit(material)}
-                >
-                  <Pencil className="mr-1 h-3 w-3" />
-                  Bearbeiten
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className={adminUi.outlineBtn}
-                  onClick={() => openDuplicate(material)}
-                >
-                  <Copy className="mr-1 h-3 w-3" />
-                  Duplizieren
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className={adminUi.outlineBtn}
-                  onClick={() => void deleteMaterial(material.id)}
-                >
-                  <Trash2 className="mr-1 h-3 w-3" />
-                </Button>
-              </div>
-            </div>
-          ))}
+              </SortableMaterialShell>
+            ))}
+          </AdminMaterialsSortableGrid>
         </div>
       )}
 
@@ -833,25 +831,10 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label>Position / Sortierung (Shop)</Label>
-                    <Input
-                      type="number"
-                      min={0}
-                      step={1}
-                      value={draft.sortOrder ?? 0}
-                      onChange={(e) =>
-                        setDraft({
-                          ...draft,
-                          sortOrder: Math.max(
-                            0,
-                            Math.round(Number(e.target.value) || 0)
-                          ),
-                        })
-                      }
-                      className={adminUi.input}
-                    />
-                    <p className={cn("text-xs", adminUi.muted)}>
-                      Niedrigere Zahl = weiter vorne im Konfigurator.
+                    <Label>Shop-Reihenfolge</Label>
+                    <p className={cn("rounded-md border px-3 py-2 text-xs", adminUi.muted)}>
+                      Per Drag &amp; Drop in der Kartenliste sortieren (oben = erste
+                      Stelle). Neue Artikel werden ans Ende gehängt.
                     </p>
                   </div>
                 </div>

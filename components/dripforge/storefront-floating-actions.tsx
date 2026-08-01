@@ -28,6 +28,8 @@ import { useFloatingActionsVisible } from "@/hooks/use-floating-actions-visible"
 import { useTawkChat } from "@/hooks/use-tawk-chat"
 import { SUPPORT_ROUTE } from "@/components/dripforge/support-nav-link"
 import { shopViewHref } from "@/lib/dripforge/shop-routes"
+import { answerFaqBot } from "@/lib/chat/faq-bot"
+import type { TawkUiMessage } from "@/lib/tawk/tawk-types"
 
 /** Globale schwebende Aktionen: Support-Herz + Live-Chat (Mobil + Desktop). */
 export function StorefrontFloatingActions() {
@@ -48,6 +50,7 @@ export function StorefrontFloatingActions() {
     chatOpen,
     chatWelcome
   )
+  const [faqExtras, setFaqExtras] = useState<TawkUiMessage[]>([])
 
   useEffect(() => {
     setMounted(true)
@@ -56,13 +59,43 @@ export function StorefrontFloatingActions() {
   useEffect(() => {
     if (!chatOpen || !scrollRef.current) return
     scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-  }, [chatOpen, messages])
+  }, [chatOpen, messages, faqExtras])
+
+  const displayMessages = [...messages, ...faqExtras].sort((a, b) =>
+    a.createdAt.localeCompare(b.createdAt)
+  )
 
   const handleSendMessage = async () => {
     if (!chatInput.trim() || sending || uploading) return
     const text = chatInput
     setChatInput("")
-    const ok = await sendMessage(text)
+    const faq = answerFaqBot(text)
+    if (!faq.handoffSuggested) {
+      setFaqExtras((prev) => [
+        ...prev,
+        {
+          id: `faq-${Date.now()}`,
+          role: "admin",
+          content: `[Assistent] ${faq.answer}`,
+          createdAt: new Date().toISOString(),
+        },
+      ])
+    } else {
+      setFaqExtras((prev) => [
+        ...prev,
+        {
+          id: `handoff-${Date.now()}`,
+          role: "admin",
+          content:
+            "[Assistent] Ich verbinde dich mit dem Live-Support. Ein Mitarbeitender meldet sich gleich.",
+          createdAt: new Date().toISOString(),
+        },
+      ])
+    }
+    // Heartbeat/path for admin live visitors is separate; chat goes to live agent bridge
+    const ok = await sendMessage(
+      faq.handoffSuggested ? `[LIVE-HANDOVER @ ${window.location.pathname}] ${text}` : text
+    )
     if (!ok) setChatInput(text)
   }
 
@@ -129,7 +162,7 @@ export function StorefrontFloatingActions() {
               </div>
             ) : (
               <div className="space-y-4">
-                {messages.map((msg) => (
+                {displayMessages.map((msg) => (
                   <div
                     key={msg.id}
                     className={cn("flex gap-2", msg.role === "visitor" && "flex-row-reverse")}
