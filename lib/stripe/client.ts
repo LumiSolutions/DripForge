@@ -17,7 +17,8 @@ export function getStripe(): Stripe {
     )
   }
   if (!stripeClient) {
-    stripeClient = new Stripe(process.env.STRIPE_SECRET_KEY!)
+    // Trim: Azure App Settings können versehentlich Whitespace enthalten
+    stripeClient = new Stripe(process.env.STRIPE_SECRET_KEY!.trim())
   }
   return stripeClient
 }
