@@ -28,9 +28,12 @@ import { useCart } from "@/components/dripforge/cart-provider"
 import { CheckoutAuthDialog } from "@/components/konto/checkout-auth-dialog"
 import {
   DEFAULT_CHECKOUT_RUNTIME_CONFIG,
+  getDefaultPaymentMethod,
+  getEnabledPaymentOptions,
   getShippingCost,
   getTwintPaymentDescription,
-  PAYMENT_OPTIONS,
+  isPaymentMethodEnabled,
+  normalizeCheckoutRuntimeConfig,
   SHIPPING_OPTIONS,
   type CheckoutRuntimeConfig,
   type PaymentMethodId,
@@ -249,12 +252,19 @@ export function PageCheckout({
   const pointValueChf = rewardSettings?.loyaltyPointValueChf ?? 1
 
   useEffect(() => {
-    void fetch("/api/settings/checkout")
+    void fetch("/api/settings/checkout", { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (data?.mwstAktiv !== undefined) {
-          setCheckoutConfig(data as CheckoutRuntimeConfig)
-        }
+        if (!data || typeof data !== "object") return
+        const normalized = normalizeCheckoutRuntimeConfig(
+          data as Partial<CheckoutRuntimeConfig>
+        )
+        setCheckoutConfig(normalized)
+        setPaymentMethod((prev) =>
+          isPaymentMethodEnabled(prev, normalized)
+            ? prev
+            : getDefaultPaymentMethod(normalized) ?? prev
+        )
       })
       .catch(() => {
         console.warn("Checkout: Admin-Einstellungen konnten nicht geladen werden.")
@@ -401,6 +411,13 @@ export function PageCheckout({
         /* Gast-Checkout ohne Konto */
       })
   }, [loggedIn, loyaltyLoading])
+
+  const enabledPaymentOptions = useMemo(
+    () => getEnabledPaymentOptions(checkoutConfig),
+    [checkoutConfig]
+  )
+  const cardPaymentsEnabled = checkoutConfig.paymentCardAktiv
+  const twintPaymentsEnabled = checkoutConfig.paymentTwintAktiv
 
   const subtotal = useMemo(
     () => cart.reduce((sum, item) => sum + item.price * item.quantity, 0),
@@ -630,6 +647,13 @@ export function PageCheckout({
 
     const activePaymentMethod = methodOverride ?? paymentMethod
     if (methodOverride) setPaymentMethod(methodOverride)
+
+    if (!isPaymentMethodEnabled(activePaymentMethod, checkoutConfig)) {
+      setSubmitError(
+        "Diese Zahlungsart ist derzeit deaktiviert. Bitte eine andere wählen."
+      )
+      return
+    }
 
     if (
       rewardPointsEnabled &&
@@ -916,110 +940,110 @@ export function PageCheckout({
         <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-12">
           {/* Linke Spalte */}
           <div className="space-y-6 lg:col-span-7">
-            {/* Express Checkout */}
-            <Card className="rounded-2xl border-border/50 bg-card/50">
-              <CardContent className="p-6">
-                <div className="mb-4 flex items-center gap-2">
-                  <Wallet className="h-4 w-4 text-primary" />
-                  <h2 className="font-bold">Express-Checkout</h2>
-                </div>
-                {!stripeConfigured ? (
+            {/* Express Checkout — nur wenn Karte und/oder TWINT aktiv */}
+            {(cardPaymentsEnabled || twintPaymentsEnabled) && (
+              <Card className="rounded-2xl border-border/50 bg-card/50">
+                <CardContent className="p-6">
+                  <div className="mb-4 flex items-center gap-2">
+                    <Wallet className="h-4 w-4 text-primary" />
+                    <h2 className="font-bold">Express-Checkout</h2>
+                  </div>
+                  {cardPaymentsEnabled &&
+                    (!stripeConfigured ? (
+                      <div
+                        role="alert"
+                        className="mb-4 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-100"
+                      >
+                        Stripe ist auf dem Server nicht bereit (`STRIPE_SECRET_KEY`).
+                      </div>
+                    ) : !stripePublishableKey || !stripeJsReady ? (
+                      <div
+                        role="alert"
+                        className="mb-4 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-100"
+                      >
+                        Publishable Key fehlt oder `loadStripe` ist noch nicht bereit.
+                      </div>
+                    ) : stripeDiag?.modeMismatch ? (
+                      <div
+                        role="alert"
+                        className="mb-4 rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-800 dark:text-red-200"
+                      >
+                        Stripe Mode-Mismatch: Secret «{stripeDiag.secretKeyMode}»,
+                        Publishable «{stripeDiag.publishableKeyMode}».
+                      </div>
+                    ) : (
+                      <div className="mb-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-900 dark:text-emerald-100">
+                        Stripe verbunden ({stripeDiag?.secretKeyMode ?? "ok"}).
+                      </div>
+                    ))}
                   <div
-                    role="alert"
-                    className="mb-4 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-100"
-                  >
-                    Stripe ist auf dem Server nicht bereit (`STRIPE_SECRET_KEY`).
-                    Ohne gültigen Live-Secret-Key gibt es keinen Redirect zur
-                    Stripe-Zahlungsseite — deshalb erscheinen keine Kartenfelder.
-                    Details in der Browser-Konsole unter «[Checkout] Stripe server
-                    diagnostics».
-                  </div>
-                ) : !stripePublishableKey || !stripeJsReady ? (
-                  <div
-                    role="alert"
-                    className="mb-4 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-100"
-                  >
-                    Publishable Key fehlt oder `loadStripe` ist noch nicht bereit.
-                    In Azure bitte{" "}
-                    <code className="font-mono">STRIPE_PUBLISHABLE_KEY</code>{" "}
-                    (oder{" "}
-                    <code className="font-mono">
-                      NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
-                    </code>
-                    ) setzen — der Key wird zur Laufzeit über{" "}
-                    <code className="font-mono">/api/stripe/config</code> geladen.
-                  </div>
-                ) : stripeDiag?.modeMismatch ? (
-                  <div
-                    role="alert"
-                    className="mb-4 rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-800 dark:text-red-200"
-                  >
-                    Stripe Mode-Mismatch: Secret ist «{stripeDiag.secretKeyMode}»,
-                    Publishable «{stripeDiag.publishableKeyMode}». Beide müssen
-                    live bzw. beide test sein.
-                  </div>
-                ) : (
-                  <div className="mb-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-900 dark:text-emerald-100">
-                    Stripe verbunden ({stripeDiag?.secretKeyMode ?? "ok"}, JS
-                    ready). Karten-/Wallet-Felder erscheinen nach dem Absenden auf
-                    der sicheren Stripe-Checkout-Seite.
-                  </div>
-                )}
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                  <button
-                    type="button"
-                    disabled={isSubmitting || !stripeConfigured}
-                    title={
-                      stripeConfigured
-                        ? "Weiterleitung zu Stripe Checkout (Apple Pay / Wallets)"
-                        : "Stripe noch nicht konfiguriert"
-                    }
-                    onClick={() => void handleSubmit("card")}
                     className={cn(
-                      "flex h-11 items-center justify-center rounded-xl border border-border bg-black px-4 text-sm font-semibold text-white transition-opacity",
-                      (!stripeConfigured || isSubmitting) &&
-                        "cursor-not-allowed opacity-50"
+                      "grid grid-cols-1 gap-3",
+                      cardPaymentsEnabled && twintPaymentsEnabled
+                        ? "sm:grid-cols-3"
+                        : "sm:grid-cols-2"
                     )}
                   >
-                    Apple Pay
-                  </button>
-                  <button
-                    type="button"
-                    disabled={isSubmitting || !stripeConfigured}
-                    title={
-                      stripeConfigured
-                        ? "Weiterleitung zu Stripe Checkout (Google Pay / Karte)"
-                        : "Stripe noch nicht konfiguriert"
-                    }
-                    onClick={() => void handleSubmit("card")}
-                    className={cn(
-                      "flex h-11 items-center justify-center rounded-xl border border-border bg-white px-4 text-sm font-semibold text-slate-800 shadow-sm transition-opacity dark:bg-background dark:text-foreground",
-                      (!stripeConfigured || isSubmitting) &&
-                        "cursor-not-allowed opacity-50"
+                    {cardPaymentsEnabled && (
+                      <>
+                        <button
+                          type="button"
+                          disabled={isSubmitting || !stripeConfigured}
+                          title={
+                            stripeConfigured
+                              ? "Weiterleitung zu Stripe Checkout (Apple Pay / Wallets)"
+                              : "Stripe noch nicht konfiguriert"
+                          }
+                          onClick={() => void handleSubmit("card")}
+                          className={cn(
+                            "flex h-11 items-center justify-center rounded-xl border border-border bg-black px-4 text-sm font-semibold text-white transition-opacity",
+                            (!stripeConfigured || isSubmitting) &&
+                              "cursor-not-allowed opacity-50"
+                          )}
+                        >
+                          Apple Pay
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isSubmitting || !stripeConfigured}
+                          title={
+                            stripeConfigured
+                              ? "Weiterleitung zu Stripe Checkout (Google Pay / Karte)"
+                              : "Stripe noch nicht konfiguriert"
+                          }
+                          onClick={() => void handleSubmit("card")}
+                          className={cn(
+                            "flex h-11 items-center justify-center rounded-xl border border-border bg-white px-4 text-sm font-semibold text-slate-800 shadow-sm transition-opacity dark:bg-background dark:text-foreground",
+                            (!stripeConfigured || isSubmitting) &&
+                              "cursor-not-allowed opacity-50"
+                          )}
+                        >
+                          Google Pay
+                        </button>
+                      </>
                     )}
-                  >
-                    Google Pay
-                  </button>
-                  <button
-                    type="button"
-                    disabled={isSubmitting}
-                    onClick={() => void handleSubmit("twint")}
-                    className={cn(
-                      "flex h-11 items-center justify-center rounded-xl border px-4 text-sm font-bold transition-colors",
-                      "border-cyan-600/40 bg-cyan-500/10 text-cyan-700 hover:bg-cyan-500/20 dark:text-cyan-300",
-                      isSubmitting && "cursor-not-allowed opacity-50"
+                    {twintPaymentsEnabled && (
+                      <button
+                        type="button"
+                        disabled={isSubmitting}
+                        onClick={() => void handleSubmit("twint")}
+                        className={cn(
+                          "flex h-11 items-center justify-center rounded-xl border px-4 text-sm font-bold transition-colors",
+                          "border-cyan-600/40 bg-cyan-500/10 text-cyan-700 hover:bg-cyan-500/20 dark:text-cyan-300",
+                          isSubmitting && "cursor-not-allowed opacity-50"
+                        )}
+                      >
+                        TWINT
+                      </button>
                     )}
-                  >
-                    TWINT
-                  </button>
-                </div>
-                <p className="mt-3 text-center text-xs text-muted-foreground">
-                  Adresse unten ausfüllen, dann Express tippen — du wirst zu
-                  Stripe weitergeleitet. Apple/Google Pay erscheinen dort, sofern
-                  Gerät/Browser sie anbieten.
-                </p>
-              </CardContent>
-            </Card>
+                  </div>
+                  <p className="mt-3 text-center text-xs text-muted-foreground">
+                    Adresse unten ausfüllen, dann Express tippen. Verfügbare
+                    Zahlungsarten werden im Admin gesteuert.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Rechnungsadresse */}
             <Card className="rounded-2xl border-border/50 bg-card/50">
@@ -1250,41 +1274,51 @@ export function PageCheckout({
                   <h2 className="font-bold">Zahlungsart</h2>
                 </div>
                 <div className="space-y-3">
-                  {PAYMENT_OPTIONS.map((option) => {
-                    const selected = paymentMethod === option.id
-                    const description =
-                      option.id === "twint"
-                        ? getTwintPaymentDescription(checkoutConfig, {
-                            stripeConfigured,
-                            twintPaymentLinkConfigured,
-                          })
-                        : option.description
-                    return (
-                      <label
-                        key={option.id}
-                        className={cn(
-                          "flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition-all",
-                          selected
-                            ? "border-primary bg-primary/5 shadow-sm"
-                            : "border-border/60 hover:border-primary/40"
-                        )}
-                      >
-                        <input
-                          type="radio"
-                          name="payment"
-                          checked={selected}
-                          onChange={() => setPaymentMethod(option.id)}
-                          className="mt-1 h-4 w-4 accent-primary"
-                        />
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-semibold">{option.label}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {description}
-                          </p>
-                        </div>
-                      </label>
-                    )
-                  })}
+                  {enabledPaymentOptions.length === 0 ? (
+                    <p
+                      role="alert"
+                      className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-3 text-sm text-amber-900 dark:text-amber-100"
+                    >
+                      Derzeit ist keine Zahlungsart aktiv. Bitte später erneut
+                      versuchen oder den Support kontaktieren.
+                    </p>
+                  ) : (
+                    enabledPaymentOptions.map((option) => {
+                      const selected = paymentMethod === option.id
+                      const description =
+                        option.id === "twint"
+                          ? getTwintPaymentDescription(checkoutConfig, {
+                              stripeConfigured,
+                              twintPaymentLinkConfigured,
+                            })
+                          : option.description
+                      return (
+                        <label
+                          key={option.id}
+                          className={cn(
+                            "flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition-all",
+                            selected
+                              ? "border-primary bg-primary/5 shadow-sm"
+                              : "border-border/60 hover:border-primary/40"
+                          )}
+                        >
+                          <input
+                            type="radio"
+                            name="payment"
+                            checked={selected}
+                            onChange={() => setPaymentMethod(option.id)}
+                            className="mt-1 h-4 w-4 accent-primary"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-semibold">{option.label}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {description}
+                            </p>
+                          </div>
+                        </label>
+                      )
+                    })
+                  )}
                 </div>
 
                 {paymentMethod === "twint" && (
@@ -1546,7 +1580,7 @@ export function PageCheckout({
                 type="button"
                 size="lg"
                 onClick={() => void handleSubmit()}
-                disabled={isSubmitting}
+                disabled={isSubmitting || enabledPaymentOptions.length === 0}
                 className="mt-6 w-full bg-primary text-base font-bold hover:bg-primary/90"
               >
                 <Lock className="mr-2 h-4 w-4" />

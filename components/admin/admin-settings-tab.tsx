@@ -1477,6 +1477,66 @@ export function AdminSettingsTab({
                   />
                 </div>
               )}
+
+              <div className={cn("space-y-3 rounded-xl border p-4", adminUi.section)}>
+                <div className="space-y-1">
+                  <h3 className={cn("text-base font-semibold", adminUi.heading)}>
+                    Zahlungsarten im Shop
+                  </h3>
+                  <p className={cn("text-sm", adminUi.muted)}>
+                    Steuert, welche Optionen Kunden im Checkout sehen. Änderungen
+                    gelten sofort nach Speichern (Shop lädt die Einstellungen live).
+                  </p>
+                </div>
+
+                {(
+                  [
+                    {
+                      key: "paymentCardAktiv" as const,
+                      label: "Kreditkarte / Apple Pay / Google Pay (Stripe)",
+                      hint: "Weiterleitung zur Stripe-Checkout-Seite",
+                    },
+                    {
+                      key: "paymentTwintAktiv" as const,
+                      label: "TWINT",
+                      hint: "Zahlungslink oder manuelle TWINT-Anweisung",
+                    },
+                    {
+                      key: "paymentInvoiceAktiv" as const,
+                      label: "Kauf auf Rechnung / Vorkasse",
+                      hint: "Banküberweisung gemäss Firmendaten unten",
+                    },
+                  ] as const
+                ).map((row) => (
+                  <div
+                    key={row.key}
+                    className="flex items-start justify-between gap-4 rounded-lg border border-border/50 px-3 py-3"
+                  >
+                    <div className="space-y-0.5">
+                      <Label className={cn("text-sm font-semibold", adminUi.heading)}>
+                        {row.label}
+                      </Label>
+                      <p className={cn("text-xs", adminUi.muted)}>{row.hint}</p>
+                    </div>
+                    <Switch
+                      checked={checkout[row.key]}
+                      onCheckedChange={(checked) =>
+                        setCheckout((prev) => ({ ...prev, [row.key]: checked }))
+                      }
+                      aria-label={row.label}
+                    />
+                  </div>
+                ))}
+
+                {!checkout.paymentCardAktiv &&
+                  !checkout.paymentTwintAktiv &&
+                  !checkout.paymentInvoiceAktiv && (
+                    <p className="text-sm font-medium text-amber-700 dark:text-amber-300">
+                      Achtung: Alle Zahlungsarten sind deaktiviert — Kunden können
+                      nicht bestellen.
+                    </p>
+                  )}
+              </div>
             </CardContent>
           </Card>
         )}
