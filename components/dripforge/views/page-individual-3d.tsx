@@ -584,9 +584,9 @@ export function PageIndividual3D() {
       </div>
 
       <div className="mx-auto max-w-7xl px-4">
-        <div className="grid items-start gap-6 lg:grid-cols-2 xl:grid-cols-3 xl:gap-8">
+        <div className="grid items-start gap-8 lg:grid-cols-2 xl:grid-cols-12 xl:gap-10">
           {/* Spalte 1: Upload + Live-Vorschau */}
-          <div className="space-y-6">
+          <div className="space-y-6 xl:col-span-5">
             <Card className="border-border/50 bg-card/50">
               <CardContent className="p-6">
                 <h3 className="mb-4 font-bold">1. Datei hochladen</h3>
@@ -668,7 +668,7 @@ export function PageIndividual3D() {
           </div>
 
           {/* Spalte 2: Material, Farben, Grösse */}
-          <div className="space-y-6">
+          <div className="space-y-6 xl:col-span-4">
             <Card className="border-border/50 bg-card/50">
               <CardContent className="p-6">
                 <h3 className="mb-2 font-bold">2. Filament & Farbe (Mehrfarben)</h3>
@@ -776,7 +776,7 @@ export function PageIndividual3D() {
           </div>
 
           {/* Spalte 3: Menge, Preiskategorie, Kontakt, Anfrage */}
-          <div className="space-y-6 lg:col-span-2 xl:col-span-1">
+          <div className="space-y-6 lg:col-span-2 xl:col-span-3">
             <Card className="border-primary/30 bg-gradient-to-b from-primary/10 to-transparent">
               <CardContent className="space-y-5 p-6">
                 <div>

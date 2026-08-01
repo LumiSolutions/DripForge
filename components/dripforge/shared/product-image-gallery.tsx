@@ -141,7 +141,7 @@ export function ProductImageGallery({
   const galleryImages =
     safeImages.length > 0
       ? safeImages
-      : ["/filaments/printed-pla-schwarz.png"]
+      : ["/placeholder.svg"]
 
   const [emblaRef, emblaApi] = useEmblaCarousel({
     loop: galleryImages.length > 1,

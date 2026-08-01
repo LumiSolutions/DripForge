@@ -26,19 +26,13 @@ async function readInventoryFile(): Promise<StoredInventoryMaterial[]> {
   const filePath = path.join(DATA_DIR, INVENTORY_FILE)
   try {
     const raw = await fs.readFile(filePath, "utf-8")
-    return JSON.parse(raw) as StoredInventoryMaterial[]
+    const parsed = JSON.parse(raw) as StoredInventoryMaterial[]
+    return Array.isArray(parsed) ? parsed : []
   } catch {
-    const now = new Date().toISOString()
-    const defaults = DEFAULT_INVENTORY_MATERIALS.map((m) => ({
-      ...m,
-      updatedAt: now,
-    }))
-    try {
-      await fs.writeFile(filePath, JSON.stringify(defaults, null, 2), "utf-8")
-    } catch {
-      /* read-only deployment */
-    }
-    return defaults
+    // Niemals Defaults auf Disk schreiben — fehlende Datei = leeres Lager.
+    // Verhindert Reset/Overwrite bei Deployments.
+    void DEFAULT_INVENTORY_MATERIALS
+    return []
   }
 }
 

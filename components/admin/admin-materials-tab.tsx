@@ -3,6 +3,8 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react"
 import {
   AlertTriangle,
+  ArrowDown,
+  ArrowUp,
   Copy,
   Loader2,
   Minus,
@@ -137,7 +139,8 @@ function StockDisplay({
 export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
   const [materials, setMaterials] = useState<MaterialItem[]>([])
   const [materialTypes, setMaterialTypes] = useState<MaterialTypeDefinition[]>([])
-  const [sortMode, setSortMode] = useState<StockSortMode>("stock-asc")
+  const [sortMode, setSortMode] = useState<StockSortMode>("sort-order")
+  const [reordering, setReordering] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [artFilter, setArtFilter] = useState<string>("all")
   const [loading, setLoading] = useState(true)
@@ -245,7 +248,56 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
     setArtFilter("all")
   }, [category])
 
+  const persistOrder = useCallback(
+    async (ordered: MaterialItem[]) => {
+      setReordering(true)
+      setError(null)
+      try {
+        const res = await fetch("/api/admin/materials/reorder", {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ orderedIds: ordered.map((m) => m.id) }),
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error ?? "Reihenfolge speichern fehlgeschlagen")
+        // Reload full list for this category to stay consistent with filters
+        await load()
+        setSortMode("sort-order")
+      } catch (err) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Reihenfolge konnte nicht gespeichert werden."
+        )
+      } finally {
+        setReordering(false)
+      }
+    },
+    [load]
+  )
+
+  const moveMaterial = useCallback(
+    async (materialId: string, direction: -1 | 1) => {
+      const ordered = sortStockItems(materials, "sort-order", materialTypes)
+      const index = ordered.findIndex((m) => m.id === materialId)
+      if (index < 0) return
+      const nextIndex = index + direction
+      if (nextIndex < 0 || nextIndex >= ordered.length) return
+      const next = [...ordered]
+      const [item] = next.splice(index, 1)
+      next.splice(nextIndex, 0, item!)
+      setMaterials(next)
+      await persistOrder(next)
+    },
+    [materials, materialTypes, persistOrder]
+  )
+
   const openCreate = () => {
+    const maxOrder = materials.reduce(
+      (max, item) => Math.max(max, item.sortOrder ?? 0),
+      -1
+    )
     setDraft({
       id: "",
       docType: "material",
@@ -255,6 +307,8 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
       stockUnit: category === "filament" ? "gram" : "piece",
       stockAvailable: 0,
       stockReserved: 0,
+      sortOrder: maxOrder + 1,
+      colorHex: "#1a1a1a",
       updatedAt: new Date().toISOString(),
     })
     setAddRolls("0")
@@ -471,6 +525,7 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
               <SelectValue placeholder="Sortierung" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="sort-order">Shop-Reihenfolge (Position)</SelectItem>
               <SelectItem value="stock-asc">Bestand (kritisch zuerst)</SelectItem>
               <SelectItem value="name-asc">Name (A–Z)</SelectItem>
               <SelectItem value="material-type">Material-Art</SelectItem>
@@ -601,6 +656,36 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
                     : undefined
                 }
               />
+              <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
+                <span>Position:</span>
+                <span className="font-mono font-semibold tabular-nums text-foreground">
+                  {(material.sortOrder ?? 0) + 1}
+                </span>
+                <div className="ml-auto flex gap-1">
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="outline"
+                    className="h-7 w-7"
+                    disabled={reordering || sortMode !== "sort-order"}
+                    aria-label="Nach oben"
+                    onClick={() => void moveMaterial(material.id, -1)}
+                  >
+                    <ArrowUp className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="outline"
+                    className="h-7 w-7"
+                    disabled={reordering || sortMode !== "sort-order"}
+                    aria-label="Nach unten"
+                    onClick={() => void moveMaterial(material.id, 1)}
+                  >
+                    <ArrowDown className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
               <div className="mt-4 flex flex-wrap gap-2">
                 <Button
                   type="button"
@@ -717,6 +802,57 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
                       placeholder="z. B. 10100"
                       className={adminUi.input}
                     />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Hex-Farbe (3D-Vorschau)</Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="color"
+                        value={
+                          /^#([0-9a-fA-F]{6})$/.test(draft.colorHex ?? "")
+                            ? draft.colorHex!
+                            : "#1a1a1a"
+                        }
+                        onChange={(e) =>
+                          setDraft({ ...draft, colorHex: e.target.value })
+                        }
+                        className="h-10 w-14 cursor-pointer p-1"
+                        aria-label="Hex-Farbe wählen"
+                      />
+                      <Input
+                        value={draft.colorHex ?? ""}
+                        onChange={(e) =>
+                          setDraft({
+                            ...draft,
+                            colorHex: e.target.value || undefined,
+                          })
+                        }
+                        placeholder="#1a1a1a"
+                        className={adminUi.input}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Position / Sortierung (Shop)</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      step={1}
+                      value={draft.sortOrder ?? 0}
+                      onChange={(e) =>
+                        setDraft({
+                          ...draft,
+                          sortOrder: Math.max(
+                            0,
+                            Math.round(Number(e.target.value) || 0)
+                          ),
+                        })
+                      }
+                      className={adminUi.input}
+                    />
+                    <p className={cn("text-xs", adminUi.muted)}>
+                      Niedrigere Zahl = weiter vorne im Konfigurator.
+                    </p>
                   </div>
                 </div>
               ) : (

@@ -15,14 +15,11 @@ export type SiteImageSection = {
   fields: SiteImageField[]
 }
 
-const HERO_DEFAULT =
-  "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/ChatGPT%20Image%2017.%20Mai%202026%2C%2022_30_40-QRFbP2eouxkeDTfBuUpwhiWA8fn1Ng.png"
-const EXPERTISE_DEFAULT =
-  "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/ChatGPT%20Image%2017.%20Mai%202026%2C%2000_02_54-d7wTZgFb3k2tGqbkACQpqJbzNVYTwR.png"
-const PAGE_3D_HERO_DEFAULT =
-  "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/pc3-BE2inKSo4vqNzyJPw5eT2lZzb9cXDP.jpg"
-const LOGO_DEFAULT =
-  "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/ChatGPT%20Image%2016.%20Mai%202026%2C%2022_19_51-CjFqSwPCG95cJ4BMP2Ono6hKObBX8y.png"
+/** Neutrale Defaults — keine hardcodierten ChatGPT-/KI-Blob-Bilder. */
+const HERO_DEFAULT = "/placeholder.svg"
+const EXPERTISE_DEFAULT = "/placeholder.svg"
+const PAGE_3D_HERO_DEFAULT = "/placeholder.svg"
+const LOGO_DEFAULT = "/placeholder.svg"
 
 export const DEFAULT_SITE_IMAGES = {
   landingpage_hero_image: {

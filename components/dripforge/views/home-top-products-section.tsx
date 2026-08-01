@@ -137,7 +137,7 @@ export function HomeTopProductsSection() {
                   product.images,
                   product.galerieBilder
                 )
-                const coverSrc = images[0] ?? "/filaments/printed-pla-schwarz.png"
+                const coverSrc = images[0] ?? "/placeholder.svg"
 
                 return (
                   <div

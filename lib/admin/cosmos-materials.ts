@@ -104,8 +104,26 @@ export function normalizeMaterialItem(raw: Partial<MaterialItem> & { id: string 
         ? Math.round(Math.max(0, Number(raw.purchasePrice) || 0) * 100) / 100
         : undefined,
     lieferant: raw.lieferant?.trim() || undefined,
+    sortOrder: normalizeSortOrder(raw.sortOrder),
+    colorHex: normalizeColorHex(raw.colorHex),
     updatedAt: raw.updatedAt ?? new Date().toISOString(),
   }
+}
+
+function normalizeSortOrder(value: unknown): number {
+  const n = Number(value)
+  if (!Number.isFinite(n)) return 0
+  return Math.max(0, Math.round(n))
+}
+
+function normalizeColorHex(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined
+  const trimmed = value.trim()
+  if (!trimmed) return undefined
+  if (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(trimmed)) {
+    return trimmed
+  }
+  return undefined
 }
 
 export async function cosmosGetMaterials(
@@ -128,24 +146,24 @@ export async function cosmosGetMaterials(
   try {
     const { resources } = await container.items
       .query<CosmosMaterialDoc>({
-        query: `SELECT * FROM c WHERE ${where} ORDER BY c.name ASC`,
-        parameters: baseParams,
-      })
-      .fetchAll()
-    return resources.map((doc) => normalizeMaterialItem(doc))
-  } catch (orderedError) {
-    // ORDER BY kann ohne Composite-Index scheitern — ohne Sortierung erneut versuchen
-    logCosmosError("cosmosGetMaterials:orderBy", orderedError)
-    const { resources } = await container.items
-      .query<CosmosMaterialDoc>({
         query: `SELECT * FROM c WHERE ${where}`,
         parameters: baseParams,
       })
       .fetchAll()
     return resources
       .map((doc) => normalizeMaterialItem(doc))
-      .sort((a, b) => a.name.localeCompare(b.name, "de"))
+      .sort(compareMaterialsBySortOrder)
+  } catch (error) {
+    logCosmosError("cosmosGetMaterials", error)
+    throw error
   }
+}
+
+function compareMaterialsBySortOrder(a: MaterialItem, b: MaterialItem): number {
+  const ao = a.sortOrder ?? 0
+  const bo = b.sortOrder ?? 0
+  if (ao !== bo) return ao - bo
+  return a.name.localeCompare(b.name, "de")
 }
 
 export async function cosmosGetMaterialById(id: string): Promise<MaterialItem | null> {

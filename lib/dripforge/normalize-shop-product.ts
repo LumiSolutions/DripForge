@@ -2,8 +2,9 @@ import type { Product, ProductDimensionsMm } from "@/lib/dripforge/types"
 import { normalizeProductImageShape } from "@/lib/dripforge/types"
 import { PRODUCT_DOC_TYPE } from "@/lib/cosmos/products-container"
 import { normalizeProductTagIds } from "@/lib/admin/product-tags"
+import { NEUTRAL_PRODUCT_PLACEHOLDER } from "@/lib/dripforge/neutral-placeholder"
 
-const PLACEHOLDER_IMAGE = "/filaments/printed-pla-schwarz.png"
+const PLACEHOLDER_IMAGE = NEUTRAL_PRODUCT_PLACEHOLDER
 
 function safeNumber(value: unknown, fallback = 0): number {
   const n = Number(value)
