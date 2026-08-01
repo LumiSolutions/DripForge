@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server"
 import { normalizeCustomerEmail } from "@/lib/admin/customers"
 import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
+import {
+  isPaymentMethodEnabled,
+  type PaymentMethodId,
+} from "@/lib/dripforge/checkout-config"
 import type { OrderPayload } from "@/lib/dripforge/submit-order"
 import { getSessionEmailFromRequest } from "@/lib/konto/api-auth"
 import {
@@ -76,6 +80,23 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: "Rechnungskauf nutzt /api/orders, nicht Stripe Checkout." },
         { status: 400 }
+      )
+    }
+
+    const settings = await getSettings()
+    if (
+      !isPaymentMethodEnabled(
+        payload.paymentMethod as PaymentMethodId,
+        settings.checkout
+      )
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Diese Zahlungsart ist im Admin deaktiviert und kann nicht verwendet werden.",
+          success: false,
+        },
+        { status: 403 }
       )
     }
 

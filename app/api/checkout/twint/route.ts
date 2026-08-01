@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
-import { getOrderById } from "@/lib/admin/db"
+import { getOrderById, getSettings } from "@/lib/admin/db"
 import { applyInventoryReservationForOrder } from "@/lib/admin/order-inventory-hook"
 import { CosmosDatabaseError } from "@/lib/admin/storage-bridge"
 import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
+import { isPaymentMethodEnabled } from "@/lib/dripforge/checkout-config"
 import type { OrderPayload } from "@/lib/dripforge/submit-order"
 import { getSessionEmailFromRequest } from "@/lib/konto/api-auth"
 import { bindOrderToCustomer } from "@/lib/shop/bind-order-to-account"
@@ -104,6 +105,18 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: "Diese Route ist nur für TWINT-Zahlungen." },
         { status: 400 }
+      )
+    }
+
+    const checkoutSettings = await getSettings()
+    if (!isPaymentMethodEnabled("twint", checkoutSettings.checkout)) {
+      return NextResponse.json(
+        {
+          error:
+            "TWINT ist im Admin deaktiviert und kann nicht verwendet werden.",
+          success: false,
+        },
+        { status: 403 }
       )
     }
 

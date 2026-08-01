@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { isCosmosConfigured } from "@/lib/admin/cosmos-store"
+import { getSettings } from "@/lib/admin/db"
 import { getAccountByEmail } from "@/lib/konto/account-db"
 import { grantAiCreditsForPaidOrder } from "@/lib/konto/ai-credits"
 import {
@@ -9,6 +10,10 @@ import {
   grantLoyaltyPoints,
   calculateLoyaltyEarnBaseChf,
 } from "@/lib/konto/loyalty-points"
+import {
+  isPaymentMethodEnabled,
+  type PaymentMethodId,
+} from "@/lib/dripforge/checkout-config"
 import type { OrderPayload } from "@/lib/dripforge/submit-order"
 import { processOrderPayload } from "@/lib/shop/order-processing"
 import { claimInboundOrderEmailSend } from "@/lib/email/claim-inbound-emails"
@@ -35,6 +40,22 @@ export async function POST(request: Request) {
 
     const payload = (await request.json()) as OrderPayload
     const sessionEmail = await getSessionEmailFromRequest()
+
+    const checkoutSettings = await getSettings()
+    if (
+      !isPaymentMethodEnabled(
+        payload.paymentMethod as PaymentMethodId,
+        checkoutSettings.checkout
+      )
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Diese Zahlungsart ist im Admin deaktiviert und kann nicht verwendet werden.",
+        },
+        { status: 403 }
+      )
+    }
 
     orderId = `pending`
     console.info(

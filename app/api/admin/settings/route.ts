@@ -119,6 +119,9 @@ export async function PUT(request: Request) {
       twintGatewayAktiv: Boolean(body.checkout.twintGatewayAktiv),
       twintTelefonnummer:
         body.checkout.twintTelefonnummer?.trim() || "+41 79 000 00 00",
+      paymentCardAktiv: body.checkout.paymentCardAktiv,
+      paymentTwintAktiv: body.checkout.paymentTwintAktiv,
+      paymentInvoiceAktiv: body.checkout.paymentInvoiceAktiv,
     })
 
     const company: CompanySettings = {
