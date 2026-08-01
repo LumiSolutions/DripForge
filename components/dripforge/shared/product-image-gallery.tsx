@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
+import useEmblaCarousel from "embla-carousel-react"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import { SafeProductImage } from "@/components/dripforge/shared/safe-product-image"
 import { cn } from "@/lib/utils"
@@ -17,65 +18,89 @@ export function ProductImageGallery({
   className,
 }: ProductImageGalleryProps) {
   const safeImages = Array.isArray(images)
-    ? images.filter((src): src is string => typeof src === "string" && Boolean(src.trim()))
+    ? images.filter(
+        (src): src is string => typeof src === "string" && Boolean(src.trim())
+      )
     : []
   const galleryImages =
     safeImages.length > 0
       ? safeImages
       : ["/filaments/printed-pla-schwarz.png"]
-  const [currentImageIndex, setCurrentImageIndex] = useState(0)
+
+  const [emblaRef, emblaApi] = useEmblaCarousel({
+    loop: galleryImages.length > 1,
+    align: "start",
+    dragFree: false,
+    containScroll: "trimSnaps",
+  })
+  const [selectedIndex, setSelectedIndex] = useState(0)
+
+  const onSelect = useCallback(() => {
+    if (!emblaApi) return
+    setSelectedIndex(emblaApi.selectedScrollSnap())
+  }, [emblaApi])
 
   useEffect(() => {
-    setCurrentImageIndex(0)
-  }, [images])
+    if (!emblaApi) return
+    onSelect()
+    emblaApi.on("select", onSelect)
+    emblaApi.on("reInit", onSelect)
+    return () => {
+      emblaApi.off("select", onSelect)
+      emblaApi.off("reInit", onSelect)
+    }
+  }, [emblaApi, onSelect])
 
-  const safeIndex = Math.min(currentImageIndex, galleryImages.length - 1)
-  const mainSrc = galleryImages[safeIndex] ?? "/filaments/printed-pla-schwarz.png"
-
-  const nextImage = () => {
-    setCurrentImageIndex((prev) =>
-      prev === galleryImages.length - 1 ? 0 : prev + 1
-    )
-  }
-
-  const prevImage = () => {
-    setCurrentImageIndex((prev) =>
-      prev === 0 ? galleryImages.length - 1 : prev - 1
-    )
-  }
+  useEffect(() => {
+    emblaApi?.reInit()
+    emblaApi?.scrollTo(0, true)
+    setSelectedIndex(0)
+  }, [emblaApi, galleryImages.length, images])
 
   const showNavigation = galleryImages.length > 1
 
+  const scrollTo = (index: number) => {
+    emblaApi?.scrollTo(index)
+  }
+
   return (
     <div className={cn("flex flex-col gap-3", className)}>
-      <div className="group relative aspect-square w-full overflow-hidden rounded-xl border border-border/50 bg-secondary/30 shadow-sm">
-        <SafeProductImage
-          key={mainSrc}
-          src={mainSrc}
-          alt={`${alt} — Ansicht ${safeIndex + 1}`}
-          fill
-          className="object-cover transition-opacity duration-300"
-          sizes="(max-width: 1024px) 100vw, 50vw"
-          priority={safeIndex === 0}
-        />
+      <div className="group relative w-full overflow-hidden rounded-xl border border-border/50 bg-secondary/30 shadow-sm">
+        <div className="overflow-hidden touch-pan-y" ref={emblaRef}>
+          <div className="flex touch-pan-x">
+            {galleryImages.map((src, index) => (
+              <div
+                key={`${src}-${index}`}
+                className="relative aspect-square min-w-0 shrink-0 grow-0 basis-full"
+              >
+                <SafeProductImage
+                  src={src}
+                  alt={`${alt} — Ansicht ${index + 1}`}
+                  fill
+                  className="object-cover"
+                  sizes="(max-width: 1024px) 100vw, 50vw"
+                  priority={index === 0}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
 
         {showNavigation && (
           <>
             <button
               type="button"
-              onClick={prevImage}
-              className="absolute left-2 top-1/2 z-10 -translate-y-1/2 rounded-full bg-white/80 p-2 opacity-0 shadow transition-all hover:bg-white group-hover:opacity-100 dark:bg-card/80 dark:hover:bg-card"
+              onClick={() => emblaApi?.scrollPrev()}
+              className="absolute left-2 top-1/2 z-10 -translate-y-1/2 rounded-full bg-white/80 p-2 opacity-0 shadow transition-all hover:bg-white group-hover:opacity-100 max-md:opacity-70 dark:bg-card/80 dark:hover:bg-card"
               aria-label="Vorheriges Bild"
-              title="Vorheriges Bild"
             >
               <ChevronLeft className="h-5 w-5 text-slate-800 dark:text-slate-100" />
             </button>
             <button
               type="button"
-              onClick={nextImage}
-              className="absolute right-2 top-1/2 z-10 -translate-y-1/2 rounded-full bg-white/80 p-2 opacity-0 shadow transition-all hover:bg-white group-hover:opacity-100 dark:bg-card/80 dark:hover:bg-card"
-              aria-label="Naechstes Bild"
-              title="Naechstes Bild"
+              onClick={() => emblaApi?.scrollNext()}
+              className="absolute right-2 top-1/2 z-10 -translate-y-1/2 rounded-full bg-white/80 p-2 opacity-0 shadow transition-all hover:bg-white group-hover:opacity-100 max-md:opacity-70 dark:bg-card/80 dark:hover:bg-card"
+              aria-label="Nächstes Bild"
             >
               <ChevronRight className="h-5 w-5 text-slate-800 dark:text-slate-100" />
             </button>
@@ -85,21 +110,46 @@ export function ProductImageGallery({
 
       {showNavigation && (
         <div
-          className="flex gap-2 overflow-x-auto pb-1"
+          className="flex items-center justify-center gap-1.5"
           role="tablist"
           aria-label="Produktbilder"
         >
-          {galleryImages.map((src, index) => (
+          {galleryImages.map((_, index) => (
             <button
-              key={`${src}-${index}`}
+              key={`dot-${index}`}
               type="button"
               role="tab"
-              aria-selected={safeIndex === index}
+              aria-selected={selectedIndex === index}
               aria-label={`Bild ${index + 1} anzeigen`}
-              onClick={() => setCurrentImageIndex(index)}
+              onClick={() => scrollTo(index)}
+              className={cn(
+                "h-2 w-2 rounded-full transition-all",
+                selectedIndex === index
+                  ? "w-4 bg-primary"
+                  : "bg-muted-foreground/35 hover:bg-muted-foreground/55"
+              )}
+            />
+          ))}
+        </div>
+      )}
+
+      {showNavigation && (
+        <div
+          className="hidden gap-2 overflow-x-auto pb-1 md:flex"
+          role="tablist"
+          aria-label="Produktbilder Vorschau"
+        >
+          {galleryImages.map((src, index) => (
+            <button
+              key={`${src}-thumb-${index}`}
+              type="button"
+              role="tab"
+              aria-selected={selectedIndex === index}
+              aria-label={`Bild ${index + 1} anzeigen`}
+              onClick={() => scrollTo(index)}
               className={cn(
                 "relative h-16 w-16 shrink-0 overflow-hidden rounded-lg border-2 transition-colors",
-                safeIndex === index
+                selectedIndex === index
                   ? "border-primary ring-2 ring-primary/20"
                   : "border-border/60 opacity-80 hover:border-primary/50 hover:opacity-100"
               )}

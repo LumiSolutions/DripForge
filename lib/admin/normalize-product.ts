@@ -14,6 +14,8 @@ import {
   productFieldsFromShopStatus,
   type ProductShopStatus,
 } from "@/lib/admin/product-status"
+import { normalizeProductSku } from "@/lib/admin/product-sku"
+import { normalizeProductImageShape } from "@/lib/dripforge/types"
 
 export { isProductActive }
 
@@ -114,10 +116,15 @@ export function normalizeAdminProductInput(
 
   const now = new Date().toISOString()
 
+  const sku =
+    normalizeProductSku(input.sku) ??
+    normalizeProductSku(existing?.sku)
+
   return {
     id: input.id ?? existing?.id ?? `p-${Date.now()}`,
     name: input.name?.trim() ?? existing?.name ?? "Neues Produkt",
     description: input.description?.trim() ?? existing?.description ?? "",
+    ...(sku ? { sku } : {}),
     ...saleFields,
     purchasePriceChf,
     additionalBaseCostChf,
@@ -143,6 +150,9 @@ export function normalizeAdminProductInput(
     varianten,
     materialLinks: input.materialLinks ?? existing?.materialLinks ?? [],
     tags: normalizeProductTagIds(input.tags ?? existing?.tags),
+    imageShape: normalizeProductImageShape(
+      input.imageShape ?? existing?.imageShape
+    ),
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   }

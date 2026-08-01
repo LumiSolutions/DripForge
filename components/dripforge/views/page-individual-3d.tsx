@@ -56,6 +56,11 @@ import {
   type DruckanfrageContactMethod,
 } from "@/lib/admin/druckanfrage-types"
 import {
+  isAllowedModelFile,
+  isPreviewableModelFile,
+  MODEL_FILE_ACCEPT,
+} from "@/lib/dripforge/model-file-accept"
+import {
   createDefaultPrint3dCategories,
   DEFAULT_PRICING_FOOTNOTE,
   formatFromPriceChf,
@@ -327,10 +332,17 @@ export function PageIndividual3D() {
 
   const parseUploadedFile = useCallback(
     async (file: File) => {
-      const extension = file.name.split(".").pop()?.toLowerCase()
-      const previewExtensions = ["stl", "obj", "glb", "gltf"]
+      // iOS liefert oft leere/generische MIME-Types — Entscheidung nach Dateiendung.
+      if (!isAllowedModelFile(file)) {
+        setLoadError(
+          "Bitte eine 3D-Datei wählen (STL, OBJ, GLB, GLTF oder 3MF)."
+        )
+        setUploadedFile(null)
+        resetModelState()
+        return
+      }
 
-      if (!extension || !previewExtensions.includes(extension)) {
+      if (!isPreviewableModelFile(file)) {
         setLoadError(
           "Für die Live-Vorschau bitte STL, OBJ, GLB oder GLTF verwenden (.3MF nur als Auftrag)."
         )
@@ -385,7 +397,9 @@ export function PageIndividual3D() {
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault()
-    const file = e.dataTransfer.files?.[0]
+    const files = Array.from(e.dataTransfer.files ?? [])
+    const file =
+      files.find((entry) => isAllowedModelFile(entry)) ?? files[0] ?? null
     if (file) void parseUploadedFile(file)
   }
 
@@ -569,8 +583,9 @@ export function PageIndividual3D() {
         />
       </div>
 
-      <div className="mx-auto max-w-6xl px-4">
-        <div className="grid gap-8 lg:grid-cols-2">
+      <div className="mx-auto max-w-7xl px-4">
+        <div className="grid items-start gap-6 lg:grid-cols-2 xl:grid-cols-3 xl:gap-8">
+          {/* Spalte 1: Upload + Live-Vorschau */}
           <div className="space-y-6">
             <Card className="border-border/50 bg-card/50">
               <CardContent className="p-6">
@@ -586,7 +601,7 @@ export function PageIndividual3D() {
                 >
                   <input
                     type="file"
-                    accept=".stl,.obj,.glb,.gltf,.3mf"
+                    accept={MODEL_FILE_ACCEPT}
                     onChange={handleFileUpload}
                     className="absolute inset-0 cursor-pointer opacity-0"
                   />
@@ -652,6 +667,7 @@ export function PageIndividual3D() {
             </Card>
           </div>
 
+          {/* Spalte 2: Material, Farben, Grösse */}
           <div className="space-y-6">
             <Card className="border-border/50 bg-card/50">
               <CardContent className="p-6">
@@ -678,7 +694,7 @@ export function PageIndividual3D() {
 
             <Card className="border-border/50 bg-card/50">
               <CardContent className="p-6">
-                <h3 className="mb-4 font-bold">3. Grösse & Menge</h3>
+                <h3 className="mb-4 font-bold">3. Grösse / Skalierung</h3>
                 <div className="space-y-5">
                   <div className="space-y-3">
                     <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
@@ -754,40 +770,43 @@ export function PageIndividual3D() {
                       </div>
                     </div>
                   )}
-
-                  <div>
-                    <span className="mb-2 block text-sm">Anzahl</span>
-                    <div className="flex items-center gap-3">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                      >
-                        <Minus className="h-4 w-4" />
-                      </Button>
-                      <span className="w-12 text-center font-bold">{quantity}</span>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setQuantity(quantity + 1)}
-                      >
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
                 </div>
               </CardContent>
             </Card>
+          </div>
 
-            {dimensions && priceBreakdown && (
-              <Card className="border-primary/30 bg-gradient-to-b from-primary/10 to-transparent">
-                <CardContent className="space-y-5 p-6">
-                  <PricingCategoryPicker
-                    categories={pricingCategories}
-                    selectedId={selectedCategoryId}
-                    onSelect={setSelectedCategoryId}
-                  />
+          {/* Spalte 3: Menge, Preiskategorie, Kontakt, Anfrage */}
+          <div className="space-y-6 lg:col-span-2 xl:col-span-1">
+            <Card className="border-primary/30 bg-gradient-to-b from-primary/10 to-transparent">
+              <CardContent className="space-y-5 p-6">
+                <div>
+                  <h3 className="mb-3 font-bold">Anzahl</h3>
+                  <div className="flex items-center gap-3">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                    >
+                      <Minus className="h-4 w-4" />
+                    </Button>
+                    <span className="w-12 text-center font-bold">{quantity}</span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setQuantity(quantity + 1)}
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
 
+                <PricingCategoryPicker
+                  categories={pricingCategories}
+                  selectedId={selectedCategoryId}
+                  onSelect={setSelectedCategoryId}
+                />
+
+                {dimensions && priceBreakdown ? (
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Abmessungen</span>
@@ -831,118 +850,123 @@ export function PageIndividual3D() {
                         )}
                       </span>
                     </div>
-                    <PricingFootnote text={pricingFootnote} className="mt-2" />
                   </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Laden Sie ein Modell hoch, um Abmessungen und Richtpreis zu sehen.
+                  </p>
+                )}
 
-                  <div className="mt-6 space-y-4 rounded-xl border border-border/60 bg-background/40 p-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="customerEmail">
-                        E-Mail{" "}
-                        {contactMethod === "email" ? (
-                          <span className="text-red-500">*</span>
-                        ) : null}
-                      </Label>
-                      <Input
-                        id="customerEmail"
-                        type="email"
-                        value={customerEmail}
-                        onChange={(e) => setCustomerEmail(e.target.value)}
-                        placeholder="ihre@email.com"
-                        required={contactMethod === "email"}
-                      />
-                    </div>
+                <PricingFootnote text={pricingFootnote} />
 
-                    <div className="space-y-2">
-                      <Label htmlFor="customerPhone">
-                        Telefonnummer{" "}
-                        {contactMethod === "whatsapp" ? (
-                          <span className="text-red-500">*</span>
-                        ) : null}
-                      </Label>
-                      <Input
-                        id="customerPhone"
-                        type="tel"
-                        value={customerPhone}
-                        onChange={(e) => setCustomerPhone(e.target.value)}
-                        placeholder="+41 79 000 00 00"
-                        required={contactMethod === "whatsapp"}
-                      />
-                    </div>
-
-                    <fieldset className="space-y-3">
-                      <legend className="text-sm font-medium">
-                        Wie moechten Sie kontaktiert werden?{" "}
+                <div className="space-y-4 rounded-xl border border-border/60 bg-background/40 p-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="customerEmail">
+                      E-Mail{" "}
+                      {contactMethod === "email" ? (
                         <span className="text-red-500">*</span>
-                      </legend>
-                      <div className="grid gap-2 sm:grid-cols-2">
-                        <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-border/60 px-3 py-2 text-sm">
-                          <input
-                            type="radio"
-                            name="contactMethod"
-                            value="email"
-                            checked={contactMethod === "email"}
-                            onChange={() => setContactMethod("email")}
-                            className="h-4 w-4 accent-primary"
-                          />
-                          <Mail className="h-4 w-4 text-muted-foreground" />
-                          Per E-Mail
-                        </label>
-                        <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-border/60 px-3 py-2 text-sm">
-                          <input
-                            type="radio"
-                            name="contactMethod"
-                            value="whatsapp"
-                            checked={contactMethod === "whatsapp"}
-                            onChange={() => setContactMethod("whatsapp")}
-                            className="h-4 w-4 accent-primary"
-                          />
-                          <MessageCircle className="h-4 w-4 text-muted-foreground" />
-                          Per WhatsApp
-                        </label>
-                      </div>
-                    </fieldset>
+                      ) : null}
+                    </Label>
+                    <Input
+                      id="customerEmail"
+                      type="email"
+                      value={customerEmail}
+                      onChange={(e) => setCustomerEmail(e.target.value)}
+                      placeholder="ihre@email.com"
+                      required={contactMethod === "email"}
+                    />
                   </div>
 
-                  {submitError ? (
-                    <p className="mt-4 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-600">
-                      {submitError}
-                    </p>
-                  ) : null}
+                  <div className="space-y-2">
+                    <Label htmlFor="customerPhone">
+                      Telefonnummer{" "}
+                      {contactMethod === "whatsapp" ? (
+                        <span className="text-red-500">*</span>
+                      ) : null}
+                    </Label>
+                    <Input
+                      id="customerPhone"
+                      type="tel"
+                      value={customerPhone}
+                      onChange={(e) => setCustomerPhone(e.target.value)}
+                      placeholder="+41 79 000 00 00"
+                      required={contactMethod === "whatsapp"}
+                    />
+                  </div>
 
-                  {submitSuccess ? (
-                    <p className="mt-4 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300">
-                      {submitSuccess}
-                    </p>
-                  ) : null}
+                  <fieldset className="space-y-3">
+                    <legend className="text-sm font-medium">
+                      Wie moechten Sie kontaktiert werden?{" "}
+                      <span className="text-red-500">*</span>
+                    </legend>
+                    <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
+                      <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-border/60 px-3 py-2 text-sm">
+                        <input
+                          type="radio"
+                          name="contactMethod"
+                          value="email"
+                          checked={contactMethod === "email"}
+                          onChange={() => setContactMethod("email")}
+                          className="h-4 w-4 accent-primary"
+                        />
+                        <Mail className="h-4 w-4 text-muted-foreground" />
+                        Per E-Mail
+                      </label>
+                      <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-border/60 px-3 py-2 text-sm">
+                        <input
+                          type="radio"
+                          name="contactMethod"
+                          value="whatsapp"
+                          checked={contactMethod === "whatsapp"}
+                          onChange={() => setContactMethod("whatsapp")}
+                          className="h-4 w-4 accent-primary"
+                        />
+                        <MessageCircle className="h-4 w-4 text-muted-foreground" />
+                        Per WhatsApp
+                      </label>
+                    </div>
+                  </fieldset>
+                </div>
 
-                  <Button
-                    onClick={() => void handleSubmitInquiry()}
-                    disabled={isSubmitting || Boolean(submitSuccess)}
-                    className="mt-6 w-full bg-primary hover:bg-primary/90"
-                    size="lg"
-                  >
-                    {isSubmitting ? (
-                      "Anfrage wird gesendet…"
-                    ) : (
-                      <>
-                        <Send className="mr-2 h-5 w-5" />
-                        Unverbindliche Anfrage senden
-                      </>
-                    )}
-                  </Button>
-                  {isOversized && (
-                    <p className="mt-3 text-center text-sm font-medium text-red-500">
-                      Anfrage gesperrt: Modell überschreitet den maximalen Druckbereich.
-                    </p>
+                {submitError ? (
+                  <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-600">
+                    {submitError}
+                  </p>
+                ) : null}
+
+                {submitSuccess ? (
+                  <p className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300">
+                    {submitSuccess}
+                  </p>
+                ) : null}
+
+                <Button
+                  onClick={() => void handleSubmitInquiry()}
+                  disabled={isSubmitting || Boolean(submitSuccess)}
+                  className="w-full bg-primary hover:bg-primary/90"
+                  size="lg"
+                >
+                  {isSubmitting ? (
+                    "Anfrage wird gesendet…"
+                  ) : (
+                    <>
+                      <Send className="mr-2 h-5 w-5" />
+                      Unverbindliche Anfrage senden
+                    </>
                   )}
-                  {multiColorSelection && !allColorsInStock && (
-                    <p className="mt-3 text-center text-sm text-red-400">
-                      Mindestens eine gewaehlte Farbe ist nicht auf Lager.
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
-            )}
+                </Button>
+                {isOversized && (
+                  <p className="text-center text-sm font-medium text-red-500">
+                    Anfrage gesperrt: Modell überschreitet den maximalen Druckbereich.
+                  </p>
+                )}
+                {multiColorSelection && !allColorsInStock && (
+                  <p className="text-center text-sm text-red-400">
+                    Mindestens eine gewaehlte Farbe ist nicht auf Lager.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
           </div>
         </div>
       </div>

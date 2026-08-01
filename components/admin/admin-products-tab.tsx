@@ -46,6 +46,8 @@ import {
   salePriceFromTargetMarginPercent,
 } from "@/lib/admin/material-pricing"
 import { type ProductSortMode } from "@/lib/admin/list-sort-utils"
+import { allocateNextProductSku } from "@/lib/admin/product-sku"
+import { MODEL_FILE_ACCEPT } from "@/lib/dripforge/model-file-accept"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
 import { cn } from "@/lib/utils"
 import {
@@ -96,6 +98,7 @@ const EMPTY_FORM: ProductFormState = {
   materialLinks: [],
   tags: [],
   imageShape: "rounded",
+  sku: "",
 }
 
 type MediaUploadCategory = "gallery" | "customization" | "model"
@@ -316,6 +319,7 @@ export function AdminProductsTab() {
     setForm({
       ...EMPTY_FORM,
       id: `p-${Date.now()}`,
+      sku: allocateNextProductSku(products),
     })
     setLaserMaterialFilter("")
     setMaterialLinkFilters({})
@@ -341,6 +345,7 @@ export function AdminProductsTab() {
       purchasePriceChf: product.purchasePriceChf ?? 0,
       tags: product.tags ?? [],
       imageShape: product.imageShape ?? "rounded",
+      sku: product.sku ?? "",
     })
     setLaserMaterialFilter("")
     setMaterialLinkFilters({})
@@ -771,6 +776,25 @@ export function AdminProductsTab() {
                       onChange={(e) => updateField("name", e.target.value)}
                       className={adminUi.input}
                     />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className={adminUi.label}>Artikelnummer (SKU)</Label>
+                    <Input
+                      value={form.sku ?? ""}
+                      onChange={(e) =>
+                        updateField(
+                          "sku",
+                          e.target.value.replace(/\D/g, "").slice(0, 12)
+                        )
+                      }
+                      placeholder="10001"
+                      inputMode="numeric"
+                      className={adminUi.input}
+                    />
+                    <p className={cn("text-xs", adminUi.muted)}>
+                      Fortlaufend numerisch — beim Anlegen automatisch vergeben, manuell
+                      änderbar.
+                    </p>
                   </div>
                   <div className="space-y-2 sm:col-span-2">
                     <Label className={adminUi.label}>Beschreibung</Label>
@@ -1513,7 +1537,7 @@ export function AdminProductsTab() {
                   <Label className={adminUi.label}>3D-Datei / Modell</Label>
                   <Input
                     type="file"
-                    accept=".stl,.obj,.glb,.gltf"
+                    accept={MODEL_FILE_ACCEPT}
                     disabled={uploadingMedia === "model"}
                     onChange={(e) => void handleModelUpload(e)}
                     className={adminUi.fileInput}

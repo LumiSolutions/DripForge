@@ -3,6 +3,7 @@ import { adminDatabaseErrorResponse } from "@/lib/admin/api-errors"
 import { getAdminProducts, upsertProduct } from "@/lib/admin/db"
 import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
 import { normalizeAdminProductInput } from "@/lib/admin/normalize-product"
+import { allocateNextProductSku, normalizeProductSku } from "@/lib/admin/product-sku"
 import {
   isAuthError,
   requireAdminSession,
@@ -37,7 +38,10 @@ export async function POST(request: Request) {
     const body = (await request.json()) as Partial<AdminProduct> & {
       variantenText?: string
     }
-    const product = normalizeAdminProductInput(body)
+    const existingProducts = await getAdminProducts()
+    const sku =
+      normalizeProductSku(body.sku) ?? allocateNextProductSku(existingProducts)
+    const product = normalizeAdminProductInput({ ...body, sku })
     const saved = await upsertProduct(product)
     return NextResponse.json({ product: saved }, { status: 201 })
   } catch (error) {

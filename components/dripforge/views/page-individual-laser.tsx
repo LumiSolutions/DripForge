@@ -410,7 +410,7 @@ export function PageIndividualLaser({
         />
       </div>
 
-      <div className="mx-auto max-w-6xl space-y-6 px-4">
+      <div className="mx-auto max-w-7xl space-y-6 px-4">
         <Card className="rounded-2xl border-cyan-500/30 bg-cyan-500/5 shadow-sm">
           <CardContent className="flex flex-col gap-1 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
             <p className="text-sm font-semibold text-cyan-700 dark:text-cyan-300">
@@ -422,7 +422,52 @@ export function PageIndividualLaser({
           </CardContent>
         </Card>
 
-        <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2 lg:gap-8">
+        <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2 xl:grid-cols-3 xl:gap-8">
+          {/* Spalte 1: Produkt hochladen + Live-Vorschau / Werkzeuge */}
+          <div className="flex min-w-0 flex-col gap-6">
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                ref={productFileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleProductBackgroundUpload}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => productFileInputRef.current?.click()}
+              >
+                <ImagePlus className="mr-2 h-4 w-4" />
+                Produkt hochladen
+              </Button>
+              {productBackgroundUrl && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setProductBackgroundUrl(null)}
+                >
+                  <X className="mr-1 h-4 w-4" />
+                  Produktbild entfernen
+                </Button>
+              )}
+            </div>
+
+            <LaserDesignerStudio
+              column="preview"
+              material={previewMaterial}
+              productName="Personalisierte Laserkreation"
+              state={laserDesign}
+              previewSurfaceRef={laserPreviewRef}
+              onStateChange={handleDesignChange}
+              workAreaMm={workAreaMm}
+              onEngravingMetricsChange={setEngravingMetrics}
+              customizationBackgroundUrl={productBackgroundUrl ?? undefined}
+            />
+          </div>
+
+          {/* Spalte 2: Text-Layer, Masse, Material */}
           <div className="flex min-w-0 flex-col gap-6">
             <LaserDesignerStudio
               column="settings"
@@ -583,94 +628,10 @@ export function PageIndividualLaser({
             </Card>
           </div>
 
-          <div className="flex min-w-0 flex-col gap-6">
-            <div className="flex flex-wrap items-center gap-2">
-              <input
-                ref={productFileInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleProductBackgroundUpload}
-              />
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => productFileInputRef.current?.click()}
-              >
-                <ImagePlus className="mr-2 h-4 w-4" />
-                Produkt hochladen
-              </Button>
-              {productBackgroundUrl && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setProductBackgroundUrl(null)}
-                >
-                  <X className="mr-1 h-4 w-4" />
-                  Produktbild entfernen
-                </Button>
-              )}
-            </div>
-
-            <LaserDesignerStudio
-              column="preview"
-              material={previewMaterial}
-              productName="Personalisierte Laserkreation"
-              state={laserDesign}
-              previewSurfaceRef={laserPreviewRef}
-              onStateChange={handleDesignChange}
-              workAreaMm={workAreaMm}
-              onEngravingMetricsChange={setEngravingMetrics}
-              customizationBackgroundUrl={productBackgroundUrl ?? undefined}
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 items-stretch gap-6 md:grid-cols-2">
-          <Card className="flex min-h-[280px] flex-col rounded-2xl border border-sky-200/80 bg-sky-50 shadow-sm dark:border-cyan-500/25 dark:bg-gradient-to-b dark:from-cyan-500/10 dark:via-sky-950/20">
-            <CardContent className="flex h-full flex-col gap-4 p-6">
-              <PricingCategoryPicker
-                categories={pricingCategories}
-                selectedId={selectedCategoryId}
-                onSelect={setSelectedCategoryId}
-                accentClassName="border-cyan-500 bg-cyan-500/10"
-              />
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between gap-3">
-                  <span className="text-muted-foreground">Material</span>
-                  <span className="text-right font-medium">{materialLabel}</span>
-                </div>
-                {engravingMetrics && engravingMetrics.maxAreaMm2 > 0 && (
-                  <div className="flex justify-between gap-3">
-                    <span className="text-muted-foreground">Gravurfläche (ca.)</span>
-                    <span className="font-medium">
-                      {engravingMetrics.maxAreaMm2.toFixed(0)} mm²
-                    </span>
-                  </div>
-                )}
-                {isPriceOnRequest ? (
-                  <p className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-sm font-medium text-amber-800 dark:text-amber-200">
-                    {PRICE_ON_REQUEST_LABEL}
-                  </p>
-                ) : (
-                  <div className="flex justify-between gap-3 text-lg font-bold">
-                    <span>Richtpreis</span>
-                    <span className="text-cyan-600 dark:text-cyan-400">
-                      {selectedCategory
-                        ? formatFromPriceChf(selectedCategory.fromPriceChf)
-                        : "—"}
-                    </span>
-                  </div>
-                )}
-              </div>
-              <PricingFootnote text={pricingFootnote} />
-            </CardContent>
-          </Card>
-
-          <Card className="flex min-h-[280px] flex-col rounded-2xl border border-gray-100 bg-white shadow-sm dark:border-border/60 dark:bg-card">
-            <CardContent className="flex h-full flex-col justify-between gap-4 p-6">
-              <div className="space-y-4">
+          {/* Spalte 3: Menge, Preiskategorie, Kontakt, Anfrage */}
+          <div className="flex min-w-0 flex-col gap-6 lg:col-span-2 xl:col-span-1">
+            <Card className="rounded-2xl border border-sky-200/80 bg-sky-50 shadow-sm dark:border-cyan-500/25 dark:bg-gradient-to-b dark:from-cyan-500/10 dark:via-sky-950/20">
+              <CardContent className="flex flex-col gap-4 p-6">
                 <div>
                   <h3 className="mb-3 font-bold">Anzahl</h3>
                   <div className="flex items-center gap-3">
@@ -696,6 +657,46 @@ export function PageIndividualLaser({
                   </div>
                 </div>
 
+                <PricingCategoryPicker
+                  categories={pricingCategories}
+                  selectedId={selectedCategoryId}
+                  onSelect={setSelectedCategoryId}
+                  accentClassName="border-cyan-500 bg-cyan-500/10"
+                />
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between gap-3">
+                    <span className="text-muted-foreground">Material</span>
+                    <span className="text-right font-medium">{materialLabel}</span>
+                  </div>
+                  {engravingMetrics && engravingMetrics.maxAreaMm2 > 0 && (
+                    <div className="flex justify-between gap-3">
+                      <span className="text-muted-foreground">Gravurfläche (ca.)</span>
+                      <span className="font-medium">
+                        {engravingMetrics.maxAreaMm2.toFixed(0)} mm²
+                      </span>
+                    </div>
+                  )}
+                  {isPriceOnRequest ? (
+                    <p className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-sm font-medium text-amber-800 dark:text-amber-200">
+                      {PRICE_ON_REQUEST_LABEL}
+                    </p>
+                  ) : (
+                    <div className="flex justify-between gap-3 text-lg font-bold">
+                      <span>Richtpreis</span>
+                      <span className="text-cyan-600 dark:text-cyan-400">
+                        {selectedCategory
+                          ? formatFromPriceChf(selectedCategory.fromPriceChf)
+                          : "—"}
+                      </span>
+                    </div>
+                  )}
+                </div>
+                <PricingFootnote text={pricingFootnote} />
+              </CardContent>
+            </Card>
+
+            <Card className="rounded-2xl border border-gray-100 bg-white shadow-sm dark:border-border/60 dark:bg-card">
+              <CardContent className="flex flex-col justify-between gap-4 p-6">
                 <div className="space-y-3">
                   <h3 className="font-bold">Kontaktdaten für Anfrage</h3>
                   <div className="space-y-1">
@@ -737,55 +738,55 @@ export function PageIndividualLaser({
                     />
                   </div>
                 </div>
-              </div>
 
-              <div className="space-y-2">
-                {inquiryError && (
-                  <p className="text-sm text-red-500">{inquiryError}</p>
-                )}
-                {inquirySuccess && (
-                  <p className="text-sm text-emerald-600 dark:text-emerald-400">
-                    {inquirySuccess}
-                  </p>
-                )}
-                <Button
-                  onClick={() => void handleSendInquiry()}
-                  disabled={!hasDesign || inquirySending}
-                  className="w-full bg-cyan-500 hover:bg-cyan-600"
-                  size="lg"
-                >
-                  {inquirySending ? (
-                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                  ) : (
-                    <Mail className="mr-2 h-5 w-5" />
+                <div className="space-y-2">
+                  {inquiryError && (
+                    <p className="text-sm text-red-500">{inquiryError}</p>
                   )}
-                  {inquirySending
-                    ? "Anfrage wird gesendet…"
-                    : "Unverbindliche Anfrage senden"}
-                </Button>
-                <SaveDesignButton
-                  designType="laser"
-                  defaultLabel={`Laser-Design ${new Date().toLocaleDateString("de-CH")}`}
-                  previewUrl={laserDesign.imageLayout?.src || null}
-                  config={{
-                    materialId: selectedMaterialId,
-                    engravingText: laserDesign.engravingText,
-                    selectedFont: laserDesign.selectedFont,
-                    selectedVariant: laserDesign.selectedVariant,
-                    layers: laserDesign.layers,
-                    textLayout: laserDesign.textLayout,
-                    imageLayout: laserDesign.imageLayout,
-                  }}
-                  className="w-full"
-                />
-                {!hasDesign && (
-                  <p className="mt-3 text-center text-sm text-muted-foreground">
-                    Bitte Gravur-Text eingeben oder ein Logo hochladen.
-                  </p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+                  {inquirySuccess && (
+                    <p className="text-sm text-emerald-600 dark:text-emerald-400">
+                      {inquirySuccess}
+                    </p>
+                  )}
+                  <Button
+                    onClick={() => void handleSendInquiry()}
+                    disabled={!hasDesign || inquirySending}
+                    className="w-full bg-cyan-500 hover:bg-cyan-600"
+                    size="lg"
+                  >
+                    {inquirySending ? (
+                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    ) : (
+                      <Mail className="mr-2 h-5 w-5" />
+                    )}
+                    {inquirySending
+                      ? "Anfrage wird gesendet…"
+                      : "Unverbindliche Anfrage senden"}
+                  </Button>
+                  <SaveDesignButton
+                    designType="laser"
+                    defaultLabel={`Laser-Design ${new Date().toLocaleDateString("de-CH")}`}
+                    previewUrl={laserDesign.imageLayout?.src || null}
+                    config={{
+                      materialId: selectedMaterialId,
+                      engravingText: laserDesign.engravingText,
+                      selectedFont: laserDesign.selectedFont,
+                      selectedVariant: laserDesign.selectedVariant,
+                      layers: laserDesign.layers,
+                      textLayout: laserDesign.textLayout,
+                      imageLayout: laserDesign.imageLayout,
+                    }}
+                    className="w-full"
+                  />
+                  {!hasDesign && (
+                    <p className="mt-3 text-center text-sm text-muted-foreground">
+                      Bitte Gravur-Text eingeben oder ein Logo hochladen.
+                    </p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </div>
     </div>

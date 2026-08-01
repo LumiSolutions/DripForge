@@ -3,6 +3,7 @@
 import { cn } from "@/lib/utils"
 import {
   formatFromPriceChf,
+  formatPricingCategoriesSubtitle,
   type IndividualPricingCategory,
 } from "@/lib/admin/individual-pricing-types"
 
@@ -22,6 +23,9 @@ export function PricingCategoryPicker({
   return (
     <div className="space-y-2">
       <h3 className="font-bold">Preiskategorie</h3>
+      <p className="text-[11px] leading-relaxed text-muted-foreground sm:text-xs">
+        {formatPricingCategoriesSubtitle(categories)}
+      </p>
       <div className="grid gap-2">
         {categories.map((category) => {
           const selected = selectedId === category.id
