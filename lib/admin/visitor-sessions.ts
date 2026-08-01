@@ -190,44 +190,44 @@ function isPublicIp(ip: string): boolean {
 
 export type ClientIpDetails = {
   ip: string
-  /** false = nur Proxy-/Edge-IP (z. B. Azure Iowa) — kein Geo-Lookup */
-  trustedClientIp: boolean
+  /** Kandidaten in Prioritätsreihenfolge für Geo-Lookup (öffentliche IPs). */
+  candidates: string[]
 }
 
 /**
- * Echte Client-IP — niemals zuerst x-real-ip (oft Azure-Proxy in Iowa).
- * Reihenfolge: CF/True-Client → x-forwarded-for (erster öffentlicher Hop) → Azure-Header → x-real-ip zuletzt.
+ * Client-IP-Priorität (laut Anforderung):
+ * 1. cf-connecting-ip
+ * 2. x-real-ip
+ * 3. x-forwarded-for (erster Hop)
+ * plus weitere Azure-/Proxy-Header als Ergänzung.
  */
 export function extractClientIpDetails(request: Request): ClientIpDetails {
-  const preferSingle = [
-    request.headers.get("cf-connecting-ip"),
-    request.headers.get("true-client-ip"),
-    request.headers.get("x-azure-clientip"),
-    request.headers.get("x-appgateway-client-ip"),
-    request.headers.get("x-client-ip"),
-    request.headers.get("x-ms-client-ip"),
-  ]
-  for (const raw of preferSingle) {
+  const ordered: string[] = []
+  const push = (raw: string | null | undefined) => {
     const ip = normalizeIpCandidate(raw)
-    if (ip && isPublicIp(ip)) return { ip, trustedClientIp: true }
+    if (!ip || ordered.includes(ip)) return
+    ordered.push(ip)
   }
+
+  push(request.headers.get("cf-connecting-ip"))
+  push(request.headers.get("true-client-ip"))
+  push(request.headers.get("x-real-ip"))
 
   const forwarded = request.headers.get("x-forwarded-for")
   if (forwarded) {
-    const hops = forwarded
-      .split(",")
-      .map((part) => normalizeIpCandidate(part))
-      .filter((part): part is string => Boolean(part))
-    const firstPublic = hops.find((hop) => isPublicIp(hop))
-    if (firstPublic) return { ip: firstPublic, trustedClientIp: true }
-    if (hops[0]) return { ip: hops[0], trustedClientIp: !isPrivateOrLocalIp(hops[0]) }
+    for (const part of forwarded.split(",")) {
+      push(part)
+    }
   }
 
-  // x-real-ip oft = Reverse-Proxy (Azure Iowa) — untrusted, kein Geo-Lookup
-  const realIp = normalizeIpCandidate(request.headers.get("x-real-ip"))
-  if (realIp) return { ip: realIp, trustedClientIp: false }
+  push(request.headers.get("x-azure-clientip"))
+  push(request.headers.get("x-appgateway-client-ip"))
+  push(request.headers.get("x-client-ip"))
+  push(request.headers.get("x-ms-client-ip"))
 
-  return { ip: "0.0.0.0", trustedClientIp: false }
+  const publicIps = ordered.filter((ip) => isPublicIp(ip))
+  const ip = publicIps[0] ?? ordered[0] ?? "0.0.0.0"
+  return { ip, candidates: publicIps.length > 0 ? publicIps : ordered }
 }
 
 export function extractClientIp(request: Request): string {
@@ -289,8 +289,14 @@ async function writeJsonFile(fileName: string, data: unknown): Promise<void> {
   )
 }
 
-async function lookupGeoByIp(ip: string): Promise<GeoResult | null> {
-  if (isPrivateOrLocalIp(ip)) return null
+function isAzureEdgeGeo(geo: GeoResult): boolean {
+  return (
+    geo.countryCode === "US" &&
+    /iowa|des moines|central us|azure/i.test(geo.regionLabel)
+  )
+}
+
+async function lookupGeoIpWhoIs(ip: string): Promise<GeoResult | null> {
   try {
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), 2500)
@@ -309,7 +315,10 @@ async function lookupGeoByIp(ip: string): Promise<GeoResult | null> {
     }
     if (!data.success || !data.country_code) return null
     const country = data.country_code.toUpperCase()
-    const regionCode = (data.region_code || "").toUpperCase().replace(/^CH-/, "").replace(/^DE-/, "")
+    const regionCode = (data.region_code || "")
+      .toUpperCase()
+      .replace(/^CH-/, "")
+      .replace(/^DE-/, "")
     const hint = data.region || data.city || undefined
     return {
       countryCode: country,
@@ -321,11 +330,55 @@ async function lookupGeoByIp(ip: string): Promise<GeoResult | null> {
   }
 }
 
+/** Fallback-Provider (ip-api.com) — inkl. CH-Region/Kanton. */
+async function lookupGeoIpApi(ip: string): Promise<GeoResult | null> {
+  try {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 2500)
+    const res = await fetch(
+      `http://ip-api.com/json/${encodeURIComponent(ip)}?fields=status,countryCode,region,regionName,city`,
+      { signal: controller.signal, cache: "no-store" }
+    )
+    clearTimeout(timer)
+    if (!res.ok) return null
+    const data = (await res.json()) as {
+      status?: string
+      countryCode?: string
+      region?: string
+      regionName?: string
+      city?: string
+    }
+    if (data.status !== "success" || !data.countryCode) return null
+    const country = data.countryCode.toUpperCase()
+    const regionCode = (data.region || "")
+      .toUpperCase()
+      .replace(/^CH-/, "")
+      .replace(/^DE-/, "")
+    const hint = data.regionName || data.city || undefined
+    return {
+      countryCode: country,
+      regionCode: regionCode || "—",
+      regionLabel: regionName(country, regionCode, hint),
+    }
+  } catch {
+    return null
+  }
+}
+
+async function lookupGeoByIp(ip: string): Promise<GeoResult | null> {
+  if (isPrivateOrLocalIp(ip)) return null
+  const primary = await lookupGeoIpWhoIs(ip)
+  if (primary && !isAzureEdgeGeo(primary)) return primary
+  const fallback = await lookupGeoIpApi(ip)
+  if (fallback && !isAzureEdgeGeo(fallback)) return fallback
+  return null
+}
+
 async function resolveGeo(
   request: Request,
   ip: string,
   ipHash: string,
-  trustedClientIp: boolean
+  candidates: string[]
 ): Promise<GeoResult> {
   const unknown: GeoResult = {
     countryCode: "UN",
@@ -334,18 +387,13 @@ async function resolveGeo(
   }
 
   const fromHeaders = extractGeoFromHeaders(request)
-  if (fromHeaders) return fromHeaders
-
-  // Ohne vertrauenswürdige Client-IP kein Lookup — verhindert «US - Iowa» (Azure-Proxy).
-  if (!trustedClientIp || isPrivateOrLocalIp(ip)) {
-    return unknown
-  }
+  if (fromHeaders && !isAzureEdgeGeo(fromHeaders)) return fromHeaders
 
   const cache = await readJsonFile<Record<string, GeoCacheEntry>>(GEO_CACHE_FILE, {})
   const cached = cache[ipHash]
   if (cached) {
     const age = Date.now() - new Date(cached.cachedAt).getTime()
-    if (age <= GEO_CACHE_TTL_MS) {
+    if (age <= GEO_CACHE_TTL_MS && !isAzureEdgeGeo(cached)) {
       return {
         countryCode: cached.countryCode,
         regionCode: cached.regionCode,
@@ -354,14 +402,13 @@ async function resolveGeo(
     }
   }
 
-  const lookedUp = await lookupGeoByIp(ip)
-  if (lookedUp) {
-    // Azure Central US (Iowa) von Edge-Proxies verwerfen, falls doch durchgerutscht
-    const looksLikeAzureEdge =
-      lookedUp.countryCode === "US" &&
-      /iowa|des moines|central us/i.test(lookedUp.regionLabel)
-    if (looksLikeAzureEdge) return unknown
+  const ipsToTry = (candidates.length > 0 ? candidates : [ip]).filter(
+    (value) => value && !isPrivateOrLocalIp(value)
+  )
 
+  for (const candidate of ipsToTry) {
+    const lookedUp = await lookupGeoByIp(candidate)
+    if (!lookedUp) continue
     cache[ipHash] = { ...lookedUp, cachedAt: new Date().toISOString() }
     await writeJsonFile(GEO_CACHE_FILE, cache)
     return lookedUp
@@ -387,9 +434,9 @@ export async function recordVisitorHeartbeat(input: {
 }): Promise<{ sessionId: string }> {
   const now = Date.now()
   const nowIso = new Date(now).toISOString()
-  const { ip, trustedClientIp } = extractClientIpDetails(input.request)
+  const { ip, candidates } = extractClientIpDetails(input.request)
   const ipHash = anonymizeIp(ip)
-  const geo = await resolveGeo(input.request, ip, ipHash, trustedClientIp)
+  const geo = await resolveGeo(input.request, ip, ipHash, candidates)
   const sessions = pruneSessions(
     await readJsonFile<VisitorSession[]>(SESSIONS_FILE, []),
     now

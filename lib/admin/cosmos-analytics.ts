@@ -10,7 +10,7 @@ type CosmosAnalyticsDoc = OrderAnalyticsRow & { id: string; docType?: string }
 
 function analyticsOrdersQuerySql(mode: OrdersStorageMode): string {
   const fields =
-    "c.orderId, c.createdAt, c.status, c.totals, c.items, c.billing"
+    "c.orderId, c.createdAt, c.status, c.paymentConfirmed, c.paymentStatus, c.totals, c.items, c.billing"
   if (mode === "shared") {
     return `SELECT ${fields} FROM c WHERE c.docType = '${ORDER_DOC_TYPE}'`
   }

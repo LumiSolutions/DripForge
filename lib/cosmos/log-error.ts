@@ -33,10 +33,18 @@ export function formatCosmosError(error: unknown): Record<string, unknown> {
 }
 
 export function logCosmosError(context: string, error: unknown): void {
+  const endpoint =
+    process.env.COSMOSDB_ENDPOINT ||
+    process.env.COSMOS_DB_ENDPOINT ||
+    process.env.AZURE_COSMOS_ENDPOINT ||
+    process.env.COSMOS_ENDPOINT
   console.error(`Cosmos DB [${context}]:`, {
     ...formatCosmosError(error),
-    endpoint: maskCosmosEndpoint(process.env.COSMOSDB_ENDPOINT),
-    database: process.env.COSMOSDB_DATABASE?.trim() || "dripforge",
+    endpoint: maskCosmosEndpoint(endpoint),
+    database:
+      process.env.COSMOSDB_DATABASE?.trim() ||
+      process.env.COSMOS_DB_DATABASE?.trim() ||
+      "dripforge",
     nodeEnv: process.env.NODE_ENV,
   })
 }

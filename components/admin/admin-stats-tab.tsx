@@ -401,12 +401,13 @@ export function AdminStatsTab() {
         <MetricCard
           label="Gesamtumsatz"
           value={formatChf(summary?.totalRevenueChf ?? 0)}
-          hint="Stornierungen abgezogen"
+          hint="Nur bezahlte Bestellungen (Storno/offen ausgeschlossen)"
           icon={Wallet}
         />
         <MetricCard
           label="Bestellungen"
           value={String(summary?.orderCount ?? 0)}
+          hint="Bezahlt / completed"
           icon={ShoppingCart}
         />
         <MetricCard
@@ -864,7 +865,7 @@ export function AdminStatsTab() {
           <CardHeader>
             <CardTitle className={cn("text-base", adminUi.heading)}>Top Käufer</CardTitle>
             <p className={cn("text-sm", adminUi.muted)}>
-              Ohne stornierte Bestellungen
+              Nur bezahlte Bestellungen
             </p>
           </CardHeader>
           <CardContent>

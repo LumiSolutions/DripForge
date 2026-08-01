@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server"
-import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
+import {
+  getInventoryContainer,
+  isCosmosConfigured,
+  logCosmosConfigStatus,
+  warmCosmosInfrastructure,
+} from "@/lib/cosmos/client"
 import {
   createMaterialInput,
   getMaterials,
@@ -17,11 +22,13 @@ export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 
 function cosmosErrorResponse(error: unknown, fallbackMessage: string) {
+  logCosmosConfigStatus()
   if (error instanceof CosmosDatabaseError) {
     return NextResponse.json(
       {
-        error:
-          "Lager-Datenbank (Cosmos) nicht erreichbar. Bitte COSMOSDB_ENDPOINT/COSMOSDB_KEY in der Produktionsumgebung prüfen. Es wurde nichts auf das flüchtige Dateisystem geschrieben.",
+        error: isCosmosConfigured()
+          ? "Lager-Container in Cosmos nicht erreichbar. Bitte Container «inventory» (Partition /id) im Azure Portal prüfen oder COSMOSDB_INVENTORY_CONTAINER setzen."
+          : "Lager-Datenbank (Cosmos) nicht konfiguriert. Bitte COSMOSDB_ENDPOINT/COSMOSDB_KEY in den Azure App Settings setzen (Runtime, nicht nur CI-Build).",
         materials: [],
       },
       { status: 503 }
@@ -30,12 +37,20 @@ function cosmosErrorResponse(error: unknown, fallbackMessage: string) {
   return NextResponse.json({ error: fallbackMessage, materials: [] }, { status: 500 })
 }
 
+async function ensureMaterialsStorageReady(): Promise<void> {
+  await warmCosmosInfrastructure()
+  if (isCosmosConfigured()) {
+    // Explizit inventory (oder settings-Fallback) vor Material-Queries warm machen
+    await getInventoryContainer()
+  }
+}
+
 export async function GET(request: Request) {
   const auth = requireAdminSession(request)
   if (isAuthError(auth)) return auth
 
   try {
-    await warmCosmosInfrastructure()
+    await ensureMaterialsStorageReady()
     const { searchParams } = new URL(request.url)
     const category = searchParams.get("category") as MaterialCategory | null
     const seed = searchParams.get("seed") === "1"
@@ -69,7 +84,7 @@ export async function POST(request: Request) {
   if (isAuthError(auth)) return auth
 
   try {
-    await warmCosmosInfrastructure()
+    await ensureMaterialsStorageReady()
     const body = (await request.json()) as Partial<MaterialItem> & {
       name?: string
       category?: MaterialCategory

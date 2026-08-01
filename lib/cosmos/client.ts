@@ -1,68 +1,131 @@
 import { CosmosClient, type Container, type Database } from "@azure/cosmos"
 import { logCosmosError, maskCosmosEndpoint } from "@/lib/cosmos/log-error"
 
-const DATABASE_ID = process.env.COSMOSDB_DATABASE?.trim() || "dripforge"
-const SETTINGS_CONTAINER_ID =
-  process.env.COSMOSDB_SETTINGS_CONTAINER?.trim() || "settings"
 const SETTINGS_PARTITION_KEY = "/id"
 
 /** Request-Timeout in ms (Azure SWA: etwas grosszuegiger). */
-const REQUEST_TIMEOUT_MS = Number(process.env.COSMOSDB_REQUEST_TIMEOUT_MS ?? 60_000)
+function requestTimeoutMs(): number {
+  return Number(process.env.COSMOSDB_REQUEST_TIMEOUT_MS ?? 60_000)
+}
 
-const MAX_RETRY_ATTEMPTS = Number(process.env.COSMOSDB_MAX_RETRIES ?? 5)
+function maxRetryAttempts(): number {
+  return Number(process.env.COSMOSDB_MAX_RETRIES ?? 5)
+}
 
 let client: CosmosClient | null = null
+let clientFingerprint: string | null = null
 let databaseReady: Promise<Database> | null = null
 const containerReady = new Map<string, Promise<Container>>()
 
+function stripEnvQuotes(value: string): string {
+  const trimmed = value.trim()
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    return trimmed.slice(1, -1).trim()
+  }
+  return trimmed
+}
+
+function readCosmosEnv(...names: string[]): string {
+  for (const name of names) {
+    const raw = process.env[name]
+    if (raw == null || !String(raw).trim()) continue
+    const value = stripEnvQuotes(String(raw))
+    if (value) return value
+  }
+  return ""
+}
+
+export type CosmosCredentials = {
+  endpoint: string
+  key: string
+}
+
+/** Runtime-Credentials — immer frisch aus process.env (Azure SWA App Settings). */
+export function resolveCosmosCredentials(): CosmosCredentials | null {
+  const endpoint = readCosmosEnv(
+    "COSMOSDB_ENDPOINT",
+    "COSMOS_DB_ENDPOINT",
+    "AZURE_COSMOS_ENDPOINT",
+    "COSMOS_ENDPOINT"
+  )
+  const key = readCosmosEnv(
+    "COSMOSDB_KEY",
+    "COSMOS_DB_KEY",
+    "AZURE_COSMOS_KEY",
+    "COSMOS_KEY"
+  )
+  if (!endpoint || !key) return null
+  const lower = `${endpoint} ${key}`.toLowerCase()
+  if (
+    lower.includes("placeholder") ||
+    lower.includes("your_secret") ||
+    lower.includes("your-secret") ||
+    endpoint.includes("YOUR_ACCOUNT")
+  ) {
+    return null
+  }
+  return { endpoint, key }
+}
+
 export function isCosmosConfigured(): boolean {
-  const endpoint = process.env.COSMOSDB_ENDPOINT?.trim() ?? ""
-  const key = process.env.COSMOSDB_KEY?.trim() ?? ""
-  if (!endpoint || !key) return false
-  if (endpoint.includes("placeholder") || key.includes("placeholder")) return false
-  return true
+  return resolveCosmosCredentials() != null
 }
 
 export function resetCosmosCaches(): void {
+  client = null
+  clientFingerprint = null
   databaseReady = null
   containerReady.clear()
 }
 
 export function getCosmosDatabaseId(): string {
-  return DATABASE_ID
+  return (
+    readCosmosEnv("COSMOSDB_DATABASE", "COSMOS_DB_DATABASE", "AZURE_COSMOS_DATABASE") ||
+    "dripforge"
+  )
 }
 
 export function getSettingsContainerId(): string {
-  return SETTINGS_CONTAINER_ID
+  return readCosmosEnv("COSMOSDB_SETTINGS_CONTAINER") || "settings"
 }
 
 export function getCosmosClient(): CosmosClient {
-  if (!isCosmosConfigured()) {
+  const creds = resolveCosmosCredentials()
+  if (!creds) {
     throw new Error("Cosmos DB ist nicht konfiguriert (COSMOSDB_ENDPOINT / COSMOSDB_KEY).")
+  }
+  const fingerprint = `${creds.endpoint}::${creds.key.slice(0, 8)}`
+  if (client && clientFingerprint !== fingerprint) {
+    resetCosmosCaches()
   }
   if (!client) {
     try {
       client = new CosmosClient({
-        endpoint: process.env.COSMOSDB_ENDPOINT!,
-        key: process.env.COSMOSDB_KEY!,
+        endpoint: creds.endpoint,
+        key: creds.key,
         connectionPolicy: {
-          requestTimeout: REQUEST_TIMEOUT_MS,
+          requestTimeout: requestTimeoutMs(),
           enableEndpointDiscovery: true,
           retryOptions: {
-            maxRetryAttemptCount: MAX_RETRY_ATTEMPTS,
+            maxRetryAttemptCount: maxRetryAttempts(),
             fixedRetryIntervalInMilliseconds: 1000,
             maxWaitTimeInSeconds: 60,
           },
         },
       })
+      clientFingerprint = fingerprint
       console.info("Cosmos DB: Client initialisiert.", {
-        endpoint: process.env.COSMOSDB_ENDPOINT?.replace(/\/\/[^/]+/, "//***"),
-        database: DATABASE_ID,
-        settingsContainer: SETTINGS_CONTAINER_ID,
-        requestTimeoutMs: REQUEST_TIMEOUT_MS,
-        maxRetries: MAX_RETRY_ATTEMPTS,
+        endpoint: maskCosmosEndpoint(creds.endpoint),
+        database: getCosmosDatabaseId(),
+        settingsContainer: getSettingsContainerId(),
+        requestTimeoutMs: requestTimeoutMs(),
+        maxRetries: maxRetryAttempts(),
       })
     } catch (error) {
+      resetCosmosCaches()
       logCosmosError("getCosmosClient", error)
       throw error
     }
@@ -76,24 +139,24 @@ export async function ensureDatabase(): Promise<Database> {
       const cosmos = getCosmosClient()
       try {
         const { database } = await cosmos.databases.createIfNotExists({
-          id: DATABASE_ID,
+          id: getCosmosDatabaseId(),
         })
-        console.info(`Cosmos DB: Datenbank "${DATABASE_ID}" bereit.`)
+        console.info(`Cosmos DB: Datenbank "${getCosmosDatabaseId()}" bereit.`)
         return database
       } catch (createError) {
         logCosmosError("databases.createIfNotExists", createError)
         try {
-          const database = cosmos.database(DATABASE_ID)
+          const database = cosmos.database(getCosmosDatabaseId())
           await database.read()
           console.info(
-            `Cosmos DB: Datenbank "${DATABASE_ID}" per read() erreichbar (create übersprungen).`
+            `Cosmos DB: Datenbank "${getCosmosDatabaseId()}" per read() erreichbar (create übersprungen).`
           )
           return database
         } catch (readError) {
           resetCosmosCaches()
           logCosmosError("database.read", readError)
           throw new Error(
-            `Cosmos-Datenbank "${DATABASE_ID}" nicht gefunden. Prüfe COSMOSDB_DATABASE / Azure Portal.`,
+            `Cosmos-Datenbank "${getCosmosDatabaseId()}" nicht gefunden. Prüfe COSMOSDB_DATABASE / Azure Portal.`,
             { cause: readError }
           )
         }
@@ -148,7 +211,7 @@ async function ensureContainer(
           containerReady.delete(cacheKey)
           logCosmosError(`container.read(${containerId})`, readError)
           throw new Error(
-            `Cosmos-Container "${containerId}" in Datenbank "${DATABASE_ID}" nicht gefunden ` +
+            `Cosmos-Container "${containerId}" in Datenbank "${getCosmosDatabaseId()}" nicht gefunden ` +
               `(Partition Key erwartet: ${partitionKey}). ` +
               `Unter shared/1000 RU muss der Container im Azure Portal existieren.`,
             { cause: readError }
@@ -183,16 +246,16 @@ async function softWarm(
 }
 
 export function logCosmosConfigStatus(): void {
-  const configured = isCosmosConfigured()
+  const creds = resolveCosmosCredentials()
   console.info("Cosmos DB: Konfigurationsstatus.", {
-    configured,
-    endpoint: maskCosmosEndpoint(process.env.COSMOSDB_ENDPOINT),
-    database: DATABASE_ID,
-    settingsContainer: SETTINGS_CONTAINER_ID,
-    hasKey: Boolean(process.env.COSMOSDB_KEY?.trim()),
+    configured: Boolean(creds),
+    endpoint: maskCosmosEndpoint(creds?.endpoint),
+    database: getCosmosDatabaseId(),
+    settingsContainer: getSettingsContainerId(),
+    hasKey: Boolean(creds?.key),
     nodeEnv: process.env.NODE_ENV,
   })
-  if (!configured) {
+  if (!creds) {
     console.warn(
       "Cosmos DB: COSMOSDB_ENDPOINT / COSMOSDB_KEY fehlen oder sind Platzhalter — APIs nutzen lokale JSON-Fallbacks."
     )
@@ -230,6 +293,9 @@ export async function warmCosmosCore(): Promise<void> {
     const { resolveProductsContainer } = await import("@/lib/cosmos/products-container")
     await resolveProductsContainer()
   })
+  await softWarm("inventory", async () => {
+    await getInventoryContainer()
+  })
 }
 
 /** @deprecated Alias — nutzt warmCosmosCore. */
@@ -262,7 +328,7 @@ export async function getCustomersContainer(): Promise<Container> {
 }
 
 export async function getSettingsContainer(): Promise<Container> {
-  return ensureContainer(SETTINGS_CONTAINER_ID, SETTINGS_PARTITION_KEY)
+  return ensureContainer(getSettingsContainerId(), SETTINGS_PARTITION_KEY)
 }
 
 export async function getProductsContainer(): Promise<Container> {
@@ -271,8 +337,23 @@ export async function getProductsContainer(): Promise<Container> {
   return container
 }
 
+/**
+ * Lager-/Material-Container. Wenn «inventory» fehlt (shared RU / Portal),
+ * Fallback auf settings — Material-Docs haben docType und kollidieren nicht.
+ */
 export async function getInventoryContainer(): Promise<Container> {
-  return ensureContainer("inventory", "/id")
+  const preferred =
+    readCosmosEnv("COSMOSDB_INVENTORY_CONTAINER", "COSMOS_INVENTORY_CONTAINER") ||
+    "inventory"
+  try {
+    return await ensureContainer(preferred, "/id")
+  } catch (primaryError) {
+    logCosmosError(`getInventoryContainer:${preferred}`, primaryError)
+    console.warn(
+      `Cosmos DB: Container "${preferred}" nicht verfügbar — Fallback auf settings für Lagerdokumente.`
+    )
+    return getSettingsContainer()
+  }
 }
 
 export async function getCouponsContainer(): Promise<Container> {

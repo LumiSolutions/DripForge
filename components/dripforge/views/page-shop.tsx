@@ -800,6 +800,15 @@ export function PageShop({
                       </div>
 
                       <div className="flex min-w-0 flex-col gap-6">
+                        {/* 1. Filament → 2. Preisberechnung → 3. Warenkorb */}
+                        <FilamentColorPicker
+                          materials={filamentMaterials}
+                          activeTab={filamentTab}
+                          onTabChange={setFilamentTab}
+                          onSelectionChange={setFilamentSelection}
+                          className="mt-0 border-0 pt-0"
+                        />
+
                         <Card className="rounded-xl border-red-500/35 bg-gradient-to-b from-red-500/10 via-red-500/5 to-transparent shadow-sm">
                           <CardContent className="space-y-5 p-6">
                             <h3 className="font-bold">Preisberechnung</h3>
@@ -881,14 +890,6 @@ export function PageShop({
                             </div>
                           </CardContent>
                         </Card>
-
-                        <FilamentColorPicker
-                          materials={filamentMaterials}
-                          activeTab={filamentTab}
-                          onTabChange={setFilamentTab}
-                          onSelectionChange={setFilamentSelection}
-                          className="mt-0 border-0 pt-0"
-                        />
 
                         <Button
                           onClick={() => void handleAddToCart()}

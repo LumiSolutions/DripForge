@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server"
-import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
+import {
+  getInventoryContainer,
+  isCosmosConfigured,
+  warmCosmosInfrastructure,
+} from "@/lib/cosmos/client"
 import { deleteMaterial, getMaterialById, upsertMaterial } from "@/lib/admin/material-db"
 import { normalizeMaterialItem } from "@/lib/admin/cosmos-materials"
 import { CosmosDatabaseError } from "@/lib/admin/storage-bridge"
@@ -15,12 +19,19 @@ export const runtime = "nodejs"
 
 type RouteContext = { params: Promise<{ id: string }> }
 
+async function ensureMaterialsStorageReady(): Promise<void> {
+  await warmCosmosInfrastructure()
+  if (isCosmosConfigured()) {
+    await getInventoryContainer()
+  }
+}
+
 export async function GET(request: Request, context: RouteContext) {
   const auth = requireAdminSession(request)
   if (isAuthError(auth)) return auth
 
   try {
-    await warmCosmosInfrastructure()
+    await ensureMaterialsStorageReady()
     const { id } = await context.params
     const material = await getMaterialById(decodeURIComponent(id))
     if (!material) {
@@ -47,7 +58,7 @@ export async function PATCH(request: Request, context: RouteContext) {
   if (isAuthError(auth)) return auth
 
   try {
-    await warmCosmosInfrastructure()
+    await ensureMaterialsStorageReady()
     const { id } = await context.params
     const materialId = decodeURIComponent(id)
     const current = await getMaterialById(materialId)
@@ -113,7 +124,7 @@ export async function DELETE(request: Request, context: RouteContext) {
   if (isAuthError(auth)) return auth
 
   try {
-    await warmCosmosInfrastructure()
+    await ensureMaterialsStorageReady()
     const { id } = await context.params
     const ok = await deleteMaterial(decodeURIComponent(id))
     if (!ok) {
