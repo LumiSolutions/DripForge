@@ -148,7 +148,8 @@ export function resolveMaterialPreviewImage(material: MaterialItem): string | un
   if (material.category === "lasermaterial") {
     return material.materialImageUrl ?? material.sampleLaserImageUrl
   }
-  return material.spuleBildUrl ?? material.printBildUrl
+  // Filament: nur noch das Beispiel-Druckbild (Fallback auf Legacy-Spulenbild)
+  return material.printBildUrl ?? material.spuleBildUrl
 }
 
 export function isMaterialLowStock(material: MaterialItem): boolean {

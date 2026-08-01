@@ -151,34 +151,16 @@ export function FilamentColorPicker({
         </div>
       </div>
 
-      {/* Main display — single card with two images side by side + swatch grid */}
+      {/* Main display — ein Vorschaubild + Swatch-Grid */}
       <div className="grid gap-6 lg:grid-cols-[1fr_2fr]">
-
-        {/* Left: single card with both images side by side */}
         <div className="flex flex-col rounded-2xl border border-border/50 bg-card/50 p-4">
-          {/* Image row */}
-          <div className="flex flex-1 gap-1">
-            {/* Filament roll */}
-            <div className="flex flex-1 flex-col items-center">
-              <FilamentImageSlot
-                src={selectedColor?.image}
-                alt={`${selectedColor?.name ?? "Filament"} Spule`}
-              />
-            </div>
-
-            {/* Divider */}
-            <div className="w-px bg-border/50" />
-
-            {/* Printed example */}
-            <div className="flex flex-1 flex-col items-center">
-              <FilamentImageSlot
-                src={selectedColor?.printedExample}
-                alt={`${selectedColor?.name ?? "Filament"} Beispiel`}
-              />
-            </div>
+          <div className="flex flex-1 flex-col items-center">
+            <FilamentImageSlot
+              src={selectedColor?.printedExample ?? selectedColor?.image}
+              alt={`${selectedColor?.name ?? "Filament"} Beispiel-Druck`}
+            />
           </div>
 
-          {/* Color info below images */}
           <div className="mt-4 flex items-center justify-between border-t border-border/50 pt-3">
             <div>
               <p className="text-xs text-muted-foreground">{currentMaterial.name}</p>

@@ -23,7 +23,6 @@ import {
 } from "@/lib/cosmos/products-container"
 import { logCosmosError, formatCosmosError } from "@/lib/cosmos/log-error"
 import { normalizeOrderForPersistence } from "@/lib/admin/normalize-order"
-import { products as seedProducts } from "@/lib/dripforge/data"
 import {
   DEFAULT_CHECKOUT_RUNTIME_CONFIG,
   normalizeCheckoutRuntimeConfig,
@@ -537,18 +536,8 @@ export async function cosmosGetProducts(): Promise<AdminProduct[]> {
       .filter((product): product is AdminProduct => product != null)
   }
 
-  const seeded = seedProducts.map((p) => ({
-    ...p,
-    istAktiv: p.istAktiv !== false,
-    galerieBilder: p.galerieBilder ?? p.images ?? [],
-    modellDateiUrl: p.modellDateiUrl ?? p.modelUrl,
-    updatedAt: new Date().toISOString(),
-  }))
-
-  for (const product of seeded) {
-    await container.items.upsert(toProductCosmosDoc({ ...product, id: product.id }, mode))
-  }
-  return seeded
+  // Leere Produkt-Collection bewusst nicht mit Demo-Daten befüllen.
+  return []
 }
 
 export async function cosmosSaveProducts(

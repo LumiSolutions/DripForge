@@ -81,8 +81,11 @@ export function materialItemToColor(
       name: colorName,
       hex: inferFilamentColorHex(item.farbe),
       inStock: item.stockAvailable > 0,
-      image: item.spuleBildUrl?.trim() || null,
-      printedExample: item.printBildUrl?.trim() || null,
+      // Ein Bild: Beispiel-Druck (Legacy-Spulenbild nur als Fallback)
+      image:
+        item.printBildUrl?.trim() || item.spuleBildUrl?.trim() || null,
+      printedExample:
+        item.printBildUrl?.trim() || item.spuleBildUrl?.trim() || null,
       displayName: formatPublicFilamentDisplayName({
         name: item.name,
         colorName,
@@ -215,8 +218,10 @@ export function filamentToColor(
   stats: MaterialCategoryStat,
   inventory?: InventoryColorEnrichment
 ): FilamentColor {
-  const spuleUrl = inventory?.spuleBildUrl?.trim() || null
-  const printUrl = inventory?.printBildUrl?.trim() || null
+  const printUrl =
+    inventory?.printBildUrl?.trim() ||
+    inventory?.spuleBildUrl?.trim() ||
+    null
 
   return applyCategoryStats(
     {
@@ -224,7 +229,7 @@ export function filamentToColor(
       name: filament.colorName,
       hex: filament.colorHex,
       inStock: filament.inStock,
-      image: spuleUrl,
+      image: printUrl,
       printedExample: printUrl,
       displayName: formatPublicFilamentDisplayName(filament),
       priceSurchargeChf: filament.priceSurchargeChf,

@@ -26,7 +26,8 @@ function shouldHideFooterForCountdown(
   showPathCountdown: boolean
 ): boolean {
   if (isLaunchGateBypassPath(pathname)) return false
-  if (loading) return true
+  // Während des Ladens Footer nicht verstecken — sonst fehlt er kurz/dauerhaft.
+  if (loading) return false
   return showGlobalCountdown || showPathCountdown
 }
 
@@ -49,5 +50,9 @@ export function GlobalShopFooter() {
     return null
   }
 
-  return <ShopFooter />
+  return (
+    <div className="mt-auto w-full shrink-0">
+      <ShopFooter />
+    </div>
+  )
 }

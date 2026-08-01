@@ -1,12 +1,19 @@
-/** Basispreise CHF — spaeter aus Admin-Portal / Datenbank */
+/** Einheitlicher Richtpreis für personalisierte Laserkreationen (Offerte folgt). */
+export const INDIVIDUAL_LASER_FROM_PRICE_CHF = 20
+
+/** @deprecated Einzelpreise entfernt — immer {@link INDIVIDUAL_LASER_FROM_PRICE_CHF}. */
 export const INDIVIDUAL_LASER_MATERIAL_BASE_PRICES: Record<string, number> = {
-  wood: 15,
-  acrylic: 25,
-  leather: 35,
-  stone: 45,
-  edelstahl: 55,
+  wood: INDIVIDUAL_LASER_FROM_PRICE_CHF,
+  acrylic: INDIVIDUAL_LASER_FROM_PRICE_CHF,
+  leather: INDIVIDUAL_LASER_FROM_PRICE_CHF,
+  stone: INDIVIDUAL_LASER_FROM_PRICE_CHF,
+  edelstahl: INDIVIDUAL_LASER_FROM_PRICE_CHF,
 }
 
-export function getIndividualLaserBasePrice(materialId: string): number {
-  return INDIVIDUAL_LASER_MATERIAL_BASE_PRICES[materialId] ?? 40
+export function getIndividualLaserBasePrice(_materialId?: string): number {
+  return INDIVIDUAL_LASER_FROM_PRICE_CHF
+}
+
+export function formatIndividualLaserFromPrice(): string {
+  return `ab CHF ${INDIVIDUAL_LASER_FROM_PRICE_CHF.toFixed(2)}`
 }

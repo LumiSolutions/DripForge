@@ -1,5 +1,14 @@
 export type StaffRole = "admin" | "tester"
 
+/** Normalisiert Rollen aus Session/Cookie (z. B. "ADMIN" → "admin"). */
+export function normalizeStaffRole(value: unknown): StaffRole | null {
+  const normalized = String(value ?? "")
+    .trim()
+    .toLowerCase()
+  if (normalized === "admin" || normalized === "tester") return normalized
+  return null
+}
+
 export type StaffAccount = {
   /** Feste ID: "admin" oder "tester" */
   id: StaffRole

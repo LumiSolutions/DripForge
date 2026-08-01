@@ -16,7 +16,10 @@ import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { calculateLaserPrice } from "@/lib/dripforge/calculate-laser-price"
 import { isCustomerShippingOptionEnabled } from "@/lib/dripforge/customer-shipping-visibility"
-import { getIndividualLaserBasePrice } from "@/lib/dripforge/laser-individual-config"
+import {
+  formatIndividualLaserFromPrice,
+  getIndividualLaserBasePrice,
+} from "@/lib/dripforge/laser-individual-config"
 import {
   CUSTOMER_INBOUND_MATERIAL_ID,
   CUSTOMER_INBOUND_MATERIAL_LABEL,
@@ -372,8 +375,7 @@ export function PageIndividualLaser({
                       <span className="text-2xl">{m.icon}</span>
                       <p className="mt-2 font-bold">{m.name}</p>
                       <p className="text-xs text-muted-foreground">
-                        ab CHF{" "}
-                        {getIndividualLaserBasePrice(m.id).toFixed(2)}
+                        {formatIndividualLaserFromPrice()}
                       </p>
                     </button>
                   ))}
