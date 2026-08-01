@@ -50,6 +50,7 @@ export type VisitorAnalyticsSnapshot = {
   viewsByMonth: VisitorTimeBucket[]
   viewsByYear: VisitorTimeBucket[]
   heatmapWeekday: VisitorTimeBucket[]
+  heatmapMonth: VisitorTimeBucket[]
   heatmapHour: VisitorTimeBucket[]
   generatedAt: string
 }
@@ -116,6 +117,20 @@ const DE_STATES: Record<string, string> = {
 }
 
 const WEEKDAY_LABELS = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"]
+const MONTH_LABELS = [
+  "Jan",
+  "Feb",
+  "Mär",
+  "Apr",
+  "Mai",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Okt",
+  "Nov",
+  "Dez",
+]
 
 function regionName(country: string, region: string, regionNameHint?: string): string {
   const c = country.toUpperCase()
@@ -158,21 +173,65 @@ function isPrivateOrLocalIp(ip: string): boolean {
   return false
 }
 
-export function extractClientIp(request: Request): string {
-  const candidates = [
+function normalizeIpCandidate(value: string | null | undefined): string | null {
+  if (!value) return null
+  const cleaned = value.trim().replace(/^::ffff:/i, "")
+  if (!cleaned) return null
+  // Strip optional port (IPv4:port)
+  if (/^\d+\.\d+\.\d+\.\d+:\d+$/.test(cleaned)) {
+    return cleaned.split(":")[0] ?? cleaned
+  }
+  return cleaned
+}
+
+function isPublicIp(ip: string): boolean {
+  return !isPrivateOrLocalIp(ip)
+}
+
+export type ClientIpDetails = {
+  ip: string
+  /** false = nur Proxy-/Edge-IP (z. B. Azure Iowa) — kein Geo-Lookup */
+  trustedClientIp: boolean
+}
+
+/**
+ * Echte Client-IP — niemals zuerst x-real-ip (oft Azure-Proxy in Iowa).
+ * Reihenfolge: CF/True-Client → x-forwarded-for (erster öffentlicher Hop) → Azure-Header → x-real-ip zuletzt.
+ */
+export function extractClientIpDetails(request: Request): ClientIpDetails {
+  const preferSingle = [
     request.headers.get("cf-connecting-ip"),
     request.headers.get("true-client-ip"),
-    request.headers.get("x-real-ip"),
-    request.headers.get("x-client-ip"),
     request.headers.get("x-azure-clientip"),
     request.headers.get("x-appgateway-client-ip"),
-    request.headers.get("x-forwarded-for")?.split(",")[0],
+    request.headers.get("x-client-ip"),
+    request.headers.get("x-ms-client-ip"),
   ]
-  for (const candidate of candidates) {
-    const ip = candidate?.trim()
-    if (ip) return ip.replace(/^::ffff:/, "")
+  for (const raw of preferSingle) {
+    const ip = normalizeIpCandidate(raw)
+    if (ip && isPublicIp(ip)) return { ip, trustedClientIp: true }
   }
-  return "0.0.0.0"
+
+  const forwarded = request.headers.get("x-forwarded-for")
+  if (forwarded) {
+    const hops = forwarded
+      .split(",")
+      .map((part) => normalizeIpCandidate(part))
+      .filter((part): part is string => Boolean(part))
+    const firstPublic = hops.find((hop) => isPublicIp(hop))
+    if (firstPublic) return { ip: firstPublic, trustedClientIp: true }
+    if (hops[0]) return { ip: hops[0], trustedClientIp: !isPrivateOrLocalIp(hops[0]) }
+  }
+
+  // x-real-ip oft = Reverse-Proxy (Azure Iowa) — untrusted, kein Geo-Lookup
+  const realIp = normalizeIpCandidate(request.headers.get("x-real-ip"))
+  if (realIp) return { ip: realIp, trustedClientIp: false }
+
+  return { ip: "0.0.0.0", trustedClientIp: false }
+}
+
+export function extractClientIp(request: Request): string {
+  return extractClientIpDetails(request).ip
 }
 
 export function extractGeoFromHeaders(request: Request): GeoResult | null {
@@ -262,9 +321,25 @@ async function lookupGeoByIp(ip: string): Promise<GeoResult | null> {
   }
 }
 
-async function resolveGeo(request: Request, ip: string, ipHash: string): Promise<GeoResult> {
+async function resolveGeo(
+  request: Request,
+  ip: string,
+  ipHash: string,
+  trustedClientIp: boolean
+): Promise<GeoResult> {
+  const unknown: GeoResult = {
+    countryCode: "UN",
+    regionCode: "—",
+    regionLabel: "Unbekannt",
+  }
+
   const fromHeaders = extractGeoFromHeaders(request)
   if (fromHeaders) return fromHeaders
+
+  // Ohne vertrauenswürdige Client-IP kein Lookup — verhindert «US - Iowa» (Azure-Proxy).
+  if (!trustedClientIp || isPrivateOrLocalIp(ip)) {
+    return unknown
+  }
 
   const cache = await readJsonFile<Record<string, GeoCacheEntry>>(GEO_CACHE_FILE, {})
   const cached = cache[ipHash]
@@ -281,16 +356,18 @@ async function resolveGeo(request: Request, ip: string, ipHash: string): Promise
 
   const lookedUp = await lookupGeoByIp(ip)
   if (lookedUp) {
+    // Azure Central US (Iowa) von Edge-Proxies verwerfen, falls doch durchgerutscht
+    const looksLikeAzureEdge =
+      lookedUp.countryCode === "US" &&
+      /iowa|des moines|central us/i.test(lookedUp.regionLabel)
+    if (looksLikeAzureEdge) return unknown
+
     cache[ipHash] = { ...lookedUp, cachedAt: new Date().toISOString() }
     await writeJsonFile(GEO_CACHE_FILE, cache)
     return lookedUp
   }
 
-  return {
-    countryCode: "UN",
-    regionCode: "—",
-    regionLabel: "Unbekannt",
-  }
+  return unknown
 }
 
 function pruneSessions(sessions: VisitorSession[], nowMs: number): VisitorSession[] {
@@ -310,9 +387,9 @@ export async function recordVisitorHeartbeat(input: {
 }): Promise<{ sessionId: string }> {
   const now = Date.now()
   const nowIso = new Date(now).toISOString()
-  const ip = extractClientIp(input.request)
+  const { ip, trustedClientIp } = extractClientIpDetails(input.request)
   const ipHash = anonymizeIp(ip)
-  const geo = await resolveGeo(input.request, ip, ipHash)
+  const geo = await resolveGeo(input.request, ip, ipHash, trustedClientIp)
   const sessions = pruneSessions(
     await readJsonFile<VisitorSession[]>(SESSIONS_FILE, []),
     now
@@ -483,9 +560,18 @@ export async function getVisitorAnalyticsSnapshot(): Promise<VisitorAnalyticsSna
     (key) => key
   )
 
-  const weekdayCounts = Array.from({ length: 7 }, (_, i) => ({
+  // Anzeige Mo–So (JS getDay: 0=So … 6=Sa → Index 0=Mo)
+  const weekdayCounts = Array.from({ length: 7 }, (_, i) => {
+    const jsDay = (i + 1) % 7
+    return {
+      key: String(jsDay),
+      label: WEEKDAY_LABELS[jsDay]!,
+      count: 0,
+    }
+  })
+  const monthCounts = Array.from({ length: 12 }, (_, i) => ({
     key: String(i),
-    label: WEEKDAY_LABELS[i]!,
+    label: MONTH_LABELS[i]!,
     count: 0,
   }))
   const hourCounts = Array.from({ length: 24 }, (_, i) => ({
@@ -496,7 +582,9 @@ export async function getVisitorAnalyticsSnapshot(): Promise<VisitorAnalyticsSna
   for (const view of pageviews) {
     const date = new Date(view.at)
     if (Number.isNaN(date.getTime())) continue
-    weekdayCounts[date.getDay()]!.count += 1
+    const weekdayIndex = (date.getDay() + 6) % 7
+    weekdayCounts[weekdayIndex]!.count += 1
+    monthCounts[date.getMonth()]!.count += 1
     hourCounts[date.getHours()]!.count += 1
   }
 
@@ -511,6 +599,7 @@ export async function getVisitorAnalyticsSnapshot(): Promise<VisitorAnalyticsSna
     viewsByMonth,
     viewsByYear,
     heatmapWeekday: weekdayCounts,
+    heatmapMonth: monthCounts,
     heatmapHour: hourCounts,
     generatedAt: new Date().toISOString(),
   }

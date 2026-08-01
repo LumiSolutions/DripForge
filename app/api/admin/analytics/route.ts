@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server"
-import { getAdminAnalytics } from "@/lib/admin/order-analytics"
+import {
+  getAdminAnalytics,
+  normalizeAnalyticsChartDays,
+} from "@/lib/admin/order-analytics"
 import {
   isAuthError,
   requireAdminSession,
@@ -26,7 +29,9 @@ export async function GET(request: Request) {
   if (isAuthError(auth)) return auth
 
   try {
-    const analytics = await getAdminAnalytics()
+    const { searchParams } = new URL(request.url)
+    const days = normalizeAnalyticsChartDays(searchParams.get("days"))
+    const analytics = await getAdminAnalytics(days)
     return NextResponse.json(analytics, {
       headers: { "Cache-Control": "private, max-age=60" },
     })

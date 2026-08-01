@@ -4,6 +4,7 @@ import {
   requireAdminSession,
 } from "@/lib/admin/require-admin-session"
 import { reorderMaterials } from "@/lib/admin/material-db"
+import { CosmosDatabaseError } from "@/lib/admin/storage-bridge"
 import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
 
 export const dynamic = "force-dynamic"
@@ -29,9 +30,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ materials })
   } catch (error) {
     console.error("Admin-API: Material-Reihenfolge konnte nicht gespeichert werden.", error)
+    const status = error instanceof CosmosDatabaseError ? 503 : 500
     return NextResponse.json(
-      { error: "Reihenfolge konnte nicht gespeichert werden." },
-      { status: 500 }
+      {
+        error:
+          error instanceof CosmosDatabaseError
+            ? "Lager-Datenbank (Cosmos) nicht erreichbar — Reihenfolge nicht gespeichert."
+            : "Reihenfolge konnte nicht gespeichert werden.",
+      },
+      { status }
     )
   }
 }

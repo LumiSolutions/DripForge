@@ -8,10 +8,17 @@ import type {
 import type { StoredOrder } from "@/lib/admin/types"
 
 const OPEN_STATUSES = new Set(["ausstehend", "in_produktion"])
-const CHART_DAYS = 90
+const DEFAULT_CHART_DAYS = 90
+const ALLOWED_CHART_DAYS = new Set([30, 90, 365])
 const TOP_PRODUCTS_LIMIT = 10
 const TOP_OPTIONS_LIMIT = 12
 const TOP_BUYERS_LIMIT = 10
+
+export function normalizeAnalyticsChartDays(value: unknown): number {
+  const n = Number(value)
+  if (ALLOWED_CHART_DAYS.has(n)) return n
+  return DEFAULT_CHART_DAYS
+}
 
 function toDateKey(iso: string): string {
   return new Intl.DateTimeFormat("en-CA", {
@@ -92,8 +99,10 @@ function buyerEmailKey(billing: OrderAnalyticsRow["billing"]): string | null {
 }
 
 export function aggregateOrderAnalytics(
-  orders: OrderAnalyticsRow[]
+  orders: OrderAnalyticsRow[],
+  chartDays: number = DEFAULT_CHART_DAYS
 ): AdminAnalytics {
+  const seriesDays = normalizeAnalyticsChartDays(chartDays)
   let totalRevenueChf = 0
   let revenueOrderCount = 0
   let openOrderCount = 0
@@ -179,8 +188,8 @@ export function aggregateOrderAnalytics(
 
   const sortedDays = [...dayMap.entries()].sort(([a], [b]) => a.localeCompare(b))
   const recentCutoff =
-    sortedDays.length > CHART_DAYS
-      ? sortedDays[sortedDays.length - CHART_DAYS][0]
+    sortedDays.length > seriesDays
+      ? sortedDays[sortedDays.length - seriesDays][0]
       : sortedDays[0]?.[0]
 
   const timeSeries = sortedDays
@@ -219,7 +228,8 @@ export function aggregateOrderAnalytics(
   return {
     summary: {
       totalRevenueChf: Math.round(totalRevenueChf * 100) / 100,
-      orderCount: orders.length,
+      // Anzahl ohne Stornierungen (konsistent zu Umsatz / Ø-Bestellwert)
+      orderCount: revenueOrderCount,
       openOrderCount,
       averageOrderValueChf,
     },
@@ -231,7 +241,9 @@ export function aggregateOrderAnalytics(
   }
 }
 
-export async function getAdminAnalytics(): Promise<AdminAnalytics> {
+export async function getAdminAnalytics(
+  chartDays: number = DEFAULT_CHART_DAYS
+): Promise<AdminAnalytics> {
   const rows = await fetchOrderRows()
-  return aggregateOrderAnalytics(rows)
+  return aggregateOrderAnalytics(rows, chartDays)
 }

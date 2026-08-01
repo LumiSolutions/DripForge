@@ -769,64 +769,180 @@ export function PageShop({
             </div>
           ) : (
                 <>
-                  <div className="mx-auto flex w-full max-w-5xl flex-col gap-8">
-                    {/* 1. Haupt-Produktbild / Galerie */}
-                    <ProductImageGallery
-                      images={galleryImages}
-                      alt={detailProduct.name}
-                    />
+                  <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 md:gap-10">
+                    {/* PC: oben 2 Spalten — Bild+Text | Preis/Filament/Warenkorb */}
+                    <div className="grid grid-cols-1 items-start gap-8 md:grid-cols-2 md:gap-10 lg:gap-12">
+                      <div className="flex min-w-0 flex-col gap-6">
+                        <ProductImageGallery
+                          images={galleryImages}
+                          alt={detailProduct.name}
+                        />
+                        <Card className="rounded-2xl border-border/50 bg-card/50 shadow-sm">
+                          <CardContent className="p-4 sm:p-6">
+                            <div className="mb-2 flex flex-wrap items-center gap-2">
+                              <Badge className="border border-cyan-600/30 bg-cyan-600/15 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-cyan-800 shadow-sm dark:text-cyan-200">
+                                3D-Druck
+                              </Badge>
+                              {detailProduct.sale && (
+                                <Badge className="bg-red-500 text-white hover:bg-red-500">
+                                  Rabatt
+                                </Badge>
+                              )}
+                            </div>
+                            <h1 className="text-xl font-bold sm:text-2xl lg:text-3xl">
+                              {detailProduct.name}
+                            </h1>
+                            <p className="mt-3 text-sm leading-relaxed text-muted-foreground sm:text-base">
+                              {detailProduct.description}
+                            </p>
+                          </CardContent>
+                        </Card>
+                      </div>
 
-                    {/* 2. Produkttitel + Beschreibung */}
-                    <Card className="rounded-2xl border-border/50 bg-card/50 shadow-sm">
-                      <CardContent className="p-4 sm:p-6">
-                        <div className="mb-2 flex flex-wrap items-center gap-2">
-                          <Badge className="border border-cyan-600/30 bg-cyan-600/15 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-cyan-800 shadow-sm dark:text-cyan-200">
-                            3D-Druck
-                          </Badge>
-                          {detailProduct.sale && (
-                            <Badge className="bg-red-500 text-white hover:bg-red-500">
-                              Rabatt
-                            </Badge>
+                      <div className="flex min-w-0 flex-col gap-6">
+                        <Card className="rounded-xl border-red-500/35 bg-gradient-to-b from-red-500/10 via-red-500/5 to-transparent shadow-sm">
+                          <CardContent className="space-y-5 p-6">
+                            <h3 className="font-bold">Preisberechnung</h3>
+                            <div className="space-y-2 text-sm">
+                              <div className="flex justify-between gap-3">
+                                <span className="text-muted-foreground">
+                                  Stueckpreis
+                                </span>
+                                <span className="font-medium">
+                                  CHF {unitPrice.toFixed(2)}
+                                </span>
+                              </div>
+                              {detailProduct.sale &&
+                                detailProduct.originalPrice != null && (
+                                  <div className="flex justify-between gap-3">
+                                    <span className="text-muted-foreground">
+                                      UVP
+                                    </span>
+                                    <span className="text-muted-foreground line-through">
+                                      CHF {detailProduct.originalPrice.toFixed(2)}
+                                    </span>
+                                  </div>
+                                )}
+                              <div className="flex justify-between gap-3">
+                                <span className="text-muted-foreground">
+                                  Material (
+                                  {effectiveFilamentSelection?.materialName ??
+                                    "PLA"}
+                                  )
+                                </span>
+                                <span className="font-medium">
+                                  {effectiveFilamentSelection?.colorName ?? "—"}
+                                </span>
+                              </div>
+                              <div className="flex justify-between gap-3">
+                                <span className="text-muted-foreground">
+                                  Masse
+                                </span>
+                                <span className="max-w-[55%] text-right font-mono text-xs font-medium leading-snug">
+                                  {formatProductDimensionsText(productDimensions)}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="space-y-3 border-t border-red-500/20 pt-4">
+                              <span className="text-sm font-medium">Anzahl</span>
+                              <div className="flex items-center gap-3">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() =>
+                                    setQuantity(Math.max(1, quantity - 1))
+                                  }
+                                  aria-label="Anzahl verringern"
+                                >
+                                  <Minus className="h-4 w-4" />
+                                </Button>
+                                <span className="w-12 text-center text-lg font-bold tabular-nums">
+                                  {quantity}
+                                </span>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => setQuantity(quantity + 1)}
+                                  aria-label="Anzahl erhöhen"
+                                >
+                                  <Plus className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+
+                            <div className="border-t border-red-500/20 pt-3">
+                              <div className="flex justify-between gap-3 text-lg font-bold">
+                                <span>Gesamtpreis</span>
+                                <span className="text-red-500 dark:text-red-400">
+                                  CHF {(unitPrice * quantity).toFixed(2)}
+                                </span>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+
+                        <FilamentColorPicker
+                          materials={filamentMaterials}
+                          activeTab={filamentTab}
+                          onTabChange={setFilamentTab}
+                          onSelectionChange={setFilamentSelection}
+                          className="mt-0 border-0 pt-0"
+                        />
+
+                        <Button
+                          onClick={() => void handleAddToCart()}
+                          disabled={!canAddToCart}
+                          className="w-full bg-primary hover:bg-primary/90"
+                          size="lg"
+                        >
+                          {cartCapturing ? (
+                            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                          ) : (
+                            <ShoppingCart className="mr-2 h-5 w-5" />
                           )}
-                        </div>
-                        <h1 className="text-xl font-bold sm:text-2xl lg:text-3xl">
-                          {detailProduct.name}
-                        </h1>
-                        <p className="mt-3 text-sm leading-relaxed text-muted-foreground sm:text-base">
-                          {detailProduct.description}
+                          {cartCapturing
+                            ? "Wird hinzugefügt…"
+                            : "In den Warenkorb"}
+                        </Button>
+                        {effectiveFilamentSelection &&
+                          !effectiveFilamentSelection.inStock && (
+                            <p className="text-center text-sm text-red-500">
+                              Gewaehlte Farbe ist derzeit nicht auf Lager.
+                            </p>
+                          )}
+
+                        <p className="rounded-xl border border-border/40 bg-muted/20 px-4 py-3 text-sm leading-relaxed text-muted-foreground">
+                          <SiteText k="shop_delivery_notice" />{" "}
+                          <Link
+                            href="/kontakt"
+                            className="font-medium text-primary underline-offset-2 hover:underline"
+                          >
+                            Kontaktformular
+                          </Link>
                         </p>
-                      </CardContent>
-                    </Card>
-
-                    {/* 3. Live-Vorschau Canvas erst darunter */}
-                    {productModelUrl ? (
-                      <Product3DPreview
-                        ref={product3dCanvasRef}
-                        key={`${detailProduct.id}-${productModelUrl}`}
-                        modelUrl={productModelUrl}
-                        color={
-                          effectiveFilamentSelection?.colorHex?.trim() ||
-                          "#1a1a1a"
-                        }
-                        fixedDimensionsMm={productDimensionsToViewerMm(
-                          productDimensions
-                        )}
-                      />
-                    ) : null}
-                  </div>
-
-                  <div className="mt-10 grid grid-cols-1 items-start gap-8 lg:grid-cols-2 lg:gap-12">
-                    <div className="flex min-w-0 flex-col gap-6">
-                      <FilamentColorPicker
-                        materials={filamentMaterials}
-                        activeTab={filamentTab}
-                        onTabChange={setFilamentTab}
-                        onSelectionChange={setFilamentSelection}
-                        className="mt-0 border-0 pt-0"
-                      />
+                      </div>
                     </div>
 
-                    <div className="flex min-w-0 flex-col gap-6 lg:min-h-[480px]">
+                    {/* PC: unten 2 Spalten — Live-Vorschau | Feste Masse */}
+                    <div className="grid grid-cols-1 items-start gap-8 md:grid-cols-2 md:gap-10 lg:gap-12">
+                      <div className="min-w-0">
+                        {productModelUrl ? (
+                          <Product3DPreview
+                            ref={product3dCanvasRef}
+                            key={`${detailProduct.id}-${productModelUrl}`}
+                            modelUrl={productModelUrl}
+                            color={
+                              effectiveFilamentSelection?.colorHex?.trim() ||
+                              "#1a1a1a"
+                            }
+                            fixedDimensionsMm={productDimensionsToViewerMm(
+                              productDimensions
+                            )}
+                          />
+                        ) : null}
+                      </div>
+
                       <Card className="rounded-xl border-border/50 bg-card/50 shadow-sm">
                         <CardContent className="p-6">
                           <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
@@ -879,116 +995,6 @@ export function PageShop({
                           </dl>
                         </CardContent>
                       </Card>
-
-                      <p className="rounded-xl border border-border/40 bg-muted/20 px-4 py-3 text-sm leading-relaxed text-muted-foreground">
-                        <SiteText k="shop_delivery_notice" />{" "}
-                        <Link
-                          href="/kontakt"
-                          className="font-medium text-primary underline-offset-2 hover:underline"
-                        >
-                          Kontaktformular
-                        </Link>
-                      </p>
-
-                      <div className="mt-auto pt-2">
-                        <Card className="rounded-xl border-red-500/35 bg-gradient-to-b from-red-500/10 via-red-500/5 to-transparent shadow-sm">
-                          <CardContent className="space-y-5 p-6">
-                            <h3 className="font-bold">Preisberechnung</h3>
-                            <div className="space-y-2 text-sm">
-                              <div className="flex justify-between gap-3">
-                                <span className="text-muted-foreground">
-                                  Stueckpreis
-                                </span>
-                                <span className="font-medium">
-                                  CHF {unitPrice.toFixed(2)}
-                                </span>
-                              </div>
-                              {detailProduct.sale &&
-                                detailProduct.originalPrice != null && (
-                                  <div className="flex justify-between gap-3">
-                                    <span className="text-muted-foreground">UVP</span>
-                                    <span className="text-muted-foreground line-through">
-                                      CHF {detailProduct.originalPrice.toFixed(2)}
-                                    </span>
-                                  </div>
-                                )}
-                              <div className="flex justify-between gap-3">
-                                <span className="text-muted-foreground">
-                                  Material (
-                                  {effectiveFilamentSelection?.materialName ?? "PLA"})
-                                </span>
-                                <span className="font-medium">
-                                  {effectiveFilamentSelection?.colorName ?? "—"}
-                                </span>
-                              </div>
-                              <div className="flex justify-between gap-3">
-                                <span className="text-muted-foreground">Masse</span>
-                                <span className="max-w-[55%] text-right font-mono text-xs font-medium leading-snug">
-                                  {formatProductDimensionsText(productDimensions)}
-                                </span>
-                              </div>
-                            </div>
-
-                            <div className="space-y-3 border-t border-red-500/20 pt-4">
-                              <span className="text-sm font-medium">Anzahl</span>
-                              <div className="flex items-center gap-3">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() =>
-                                    setQuantity(Math.max(1, quantity - 1))
-                                  }
-                                  aria-label="Anzahl verringern"
-                                >
-                                  <Minus className="h-4 w-4" />
-                                </Button>
-                                <span className="w-12 text-center text-lg font-bold tabular-nums">
-                                  {quantity}
-                                </span>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => setQuantity(quantity + 1)}
-                                  aria-label="Anzahl erhöhen"
-                                >
-                                  <Plus className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </div>
-
-                            <div className="border-t border-red-500/20 pt-3">
-                              <div className="flex justify-between gap-3 text-lg font-bold">
-                                <span>Gesamtpreis</span>
-                                <span className="text-red-500 dark:text-red-400">
-                                  CHF {(unitPrice * quantity).toFixed(2)}
-                                </span>
-                              </div>
-                            </div>
-
-                            <Button
-                              onClick={() => void handleAddToCart()}
-                              disabled={!canAddToCart}
-                              className="w-full bg-primary hover:bg-primary/90"
-                              size="lg"
-                            >
-                              {cartCapturing ? (
-                                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                              ) : (
-                                <ShoppingCart className="mr-2 h-5 w-5" />
-                              )}
-                              {cartCapturing
-                                ? "Wird hinzugefügt…"
-                                : "In den Warenkorb"}
-                            </Button>
-                            {effectiveFilamentSelection &&
-                              !effectiveFilamentSelection.inStock && (
-                              <p className="text-center text-sm text-red-500">
-                                Gewaehlte Farbe ist derzeit nicht auf Lager.
-                              </p>
-                            )}
-                          </CardContent>
-                        </Card>
-                      </div>
                     </div>
                   </div>
                 </>

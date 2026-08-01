@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
 import { deleteMaterial, getMaterialById, upsertMaterial } from "@/lib/admin/material-db"
 import { normalizeMaterialItem } from "@/lib/admin/cosmos-materials"
+import { CosmosDatabaseError } from "@/lib/admin/storage-bridge"
 import {
   isAuthError,
   requireAdminSession,
@@ -28,9 +29,15 @@ export async function GET(request: Request, context: RouteContext) {
     return NextResponse.json({ material })
   } catch (error) {
     console.error("Admin-API: Material konnte nicht geladen werden.", error)
+    const status = error instanceof CosmosDatabaseError ? 503 : 500
     return NextResponse.json(
-      { error: "Material konnte nicht geladen werden." },
-      { status: 500 }
+      {
+        error:
+          error instanceof CosmosDatabaseError
+            ? "Lager-Datenbank (Cosmos) nicht erreichbar."
+            : "Material konnte nicht geladen werden.",
+      },
+      { status }
     )
   }
 }
@@ -88,9 +95,15 @@ export async function PATCH(request: Request, context: RouteContext) {
     return NextResponse.json({ material: saved })
   } catch (error) {
     console.error("Admin-API: Material konnte nicht aktualisiert werden.", error)
+    const status = error instanceof CosmosDatabaseError ? 503 : 500
     return NextResponse.json(
-      { error: "Material konnte nicht aktualisiert werden." },
-      { status: 500 }
+      {
+        error:
+          error instanceof CosmosDatabaseError
+            ? "Lager-Datenbank (Cosmos) nicht erreichbar — Speichern abgebrochen (kein Dateisystem-Fallback)."
+            : "Material konnte nicht aktualisiert werden.",
+      },
+      { status }
     )
   }
 }
@@ -109,9 +122,15 @@ export async function DELETE(request: Request, context: RouteContext) {
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error("Admin-API: Material konnte nicht gelöscht werden.", error)
+    const status = error instanceof CosmosDatabaseError ? 503 : 500
     return NextResponse.json(
-      { error: "Material konnte nicht gelöscht werden." },
-      { status: 500 }
+      {
+        error:
+          error instanceof CosmosDatabaseError
+            ? "Lager-Datenbank (Cosmos) nicht erreichbar — Löschen abgebrochen."
+            : "Material konnte nicht gelöscht werden.",
+      },
+      { status }
     )
   }
 }

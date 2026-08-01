@@ -2,11 +2,11 @@ import { NextResponse } from "next/server"
 import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
 import {
   createMaterialInput,
-  deleteMaterial,
   getMaterials,
   upsertMaterial,
 } from "@/lib/admin/material-db"
 import { normalizeMaterialItem } from "@/lib/admin/cosmos-materials"
+import { CosmosDatabaseError } from "@/lib/admin/storage-bridge"
 import {
   isAuthError,
   requireAdminSession,
@@ -15,6 +15,20 @@ import type { MaterialCategory, MaterialItem } from "@/lib/admin/material-types"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
+
+function cosmosErrorResponse(error: unknown, fallbackMessage: string) {
+  if (error instanceof CosmosDatabaseError) {
+    return NextResponse.json(
+      {
+        error:
+          "Lager-Datenbank (Cosmos) nicht erreichbar. Bitte COSMOSDB_ENDPOINT/COSMOSDB_KEY in der Produktionsumgebung prüfen. Es wurde nichts auf das flüchtige Dateisystem geschrieben.",
+        materials: [],
+      },
+      { status: 503 }
+    )
+  }
+  return NextResponse.json({ error: fallbackMessage, materials: [] }, { status: 500 })
+}
 
 export async function GET(request: Request) {
   const auth = requireAdminSession(request)
@@ -31,7 +45,7 @@ export async function GET(request: Request) {
         : undefined
     )
 
-    // Manuelles Wiederherstellen der Lasermaterial-Stammdaten
+    // Manuelles Laser-Seed nur wenn Kategorie leer — niemals Filamente, niemals Wipe.
     if (seed && category === "lasermaterial" && materials.length === 0) {
       const { ensureLaserStockMaterialsSeeded } = await import(
         "@/lib/admin/material-db"
@@ -43,9 +57,9 @@ export async function GET(request: Request) {
     return NextResponse.json({ materials })
   } catch (error) {
     console.error("Admin-API: Materialien konnten nicht geladen werden.", error)
-    return NextResponse.json(
-      { materials: [] },
-      { headers: { "X-DripForge-Degraded": "1" } }
+    return cosmosErrorResponse(
+      error,
+      "Materialien konnten nicht geladen werden."
     )
   }
 }
@@ -96,9 +110,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ material: saved }, { status: 201 })
   } catch (error) {
     console.error("Admin-API: Material konnte nicht erstellt werden.", error)
-    return NextResponse.json(
-      { error: "Material konnte nicht erstellt werden." },
-      { status: 500 }
+    return cosmosErrorResponse(
+      error,
+      "Material konnte nicht erstellt werden."
     )
   }
 }
