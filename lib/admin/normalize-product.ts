@@ -150,6 +150,9 @@ export function normalizeAdminProductInput(
     varianten,
     materialLinks: input.materialLinks ?? existing?.materialLinks ?? [],
     tags: normalizeProductTagIds(input.tags ?? existing?.tags),
+    imageShape: normalizeProductImageShape(
+      input.imageShape ?? existing?.imageShape
+    ),
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   }
