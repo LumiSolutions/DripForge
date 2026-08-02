@@ -60,3 +60,53 @@ export function formatStockForUnit(
 export function addFullRollsToGrams(rolls: number): number {
   return Math.max(0, Math.round(rolls)) * GRAMS_PER_FULL_SPOOL
 }
+
+/** Physischer Gesamtbestand aus vollen Rollen + angefangener Rolle. */
+export function physicalGramsFromRollParts(
+  fullRolls: number,
+  partialGrams: number
+): number {
+  const rolls = Math.max(0, Math.round(fullRolls))
+  const partial = Math.min(
+    GRAMS_PER_FULL_SPOOL - 1,
+    Math.max(0, Math.round(partialGrams))
+  )
+  return rolls * GRAMS_PER_FULL_SPOOL + partial
+}
+
+/** Zerlegt physischen Gesamtbestand (available + reserved) in Rollen + Rest. */
+export function rollPartsFromPhysicalGrams(totalGrams: number): {
+  fullRolls: number
+  partialGrams: number
+} {
+  const total = Math.max(0, Math.round(totalGrams))
+  return {
+    fullRolls: Math.floor(total / GRAMS_PER_FULL_SPOOL),
+    partialGrams: total % GRAMS_PER_FULL_SPOOL,
+  }
+}
+
+/**
+ * Verfügbar = physisch − reserviert.
+ * Speicherung bleibt gram-kanonisch (stockAvailable / stockReserved).
+ */
+export function availableGramsFromPhysicalAndReserved(
+  physicalGrams: number,
+  reservedGrams: number
+): number {
+  const physical = Math.max(0, Math.round(physicalGrams))
+  const reserved = Math.max(0, Math.round(reservedGrams))
+  return Math.max(0, physical - reserved)
+}
+
+/** Mindestbestand: Gramm → Rollen (Aufrunden, damit Schwelle nicht sinkt). */
+export function minStockRollsFromGrams(grams: number): number {
+  const g = Math.max(0, Math.round(grams))
+  if (g <= 0) return 0
+  return Math.ceil(g / GRAMS_PER_FULL_SPOOL)
+}
+
+/** Mindestbestand: Rollen → Gramm (persistiert weiterhin in mindestbestand). */
+export function minStockGramsFromRolls(rolls: number): number {
+  return Math.max(0, Math.round(rolls)) * GRAMS_PER_FULL_SPOOL
+}

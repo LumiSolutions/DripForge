@@ -233,6 +233,16 @@ export function normalizeShopProduct(
         return Number.isFinite(n) && n > 0 ? n : undefined
       })(),
       printTimeShowInShop: Boolean(source.printTimeShowInShop),
+      allowedFilamentMaterialTypeIds: (() => {
+        if (!("allowedFilamentMaterialTypeIds" in source)) return undefined
+        if (!Array.isArray(source.allowedFilamentMaterialTypeIds)) {
+          return undefined
+        }
+        const ids = source.allowedFilamentMaterialTypeIds
+          .map((id) => (typeof id === "string" ? id.trim().toLowerCase() : ""))
+          .filter(Boolean)
+        return ids
+      })(),
     }
   } catch (error) {
     console.error("Shop: normalizeShopProduct fehlgeschlagen.", error, raw)
