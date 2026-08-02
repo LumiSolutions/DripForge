@@ -228,6 +228,9 @@ export function normalizeOrderForPersistence(
   if (order.emailNotifications) {
     normalized.emailNotifications = order.emailNotifications
   }
+  if (typeof order.customerNote === "string" && order.customerNote.trim()) {
+    normalized.customerNote = order.customerNote.trim().slice(0, 2000)
+  }
 
   // JSON roundtrip: keine undefined-Werte / nicht serialisierbare Felder für Cosmos
   return JSON.parse(JSON.stringify(normalized)) as StoredOrder & {

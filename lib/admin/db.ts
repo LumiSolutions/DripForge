@@ -66,6 +66,7 @@ import {
   normalizeWishlistIconCustomUrl,
 } from "@/lib/dripforge/wishlist-icon-settings"
 import { normalizeAnnouncementBanner } from "@/lib/dripforge/announcement-banner-settings"
+import { normalizeShippingTiers } from "@/lib/dripforge/shipping-tiers"
 import { normalizeThanksPageSettings } from "@/lib/dripforge/thanks-page-settings"
 import {
   CosmosDatabaseError,
@@ -621,6 +622,7 @@ async function getSettingsFromFile(): Promise<AdminSettings> {
       ),
       orderEmailLayout: normalizeOrderEmailLayout(stored.orderEmailLayout),
       announcementBanner: normalizeAnnouncementBanner(stored.announcementBanner),
+      shippingTiers: normalizeShippingTiers(stored.shippingTiers),
       thanksPage: normalizeThanksPageSettings(stored.thanksPage),
       updatedAt: stored.updatedAt,
     }
@@ -655,6 +657,7 @@ async function getSettingsFromFile(): Promise<AdminSettings> {
     orderEmailTemplates: normalizeOrderEmailTemplates(undefined),
     orderEmailLayout: normalizeOrderEmailLayout(undefined),
     announcementBanner: normalizeAnnouncementBanner(undefined),
+    shippingTiers: normalizeShippingTiers(undefined),
     thanksPage: normalizeThanksPageSettings(undefined),
     updatedAt: new Date().toISOString(),
   }
@@ -700,6 +703,7 @@ export async function saveSettings(input: {
   }
   orderEmailLayout?: unknown
   announcementBanner?: Partial<AdminSettings["announcementBanner"]> | null
+  shippingTiers?: Partial<AdminSettings["shippingTiers"]> | null
   thanksPage?: Partial<AdminSettings["thanksPage"]> | null
 }): Promise<AdminSettings> {
   const current = await getSettings()
@@ -838,6 +842,17 @@ export async function saveSettings(input: {
             ...input.announcementBanner,
           })
         : normalizeAnnouncementBanner(current.announcementBanner),
+    shippingTiers:
+      input.shippingTiers !== undefined && input.shippingTiers !== null
+        ? normalizeShippingTiers({
+            ...normalizeShippingTiers(current.shippingTiers),
+            ...input.shippingTiers,
+            tiers:
+              input.shippingTiers.tiers !== undefined
+                ? input.shippingTiers.tiers
+                : normalizeShippingTiers(current.shippingTiers).tiers,
+          })
+        : normalizeShippingTiers(current.shippingTiers),
     thanksPage:
       input.thanksPage !== undefined && input.thanksPage !== null
         ? normalizeThanksPageSettings({

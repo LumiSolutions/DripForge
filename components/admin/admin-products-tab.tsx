@@ -23,7 +23,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
-import { Textarea } from "@/components/ui/textarea"
+import { ProductDescriptionEditor } from "@/components/admin/product-description-editor"
 import {
   Select,
   SelectContent,
@@ -810,11 +810,10 @@ export function AdminProductsTab() {
                   </div>
                   <div className="space-y-2 sm:col-span-2">
                     <Label className={adminUi.label}>Beschreibung</Label>
-                    <Textarea
+                    <ProductDescriptionEditor
+                      key={form.id || "new-product"}
                       value={form.description ?? ""}
-                      onChange={(e) => updateField("description", e.target.value)}
-                      rows={3}
-                      className={adminUi.input}
+                      onChange={(html) => updateField("description", html)}
                     />
                   </div>
                   <div className="space-y-2">

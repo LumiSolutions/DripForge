@@ -28,6 +28,7 @@ import {
   DEFAULT_WISHLIST_ICON,
 } from "@/lib/dripforge/wishlist-icon-settings"
 import { DEFAULT_ANNOUNCEMENT_BANNER } from "@/lib/dripforge/announcement-banner-settings"
+import { DEFAULT_SHIPPING_TIERS } from "@/lib/dripforge/shipping-tiers"
 import { DEFAULT_THANKS_PAGE_SETTINGS } from "@/lib/dripforge/thanks-page-settings"
 
 /** Sichere Standard-Einstellungen wenn Cosmos/Datei nicht erreichbar sind. */
@@ -65,6 +66,10 @@ export function buildDefaultAdminSettings(): AdminSettings {
       sectionOrder: [...DEFAULT_ORDER_EMAIL_LAYOUT.sectionOrder],
     },
     announcementBanner: { ...DEFAULT_ANNOUNCEMENT_BANNER },
+    shippingTiers: {
+      ...DEFAULT_SHIPPING_TIERS,
+      tiers: DEFAULT_SHIPPING_TIERS.tiers.map((t) => ({ ...t })),
+    },
     thanksPage: { ...DEFAULT_THANKS_PAGE_SETTINGS },
     updatedAt: new Date().toISOString(),
   }

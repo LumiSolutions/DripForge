@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react"
 import Image from "next/image"
-import { Loader2, Rocket, Save, Upload } from "lucide-react"
+import { Loader2, Plus, Rocket, Save, Trash2, Upload } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -98,6 +98,12 @@ import {
   normalizeAnnouncementBanner,
   type AnnouncementBannerSettings,
 } from "@/lib/dripforge/announcement-banner-settings"
+import {
+  DEFAULT_SHIPPING_TIERS,
+  normalizeShippingTiers,
+  type ShippingTierRule,
+  type ShippingTiersSettings,
+} from "@/lib/dripforge/shipping-tiers"
 import {
   DEFAULT_THANKS_PAGE_SETTINGS,
   normalizeThanksPageSettings,
@@ -218,6 +224,9 @@ export function AdminSettingsTab({
   )
   const [announcementBanner, setAnnouncementBanner] =
     useState<AnnouncementBannerSettings>({ ...DEFAULT_ANNOUNCEMENT_BANNER })
+  const [shippingTiers, setShippingTiers] = useState<ShippingTiersSettings>(() =>
+    normalizeShippingTiers(DEFAULT_SHIPPING_TIERS)
+  )
   const [thanksPage, setThanksPage] = useState<ThanksPageSettings>({
     ...DEFAULT_THANKS_PAGE_SETTINGS,
   })
@@ -297,6 +306,7 @@ export function AdminSettingsTab({
       setAnnouncementBanner(
         normalizeAnnouncementBanner(data.announcementBanner)
       )
+      setShippingTiers(normalizeShippingTiers(data.shippingTiers))
       setThanksPage(normalizeThanksPageSettings(data.thanksPage))
       setManagedCatalog(
         normalizeManagedCatalog(
@@ -376,6 +386,7 @@ export function AdminSettingsTab({
           wishlistIcon,
           wishlistIconCustomUrl,
           announcementBanner,
+          shippingTiers,
           thanksPage,
         }),
       })
@@ -449,6 +460,7 @@ export function AdminSettingsTab({
       setAnnouncementBanner(
         normalizeAnnouncementBanner(data.announcementBanner)
       )
+      setShippingTiers(normalizeShippingTiers(data.shippingTiers))
       setThanksPage(normalizeThanksPageSettings(data.thanksPage))
       setManagedCatalog(
         normalizeManagedCatalog(
@@ -953,6 +965,333 @@ export function AdminSettingsTab({
                   </div>
                 </div>
               )}
+            </CardContent>
+          </Card>
+        )}
+
+        {show("shop", "accounting") && (
+          <Card className={adminUi.card}>
+            <CardContent className="space-y-4 p-6">
+              <div>
+                <h3 className={cn("text-lg font-bold", adminUi.heading)}>
+                  Versandstaffeln
+                </h3>
+                <p className={cn("mt-1 text-sm", adminUi.muted)}>
+                  Gewichtsabhängige Versandpreise. Deaktiviert = klassische
+                  Versandoptionen.
+                </p>
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <Label htmlFor="shipping-tiers-enabled" className={adminUi.label}>
+                  Staffeln aktiv
+                </Label>
+                <Switch
+                  id="shipping-tiers-enabled"
+                  checked={shippingTiers.enabled}
+                  onCheckedChange={(checked) =>
+                    setShippingTiers((prev) => ({
+                      ...prev,
+                      enabled: checked,
+                    }))
+                  }
+                />
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <Label className={adminUi.label}>Staffeln</Label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      setShippingTiers((prev) => ({
+                        ...prev,
+                        tiers: [
+                          ...prev.tiers,
+                          {
+                            id: `tier-${Date.now()}`,
+                            label: "Neue Staffel",
+                            methodId: "bpost",
+                            maxWeightG: 1000,
+                            maxLengthMm: null,
+                            maxWidthMm: null,
+                            maxHeightMm: null,
+                            priceChf: 0,
+                            active: true,
+                          } satisfies ShippingTierRule,
+                        ],
+                      }))
+                    }
+                  >
+                    <Plus className="mr-1 h-4 w-4" />
+                    Staffel hinzufügen
+                  </Button>
+                </div>
+                {shippingTiers.tiers.map((tier, index) => (
+                  <div
+                    key={tier.id}
+                    className="space-y-3 rounded-md border border-border/60 p-3"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <label className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={tier.active}
+                          onChange={(e) =>
+                            setShippingTiers((prev) => ({
+                              ...prev,
+                              tiers: prev.tiers.map((t, i) =>
+                                i === index
+                                  ? { ...t, active: e.target.checked }
+                                  : t
+                              ),
+                            }))
+                          }
+                        />
+                        Aktiv
+                      </label>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive"
+                        onClick={() =>
+                          setShippingTiers((prev) => ({
+                            ...prev,
+                            tiers: prev.tiers.filter((_, i) => i !== index),
+                          }))
+                        }
+                      >
+                        <Trash2 className="mr-1 h-4 w-4" />
+                        Entfernen
+                      </Button>
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                      <div className="space-y-1">
+                        <Label className={adminUi.label}>Bezeichnung</Label>
+                        <Input
+                          value={tier.label}
+                          onChange={(e) =>
+                            setShippingTiers((prev) => ({
+                              ...prev,
+                              tiers: prev.tiers.map((t, i) =>
+                                i === index
+                                  ? { ...t, label: e.target.value }
+                                  : t
+                              ),
+                            }))
+                          }
+                          className={adminUi.input}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className={adminUi.label}>Methode</Label>
+                        <select
+                          value={tier.methodId}
+                          onChange={(e) =>
+                            setShippingTiers((prev) => ({
+                              ...prev,
+                              tiers: prev.tiers.map((t, i) =>
+                                i === index
+                                  ? {
+                                      ...t,
+                                      methodId: e.target
+                                        .value as ShippingTierRule["methodId"],
+                                    }
+                                  : t
+                              ),
+                            }))
+                          }
+                          className={cn(
+                            "h-10 w-full rounded-md border px-3 text-sm",
+                            adminUi.select
+                          )}
+                        >
+                          <option value="brief">Brief</option>
+                          <option value="bpost">B-Post</option>
+                          <option value="apost">A-Post</option>
+                          <option value="pickup">Abholung</option>
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className={adminUi.label}>Max. Gewicht (g)</Label>
+                        <Input
+                          type="number"
+                          min={1}
+                          value={tier.maxWeightG}
+                          onChange={(e) =>
+                            setShippingTiers((prev) => ({
+                              ...prev,
+                              tiers: prev.tiers.map((t, i) =>
+                                i === index
+                                  ? {
+                                      ...t,
+                                      maxWeightG: Number(e.target.value) || 0,
+                                    }
+                                  : t
+                              ),
+                            }))
+                          }
+                          className={adminUi.input}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className={adminUi.label}>Preis (CHF)</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          step="0.05"
+                          value={tier.priceChf}
+                          onChange={(e) =>
+                            setShippingTiers((prev) => ({
+                              ...prev,
+                              tiers: prev.tiers.map((t, i) =>
+                                i === index
+                                  ? {
+                                      ...t,
+                                      priceChf: Number(e.target.value) || 0,
+                                    }
+                                  : t
+                              ),
+                            }))
+                          }
+                          className={adminUi.input}
+                        />
+                      </div>
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <div className="space-y-1">
+                        <Label className={adminUi.label}>
+                          Max. Länge (mm, optional)
+                        </Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          value={tier.maxLengthMm ?? ""}
+                          onChange={(e) =>
+                            setShippingTiers((prev) => ({
+                              ...prev,
+                              tiers: prev.tiers.map((t, i) =>
+                                i === index
+                                  ? {
+                                      ...t,
+                                      maxLengthMm: e.target.value
+                                        ? Number(e.target.value)
+                                        : null,
+                                    }
+                                  : t
+                              ),
+                            }))
+                          }
+                          className={adminUi.input}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className={adminUi.label}>
+                          Max. Breite (mm, optional)
+                        </Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          value={tier.maxWidthMm ?? ""}
+                          onChange={(e) =>
+                            setShippingTiers((prev) => ({
+                              ...prev,
+                              tiers: prev.tiers.map((t, i) =>
+                                i === index
+                                  ? {
+                                      ...t,
+                                      maxWidthMm: e.target.value
+                                        ? Number(e.target.value)
+                                        : null,
+                                    }
+                                  : t
+                              ),
+                            }))
+                          }
+                          className={adminUi.input}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className={adminUi.label}>
+                          Max. Höhe (mm, optional)
+                        </Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          value={tier.maxHeightMm ?? ""}
+                          onChange={(e) =>
+                            setShippingTiers((prev) => ({
+                              ...prev,
+                              tiers: prev.tiers.map((t, i) =>
+                                i === index
+                                  ? {
+                                      ...t,
+                                      maxHeightMm: e.target.value
+                                        ? Number(e.target.value)
+                                        : null,
+                                    }
+                                  : t
+                              ),
+                            }))
+                          }
+                          className={adminUi.input}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="space-y-3 border-t border-border/60 pt-4">
+                <div className="flex items-center justify-between gap-4">
+                  <Label htmlFor="pickup-enabled" className={adminUi.label}>
+                    Abholung anbieten
+                  </Label>
+                  <Switch
+                    id="pickup-enabled"
+                    checked={shippingTiers.pickupEnabled}
+                    onCheckedChange={(checked) =>
+                      setShippingTiers((prev) => ({
+                        ...prev,
+                        pickupEnabled: checked,
+                      }))
+                    }
+                  />
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <Label className={adminUi.label}>Abholung Bezeichnung</Label>
+                    <Input
+                      value={shippingTiers.pickupLabel}
+                      onChange={(e) =>
+                        setShippingTiers((prev) => ({
+                          ...prev,
+                          pickupLabel: e.target.value,
+                        }))
+                      }
+                      className={adminUi.input}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className={adminUi.label}>Abholung Preis (CHF)</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      step="0.05"
+                      value={shippingTiers.pickupPriceChf}
+                      onChange={(e) =>
+                        setShippingTiers((prev) => ({
+                          ...prev,
+                          pickupPriceChf: Number(e.target.value) || 0,
+                        }))
+                      }
+                      className={adminUi.input}
+                    />
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
         )}

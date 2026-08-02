@@ -34,6 +34,7 @@ import {
   normalizeWishlistIconCustomUrl,
 } from "@/lib/dripforge/wishlist-icon-settings"
 import type { AnnouncementBannerSettings } from "@/lib/dripforge/announcement-banner-settings"
+import type { ShippingTiersSettings } from "@/lib/dripforge/shipping-tiers"
 import type { ThanksPageSettings } from "@/lib/dripforge/thanks-page-settings"
 
 export async function GET(request: Request) {
@@ -79,6 +80,7 @@ export async function PUT(request: Request) {
       wishlistIcon?: string
       wishlistIconCustomUrl?: string | null
       announcementBanner?: Partial<AnnouncementBannerSettings> | null
+      shippingTiers?: Partial<ShippingTiersSettings> | null
       thanksPage?: Partial<ThanksPageSettings> | null
       orderEmailTemplates?: {
         receivedIntro?: string
@@ -197,6 +199,8 @@ export async function PUT(request: Request) {
         body.announcementBanner !== undefined
           ? body.announcementBanner
           : undefined,
+      shippingTiers:
+        body.shippingTiers !== undefined ? body.shippingTiers : undefined,
       thanksPage:
         body.thanksPage !== undefined ? body.thanksPage : undefined,
       orderEmailTemplates: body.orderEmailTemplates,

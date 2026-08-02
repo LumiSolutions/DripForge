@@ -442,6 +442,9 @@ export async function processOrderPayload(
     totals: serverTotals,
     paymentConfirmed: options?.paymentConfirmed ?? true,
     stripeSessionId: options?.stripeSessionId ?? null,
+    ...(typeof payload.customerNote === "string" && payload.customerNote.trim()
+      ? { customerNote: payload.customerNote.trim().slice(0, 2000) }
+      : {}),
     ...(options?.sessionEmail?.trim()
       ? { accountEmail: resolveLoyaltyAccountEmail(options.sessionEmail, payload.billing.email) }
       : {}),

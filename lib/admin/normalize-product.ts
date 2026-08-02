@@ -157,6 +157,26 @@ export function normalizeAdminProductInput(
     imageShape: normalizeProductImageShape(
       input.imageShape ?? existing?.imageShape
     ),
+    defaultFilamentColorId:
+      input.defaultFilamentColorId !== undefined
+        ? input.defaultFilamentColorId
+        : existing?.defaultFilamentColorId ?? null,
+    defaultFilamentColorName:
+      input.defaultFilamentColorName !== undefined
+        ? input.defaultFilamentColorName
+        : existing?.defaultFilamentColorName ?? null,
+    multiColorEnabled:
+      input.multiColorEnabled !== undefined
+        ? Boolean(input.multiColorEnabled)
+        : Boolean(existing?.multiColorEnabled),
+    partLabels: Array.isArray(input.partLabels)
+      ? input.partLabels
+          .map((label) => String(label ?? "").trim())
+          .filter(Boolean)
+          .slice(0, 24)
+      : Array.isArray(existing?.partLabels)
+        ? existing.partLabels
+        : undefined,
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   }

@@ -27,6 +27,8 @@ export type OrderPayload = {
   }
   /** Eingeloggter Kunde: Checkout-Adresse im Konto speichern (Default: true) */
   saveAddressToAccount?: boolean
+  /** Bestellweite Kundenbemerkung / Hinweise */
+  customerNote?: string
   totals: {
     subtotal: number
     shippingCost: number

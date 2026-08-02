@@ -246,7 +246,8 @@ export function ShopHeader(props: ShopHeaderProps) {
     <>
       <header
         className={cn(
-          "fixed inset-x-0 top-0 z-[100]",
+          "fixed inset-x-0 z-[100]",
+          "top-[var(--df-banner-h,0px)]",
           "border-b border-border/60 bg-background/95 shadow-sm backdrop-blur-md",
           "supports-[backdrop-filter]:bg-background/90"
         )}
@@ -609,9 +610,9 @@ export function ShopHeader(props: ShopHeaderProps) {
       )}
       <ThemeInboundTour anchorRef={themeButtonRef} onThemeChange={setTheme} />
       </header>
-      {/* Platzhalter: verhindert, dass Content unter dem fixed Header verschwindet */}
+      {/* Platzhalter: verhindert, dass Content unter Banner + fixed Header verschwindet */}
       <div
-        className="h-[var(--header-height,4rem)] shrink-0"
+        className="h-[calc(var(--header-height,4rem)+var(--df-banner-h,0px))] shrink-0"
         aria-hidden="true"
       />
     </>
