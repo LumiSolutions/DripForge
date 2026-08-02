@@ -186,6 +186,16 @@ export function normalizeAdminProductInput(
       )
       return tiers.length > 0 ? tiers : undefined
     })(),
+    printTimeMinutes: (() => {
+      const raw =
+        input.printTimeMinutes !== undefined
+          ? input.printTimeMinutes
+          : existing?.printTimeMinutes
+      if (raw == null) return undefined
+      const n = Math.round(Number(raw))
+      if (!Number.isFinite(n) || n <= 0) return undefined
+      return n
+    })(),
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   }

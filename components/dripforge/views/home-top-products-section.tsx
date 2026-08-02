@@ -145,26 +145,28 @@ export function HomeTopProductsSection() {
                     key={key}
                     data-top-product-card
                     className={cn(
-                      "min-w-0 shrink-0 grow-0 pl-4 md:pl-6",
+                      "flex min-w-0 shrink-0 grow-0 pl-4 md:pl-6",
                       "basis-1/2",
                       "md:basis-1/3",
                       "lg:basis-1/4"
                     )}
                   >
-                    <ShopProductCard
-                      product={product}
-                      coverSrc={coverSrc}
-                      viewMode="grid3"
-                      surface="brand"
-                      canInlineEdit={canInlineEdit}
-                      onOpen={() => {
-                        if (canInlineEdit) return
-                        safeNavigate(
-                          `/shop/${encodeURIComponent(product.id)}`,
-                          { routerPush: (to) => router.push(to) }
-                        )
-                      }}
-                    />
+                    <div className="flex h-full w-full flex-col">
+                      <ShopProductCard
+                        product={product}
+                        coverSrc={coverSrc}
+                        viewMode="grid3"
+                        surface="brand"
+                        canInlineEdit={canInlineEdit}
+                        onOpen={() => {
+                          if (canInlineEdit) return
+                          safeNavigate(
+                            `/shop/${encodeURIComponent(product.id)}`,
+                            { routerPush: (to) => router.push(to) }
+                          )
+                        }}
+                      />
+                    </div>
                   </div>
                 )
               })}

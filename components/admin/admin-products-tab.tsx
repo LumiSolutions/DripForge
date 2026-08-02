@@ -20,6 +20,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
@@ -45,6 +55,10 @@ import {
   normalizeQuantityDiscountTiers,
   type QuantityDiscountTier,
 } from "@/lib/dripforge/quantity-discount-tiers"
+import {
+  analyzeProductStlFile,
+  isStlFileName,
+} from "@/lib/dripforge/analyze-product-stl"
 import type { LaserMaterialId, Product } from "@/lib/dripforge/types"
 import {
   buildLaserMaterialSelectOptions,
@@ -246,6 +260,10 @@ export function AdminProductsTab() {
   })
   /** Freitext während der Eingabe — Parsing erst bei Blur/Speichern. */
   const [partLabelsDraft, setPartLabelsDraft] = useState<string | null>(null)
+  const [defaultColorDraft, setDefaultColorDraft] = useState<string | null>(null)
+  const [formBaseline, setFormBaseline] = useState("")
+  const [discardPromptOpen, setDiscardPromptOpen] = useState(false)
+  const [stlAnalyzing, setStlAnalyzing] = useState(false)
 
   const toggleSection = (key: string) => {
     setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }))
@@ -258,10 +276,22 @@ export function AdminProductsTab() {
       .filter(Boolean)
       .slice(0, 24)
 
-  const commitPartLabelsDraft = () => {
-    if (partLabelsDraft === null) return
-    updateField("partLabels", parsePartLabelsDraft(partLabelsDraft))
-    setPartLabelsDraft(null)
+  const snapshotForm = (state: ProductFormState, partDraft: string | null, colorDraft: string | null) =>
+    JSON.stringify({
+      ...state,
+      partLabels:
+        partDraft !== null ? parsePartLabelsDraft(partDraft) : state.partLabels,
+      defaultFilamentColorName:
+        colorDraft !== null
+          ? colorDraft.trim() || null
+          : state.defaultFilamentColorName,
+    })
+
+  const isFormDirty = () => {
+    if (!formBaseline) return false
+    return (
+      snapshotForm(form, partLabelsDraft, defaultColorDraft) !== formBaseline
+    )
   }
 
   const archivedCount = useMemo(
@@ -296,10 +326,21 @@ export function AdminProductsTab() {
     setIsEditing(false)
     setForm(EMPTY_FORM)
     setPartLabelsDraft(null)
+    setDefaultColorDraft(null)
+    setFormBaseline("")
+    setDiscardPromptOpen(false)
     setImageUrlInput("")
     setLaserMaterialFilter("")
     setMaterialLinkFilters({})
     setOpenSections({ ...DEFAULT_PRODUCT_SECTIONS })
+  }
+
+  const requestCloseEditor = () => {
+    if (isFormDirty()) {
+      setDiscardPromptOpen(true)
+      return
+    }
+    closeEditor()
   }
 
   const loadProducts = useCallback(async () => {
@@ -349,12 +390,15 @@ export function AdminProductsTab() {
   }, [loadProducts, loadMaterials, loadProductTags])
 
   const startCreate = () => {
-    setForm({
+    const next = {
       ...EMPTY_FORM,
       id: `p-${Date.now()}`,
       sku: allocateNextProductSku(products),
-    })
+    }
+    setForm(next)
     setPartLabelsDraft(null)
+    setDefaultColorDraft(null)
+    setFormBaseline(snapshotForm(next, null, null))
     setLaserMaterialFilter("")
     setMaterialLinkFilters({})
     setOpenSections({ ...DEFAULT_PRODUCT_SECTIONS })
@@ -363,7 +407,7 @@ export function AdminProductsTab() {
 
   const startEdit = (product: AdminProduct) => {
     const inferred = inferSaleRabattFromProduct(product)
-    setForm({
+    const next: ProductFormState = {
       ...product,
       basisPreis: resolveProductBasisPreis(product),
       saleRabattTyp: inferred.typ,
@@ -384,8 +428,12 @@ export function AdminProductsTab() {
       quantityDiscountTiers: normalizeQuantityDiscountTiers(
         product.quantityDiscountTiers
       ),
-    })
+      printTimeMinutes: product.printTimeMinutes,
+    }
+    setForm(next)
     setPartLabelsDraft(null)
+    setDefaultColorDraft(null)
+    setFormBaseline(snapshotForm(next, null, null))
     setLaserMaterialFilter("")
     setMaterialLinkFilters({})
     setOpenSections({
@@ -400,6 +448,18 @@ export function AdminProductsTab() {
     value: (typeof form)[K]
   ) => {
     setForm((prev) => ({ ...prev, [key]: value }))
+  }
+
+  const commitPartLabelsDraft = () => {
+    if (partLabelsDraft === null) return
+    updateField("partLabels", parsePartLabelsDraft(partLabelsDraft))
+    setPartLabelsDraft(null)
+  }
+
+  const commitDefaultColorDraft = () => {
+    if (defaultColorDraft === null) return
+    updateField("defaultFilamentColorName", defaultColorDraft.trim() || null)
+    setDefaultColorDraft(null)
   }
 
   const handleGalleryUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -457,6 +517,30 @@ export function AdminProductsTab() {
     try {
       const url = await uploadAdminFile(form.id, "model", file)
       updateField("modellDateiUrl", url)
+
+      if (form.type === "3d" && isStlFileName(file.name)) {
+        setStlAnalyzing(true)
+        try {
+          const analysis = await analyzeProductStlFile(file)
+          setForm((prev) => ({
+            ...prev,
+            modellDateiUrl: url,
+            dimensionsMm: {
+              length: analysis.length,
+              width: analysis.width,
+              height: analysis.height,
+            },
+            volumen: analysis.volumeCm3,
+            volumenEinheit: "cm3",
+            gewicht: analysis.weightG,
+          }))
+          setOpenSections((prev) => ({ ...prev, dimensions: true }))
+        } catch (analyzeErr) {
+          console.warn("Admin: STL-Analyse fehlgeschlagen.", analyzeErr)
+        } finally {
+          setStlAnalyzing(false)
+        }
+      }
     } catch (err) {
       console.warn("Admin: 3D-Upload fehlgeschlagen.", err)
       setError(err instanceof Error ? err.message : "3D-Upload fehlgeschlagen.")
@@ -629,9 +713,17 @@ export function AdminProductsTab() {
       partLabelsDraft !== null
         ? parsePartLabelsDraft(partLabelsDraft)
         : form.partLabels
+    const committedColor =
+      defaultColorDraft !== null
+        ? defaultColorDraft.trim() || null
+        : form.defaultFilamentColorName
     if (partLabelsDraft !== null) {
       setPartLabelsDraft(null)
       updateField("partLabels", committedPartLabels)
+    }
+    if (defaultColorDraft !== null) {
+      setDefaultColorDraft(null)
+      updateField("defaultFilamentColorName", committedColor)
     }
 
     if (form.sale) {
@@ -663,8 +755,10 @@ export function AdminProductsTab() {
         body: JSON.stringify({
           ...form,
           partLabels: committedPartLabels,
+          defaultFilamentColorName: committedColor,
           quantityDiscountTiers:
             quantityDiscountTiers.length > 0 ? quantityDiscountTiers : [],
+          printTimeMinutes: form.printTimeMinutes ?? null,
           purchasePriceChf: pricingBreakdown.totalSelfCostChf,
           additionalBaseCostChf: pricingBreakdown.additionalBaseCostChf,
         }),
@@ -673,6 +767,7 @@ export function AdminProductsTab() {
       if (!res.ok) throw new Error(data.error ?? "Speichern fehlgeschlagen")
 
       await loadProducts()
+      setFormBaseline("")
       closeEditor()
     } catch (err) {
       console.warn("Admin: Produkt konnte nicht gespeichert werden.", err)
@@ -787,16 +882,43 @@ export function AdminProductsTab() {
       <Dialog
         open={isEditing}
         onOpenChange={(open) => {
-          if (!open) closeEditor()
+          if (!open) requestCloseEditor()
         }}
       >
-        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+        <DialogContent
+          className="max-h-[90vh] max-w-2xl overflow-y-auto"
+          showCloseButton={false}
+          onPointerDownOutside={(e) => {
+            e.preventDefault()
+            requestCloseEditor()
+          }}
+          onInteractOutside={(e) => {
+            e.preventDefault()
+            requestCloseEditor()
+          }}
+          onEscapeKeyDown={(e) => {
+            e.preventDefault()
+            requestCloseEditor()
+          }}
+        >
           <DialogHeader>
-            <DialogTitle>
-              {products.some((p) => p.id === form.id)
-                ? "Produkt bearbeiten"
-                : "Neues Produkt"}
-            </DialogTitle>
+            <div className="flex items-start justify-between gap-3 pr-2">
+              <DialogTitle>
+                {products.some((p) => p.id === form.id)
+                  ? "Produkt bearbeiten"
+                  : "Neues Produkt"}
+              </DialogTitle>
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="h-8 w-8 shrink-0"
+                aria-label="Schliessen"
+                onClick={requestCloseEditor}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
           </DialogHeader>
 
           <div className="space-y-5">
@@ -1092,11 +1214,14 @@ export function AdminProductsTab() {
                     size="sm"
                     onClick={() => {
                       const existing = form.quantityDiscountTiers ?? []
-                      const lastMin = existing[existing.length - 1]?.minQty ?? 2
+                      const lastMin = existing[existing.length - 1]?.minQty ?? 3
                       updateField("quantityDiscountTiers", [
                         ...existing,
                         {
-                          minQty: Math.max(2, lastMin + 2),
+                          minQty:
+                            existing.length === 0
+                              ? 5
+                              : Math.max(2, lastMin + 2),
                           discountPercent: existing.length === 0 ? 10 : 15,
                         },
                       ])
@@ -1186,6 +1311,69 @@ export function AdminProductsTab() {
                       </p>
                     )}
                   </div>
+                  {form.type === "3d" && (
+                    <div className="mt-4 space-y-2">
+                      <Label className={adminUi.label}>Gesamte Druckzeit</Label>
+                      <p className={cn("text-xs", adminUi.muted)}>
+                        Optional — wird Kunden und im Admin angezeigt. Bei STL-Upload
+                        werden Masse, Volumen und Gewicht automatisch vorausgefüllt.
+                      </p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <Label className={cn("text-xs", adminUi.labelMuted)}>
+                            Stunden
+                          </Label>
+                          <Input
+                            type="number"
+                            min={0}
+                            step={1}
+                            value={Math.floor((form.printTimeMinutes ?? 0) / 60)}
+                            onChange={(e) => {
+                              const hours = Math.max(0, Math.round(Number(e.target.value) || 0))
+                              const minutes = (form.printTimeMinutes ?? 0) % 60
+                              const total = hours * 60 + minutes
+                              updateField(
+                                "printTimeMinutes",
+                                total > 0 ? total : undefined
+                              )
+                            }}
+                            className={adminUi.input}
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className={cn("text-xs", adminUi.labelMuted)}>
+                            Minuten
+                          </Label>
+                          <Input
+                            type="number"
+                            min={0}
+                            max={59}
+                            step={1}
+                            value={(form.printTimeMinutes ?? 0) % 60}
+                            onChange={(e) => {
+                              const minutes = Math.min(
+                                59,
+                                Math.max(0, Math.round(Number(e.target.value) || 0))
+                              )
+                              const hours = Math.floor((form.printTimeMinutes ?? 0) / 60)
+                              const total = hours * 60 + minutes
+                              updateField(
+                                "printTimeMinutes",
+                                total > 0 ? total : undefined
+                              )
+                            }}
+                            className={adminUi.input}
+                          />
+                        </div>
+                      </div>
+                      {stlAnalyzing && (
+                        <p className={cn("flex items-center gap-2 text-xs", adminUi.muted)}>
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          STL wird analysiert (Masse / Volumen / Gewicht)…
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </ProductEditAccordion>
               )}
 
@@ -1215,13 +1403,12 @@ export function AdminProductsTab() {
                         Standard-Farbe (Name)
                       </Label>
                       <Input
-                        value={form.defaultFilamentColorName ?? ""}
-                        onChange={(e) =>
-                          updateField(
-                            "defaultFilamentColorName",
-                            e.target.value.trim() || null
-                          )
+                        value={
+                          defaultColorDraft ??
+                          (form.defaultFilamentColorName ?? "")
                         }
+                        onChange={(e) => setDefaultColorDraft(e.target.value)}
+                        onBlur={commitDefaultColorDraft}
                         placeholder="z. B. Ash Gray"
                         className={adminUi.input}
                       />
@@ -1951,12 +2138,15 @@ export function AdminProductsTab() {
                     className={adminUi.fileInput}
                   />
                   <p className={cn("text-xs", adminUi.muted)}>
-                    Erlaubt: .stl, .obj, .glb, .gltf — fest mit dem Produkt verknuepft
+                    Erlaubt: .stl, .obj, .glb, .gltf — STL füllt Masse, Volumen und
+                    Gewicht automatisch (wie Custom-Upload).
                   </p>
-                  {uploadingMedia === "model" && (
+                  {(uploadingMedia === "model" || stlAnalyzing) && (
                     <p className={cn("flex items-center gap-2 text-xs", adminUi.muted)}>
                       <Loader2 className="h-3 w-3 animate-spin" />
-                      3D-Datei wird hochgeladen…
+                      {stlAnalyzing
+                        ? "STL wird analysiert…"
+                        : "3D-Datei wird hochgeladen…"}
                     </p>
                   )}
                   {form.modellDateiUrl && (
@@ -1994,6 +2184,41 @@ export function AdminProductsTab() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={discardPromptOpen} onOpenChange={setDiscardPromptOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Fenster schliessen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Möchtest du das Fenster wirklich schließen? Ungespeicherte Änderungen
+              gehen verloren.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="sm:flex-col sm:space-x-0 gap-2 sm:items-stretch">
+            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setDiscardPromptOpen(false)
+                closeEditor()
+              }}
+            >
+              Nicht speichern
+            </Button>
+            <AlertDialogAction
+              className={adminUi.primaryBtn}
+              onClick={(e) => {
+                e.preventDefault()
+                setDiscardPromptOpen(false)
+                void saveProduct()
+              }}
+            >
+              Speichern
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

@@ -176,7 +176,7 @@ export function ShopProductCard({
         }
       }}
       className={cn(
-        "group relative flex flex-col overflow-hidden border-border/50 p-0 transition-colors",
+        "group relative flex h-full min-h-[22rem] flex-col overflow-hidden border-border/50 p-0 transition-colors sm:min-h-[24rem]",
         canInlineEdit
           ? "cursor-default"
           : "cursor-pointer hover:border-primary/50 hover:shadow-md",
@@ -234,10 +234,10 @@ export function ShopProductCard({
         )}
       >
         {typeBadge}
-        <h3 className="line-clamp-2 text-sm font-bold leading-snug text-foreground sm:text-base">
+        <h3 className="line-clamp-2 min-h-[2.5rem] text-sm font-bold leading-snug text-foreground sm:min-h-[2.75rem] sm:text-base">
           {product.name}
         </h3>
-        <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground sm:text-sm">
+        <p className="line-clamp-2 min-h-[2.5rem] text-xs leading-relaxed text-muted-foreground sm:min-h-[2.75rem] sm:text-sm">
           {productDescriptionPreview(product.description, 100)}
         </p>
         <div className="mt-auto flex items-center justify-between gap-2 pt-2">
