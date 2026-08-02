@@ -109,6 +109,7 @@ import { productHref } from "@/lib/dripforge/product-slug"
 import { SHOP_ROUTES } from "@/lib/dripforge/shop-routes"
 import { ProductDetailErrorBoundary } from "@/components/dripforge/product-detail-error-boundary"
 import { HomeTopProductsSection } from "@/components/dripforge/views/home-top-products-section"
+import { filterFilamentMaterialsForProduct } from "@/lib/dripforge/product-filament-materials"
 import { SiteText } from "@/components/dripforge/editable-site-text"
 import { SiteTextPhrase } from "@/components/dripforge/site-text-phrase"
 import { useSiteTexts } from "@/components/dripforge/site-texts-provider"
@@ -194,15 +195,17 @@ export function PageShop({
 }: PageShopProps) {
   const router = useRouter()
   const { canInlineEdit } = useSiteTexts()
-  const { materials: filamentMaterials, loading: filamentsLoading } =
+  const { materials: filamentMaterialsAll, loading: filamentsLoading } =
     useFilamentCatalog()
 
-  useEffect(() => {
-    if (filamentMaterials.length === 0) return
-    setFilamentTab((prev) =>
-      filamentMaterials.some((m) => m.id === prev) ? prev : filamentMaterials[0]!.id
-    )
-  }, [filamentMaterials])
+  const filamentMaterials = useMemo(
+    () =>
+      filterFilamentMaterialsForProduct(
+        filamentMaterialsAll,
+        selectedProduct?.allowedFilamentMaterialTypeIds
+      ),
+    [filamentMaterialsAll, selectedProduct?.allowedFilamentMaterialTypeIds]
+  )
 
   const aiPublic = useAiPublicSettings()
   const showCustom3d = servicesLoaded ? Boolean(shopConfigurators.custom3d) : true
@@ -210,6 +213,13 @@ export function PageShop({
   const showAiKonfigurator = showCustom3d && Boolean(aiPublic?.enabled)
   const [filamentTab, setFilamentTab] = useState("pla")
   const [filamentSelection, setFilamentSelection] = useState<FilamentSelection | null>(null)
+
+  useEffect(() => {
+    if (filamentMaterials.length === 0) return
+    setFilamentTab((prev) =>
+      filamentMaterials.some((m) => m.id === prev) ? prev : filamentMaterials[0]!.id
+    )
+  }, [filamentMaterials])
   const [multiColorSelection, setMultiColorSelection] =
     useState<FilamentMultiColorSelection | null>(null)
   const [customerRemarks, setCustomerRemarks] = useState("")

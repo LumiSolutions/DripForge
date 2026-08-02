@@ -60,7 +60,10 @@ export type MaterialItem = {
   stockAvailable: number
   stockReserved: number
   bemerkungen?: string
-  /** Meldebestand in Gramm (Filament) oder Stück */
+  /**
+   * Meldebestand in Gramm (Filament) oder Stück.
+   * Filament-UI erfasst Rollen; Speicherung bleibt Gramm (= Rollen × 1000).
+   */
   mindestbestand?: number
   /** Einkaufspreis pro Einheit (CHF): pro 1000g-Rolle oder pro Stück */
   purchasePrice?: number

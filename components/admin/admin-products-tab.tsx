@@ -66,6 +66,11 @@ import {
   resolveLaserMaterialIdFromStockItem,
 } from "@/lib/dripforge/laser-material-options"
 import type { LaserMaterialTypeDefinition } from "@/lib/admin/laser-material-types"
+import {
+  getActiveMaterialTypes,
+  type MaterialTypeDefinition,
+} from "@/lib/admin/material-stats-types"
+import { normalizeAllowedFilamentMaterialTypeIds } from "@/lib/dripforge/product-filament-materials"
 import type { MaterialItem, ProductMaterialLink } from "@/lib/admin/material-types"
 import {
   calculateGrossMarginPercent,
@@ -250,6 +255,9 @@ export function AdminProductsTab() {
   const [laserMaterialTypes, setLaserMaterialTypes] = useState<
     LaserMaterialTypeDefinition[]
   >([])
+  const [filamentMaterialTypes, setFilamentMaterialTypes] = useState<
+    MaterialTypeDefinition[]
+  >([])
   const [productSort, setProductSort] = useState<ProductSortMode>("name-asc")
   const [productTags, setProductTags] = useState<ProductTag[]>([])
   const [laserMaterialFilter, setLaserMaterialFilter] = useState("")
@@ -317,6 +325,7 @@ export function AdminProductsTab() {
       if (typesRes.ok) {
         const typesData = await typesRes.json()
         setLaserMaterialTypes(typesData.laserTypes ?? [])
+        setFilamentMaterialTypes(typesData.materialTypes ?? [])
       }
     } catch {
       /* optional for product editor */
@@ -431,6 +440,7 @@ export function AdminProductsTab() {
       ),
       printTimeMinutes: product.printTimeMinutes,
       printTimeShowInShop: Boolean(product.printTimeShowInShop),
+      allowedFilamentMaterialTypeIds: product.allowedFilamentMaterialTypeIds,
     }
     setForm(next)
     setPartLabelsDraft(null)
@@ -762,6 +772,13 @@ export function AdminProductsTab() {
             quantityDiscountTiers.length > 0 ? quantityDiscountTiers : [],
           printTimeMinutes: form.printTimeMinutes ?? null,
           printTimeShowInShop: Boolean(form.printTimeShowInShop),
+          allowedFilamentMaterialTypeIds:
+            form.type === "3d"
+              ? normalizeAllowedFilamentMaterialTypeIds(
+                  form.allowedFilamentMaterialTypeIds ??
+                    getActiveMaterialTypes(filamentMaterialTypes).map((t) => t.id)
+                ) ?? []
+              : undefined,
           purchasePriceChf: pricingBreakdown.totalSelfCostChf,
           additionalBaseCostChf: pricingBreakdown.additionalBaseCostChf,
         }),
@@ -1456,6 +1473,77 @@ export function AdminProductsTab() {
                         Kommas und Leerzeichen sind erlaubt — z. B.
                         «Rücken, Körper, Pfoten».
                       </p>
+                    </div>
+
+                    <div className="space-y-2 border-t border-border/50 pt-3">
+                      <Label className={adminUi.label}>
+                        Druckbare Material-Arten
+                      </Label>
+                      <p className={cn("text-xs", adminUi.muted)}>
+                        Nur aktivierte Arten erscheinen als Tabs (PLA / PETG / …)
+                        auf der Produktdetailseite. Neue Produkte starten mit allen
+                        aktiven Arten; danach speichert die Auswahl explizit.
+                      </p>
+                      <div className="space-y-2">
+                        {getActiveMaterialTypes(filamentMaterialTypes).length ===
+                        0 ? (
+                          <p className={cn("text-xs", adminUi.muted)}>
+                            Keine Material-Arten geladen — unter «Material-Arten»
+                            pflegen.
+                          </p>
+                        ) : (
+                          getActiveMaterialTypes(filamentMaterialTypes).map(
+                            (type) => {
+                              const activeIds =
+                                form.allowedFilamentMaterialTypeIds
+                              const checked =
+                                activeIds == null
+                                  ? true
+                                  : activeIds.includes(type.id)
+                              return (
+                                <div
+                                  key={type.id}
+                                  className="flex items-center justify-between gap-3 rounded-lg border border-border/50 px-3 py-2"
+                                >
+                                  <div>
+                                    <p className="text-sm font-medium">
+                                      {type.name}
+                                    </p>
+                                    <p className={cn("text-xs", adminUi.muted)}>
+                                      ID: {type.id}
+                                    </p>
+                                  </div>
+                                  <Switch
+                                    checked={checked}
+                                    onCheckedChange={(on) => {
+                                      const allIds = getActiveMaterialTypes(
+                                        filamentMaterialTypes
+                                      ).map((t) => t.id)
+                                      const current =
+                                        form.allowedFilamentMaterialTypeIds ==
+                                        null
+                                          ? [...allIds]
+                                          : [
+                                              ...(form.allowedFilamentMaterialTypeIds ??
+                                                []),
+                                            ]
+                                      const next = on
+                                        ? Array.from(
+                                            new Set([...current, type.id])
+                                          )
+                                        : current.filter((id) => id !== type.id)
+                                      updateField(
+                                        "allowedFilamentMaterialTypeIds",
+                                        next
+                                      )
+                                    }}
+                                  />
+                                </div>
+                              )
+                            }
+                          )
+                        )}
+                      </div>
                     </div>
                   </div>
                 </ProductEditAccordion>

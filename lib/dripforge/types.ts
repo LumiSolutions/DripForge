@@ -107,6 +107,11 @@ export type Product = {
    * Default: false (nur intern im Admin).
    */
   printTimeShowInShop?: boolean
+  /**
+   * Erlaubte Filament-Material-Art-IDs (z. B. «pla», «petg») für den Shop.
+   * `undefined` = alle aktiven Arten (Legacy). Explizites Array filtert die Tabs.
+   */
+  allowedFilamentMaterialTypeIds?: string[]
 }
 
 export type ProductShopVariant = {

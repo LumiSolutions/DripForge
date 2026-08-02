@@ -18,6 +18,7 @@ import {
 import { normalizeProductSku } from "@/lib/admin/product-sku"
 import { normalizeProductImageShape } from "@/lib/dripforge/types"
 import { normalizeQuantityDiscountTiers } from "@/lib/dripforge/quantity-discount-tiers"
+import { normalizeAllowedFilamentMaterialTypeIds } from "@/lib/dripforge/product-filament-materials"
 
 export { isProductActive }
 
@@ -204,6 +205,19 @@ export function normalizeAdminProductInput(
         return Boolean(existing.printTimeShowInShop)
       }
       return false
+    })(),
+    allowedFilamentMaterialTypeIds: (() => {
+      if (input.allowedFilamentMaterialTypeIds !== undefined) {
+        return normalizeAllowedFilamentMaterialTypeIds(
+          input.allowedFilamentMaterialTypeIds
+        )
+      }
+      if (existing?.allowedFilamentMaterialTypeIds !== undefined) {
+        return normalizeAllowedFilamentMaterialTypeIds(
+          existing.allowedFilamentMaterialTypeIds
+        )
+      }
+      return undefined
     })(),
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,

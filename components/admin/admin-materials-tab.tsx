@@ -52,8 +52,13 @@ import {
 } from "@/lib/admin/material-stats-types"
 import { sortStockItems, type StockSortMode } from "@/lib/admin/list-sort-utils"
 import {
+  availableGramsFromPhysicalAndReserved,
   formatGramStockDisplay,
   formatStockForUnit,
+  minStockGramsFromRolls,
+  minStockRollsFromGrams,
+  physicalGramsFromRollParts,
+  rollPartsFromPhysicalGrams,
 } from "@/lib/admin/material-stock-utils"
 import {
   formatMaterialCardTitle,
@@ -158,8 +163,10 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
   const [editorOpen, setEditorOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [draft, setDraft] = useState<MaterialItem | null>(null)
-  const [addRolls, setAddRolls] = useState("0")
-  const [partialGrams, setPartialGrams] = useState("")
+  /** Absolute volle Rollen (physischer Bestand, inkl. Reservierung). */
+  const [fullRolls, setFullRolls] = useState("0")
+  const [partialGrams, setPartialGrams] = useState("0")
+  const [minStockRolls, setMinStockRolls] = useState("0")
   const [adjustingStockId, setAdjustingStockId] = useState<string | null>(null)
   /** Debounced Hintergrund-Persist für Drag-&-Drop (kein UI-Block). */
   const reorderTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -377,18 +384,25 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
       colorHex: "#1a1a1a",
       updatedAt: new Date().toISOString(),
     })
-    setAddRolls("0")
+    setFullRolls("0")
     setPartialGrams("0")
+    setMinStockRolls("0")
     setEditorOpen(true)
   }
 
   const openEdit = (material: MaterialItem) => {
     setDraft({ ...material })
     const stock = getEffectiveMaterialStock(material)
-    const partial =
-      material.stockUnit === "gram" ? stock.stockTotal % 1000 : stock.stockAvailable
-    setPartialGrams(String(partial))
-    setAddRolls("0")
+    if (material.stockUnit === "gram") {
+      const parts = rollPartsFromPhysicalGrams(stock.stockTotal)
+      setFullRolls(String(parts.fullRolls))
+      setPartialGrams(String(parts.partialGrams))
+      setMinStockRolls(String(minStockRollsFromGrams(material.mindestbestand ?? 0)))
+    } else {
+      setFullRolls("0")
+      setPartialGrams(String(stock.stockAvailable))
+      setMinStockRolls(String(Math.max(0, Math.round(material.mindestbestand ?? 0))))
+    }
     setEditorOpen(true)
   }
 
@@ -401,8 +415,13 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
       stockReserved: 0,
       updatedAt: new Date().toISOString(),
     })
+    setFullRolls("0")
     setPartialGrams("0")
-    setAddRolls("0")
+    setMinStockRolls(
+      material.stockUnit === "gram"
+        ? String(minStockRollsFromGrams(material.mindestbestand ?? 0))
+        : String(Math.max(0, Math.round(material.mindestbestand ?? 0)))
+    )
     setEditorOpen(true)
   }
 
@@ -412,41 +431,36 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
     setError(null)
     try {
       const isNew = !draft.id
+      let payload: MaterialItem = { ...draft }
+
+      if (draft.stockUnit === "gram") {
+        const rolls = Math.max(0, Math.round(Number(fullRolls) || 0))
+        const partial = Math.min(
+          GRAMS_PER_FULL_SPOOL - 1,
+          Math.max(0, Math.round(Number(partialGrams) || 0))
+        )
+        const reserved = Math.max(0, Math.round(Number(draft.stockReserved) || 0))
+        const physical = physicalGramsFromRollParts(rolls, partial)
+        const available = availableGramsFromPhysicalAndReserved(physical, reserved)
+        payload = {
+          ...draft,
+          stockAvailable: available,
+          stockReserved: reserved,
+          mindestbestand: minStockGramsFromRolls(Number(minStockRolls) || 0),
+        }
+      }
+
       const res = await fetch(
         isNew ? "/api/admin/materials" : `/api/admin/materials/${encodeURIComponent(draft.id)}`,
         {
           method: isNew ? "POST" : "PATCH",
           credentials: "include",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(draft),
+          body: JSON.stringify(payload),
         }
       )
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? "Speichern fehlgeschlagen")
-
-      let saved = data.material as MaterialItem
-      const rolls = Number.parseInt(addRolls, 10)
-      const partial = Number.parseInt(partialGrams, 10)
-      if (!isNew && (rolls !== 0 || Number.isFinite(partial))) {
-        const patchBody: Record<string, unknown> = {}
-        if (rolls !== 0) patchBody.addRolls = rolls
-        if (Number.isFinite(partial) && draft.stockUnit === "gram") {
-          patchBody.setPartialGrams = partial
-        }
-        if (Object.keys(patchBody).length > 0) {
-          const patchRes = await fetch(
-            `/api/admin/materials/${encodeURIComponent(saved.id)}`,
-            {
-              method: "PATCH",
-              credentials: "include",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(patchBody),
-            }
-          )
-          const patchData = await patchRes.json()
-          if (patchRes.ok) saved = patchData.material
-        }
-      }
 
       setEditorOpen(false)
       setDraft(null)
@@ -1161,17 +1175,53 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
 
               {draft.stockUnit === "gram" ? (
                 <div className={cn("space-y-3 rounded-xl border p-4", adminUi.section)}>
-                  <p className={cn("text-sm font-semibold", adminUi.accentTitle)}>Bestand (Gramm)</p>
-                  <StockDisplay material={draft} />
+                  <p className={cn("text-sm font-semibold", adminUi.accentTitle)}>
+                    Bestand (Rollen)
+                  </p>
+                  <p className={cn("text-xs", adminUi.muted)}>
+                    1 Rolle = {GRAMS_PER_FULL_SPOOL}g. Verfügbar wird automatisch
+                    berechnet: (volle Rollen × {GRAMS_PER_FULL_SPOOL}g) + angefangen −
+                    reserviert.
+                  </p>
+                  {(() => {
+                    const rolls = Math.max(0, Math.round(Number(fullRolls) || 0))
+                    const partial = Math.min(
+                      GRAMS_PER_FULL_SPOOL - 1,
+                      Math.max(0, Math.round(Number(partialGrams) || 0))
+                    )
+                    const reserved = Math.max(
+                      0,
+                      Math.round(Number(draft.stockReserved) || 0)
+                    )
+                    const physical = physicalGramsFromRollParts(rolls, partial)
+                    const available = availableGramsFromPhysicalAndReserved(
+                      physical,
+                      reserved
+                    )
+                    const preview: MaterialItem = {
+                      ...draft,
+                      stockAvailable: available,
+                      stockReserved: reserved,
+                      mindestbestand: minStockGramsFromRolls(
+                        Number(minStockRolls) || 0
+                      ),
+                    }
+                    return <StockDisplay material={preview} />
+                  })()}
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="space-y-2">
-                      <Label>+ neue Rollen (×1000g)</Label>
+                      <Label>Volle Rollen (Stück)</Label>
                       <Input
                         type="number"
-                        value={addRolls}
-                        onChange={(e) => setAddRolls(e.target.value)}
+                        min={0}
+                        step={1}
+                        value={fullRolls}
+                        onChange={(e) => setFullRolls(e.target.value)}
                         className={adminUi.input}
                       />
+                      <p className={cn("text-xs", adminUi.muted)}>
+                        Primärer Bestand — physische volle Spulen.
+                      </p>
                     </div>
                     <div className="space-y-2">
                       <Label>Angefangene Rolle (g)</Label>
@@ -1183,20 +1233,23 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
                         onChange={(e) => setPartialGrams(e.target.value)}
                         className={adminUi.input}
                       />
+                      <p className={cn("text-xs", adminUi.muted)}>
+                        Aus dem Bestand vorausgefüllt; manuell korrigierbar.
+                      </p>
                     </div>
                     <div className="space-y-2">
-                      <Label>Verfügbar (g)</Label>
+                      <Label>Verfügbar (g) — berechnet</Label>
                       <Input
                         type="number"
-                        min={0}
-                        value={draft.stockAvailable}
-                        onChange={(e) =>
-                          setDraft({
-                            ...draft,
-                            stockAvailable: Math.max(0, Number(e.target.value) || 0),
-                          })
-                        }
-                        className={adminUi.input}
+                        readOnly
+                        value={availableGramsFromPhysicalAndReserved(
+                          physicalGramsFromRollParts(
+                            Math.max(0, Math.round(Number(fullRolls) || 0)),
+                            Math.max(0, Math.round(Number(partialGrams) || 0))
+                          ),
+                          Math.max(0, Math.round(Number(draft.stockReserved) || 0))
+                        )}
+                        className={cn(adminUi.input, "opacity-70")}
                       />
                     </div>
                     <div className="space-y-2">
@@ -1205,24 +1258,36 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
                         type="number"
                         min={0}
                         value={draft.stockReserved}
-                        readOnly
-                        className={cn(adminUi.input, "opacity-70")}
-                      />
-                    </div>
-                    <div className="space-y-2 sm:col-span-2">
-                      <Label>Mindestbestand (g)</Label>
-                      <Input
-                        type="number"
-                        min={0}
-                        value={draft.mindestbestand ?? 0}
                         onChange={(e) =>
                           setDraft({
                             ...draft,
-                            mindestbestand: Math.max(0, Number(e.target.value) || 0),
+                            stockReserved: Math.max(
+                              0,
+                              Math.round(Number(e.target.value) || 0)
+                            ),
                           })
                         }
                         className={adminUi.input}
                       />
+                      <p className={cn("text-xs", adminUi.muted)}>
+                        Automatisch aus offenen Bestellungen; manuell
+                        überschreibbar.
+                      </p>
+                    </div>
+                    <div className="space-y-2 sm:col-span-2">
+                      <Label>Mindestbestand (Rollen)</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        step={1}
+                        value={minStockRolls}
+                        onChange={(e) => setMinStockRolls(e.target.value)}
+                        className={adminUi.input}
+                      />
+                      <p className={cn("text-xs", adminUi.muted)}>
+                        z. B. 5 = Warnung unter 5 vollen Rollen (
+                        {minStockGramsFromRolls(Number(minStockRolls) || 0)}g).
+                      </p>
                     </div>
                   </div>
                 </div>
