@@ -17,7 +17,7 @@ import {
   useGLTF,
   useProgress,
 } from "@react-three/drei"
-import { Eye, EyeOff, Loader2 } from "lucide-react"
+import { Eye, EyeOff, Loader2, RotateCcw } from "lucide-react"
 import type { BufferGeometry, Object3D } from "three"
 import * as THREE from "three"
 import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js"
@@ -65,10 +65,14 @@ function SceneLoader() {
 function usePreparedModel(
   scene: Object3D,
   color: string,
+  tipSteps: number,
   onOrbitCenter: (y: number) => void,
   onPrepared: (scene: Object3D, sizeAt100: PreparedSceneSize) => void
 ) {
-  const prepared = useMemo(() => prepareGltfScene(scene), [scene])
+  const prepared = useMemo(
+    () => prepareGltfScene(scene, { autoAlignFlat: true, tipSteps }),
+    [scene, tipSteps]
+  )
 
   useEffect(() => {
     onOrbitCenter(prepared.orbitCenterY)
@@ -88,11 +92,13 @@ function usePreparedModel(
 function GltfModel({
   url,
   color,
+  tipSteps,
   onOrbitCenter,
   onPrepared,
 }: {
   url: string
   color: string
+  tipSteps: number
   onOrbitCenter: (y: number) => void
   onPrepared: (scene: Object3D, sizeAt100: PreparedSceneSize) => void
 }) {
@@ -104,18 +110,26 @@ function GltfModel({
     }
   }, [url])
 
-  const preparedScene = usePreparedModel(scene, color, onOrbitCenter, onPrepared)
+  const preparedScene = usePreparedModel(
+    scene,
+    color,
+    tipSteps,
+    onOrbitCenter,
+    onPrepared
+  )
   return <primitive object={preparedScene} />
 }
 
 function StlModel({
   url,
   color,
+  tipSteps,
   onOrbitCenter,
   onPrepared,
 }: {
   url: string
   color: string
+  tipSteps: number
   onOrbitCenter: (y: number) => void
   onPrepared: (scene: Object3D, sizeAt100: PreparedSceneSize) => void
 }) {
@@ -129,7 +143,13 @@ function StlModel({
     return new THREE.Mesh(geometry.clone(), material)
   }, [geometry, color])
 
-  const preparedScene = usePreparedModel(source, color, onOrbitCenter, onPrepared)
+  const preparedScene = usePreparedModel(
+    source,
+    color,
+    tipSteps,
+    onOrbitCenter,
+    onPrepared
+  )
   return <primitive object={preparedScene} />
 }
 
@@ -137,12 +157,14 @@ function ProductPreviewScene({
   modelUrl,
   modelFormat,
   color,
+  tipSteps,
   fixedDimensionsMm,
   showDimensions,
 }: {
   modelUrl: string
   modelFormat: Product3dModelFormat
   color: string
+  tipSteps: number
   fixedDimensionsMm?: DimensionsMm | null
   showDimensions: boolean
 }) {
@@ -192,17 +214,19 @@ function ProductPreviewScene({
       <group>
         {modelFormat === "stl" ? (
           <StlModel
-            key={modelUrl}
+            key={`${modelUrl}-${tipSteps}`}
             url={modelUrl}
             color={color}
+            tipSteps={tipSteps}
             onOrbitCenter={setOrbitCenterY}
             onPrepared={handlePrepared}
           />
         ) : (
           <GltfModel
-            key={modelUrl}
+            key={`${modelUrl}-${tipSteps}`}
             url={modelUrl}
             color={color}
+            tipSteps={tipSteps}
             onOrbitCenter={setOrbitCenterY}
             onPrepared={handlePrepared}
           />
@@ -223,13 +247,21 @@ function ProductPreviewScene({
       />
 
       <OrbitControls
+        makeDefault
         target={[0, orbitCenterY, 0]}
         enableZoom
         enablePan={false}
+        enableRotate
         enableDamping
         dampingFactor={0.08}
+        rotateSpeed={0.9}
+        zoomSpeed={0.85}
         minDistance={40}
         maxDistance={280}
+        touches={{
+          ONE: THREE.TOUCH.ROTATE,
+          TWO: THREE.TOUCH.DOLLY_PAN,
+        }}
       />
 
       <SceneLoader />
@@ -245,8 +277,13 @@ export const Product3DPreview = forwardRef<
   ref
 ) {
   const [showDimensions, setShowDimensions] = useState(true)
+  const [tipSteps, setTipSteps] = useState(0)
   const resolvedUrl = modelUrl?.trim() ?? ""
   const modelFormat = getProduct3dModelFormat(resolvedUrl)
+
+  useEffect(() => {
+    setTipSteps(0)
+  }, [resolvedUrl])
 
   if (!resolvedUrl || !modelFormat) {
     return null
@@ -255,27 +292,39 @@ export const Product3DPreview = forwardRef<
   return (
     <div
       className={cn(
-        "relative aspect-square w-full max-h-[450px] overflow-hidden rounded-xl border border-border/50 bg-muted/40 shadow-inner touch-none",
+        "relative aspect-square w-full max-h-[450px] overflow-hidden rounded-xl border border-border/50 bg-muted/40 shadow-inner",
         className
       )}
+      style={{ touchAction: "none" }}
     >
-      <button
-        type="button"
-        onClick={() => setShowDimensions((v) => !v)}
-        className={cn(
-          "absolute right-3 top-3 z-10 flex items-center gap-1.5 rounded-lg border border-border/60 bg-white/90 px-2.5 py-1.5 text-[10px] font-medium text-zinc-700 shadow-sm backdrop-blur-sm transition-colors hover:border-primary/40 hover:text-primary dark:bg-card/90 dark:text-foreground"
-        )}
-        title={showDimensions ? "Masse ausblenden" : "Masse einblenden"}
-      >
-        {showDimensions ? (
-          <Eye className="h-3.5 w-3.5" />
-        ) : (
-          <EyeOff className="h-3.5 w-3.5" />
-        )}
-        <span className="hidden sm:inline">
-          {showDimensions ? "Masse aus" : "Masse ein"}
-        </span>
-      </button>
+      <div className="absolute right-3 top-3 z-10 flex flex-col gap-1.5">
+        <button
+          type="button"
+          onClick={() => setShowDimensions((v) => !v)}
+          className={cn(
+            "flex items-center gap-1.5 rounded-lg border border-border/60 bg-white/90 px-2.5 py-1.5 text-[10px] font-medium text-zinc-700 shadow-sm backdrop-blur-sm transition-colors hover:border-primary/40 hover:text-primary dark:bg-card/90 dark:text-foreground"
+          )}
+          title={showDimensions ? "Masse ausblenden" : "Masse einblenden"}
+        >
+          {showDimensions ? (
+            <Eye className="h-3.5 w-3.5" />
+          ) : (
+            <EyeOff className="h-3.5 w-3.5" />
+          )}
+          <span className="hidden sm:inline">
+            {showDimensions ? "Masse aus" : "Masse ein"}
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setTipSteps((n) => (n + 1) % 4)}
+          className="flex items-center gap-1.5 rounded-lg border border-border/60 bg-white/90 px-2.5 py-1.5 text-[10px] font-medium text-zinc-700 shadow-sm backdrop-blur-sm transition-colors hover:border-primary/40 hover:text-primary dark:bg-card/90 dark:text-foreground"
+          title="Modell kippen / ausrichten"
+        >
+          <RotateCcw className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">Kippen</span>
+        </button>
+      </div>
 
       <ProductDetailErrorBoundary
         fallbackTitle="3D-Vorschau konnte nicht geladen werden. Das Produkt bleibt weiterhin bestellbar."
@@ -285,8 +334,11 @@ export const Product3DPreview = forwardRef<
           shadows
           camera={{ position: [90, 70, 90], fov: 42, near: 0.1, far: 2000 }}
           gl={{ antialias: true, alpha: true, preserveDrawingBuffer: true }}
-          className="h-full w-full"
-          style={{ background: "transparent" }}
+          className="h-full w-full touch-none"
+          style={{ background: "transparent", touchAction: "none" }}
+          onCreated={({ gl }) => {
+            gl.domElement.style.touchAction = "none"
+          }}
           {...{ [LEITBILD_3D_CANVAS_ATTR]: "true" }}
         >
           <Suspense fallback={null}>
@@ -295,6 +347,7 @@ export const Product3DPreview = forwardRef<
               modelUrl={resolvedUrl}
               modelFormat={modelFormat}
               color={color}
+              tipSteps={tipSteps}
               fixedDimensionsMm={fixedDimensionsMm}
               showDimensions={showDimensions}
             />
@@ -302,7 +355,7 @@ export const Product3DPreview = forwardRef<
         </Canvas>
       </ProductDetailErrorBoundary>
       <p className="pointer-events-none absolute bottom-3 left-0 right-0 text-center text-[10px] font-medium text-zinc-600 dark:text-zinc-400">
-        Maus/Touch: drehen · Scroll: zoomen
+        Maus/Touch: drehen · Scroll/Pinch: zoomen
       </p>
     </div>
   )

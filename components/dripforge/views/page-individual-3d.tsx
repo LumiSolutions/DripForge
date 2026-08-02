@@ -663,39 +663,10 @@ export function PageIndividual3D() {
                     mm bei 100 %
                   </p>
                 )}
-              </CardContent>
-            </Card>
-          </div>
 
-          {/* Spalte 2: Material, Farben, Grösse */}
-          <div className="space-y-6 xl:col-span-4">
-            <Card className="border-border/50 bg-card/50">
-              <CardContent className="p-6">
-                <h3 className="mb-2 font-bold">2. Filament & Farbe (Mehrfarben)</h3>
-                <FilamentMultiColorPicker
-                  materials={filamentMaterials}
-                  activeTab={filamentTab}
-                  onTabChange={setFilamentTab}
-                  onSelectionChange={setMultiColorSelection}
-                />
-
-                {hasModel && !hasEmbeddedColors && (
-                  <ColorInstructionsPanel
-                    className="mt-4"
-                    colorWishes={colorWishes}
-                    onColorWishesChange={setColorWishes}
-                    referenceImagePreview={colorReferenceImagePreview}
-                    referenceImageName={colorReferenceImageName}
-                    onReferenceImageChange={handleReferenceImageChange}
-                  />
-                )}
-              </CardContent>
-            </Card>
-
-            <Card className="border-border/50 bg-card/50">
-              <CardContent className="p-6">
-                <h3 className="mb-4 font-bold">3. Grösse / Skalierung</h3>
-                <div className="space-y-5">
+                {/* Groesse/Skalierung direkt unter der Live-Vorschau */}
+                <div className="mt-5 space-y-5 border-t border-border/50 pt-5">
+                  <h3 className="font-bold">Grösse / Skalierung</h3>
                   <div className="space-y-3">
                     <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
                       <span className="font-medium">Grösse (Skalierung)</span>
@@ -736,7 +707,7 @@ export function PageIndividual3D() {
                     />
                     <p className="text-xs text-muted-foreground">
                       100 % = {NORMALIZED_LONGEST_AXIS_MM} mm laengste Achse (max.
-                      Bauraum)
+                      Bauraum) · Aenderungen wirken live in der Vorschau oben.
                     </p>
                   </div>
 
@@ -771,6 +742,32 @@ export function PageIndividual3D() {
                     </div>
                   )}
                 </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Spalte 2: Material & Farben */}
+          <div className="space-y-6 xl:col-span-4">
+            <Card className="border-border/50 bg-card/50">
+              <CardContent className="p-6">
+                <h3 className="mb-2 font-bold">2. Filament & Farbe (Mehrfarben)</h3>
+                <FilamentMultiColorPicker
+                  materials={filamentMaterials}
+                  activeTab={filamentTab}
+                  onTabChange={setFilamentTab}
+                  onSelectionChange={setMultiColorSelection}
+                />
+
+                {hasModel && !hasEmbeddedColors && (
+                  <ColorInstructionsPanel
+                    className="mt-4"
+                    colorWishes={colorWishes}
+                    onColorWishesChange={setColorWishes}
+                    referenceImagePreview={colorReferenceImagePreview}
+                    referenceImageName={colorReferenceImageName}
+                    onReferenceImageChange={handleReferenceImageChange}
+                  />
+                )}
               </CardContent>
             </Card>
           </div>

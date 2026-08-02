@@ -148,6 +148,26 @@
   color: transparent;
   -webkit-text-fill-color: transparent;
   font-weight: 700;
+  opacity: 1;
+}
+
+/* Fallback wenn background-clip:text nicht greift */
+@supports not ((-webkit-background-clip: text) or (background-clip: text)) {
+  .df-text-highlight {
+    color: #e65a41;
+    -webkit-text-fill-color: #e65a41;
+    background-image: none;
+  }
+}
+
+.product-description {
+  color: hsl(var(--foreground));
+}
+
+.product-description p,
+.product-description div,
+.product-description span:not(.df-text-highlight) {
+  color: inherit;
 }
 
 @supports not ((-webkit-background-clip: text) or (background-clip: text)) {

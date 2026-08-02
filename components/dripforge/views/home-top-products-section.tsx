@@ -131,7 +131,7 @@ export function HomeTopProductsSection() {
           </button>
 
           <div className="overflow-hidden px-4 md:px-10" ref={emblaRef}>
-            <div className="-ml-4 flex touch-pan-y md:-ml-6">
+            <div className="-ml-4 flex items-stretch touch-pan-y md:-ml-6">
               {slides.map(({ key, product }) => {
                 const images = resolveProductImages(
                   product.id,
@@ -145,26 +145,28 @@ export function HomeTopProductsSection() {
                     key={key}
                     data-top-product-card
                     className={cn(
-                      "min-w-0 shrink-0 grow-0 pl-4 md:pl-6",
+                      "flex min-w-0 shrink-0 grow-0 items-stretch pl-4 md:pl-6",
                       "basis-1/2",
                       "md:basis-1/3",
                       "lg:basis-1/4"
                     )}
                   >
-                    <ShopProductCard
-                      product={product}
-                      coverSrc={coverSrc}
-                      viewMode="grid3"
-                      surface="brand"
-                      canInlineEdit={canInlineEdit}
-                      onOpen={() => {
-                        if (canInlineEdit) return
-                        safeNavigate(
-                          `/shop/${encodeURIComponent(product.id)}`,
-                          { routerPush: (to) => router.push(to) }
-                        )
-                      }}
-                    />
+                    <div className="flex h-full min-h-[22rem] w-full flex-col sm:min-h-[24rem]">
+                      <ShopProductCard
+                        product={product}
+                        coverSrc={coverSrc}
+                        viewMode="grid3"
+                        surface="brand"
+                        canInlineEdit={canInlineEdit}
+                        onOpen={() => {
+                          if (canInlineEdit) return
+                          safeNavigate(
+                            `/shop/${encodeURIComponent(product.id)}`,
+                            { routerPush: (to) => router.push(to) }
+                          )
+                        }}
+                      />
+                    </div>
                   </div>
                 )
               })}

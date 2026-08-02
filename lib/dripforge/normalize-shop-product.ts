@@ -228,6 +228,10 @@ export function normalizeShopProduct(
         const tiers = normalizeQuantityDiscountTiers(source.quantityDiscountTiers)
         return tiers.length > 0 ? tiers : undefined
       })(),
+      printTimeMinutes: (() => {
+        const n = Math.round(Number(source.printTimeMinutes))
+        return Number.isFinite(n) && n > 0 ? n : undefined
+      })(),
     }
   } catch (error) {
     console.error("Shop: normalizeShopProduct fehlgeschlagen.", error, raw)

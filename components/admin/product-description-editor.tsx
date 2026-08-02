@@ -120,9 +120,26 @@ export function ProductDescriptionEditor({
     onChange(html)
   }
 
+  const toggleFormat = (command: "bold" | "italic" | "underline") => {
+    exec(command)
+    emitChange()
+  }
+
   const toggleHighlight = () => {
     const selection = window.getSelection()
-    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return
+    if (!selection || selection.rangeCount === 0) return
+
+    // Collapsed caret innerhalb eines Highlights → ganzes Highlight entfernen
+    if (selection.isCollapsed) {
+      const anchor = selection.anchorNode
+      const existing = closestHighlight(anchor)
+      if (existing) {
+        unwrapElement(existing)
+        emitChange()
+      }
+      return
+    }
+
     const range = selection.getRangeAt(0)
 
     // Toggle OFF: vorhandenes Highlight entfernen
@@ -164,10 +181,7 @@ export function ProductDescriptionEditor({
           className="h-8 w-8 px-0"
           title="Fett"
           onMouseDown={(e) => e.preventDefault()}
-          onClick={() => {
-            exec("bold")
-            emitChange()
-          }}
+          onClick={() => toggleFormat("bold")}
         >
           <Bold className="h-4 w-4" />
         </Button>
@@ -178,10 +192,7 @@ export function ProductDescriptionEditor({
           className="h-8 w-8 px-0"
           title="Kursiv"
           onMouseDown={(e) => e.preventDefault()}
-          onClick={() => {
-            exec("italic")
-            emitChange()
-          }}
+          onClick={() => toggleFormat("italic")}
         >
           <Italic className="h-4 w-4" />
         </Button>
@@ -192,10 +203,7 @@ export function ProductDescriptionEditor({
           className="h-8 w-8 px-0"
           title="Unterstrichen"
           onMouseDown={(e) => e.preventDefault()}
-          onClick={() => {
-            exec("underline")
-            emitChange()
-          }}
+          onClick={() => toggleFormat("underline")}
         >
           <Underline className="h-4 w-4" />
         </Button>
