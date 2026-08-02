@@ -861,9 +861,30 @@ export function PageShop({
           ) : (
                 <>
                   <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 md:gap-10">
-                    {/* PC: 2 Spalten — Bild+Text | Filament → Spezifikationen → Preisberechnung (unten) */}
+                    {/*
+                      Mobile: 3D → Filament → Preis/Cart → Galerie/Text/Specs
+                      Desktop: Spalte1 Galerie+Text+Specs+3D | Spalte2 Filament+Preis
+                    */}
                     <div className="grid grid-cols-1 items-start gap-8 md:grid-cols-2 md:gap-10 lg:items-stretch lg:gap-12">
-                      <div className="flex min-w-0 flex-col gap-6">
+                      {/* Mobile: Live-3D ganz oben */}
+                      {productModelUrl ? (
+                        <div className="order-1 min-w-0 md:hidden">
+                          <Product3DPreview
+                            ref={product3dCanvasRef}
+                            key={`m-${detailProduct.id}-${productModelUrl}`}
+                            modelUrl={productModelUrl}
+                            color={
+                              effectiveFilamentSelection?.colorHex?.trim() ||
+                              "#1a1a1a"
+                            }
+                            fixedDimensionsMm={productDimensionsToViewerMm(
+                              productDimensions
+                            )}
+                          />
+                        </div>
+                      ) : null}
+
+                      <div className="order-4 flex min-w-0 flex-col gap-6 md:order-1">
                         <ProductImageGallery
                           images={galleryImages}
                           alt={detailProduct.name}
@@ -888,17 +909,6 @@ export function PageShop({
                             </p>
                           </CardContent>
                         </Card>
-                      </div>
-
-                      <div className="flex min-w-0 flex-col gap-6 lg:h-full">
-                        {shopVariantPicker}
-                        <FilamentColorPicker
-                          materials={filamentMaterials}
-                          activeTab={filamentTab}
-                          onTabChange={setFilamentTab}
-                          onSelectionChange={setFilamentSelection}
-                          className="mt-0 border-0 pt-0"
-                        />
 
                         <Card className="rounded-xl border-border/50 bg-card/50 shadow-sm">
                           <CardContent className="p-5 sm:p-6">
@@ -953,8 +963,36 @@ export function PageShop({
                           </CardContent>
                         </Card>
 
-                        {/* lg: Preisberechnung am unteren Ende der rechten Spalte */}
-                        <div className="flex flex-col gap-6 lg:mt-auto">
+                        {/* Desktop: 3D unter Beschreibung/Spezifikationen */}
+                        {productModelUrl ? (
+                          <div className="hidden min-w-0 md:block">
+                            <Product3DPreview
+                              ref={product3dCanvasRef}
+                              key={`d-${detailProduct.id}-${productModelUrl}`}
+                              modelUrl={productModelUrl}
+                              color={
+                                effectiveFilamentSelection?.colorHex?.trim() ||
+                                "#1a1a1a"
+                              }
+                              fixedDimensionsMm={productDimensionsToViewerMm(
+                                productDimensions
+                              )}
+                            />
+                          </div>
+                        ) : null}
+                      </div>
+
+                      <div className="order-2 flex min-w-0 flex-col gap-6 md:order-2 lg:h-full">
+                        {shopVariantPicker}
+                        <FilamentColorPicker
+                          materials={filamentMaterials}
+                          activeTab={filamentTab}
+                          onTabChange={setFilamentTab}
+                          onSelectionChange={setFilamentSelection}
+                          className="mt-0 border-0 pt-0"
+                        />
+
+                        <div className="order-3 flex flex-col gap-6 lg:mt-auto">
                           <Card className="rounded-xl border-red-500/35 bg-gradient-to-b from-red-500/10 via-red-500/5 to-transparent shadow-sm">
                             <CardContent className="space-y-5 p-6">
                               <h3 className="font-bold">Preisberechnung</h3>
@@ -1082,24 +1120,6 @@ export function PageShop({
                           </p>
                         </div>
                       </div>
-                    </div>
-
-                    {/* Live-Vorschau unter den Spalten */}
-                    <div className="min-w-0">
-                      {productModelUrl ? (
-                        <Product3DPreview
-                          ref={product3dCanvasRef}
-                          key={`${detailProduct.id}-${productModelUrl}`}
-                          modelUrl={productModelUrl}
-                          color={
-                            effectiveFilamentSelection?.colorHex?.trim() ||
-                            "#1a1a1a"
-                          }
-                          fixedDimensionsMm={productDimensionsToViewerMm(
-                            productDimensions
-                          )}
-                        />
-                      ) : null}
                     </div>
                   </div>
                 </>

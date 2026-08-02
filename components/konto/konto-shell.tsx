@@ -13,6 +13,7 @@ import {
   Package,
   Palette,
   RefreshCw,
+  Tag,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -34,6 +35,12 @@ const NAV = [
   { href: "/konto/punkte", label: "Treuepunkte", icon: Coins, exact: false, rewardPoints: true },
   { href: "/konto/profil", label: "Profil & Adressen", icon: MapPin, exact: false },
   { href: "/konto/designs", label: "Meine Designs", icon: Palette, exact: false },
+  {
+    href: "/konto/angebote",
+    label: "Meine Angebote / Entwürfe",
+    icon: Tag,
+    exact: false,
+  },
 ]
 
 export function KontoShell({

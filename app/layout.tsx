@@ -12,6 +12,7 @@ import {
 import "./globals.css"
 import { ParticleBackground } from "@/components/dripforge/particle-background"
 import { GlobalShopFooter } from "@/components/dripforge/global-shop-footer"
+import { AnnouncementBanner } from "@/components/dripforge/announcement-banner"
 import {
   SiteConfigPreviewBanner,
   SiteConfigPreviewProvider,
@@ -93,6 +94,7 @@ export default function RootLayout({
           <SiteConfigPreviewProvider>
             <SiteTextsProvider>
               <CompanySettingsProvider>
+                <AnnouncementBanner />
                 <SiteConfigPreviewBanner />
                 <LaunchGateShell>{children}</LaunchGateShell>
                 <GlobalShopFooter />

@@ -7,7 +7,7 @@ import { CheckCircle2, ExternalLink, Package, ShoppingBag, Smartphone } from "lu
 import { Button } from "@/components/ui/button"
 import { useCart } from "@/components/dripforge/cart-provider"
 import { clearClientCart } from "@/lib/dripforge/cart-storage"
-import { OrderThanksAnimation } from "@/components/dripforge/order-thanks-animation"
+import { OrderThanksFromSettings } from "@/components/dripforge/order-thanks-animation"
 
 /**
  * TWINT-Zahlung: kein selbst generierter QR-Code (wird von der TWINT-App
@@ -227,7 +227,7 @@ function BestellungErfolgInner() {
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-16 text-center sm:py-20">
-      <OrderThanksAnimation className="mb-8" active />
+      <OrderThanksFromSettings className="mb-8" active />
       <CheckCircle2 className="mx-auto mb-6 h-14 w-14 text-emerald-500" />
       <h1 className="text-3xl font-bold">
         {isTwintPending

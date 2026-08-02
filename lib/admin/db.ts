@@ -65,6 +65,8 @@ import {
   normalizeWishlistIcon,
   normalizeWishlistIconCustomUrl,
 } from "@/lib/dripforge/wishlist-icon-settings"
+import { normalizeAnnouncementBanner } from "@/lib/dripforge/announcement-banner-settings"
+import { normalizeThanksPageSettings } from "@/lib/dripforge/thanks-page-settings"
 import {
   CosmosDatabaseError,
   withCosmosFallback,
@@ -618,6 +620,8 @@ async function getSettingsFromFile(): Promise<AdminSettings> {
         stored.orderEmailTemplates
       ),
       orderEmailLayout: normalizeOrderEmailLayout(stored.orderEmailLayout),
+      announcementBanner: normalizeAnnouncementBanner(stored.announcementBanner),
+      thanksPage: normalizeThanksPageSettings(stored.thanksPage),
       updatedAt: stored.updatedAt,
     }
   }
@@ -650,6 +654,8 @@ async function getSettingsFromFile(): Promise<AdminSettings> {
     wishlistIconCustomUrl: null,
     orderEmailTemplates: normalizeOrderEmailTemplates(undefined),
     orderEmailLayout: normalizeOrderEmailLayout(undefined),
+    announcementBanner: normalizeAnnouncementBanner(undefined),
+    thanksPage: normalizeThanksPageSettings(undefined),
     updatedAt: new Date().toISOString(),
   }
   // Fehlende settings.json: Defaults nur im Speicher — kein Auto-Write bei Restart.
@@ -693,6 +699,8 @@ export async function saveSettings(input: {
     receivedFooter?: string
   }
   orderEmailLayout?: unknown
+  announcementBanner?: Partial<AdminSettings["announcementBanner"]> | null
+  thanksPage?: Partial<AdminSettings["thanksPage"]> | null
 }): Promise<AdminSettings> {
   const current = await getSettings()
 
@@ -823,6 +831,20 @@ export async function saveSettings(input: {
               : {}),
           })
         : normalizeOrderEmailLayout(current.orderEmailLayout),
+    announcementBanner:
+      input.announcementBanner !== undefined && input.announcementBanner !== null
+        ? normalizeAnnouncementBanner({
+            ...normalizeAnnouncementBanner(current.announcementBanner),
+            ...input.announcementBanner,
+          })
+        : normalizeAnnouncementBanner(current.announcementBanner),
+    thanksPage:
+      input.thanksPage !== undefined && input.thanksPage !== null
+        ? normalizeThanksPageSettings({
+            ...normalizeThanksPageSettings(current.thanksPage),
+            ...input.thanksPage,
+          })
+        : normalizeThanksPageSettings(current.thanksPage),
     updatedAt: new Date().toISOString(),
   }
   await withCosmosFallback(

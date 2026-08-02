@@ -126,6 +126,7 @@ export function PageIndividualLaser({
   const [inquirySending, setInquirySending] = useState(false)
   const [inquiryError, setInquiryError] = useState<string | null>(null)
   const [inquirySuccess, setInquirySuccess] = useState<string | null>(null)
+  const [hasFinishedDesign, setHasFinishedDesign] = useState(false)
   const laserPreviewRef = useRef<HTMLDivElement>(null)
   const productFileInputRef = useRef<HTMLInputElement>(null)
 
@@ -264,6 +265,8 @@ export function PageIndividualLaser({
     null
 
   const hasDesign = laserDesignHasContent(laserDesign)
+  const designReady =
+    hasDesign || (isCustomerInbound && hasFinishedDesign)
 
   const materialLabel = isCustomerInbound
     ? CUSTOMER_INBOUND_MATERIAL_LABEL
@@ -272,7 +275,7 @@ export function PageIndividualLaser({
       : material.name
 
   const handleSendInquiry = async () => {
-    if (!hasDesign || inquirySending) return
+    if (!designReady || inquirySending) return
     setInquiryError(null)
     setInquirySuccess(null)
 
@@ -379,7 +382,7 @@ export function PageIndividualLaser({
     }
   }
 
-  const activeStep = !hasDesign
+  const activeStep = !designReady
     ? 0
     : selectedMaterialId
       ? 2
@@ -622,6 +625,18 @@ export function PageIndividualLaser({
                         Versandanleitung folgt per E-Mail nach der Bestellung.
                       </p>
                     )}
+                    <label className="flex items-start gap-3 text-sm">
+                      <input
+                        type="checkbox"
+                        className="mt-1 h-4 w-4 rounded border-border"
+                        checked={hasFinishedDesign}
+                        onChange={(e) => setHasFinishedDesign(e.target.checked)}
+                      />
+                      <span>
+                        Produkt beinhaltet bereits ein fertiges Design (keine
+                        Text-/Bildbearbeitung nötig)
+                      </span>
+                    </label>
                   </div>
                 )}
               </CardContent>
@@ -750,7 +765,7 @@ export function PageIndividualLaser({
                   )}
                   <Button
                     onClick={() => void handleSendInquiry()}
-                    disabled={!hasDesign || inquirySending}
+                    disabled={!designReady || inquirySending}
                     className="w-full bg-cyan-500 hover:bg-cyan-600"
                     size="lg"
                   >
@@ -778,9 +793,11 @@ export function PageIndividualLaser({
                     }}
                     className="w-full"
                   />
-                  {!hasDesign && (
+                  {!designReady && (
                     <p className="mt-3 text-center text-sm text-muted-foreground">
-                      Bitte Gravur-Text eingeben oder ein Logo hochladen.
+                      {isCustomerInbound
+                        ? "Bitte Gravur-Text/Logo hinzufügen oder bestätigen, dass ein fertiges Design vorliegt."
+                        : "Bitte Gravur-Text eingeben oder ein Logo hochladen."}
                     </p>
                   )}
                 </div>

@@ -2,6 +2,7 @@
 
 import {
   Suspense,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -319,5 +320,207 @@ export function OrderThanksAnimation({
         {THANKS_LINES[0]} {THANKS_LINES[1]}
       </p>
     </div>
+  )
+}
+
+function ThanksTextOnly({
+  className,
+  compact,
+}: {
+  className?: string
+  compact?: boolean
+}) {
+  return (
+    <div
+      className={cn(
+        "flex w-full flex-col items-center justify-center rounded-2xl border border-border/50 bg-muted/30 px-4 text-center",
+        compact ? "min-h-[100px] py-4" : "min-h-[160px] py-8",
+        className
+      )}
+    >
+      <p className="text-lg font-semibold sm:text-xl">{THANKS_LINES[0]}</p>
+      <p className="mt-1 text-sm text-muted-foreground">{THANKS_LINES[1]}</p>
+    </div>
+  )
+}
+
+function ThanksMedia({
+  className,
+  compact,
+  mediaUrl,
+  mediaKind,
+}: {
+  className?: string
+  compact?: boolean
+  mediaUrl: string
+  mediaKind: "mp4" | "gif" | "lottie" | null
+}) {
+  const heightClass = compact ? "h-[160px]" : "h-[260px] sm:h-[320px]"
+  const kind =
+    mediaKind ??
+    (mediaUrl.endsWith(".json")
+      ? "lottie"
+      : mediaUrl.match(/\.(gif)(\?|$)/i)
+        ? "gif"
+        : "mp4")
+
+  if (kind === "lottie") {
+    return (
+      <div
+        className={cn(
+          "relative w-full overflow-hidden rounded-2xl border border-border/50 bg-zinc-950",
+          heightClass,
+          className
+        )}
+      >
+        <iframe
+          title="Dankes-Animation"
+          src={`https://lottie.host/embed/?src=${encodeURIComponent(mediaUrl)}`}
+          className="h-full w-full border-0"
+          allow="autoplay"
+        />
+      </div>
+    )
+  }
+
+  if (kind === "mp4") {
+    return (
+      <div
+        className={cn(
+          "relative w-full overflow-hidden rounded-2xl border border-border/50 bg-zinc-950",
+          heightClass,
+          className
+        )}
+      >
+        <video
+          className="h-full w-full object-contain"
+          src={mediaUrl}
+          autoPlay
+          muted
+          loop
+          playsInline
+        />
+      </div>
+    )
+  }
+
+  return (
+    <div
+      className={cn(
+        "relative w-full overflow-hidden rounded-2xl border border-border/50 bg-zinc-950",
+        heightClass,
+        className
+      )}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={mediaUrl}
+        alt="Vielen Dank"
+        className="h-full w-full object-contain"
+      />
+    </div>
+  )
+}
+
+/**
+ * Lädt die Admin-Dankesseiten-Einstellungen und rendert Text, Interaktiv oder Medien.
+ */
+export function OrderThanksFromSettings({
+  className,
+  active = true,
+  compact = false,
+}: {
+  className?: string
+  active?: boolean
+  compact?: boolean
+}) {
+  const [mode, setMode] = useState<"text" | "interactive" | "media">(
+    "interactive"
+  )
+  const [mediaUrl, setMediaUrl] = useState<string | null>(null)
+  const [mediaKind, setMediaKind] = useState<"mp4" | "gif" | "lottie" | null>(
+    null
+  )
+  const [ready, setReady] = useState(false)
+
+  useEffect(() => {
+    if (!active) return
+    let cancelled = false
+    void (async () => {
+      try {
+        const res = await fetch("/api/settings/thanks-page", {
+          cache: "no-store",
+        })
+        const data = (await res.json()) as {
+          animationMode?: string
+          mediaUrl?: string | null
+          mediaKind?: "mp4" | "gif" | "lottie" | null
+        }
+        if (cancelled) return
+        if (
+          data.animationMode === "text" ||
+          data.animationMode === "interactive" ||
+          data.animationMode === "media"
+        ) {
+          setMode(data.animationMode)
+        }
+        setMediaUrl(
+          typeof data.mediaUrl === "string" && data.mediaUrl.trim()
+            ? data.mediaUrl.trim()
+            : null
+        )
+        setMediaKind(
+          data.mediaKind === "mp4" ||
+            data.mediaKind === "gif" ||
+            data.mediaKind === "lottie"
+            ? data.mediaKind
+            : null
+        )
+      } catch {
+        /* defaults */
+      } finally {
+        if (!cancelled) setReady(true)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [active])
+
+  if (!active) return null
+  if (!ready) {
+    return (
+      <div
+        className={cn(
+          "w-full animate-pulse rounded-2xl bg-muted/40",
+          compact ? "h-[160px]" : "h-[200px]",
+          className
+        )}
+        aria-hidden
+      />
+    )
+  }
+
+  if (mode === "text") {
+    return <ThanksTextOnly className={className} compact={compact} />
+  }
+
+  if (mode === "media" && mediaUrl) {
+    return (
+      <ThanksMedia
+        className={className}
+        compact={compact}
+        mediaUrl={mediaUrl}
+        mediaKind={mediaKind}
+      />
+    )
+  }
+
+  return (
+    <OrderThanksAnimation
+      className={className}
+      active={active}
+      compact={compact}
+    />
   )
 }

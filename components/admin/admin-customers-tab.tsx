@@ -63,6 +63,7 @@ import { normalizeAccountStatus } from "@/lib/konto/account-status"
 import type { OrderAddress } from "@/lib/dripforge/submit-order"
 import type { LoyaltyPointTransaction } from "@/lib/konto/loyalty-points-config"
 import type { SavedCustomerDesign } from "@/lib/konto/account-types"
+import type { CustomerOffer } from "@/lib/konto/customer-offer-types"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
 import { cn } from "@/lib/utils"
 
@@ -413,6 +414,16 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
   const [orders, setOrders] = useState<StoredOrder[]>([])
   const [loyalty, setLoyalty] = useState<CustomerLoyaltyInfo | null>(null)
   const [designs, setDesigns] = useState<SavedCustomerDesign[]>([])
+  const [customerOffers, setCustomerOffers] = useState<CustomerOffer[]>([])
+  const [offersLoading, setOffersLoading] = useState(false)
+  const [offerTitle, setOfferTitle] = useState("")
+  const [offerDescription, setOfferDescription] = useState("")
+  const [offerPrice, setOfferPrice] = useState("")
+  const [offerType, setOfferType] = useState<"3d" | "laser">("3d")
+  const [offerPreviewUrl, setOfferPreviewUrl] = useState("")
+  const [offerSaving, setOfferSaving] = useState(false)
+  const [offerError, setOfferError] = useState<string | null>(null)
+  const [offerSuccess, setOfferSuccess] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [detailLoading, setDetailLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -545,6 +556,13 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
       setEditingSection(null)
       setAddressForm(null)
       setSaveError(null)
+      setOfferTitle("")
+      setOfferDescription("")
+      setOfferPrice("")
+      setOfferType("3d")
+      setOfferPreviewUrl("")
+      setOfferError(null)
+      setOfferSuccess(null)
       if (resetOrderUi) {
         setOrdersExpanded(false)
         resetOrderFilters()
@@ -646,6 +664,30 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
     [applyDetailPayload]
   )
 
+  const loadCustomerOffers = useCallback(async (kundennummer: string) => {
+    setOffersLoading(true)
+    setOfferError(null)
+    try {
+      const res = await fetch(
+        `/api/admin/customers/${encodeURIComponent(kundennummer)}/offers`,
+        { cache: "no-store" }
+      )
+      const data = (await res.json()) as {
+        offers?: CustomerOffer[]
+        error?: string
+      }
+      if (!res.ok) throw new Error(data.error ?? "Angebote laden fehlgeschlagen")
+      setCustomerOffers(data.offers ?? [])
+    } catch (err) {
+      setCustomerOffers([])
+      setOfferError(
+        err instanceof Error ? err.message : "Angebote konnten nicht geladen werden."
+      )
+    } finally {
+      setOffersLoading(false)
+    }
+  }, [])
+
   useEffect(() => {
     void loadCustomers()
   }, [loadCustomers])
@@ -653,11 +695,14 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
   useEffect(() => {
     if (selectedId) {
       void loadCustomerDetail(selectedId)
+      void loadCustomerOffers(selectedId)
     } else {
       detailKundennummerRef.current = null
       setDetail(null)
       setOrders([])
       setLoyalty(null)
+      setDesigns([])
+      setCustomerOffers([])
       setPointsDelta("")
       setPointsNote("")
       setPointsError(null)
@@ -665,7 +710,13 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
       resetOrderFilters()
       resetEditState()
     }
-  }, [selectedId, loadCustomerDetail, resetEditState, resetOrderFilters])
+  }, [
+    selectedId,
+    loadCustomerDetail,
+    loadCustomerOffers,
+    resetEditState,
+    resetOrderFilters,
+  ])
 
   const selectCustomer = (kundennummer: string) => {
     setDeleteError(null)
@@ -1538,6 +1589,206 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
                     ))}
                   </ul>
                 )}
+              </div>
+
+              <div className={cn("rounded-xl border p-4", adminUi.section)}>
+                <p className={cn("text-sm font-semibold", adminUi.accentTitle)}>
+                  Angebote / Entwürfe ({customerOffers.length})
+                </p>
+                <p className={cn("mt-1 text-xs", adminUi.muted)}>
+                  Vorbereitetes Angebot für den Kundenaccount — erscheint unter
+                  «Meine Angebote / Entwürfe».
+                </p>
+
+                {offersLoading ? (
+                  <p className={cn("mt-3 text-sm", adminUi.muted)}>
+                    Angebote werden geladen…
+                  </p>
+                ) : customerOffers.length === 0 ? (
+                  <p className={cn("mt-3 text-sm", adminUi.muted)}>
+                    Noch keine Angebote für diesen Kunden.
+                  </p>
+                ) : (
+                  <ul className="mt-3 space-y-2">
+                    {customerOffers.map((offer) => (
+                      <li
+                        key={offer.id}
+                        className={cn(
+                          "flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm",
+                          adminUi.listItem
+                        )}
+                      >
+                        <span className="min-w-0 truncate font-medium">
+                          {offer.title}{" "}
+                          <span className={cn("text-xs", adminUi.muted)}>
+                            ({offer.cartItem.type} · {offer.status}
+                            {offer.priceChf != null
+                              ? ` · CHF ${Number(offer.priceChf).toFixed(2)}`
+                              : ""}
+                            )
+                          </span>
+                        </span>
+                        <span className={cn("shrink-0 text-xs", adminUi.muted)}>
+                          {formatDate(offer.updatedAt)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                <div className="mt-4 space-y-3 border-t pt-4">
+                  <p className={cn("text-sm font-medium", adminUi.bodyText)}>
+                    Neues Angebot erstellen
+                  </p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1 sm:col-span-2">
+                      <Label className={cn("text-xs", adminUi.label)}>
+                        Titel *
+                      </Label>
+                      <Input
+                        value={offerTitle}
+                        onChange={(e) => setOfferTitle(e.target.value)}
+                        placeholder="z. B. Lasergravur Flasche — Entwurf A"
+                        className={cn("h-9 text-sm", adminUi.input)}
+                      />
+                    </div>
+                    <div className="space-y-1 sm:col-span-2">
+                      <Label className={cn("text-xs", adminUi.label)}>
+                        Beschreibung
+                      </Label>
+                      <Input
+                        value={offerDescription}
+                        onChange={(e) => setOfferDescription(e.target.value)}
+                        placeholder="Kurzbeschreibung für den Kunden"
+                        className={cn("h-9 text-sm", adminUi.input)}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className={cn("text-xs", adminUi.label)}>
+                        Preis (CHF)
+                      </Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        step="0.05"
+                        value={offerPrice}
+                        onChange={(e) => setOfferPrice(e.target.value)}
+                        placeholder="0.00"
+                        className={cn("h-9 text-sm", adminUi.input)}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className={cn("text-xs", adminUi.label)}>Typ</Label>
+                      <Select
+                        value={offerType}
+                        onValueChange={(value) =>
+                          setOfferType(value === "laser" ? "laser" : "3d")
+                        }
+                      >
+                        <SelectTrigger className={cn("h-9", adminUi.input)}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="3d">3D-Druck</SelectItem>
+                          <SelectItem value="laser">Laser</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1 sm:col-span-2">
+                      <Label className={cn("text-xs", adminUi.label)}>
+                        Vorschau-URL (optional)
+                      </Label>
+                      <Input
+                        value={offerPreviewUrl}
+                        onChange={(e) => setOfferPreviewUrl(e.target.value)}
+                        placeholder="https://…"
+                        className={cn("h-9 text-sm", adminUi.input)}
+                      />
+                    </div>
+                  </div>
+                  {offerError && (
+                    <p className="text-sm text-red-600">{offerError}</p>
+                  )}
+                  {offerSuccess && (
+                    <p className="text-sm text-emerald-600">{offerSuccess}</p>
+                  )}
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={offerSaving || !offerTitle.trim() || !detail}
+                    className={adminUi.primaryBtn}
+                    onClick={() => {
+                      if (!detail) return
+                      void (async () => {
+                        setOfferSaving(true)
+                        setOfferError(null)
+                        setOfferSuccess(null)
+                        try {
+                          const price = Number(offerPrice)
+                          const priceChf = Number.isFinite(price)
+                            ? Math.max(0, price)
+                            : 0
+                          const res = await fetch(
+                            `/api/admin/customers/${encodeURIComponent(detail.kundennummer)}/offers`,
+                            {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                title: offerTitle.trim(),
+                                description: offerDescription.trim() || undefined,
+                                previewUrl: offerPreviewUrl.trim() || null,
+                                priceChf,
+                                cartItem: {
+                                  id: `offer-${Date.now()}`,
+                                  name: offerTitle.trim(),
+                                  price: priceChf,
+                                  quantity: 1,
+                                  type: offerType,
+                                  description:
+                                    offerDescription.trim() || undefined,
+                                  leitbild: offerPreviewUrl.trim() || undefined,
+                                },
+                                status: "active",
+                              }),
+                            }
+                          )
+                          const data = (await res.json()) as {
+                            offer?: CustomerOffer
+                            error?: string
+                          }
+                          if (!res.ok) {
+                            throw new Error(
+                              data.error ?? "Angebot konnte nicht erstellt werden."
+                            )
+                          }
+                          setOfferSuccess("Angebot erstellt.")
+                          setOfferTitle("")
+                          setOfferDescription("")
+                          setOfferPrice("")
+                          setOfferPreviewUrl("")
+                          if (data.offer) {
+                            setCustomerOffers((prev) => [data.offer!, ...prev])
+                          } else {
+                            await loadCustomerOffers(detail.kundennummer)
+                          }
+                        } catch (err) {
+                          setOfferError(
+                            err instanceof Error
+                              ? err.message
+                              : "Angebot konnte nicht erstellt werden."
+                          )
+                        } finally {
+                          setOfferSaving(false)
+                        }
+                      })()
+                    }}
+                  >
+                    {offerSaving ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : null}
+                    Angebot speichern
+                  </Button>
+                </div>
               </div>
 
               <Collapsible open={ordersExpanded} onOpenChange={setOrdersExpanded}>
