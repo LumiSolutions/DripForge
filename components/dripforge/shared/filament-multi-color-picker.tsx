@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import Image from "next/image"
-import { CheckCircle2, Plus, Star, X } from "lucide-react"
+import { Plus, Star, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import type { FilamentMaterial } from "@/lib/dripforge/types"
@@ -201,7 +201,14 @@ export function FilamentMultiColorPicker({
 
     setSlots((prev) => {
       const list = [...(prev[activeTab] ?? [])]
-      const existingIndex = list.findIndex((c) => c.colorId === color.id)
+      const slotIndex = list.findIndex((c) => c.slot === activeSlot)
+
+      // Deselect: erneuter Klick auf die aktive Farbe entfernt die Zuweisung
+      if (slotIndex >= 0 && list[slotIndex].colorId === color.id) {
+        list.splice(slotIndex, 1)
+        return { ...prev, [activeTab]: list }
+      }
+
       const slotEntry: MultiColorSlot = {
         slot: activeSlot,
         colorId: color.id,
@@ -210,14 +217,15 @@ export function FilamentMultiColorPicker({
         inStock: color.inStock,
       }
 
-      if (existingIndex >= 0) {
-        list[existingIndex] = { ...slotEntry, slot: list[existingIndex].slot }
-        return { ...prev, [activeTab]: list }
+      // Farbe war einem anderen Teil zugewiesen → dort entfernen, hier setzen
+      const existingIndex = list.findIndex((c) => c.colorId === color.id)
+      if (existingIndex >= 0 && existingIndex !== slotIndex) {
+        list.splice(existingIndex, 1)
       }
 
-      const slotIndex = list.findIndex((c) => c.slot === activeSlot)
-      if (slotIndex >= 0) {
-        list[slotIndex] = slotEntry
+      const nextSlotIndex = list.findIndex((c) => c.slot === activeSlot)
+      if (nextSlotIndex >= 0) {
+        list[nextSlotIndex] = slotEntry
       } else {
         list.push(slotEntry)
         list.sort((a, b) => a.slot - b.slot)
@@ -432,7 +440,13 @@ export function FilamentMultiColorPicker({
                     {color.name}
                   </span>
                   {inSelection && (
-                    <CheckCircle2 className="absolute -right-0.5 -top-0.5 h-3.5 w-3.5 text-primary" />
+                    <span
+                      className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-white shadow-sm"
+                      title="Klicken zum Abwählen"
+                      aria-hidden
+                    >
+                      <X className="h-2.5 w-2.5" />
+                    </span>
                   )}
                 </button>
               )

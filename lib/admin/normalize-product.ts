@@ -196,6 +196,15 @@ export function normalizeAdminProductInput(
       if (!Number.isFinite(n) || n <= 0) return undefined
       return n
     })(),
+    printTimeShowInShop: (() => {
+      if (input.printTimeShowInShop !== undefined) {
+        return Boolean(input.printTimeShowInShop)
+      }
+      if (existing?.printTimeShowInShop !== undefined) {
+        return Boolean(existing.printTimeShowInShop)
+      }
+      return false
+    })(),
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   }

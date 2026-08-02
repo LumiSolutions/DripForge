@@ -179,8 +179,13 @@ function scaleObjectToViewport(object: THREE.Object3D): void {
   const fitScale = 100 / maxDim
   object.scale.setScalar(fitScale)
   object.updateMatrixWorld(true)
+  // Nach Skalierung erneut zentrieren (position driftet sonst aus dem Viewer)
   const box = new THREE.Box3().setFromObject(object)
-  object.position.y -= box.min.y
+  const center = box.getCenter(new THREE.Vector3())
+  object.position.sub(center)
+  object.updateMatrixWorld(true)
+  const grounded = new THREE.Box3().setFromObject(object)
+  object.position.y -= grounded.min.y
   object.updateMatrixWorld(true)
 }
 

@@ -250,14 +250,21 @@ function ProductPreviewScene({
         makeDefault
         target={[0, orbitCenterY, 0]}
         enableZoom
-        enablePan={false}
+        enablePan
         enableRotate
         enableDamping
         dampingFactor={0.08}
         rotateSpeed={0.9}
         zoomSpeed={0.85}
+        panSpeed={0.8}
+        screenSpacePanning
         minDistance={40}
         maxDistance={280}
+        mouseButtons={{
+          LEFT: THREE.MOUSE.ROTATE,
+          MIDDLE: THREE.MOUSE.DOLLY,
+          RIGHT: THREE.MOUSE.PAN,
+        }}
         touches={{
           ONE: THREE.TOUCH.ROTATE,
           TWO: THREE.TOUCH.DOLLY_PAN,
@@ -355,7 +362,7 @@ export const Product3DPreview = forwardRef<
         </Canvas>
       </ProductDetailErrorBoundary>
       <p className="pointer-events-none absolute bottom-3 left-0 right-0 text-center text-[10px] font-medium text-zinc-600 dark:text-zinc-400">
-        Maus/Touch: drehen · Scroll/Pinch: zoomen
+        Drehen · Scroll/Pinch zoomen · Rechtsklick/Shift oder 2 Finger: verschieben
       </p>
     </div>
   )

@@ -13,6 +13,7 @@ import {
   Search,
   Trash2,
   Upload,
+  X,
 } from "lucide-react"
 import {
   AdminMaterialsSortableGrid,
@@ -978,18 +979,38 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
                     />
                   </label>
                   {draft.printBildUrl || draft.spuleBildUrl ? (
-                    <div
-                      className={cn(
-                        "h-20 w-20 overflow-hidden rounded-lg border",
-                        adminUi.thumbnail
-                      )}
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={draft.printBildUrl || draft.spuleBildUrl}
-                        alt={draft.farbe ?? "Print-Beispiel"}
-                        className="h-full w-full object-cover"
-                      />
+                    <div className="relative h-20 w-20">
+                      <div
+                        className={cn(
+                          "h-full w-full overflow-hidden rounded-lg border",
+                          adminUi.thumbnail
+                        )}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={draft.printBildUrl || draft.spuleBildUrl}
+                          alt={draft.farbe ?? "Print-Beispiel"}
+                          className="h-full w-full object-cover"
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="destructive"
+                        className="absolute -right-2 -top-2 h-6 w-6 rounded-full shadow"
+                        title="Farbmuster-Bild entfernen"
+                        aria-label="Farbmuster-Bild entfernen"
+                        onClick={() =>
+                          setDraft({
+                            ...draft,
+                            ...(draft.printBildUrl
+                              ? { printBildUrl: "" }
+                              : { spuleBildUrl: "" }),
+                          })
+                        }
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
                     </div>
                   ) : (
                     <p className={cn("text-xs", adminUi.muted)}>Noch kein Print-Beispiel</p>

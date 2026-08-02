@@ -83,10 +83,9 @@ import { ensureLaserLayers } from "@/lib/dripforge/laser-layers"
 import { resolveProductImages } from "@/lib/dripforge/product-images-defaults"
 import {
   formatProductDimensionsText,
-  formatProductVolume,
-  formatProductWeight,
   productDimensionsToViewerMm,
 } from "@/lib/dripforge/product-dimensions"
+import { FesteMasseCard } from "@/components/dripforge/shared/feste-masse-card"
 import { ProductImageGallery } from "@/components/dripforge/shared/product-image-gallery"
 import { PricingCategoriesSubtitle } from "@/components/dripforge/shared/pricing-categories-subtitle"
 import {
@@ -950,36 +949,17 @@ export function PageShop({
                   )}
 
                   {(detailProduct.dimensionsMm || detailProduct.gewicht != null) && (
-                    <Card className="rounded-xl border-border/50 bg-card/50 shadow-sm">
-                      <CardContent className="space-y-2 p-4 sm:p-5">
-                        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                          Masse &amp; Gewicht
-                        </h3>
-                        <dl className="space-y-1.5 text-sm">
-                          {detailProduct.dimensionsMm && (
-                            <div className="flex items-center justify-between gap-3">
-                              <dt className="text-muted-foreground">L×B×H</dt>
-                              <dd className="font-mono font-semibold tabular-nums">
-                                {Number(detailProduct.dimensionsMm.length).toFixed(0)}
-                                ×
-                                {Number(detailProduct.dimensionsMm.width).toFixed(0)}
-                                ×
-                                {Number(detailProduct.dimensionsMm.height).toFixed(0)}{" "}
-                                mm
-                              </dd>
-                            </div>
-                          )}
-                          {detailProduct.gewicht != null && (
-                            <div className="flex items-center justify-between gap-3">
-                              <dt className="text-muted-foreground">Gewicht</dt>
-                              <dd className="font-mono font-semibold tabular-nums">
-                                {formatProductWeight(detailProduct.gewicht)}
-                              </dd>
-                            </div>
-                          )}
-                        </dl>
-                      </CardContent>
-                    </Card>
+                    <FesteMasseCard
+                      dimensions={
+                        detailProduct.dimensionsMm ?? {
+                          length: 0,
+                          width: 0,
+                          height: 0,
+                        }
+                      }
+                      volumeCm3={detailProduct.volumen ?? null}
+                      weightG={detailProduct.gewicht ?? null}
+                    />
                   )}
 
                   <Card className="rounded-2xl border-2 border-primary/25 bg-card/80 shadow-md shadow-primary/5">
@@ -1153,72 +1133,20 @@ export function PageShop({
                           </CardContent>
                         </Card>
 
-                        <Card className="rounded-xl border-border/50 bg-card/50 shadow-sm">
-                          <CardContent className="p-5 sm:p-6">
-                            <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                              Feste Masse
-                            </h3>
-                            <dl className="divide-y divide-border/60 rounded-lg border border-border/50 bg-muted/30">
-                              <div className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
-                                <dt className="text-muted-foreground">Länge</dt>
-                                <dd className="font-mono font-semibold tabular-nums">
-                                  {productDimensions.length.toFixed(1)} mm
-                                </dd>
-                              </div>
-                              <div className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
-                                <dt className="text-muted-foreground">Breite</dt>
-                                <dd className="font-mono font-semibold tabular-nums">
-                                  {productDimensions.width.toFixed(1)} mm
-                                </dd>
-                              </div>
-                              <div className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
-                                <dt className="text-muted-foreground">Höhe</dt>
-                                <dd className="font-mono font-semibold tabular-nums">
-                                  {productDimensions.height.toFixed(1)} mm
-                                </dd>
-                              </div>
-                              <div className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
-                                <dt className="text-muted-foreground">Volumen</dt>
-                                <dd className="font-mono font-semibold tabular-nums">
-                                  {detailProduct.volumen != null
-                                    ? formatProductVolume(
-                                        detailProduct.volumen,
-                                        detailProduct.volumenEinheit
-                                      )
-                                    : "—"}
-                                </dd>
-                              </div>
-                              <div className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
-                                <dt className="text-muted-foreground">Gewicht</dt>
-                                <dd className="font-mono font-semibold tabular-nums">
-                                  {detailProduct.gewicht != null
-                                    ? formatProductWeight(detailProduct.gewicht)
-                                    : "—"}
-                                </dd>
-                              </div>
-                              {detailProduct.printTimeMinutes != null &&
-                                detailProduct.printTimeMinutes > 0 && (
-                                  <div className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
-                                    <dt className="text-muted-foreground">
-                                      Druckzeit
-                                    </dt>
-                                    <dd className="font-mono font-semibold tabular-nums">
-                                      {Math.floor(detailProduct.printTimeMinutes / 60) >
-                                      0
-                                        ? `${Math.floor(detailProduct.printTimeMinutes / 60)} h ${detailProduct.printTimeMinutes % 60} min`
-                                        : `${detailProduct.printTimeMinutes} min`}
-                                    </dd>
-                                  </div>
-                                )}
-                              <div className="flex items-center justify-between gap-4 bg-background/60 px-4 py-3 text-sm">
-                                <dt className="font-medium">Gesamt</dt>
-                                <dd className="font-mono text-base font-bold tabular-nums text-primary">
-                                  {formatProductDimensionsText(productDimensions)}
-                                </dd>
-                              </div>
-                            </dl>
-                          </CardContent>
-                        </Card>
+                        <FesteMasseCard
+                          dimensions={productDimensions}
+                          volumeCm3={detailProduct.volumen ?? null}
+                          weightG={detailProduct.gewicht ?? null}
+                          printTimeLabel={
+                            detailProduct.printTimeShowInShop &&
+                            detailProduct.printTimeMinutes != null &&
+                            detailProduct.printTimeMinutes > 0
+                              ? Math.floor(detailProduct.printTimeMinutes / 60) > 0
+                                ? `${Math.floor(detailProduct.printTimeMinutes / 60)} h ${detailProduct.printTimeMinutes % 60} min`
+                                : `${detailProduct.printTimeMinutes} min`
+                              : null
+                          }
+                        />
 
                         {/* Desktop: 3D unter Beschreibung/Spezifikationen */}
                         {productModelUrl && isMdUp ? (

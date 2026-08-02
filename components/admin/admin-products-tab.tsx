@@ -5,6 +5,7 @@ import {
   Archive,
   ChevronDown,
   ChevronRight,
+  ExternalLink,
   Loader2,
   Plus,
   Save,
@@ -429,6 +430,7 @@ export function AdminProductsTab() {
         product.quantityDiscountTiers
       ),
       printTimeMinutes: product.printTimeMinutes,
+      printTimeShowInShop: Boolean(product.printTimeShowInShop),
     }
     setForm(next)
     setPartLabelsDraft(null)
@@ -759,6 +761,7 @@ export function AdminProductsTab() {
           quantityDiscountTiers:
             quantityDiscountTiers.length > 0 ? quantityDiscountTiers : [],
           printTimeMinutes: form.printTimeMinutes ?? null,
+          printTimeShowInShop: Boolean(form.printTimeShowInShop),
           purchasePriceChf: pricingBreakdown.totalSelfCostChf,
           additionalBaseCostChf: pricingBreakdown.additionalBaseCostChf,
         }),
@@ -1315,8 +1318,8 @@ export function AdminProductsTab() {
                     <div className="mt-4 space-y-2">
                       <Label className={adminUi.label}>Gesamte Druckzeit</Label>
                       <p className={cn("text-xs", adminUi.muted)}>
-                        Optional — wird Kunden und im Admin angezeigt. Bei STL-Upload
-                        werden Masse, Volumen und Gewicht automatisch vorausgefüllt.
+                        Intern für Admins — optional. Bei STL-Upload werden Masse,
+                        Volumen und Gewicht automatisch vorausgefüllt.
                       </p>
                       <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1.5">
@@ -1365,6 +1368,28 @@ export function AdminProductsTab() {
                             className={adminUi.input}
                           />
                         </div>
+                      </div>
+                      <div
+                        className={cn(
+                          "flex items-start justify-between gap-3 rounded-lg border px-3 py-2.5",
+                          adminUi.cardMuted
+                        )}
+                      >
+                        <div>
+                          <Label className={adminUi.label}>
+                            Druckzeit im Shop anzeigen
+                          </Label>
+                          <p className={cn("mt-0.5 text-xs", adminUi.muted)}>
+                            Standard aus — Kunden sehen die Druckzeit erst nach
+                            Aktivierung.
+                          </p>
+                        </div>
+                        <Switch
+                          checked={Boolean(form.printTimeShowInShop)}
+                          onCheckedChange={(checked) =>
+                            updateField("printTimeShowInShop", checked)
+                          }
+                        />
                       </div>
                       {stlAnalyzing && (
                         <p className={cn("flex items-center gap-2 text-xs", adminUi.muted)}>
@@ -2150,15 +2175,38 @@ export function AdminProductsTab() {
                     </p>
                   )}
                   {form.modellDateiUrl && (
-                    <div className={cn("flex items-center gap-2 rounded-lg border px-3 py-2 text-xs", adminUi.cardMuted, adminUi.muted)}>
-                      <span className="truncate">
+                    <div
+                      className={cn(
+                        "flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2 text-xs",
+                        adminUi.cardMuted,
+                        adminUi.muted
+                      )}
+                    >
+                      <span className="min-w-0 flex-1 truncate">
                         {filenameFromUrl(form.modellDateiUrl)}
                       </span>
                       <Button
                         type="button"
                         size="sm"
+                        variant="outline"
+                        className="h-7 shrink-0 gap-1 text-xs"
+                        asChild
+                      >
+                        <a
+                          href={form.modellDateiUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          download
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          STL öffnen / herunterladen
+                        </a>
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
                         variant="ghost"
-                        className={cn("ml-auto shrink-0 hover:text-red-300", adminUi.muted)}
+                        className={cn("shrink-0 hover:text-red-300", adminUi.muted)}
                         onClick={() => updateField("modellDateiUrl", "")}
                       >
                         <X className="h-3 w-3" />

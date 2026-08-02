@@ -232,6 +232,7 @@ export function normalizeShopProduct(
         const n = Math.round(Number(source.printTimeMinutes))
         return Number.isFinite(n) && n > 0 ? n : undefined
       })(),
+      printTimeShowInShop: Boolean(source.printTimeShowInShop),
     }
   } catch (error) {
     console.error("Shop: normalizeShopProduct fehlgeschlagen.", error, raw)

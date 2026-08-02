@@ -68,6 +68,9 @@ import {
 } from "@/lib/admin/individual-pricing-types"
 import { PricingCategoryPicker } from "@/components/dripforge/shared/pricing-category-picker"
 import { PricingFootnote } from "@/components/dripforge/shared/pricing-footnote"
+import { FesteMasseCard } from "@/components/dripforge/shared/feste-masse-card"
+import { DEFAULT_PRICING_CONFIG } from "@/lib/dripforge/pricing-config"
+import { weightFromVolumeCm3 } from "@/lib/dripforge/print-calculator-engine"
 
 const SCALE_MIN = 10
 const SCALE_MAX = 200
@@ -744,6 +747,22 @@ export function PageIndividual3D() {
                 </div>
               </CardContent>
             </Card>
+
+            {dimensions && (
+              <FesteMasseCard
+                dimensions={{
+                  length: dimensions.x,
+                  width: dimensions.y,
+                  height: dimensions.z,
+                }}
+                volumeCm3={dimensions.volume}
+                weightG={weightFromVolumeCm3(
+                  dimensions.volume,
+                  DEFAULT_PRICING_CONFIG.densityPLA,
+                  DEFAULT_PRICING_CONFIG.infillFactor
+                )}
+              />
+            )}
           </div>
 
           {/* Spalte 2: Material & Farben */}
