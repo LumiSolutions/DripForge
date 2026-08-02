@@ -60,6 +60,8 @@ import {
   normalizeWishlistIcon,
   normalizeWishlistIconCustomUrl,
 } from "@/lib/dripforge/wishlist-icon-settings"
+import { normalizeAnnouncementBanner } from "@/lib/dripforge/announcement-banner-settings"
+import { normalizeThanksPageSettings } from "@/lib/dripforge/thanks-page-settings"
 import {
   buildCustomerFromOrder,
   mergeOrderIntoCustomer,
@@ -476,6 +478,10 @@ export async function cosmosGetSettings(): Promise<AdminSettings> {
           resource.orderEmailTemplates
         ),
         orderEmailLayout: normalizeOrderEmailLayout(resource.orderEmailLayout),
+        announcementBanner: normalizeAnnouncementBanner(
+          resource.announcementBanner
+        ),
+        thanksPage: normalizeThanksPageSettings(resource.thanksPage),
         updatedAt: resource.updatedAt,
       }
     }

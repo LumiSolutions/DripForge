@@ -93,6 +93,16 @@ import {
   WISHLIST_ICON_PRESETS,
   type WishlistIconPreset,
 } from "@/lib/dripforge/wishlist-icon-settings"
+import {
+  DEFAULT_ANNOUNCEMENT_BANNER,
+  normalizeAnnouncementBanner,
+  type AnnouncementBannerSettings,
+} from "@/lib/dripforge/announcement-banner-settings"
+import {
+  DEFAULT_THANKS_PAGE_SETTINGS,
+  normalizeThanksPageSettings,
+  type ThanksPageSettings,
+} from "@/lib/dripforge/thanks-page-settings"
 
 export type AdminSettingsSection =
   | "shop"
@@ -206,6 +216,11 @@ export function AdminSettingsTab({
   const [wishlistIconCustomUrl, setWishlistIconCustomUrl] = useState<string | null>(
     null
   )
+  const [announcementBanner, setAnnouncementBanner] =
+    useState<AnnouncementBannerSettings>({ ...DEFAULT_ANNOUNCEMENT_BANNER })
+  const [thanksPage, setThanksPage] = useState<ThanksPageSettings>({
+    ...DEFAULT_THANKS_PAGE_SETTINGS,
+  })
   const [goingLive, setGoingLive] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -279,6 +294,10 @@ export function AdminSettingsTab({
       setWishlistIconCustomUrl(
         normalizeWishlistIconCustomUrl(data.wishlistIconCustomUrl)
       )
+      setAnnouncementBanner(
+        normalizeAnnouncementBanner(data.announcementBanner)
+      )
+      setThanksPage(normalizeThanksPageSettings(data.thanksPage))
       setManagedCatalog(
         normalizeManagedCatalog(
           data.managedCatalog,
@@ -356,6 +375,8 @@ export function AdminSettingsTab({
           launch,
           wishlistIcon,
           wishlistIconCustomUrl,
+          announcementBanner,
+          thanksPage,
         }),
       })
       const data = await res.json()
@@ -425,6 +446,10 @@ export function AdminSettingsTab({
       setWishlistIconCustomUrl(
         normalizeWishlistIconCustomUrl(data.wishlistIconCustomUrl)
       )
+      setAnnouncementBanner(
+        normalizeAnnouncementBanner(data.announcementBanner)
+      )
+      setThanksPage(normalizeThanksPageSettings(data.thanksPage))
       setManagedCatalog(
         normalizeManagedCatalog(
           data.managedCatalog,
@@ -777,6 +802,247 @@ export function AdminSettingsTab({
                   </Button>
                 )}
               </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {show("shop") && (
+          <Card className={adminUi.card}>
+            <CardContent className="space-y-4 p-6">
+              <div>
+                <h3 className={cn("text-lg font-bold", adminUi.heading)}>
+                  Ankündigungs-Banner
+                </h3>
+                <p className={cn("mt-1 text-sm", adminUi.muted)}>
+                  Optionaler Hinweis oben im Shop (z. B. Rabattaktion).
+                </p>
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <Label htmlFor="announcement-active" className={adminUi.label}>
+                  Banner aktiv
+                </Label>
+                <Switch
+                  id="announcement-active"
+                  checked={announcementBanner.active}
+                  onCheckedChange={(checked) =>
+                    setAnnouncementBanner((prev) => ({
+                      ...prev,
+                      active: checked,
+                    }))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="announcement-text" className={adminUi.label}>
+                  Banner-Text
+                </Label>
+                <Input
+                  id="announcement-text"
+                  value={announcementBanner.text}
+                  onChange={(e) =>
+                    setAnnouncementBanner((prev) => ({
+                      ...prev,
+                      text: e.target.value,
+                    }))
+                  }
+                  placeholder="z. B. Frühlingssale — 10 % auf alles"
+                  className={adminUi.input}
+                />
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="announcement-code" className={adminUi.label}>
+                    Rabattcode (optional)
+                  </Label>
+                  <Input
+                    id="announcement-code"
+                    value={announcementBanner.discountCode}
+                    onChange={(e) =>
+                      setAnnouncementBanner((prev) => ({
+                        ...prev,
+                        discountCode: e.target.value,
+                      }))
+                    }
+                    placeholder="SAVE10"
+                    className={adminUi.input}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="announcement-link" className={adminUi.label}>
+                    Link-URL (optional)
+                  </Label>
+                  <Input
+                    id="announcement-link"
+                    value={announcementBanner.linkUrl}
+                    onChange={(e) =>
+                      setAnnouncementBanner((prev) => ({
+                        ...prev,
+                        linkUrl: e.target.value,
+                      }))
+                    }
+                    placeholder="/shop oder https://…"
+                    className={adminUi.input}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label className={adminUi.label}>Stil</Label>
+                <div className="flex flex-wrap gap-4">
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="radio"
+                      name="announcement-style"
+                      checked={announcementBanner.style === "unicolor"}
+                      onChange={() =>
+                        setAnnouncementBanner((prev) => ({
+                          ...prev,
+                          style: "unicolor",
+                        }))
+                      }
+                    />
+                    Einfarbig
+                  </label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="radio"
+                      name="announcement-style"
+                      checked={announcementBanner.style === "animated-gradient"}
+                      onChange={() =>
+                        setAnnouncementBanner((prev) => ({
+                          ...prev,
+                          style: "animated-gradient",
+                        }))
+                      }
+                    />
+                    Animierter Verlauf
+                  </label>
+                </div>
+              </div>
+              {announcementBanner.style === "unicolor" && (
+                <div className="space-y-2">
+                  <Label htmlFor="announcement-color" className={adminUi.label}>
+                    Hintergrundfarbe
+                  </Label>
+                  <div className="flex items-center gap-3">
+                    <input
+                      id="announcement-color"
+                      type="color"
+                      value={
+                        /^#[0-9a-fA-F]{6}$/.test(announcementBanner.backgroundColor)
+                          ? announcementBanner.backgroundColor
+                          : "#ea580c"
+                      }
+                      onChange={(e) =>
+                        setAnnouncementBanner((prev) => ({
+                          ...prev,
+                          backgroundColor: e.target.value,
+                        }))
+                      }
+                      className="h-10 w-14 cursor-pointer rounded border border-border/60 bg-transparent"
+                    />
+                    <Input
+                      value={announcementBanner.backgroundColor}
+                      onChange={(e) =>
+                        setAnnouncementBanner((prev) => ({
+                          ...prev,
+                          backgroundColor: e.target.value,
+                        }))
+                      }
+                      className={cn("max-w-[140px]", adminUi.input)}
+                    />
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {show("shop") && (
+          <Card className={adminUi.card}>
+            <CardContent className="space-y-4 p-6">
+              <div>
+                <h3 className={cn("text-lg font-bold", adminUi.heading)}>
+                  Dankesseite nach Bestellung
+                </h3>
+                <p className={cn("mt-1 text-sm", adminUi.muted)}>
+                  Darstellung auf der Erfolgsseite und im Checkout-Modal.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label className={adminUi.label}>Darstellung</Label>
+                <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-4">
+                  {(
+                    [
+                      ["text", "Nur Text"],
+                      ["interactive", "Interaktive Animation"],
+                      ["media", "Eigene Medien"],
+                    ] as const
+                  ).map(([value, label]) => (
+                    <label key={value} className="flex items-center gap-2 text-sm">
+                      <input
+                        type="radio"
+                        name="thanks-mode"
+                        checked={thanksPage.animationMode === value}
+                        onChange={() =>
+                          setThanksPage((prev) => ({
+                            ...prev,
+                            animationMode: value,
+                          }))
+                        }
+                      />
+                      {label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              {thanksPage.animationMode === "media" && (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2 sm:col-span-2">
+                    <Label htmlFor="thanks-media-url" className={adminUi.label}>
+                      Medien-URL (MP4 / GIF / Lottie-JSON)
+                    </Label>
+                    <Input
+                      id="thanks-media-url"
+                      value={thanksPage.mediaUrl ?? ""}
+                      onChange={(e) =>
+                        setThanksPage((prev) => ({
+                          ...prev,
+                          mediaUrl: e.target.value.trim() || null,
+                        }))
+                      }
+                      placeholder="https://…"
+                      className={adminUi.input}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className={adminUi.label}>Medien-Typ</Label>
+                    <Select
+                      value={thanksPage.mediaKind ?? "auto"}
+                      onValueChange={(value) =>
+                        setThanksPage((prev) => ({
+                          ...prev,
+                          mediaKind:
+                            value === "mp4" ||
+                            value === "gif" ||
+                            value === "lottie"
+                              ? value
+                              : null,
+                        }))
+                      }
+                    >
+                      <SelectTrigger className={cn("w-full", adminUi.input)}>
+                        <SelectValue placeholder="Automatisch" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="auto">Automatisch</SelectItem>
+                        <SelectItem value="mp4">MP4 / Video</SelectItem>
+                        <SelectItem value="gif">GIF</SelectItem>
+                        <SelectItem value="lottie">Lottie</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}

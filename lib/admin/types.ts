@@ -260,6 +260,10 @@ export type AdminSettings = {
       shippingMethod: boolean
     }
   }
+  /** Globale Notification-Bar (optional, Defaults inaktiv) */
+  announcementBanner?: import("@/lib/dripforge/announcement-banner-settings").AnnouncementBannerSettings
+  /** Dankesseite-Animation (Checkout Success) */
+  thanksPage?: import("@/lib/dripforge/thanks-page-settings").ThanksPageSettings
   updatedAt: string
 }
 

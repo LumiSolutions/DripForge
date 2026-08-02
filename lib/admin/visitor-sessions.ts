@@ -1,6 +1,14 @@
 import { createHash, randomUUID } from "crypto"
 import { promises as fs } from "fs"
 import path from "path"
+import { withCosmosFallback } from "@/lib/admin/storage-bridge"
+import {
+  cosmosCreateVisitorPageview,
+  cosmosGetVisitorSession,
+  cosmosListVisitorPageviews,
+  cosmosListVisitorSessions,
+  cosmosUpsertVisitorSession,
+} from "@/lib/admin/cosmos-visitors"
 
 export const VISITOR_ONLINE_WINDOW_MS = 2 * 60 * 1000
 const PAGEVIEW_RETENTION_MS = 400 * 24 * 60 * 60 * 1000
@@ -435,6 +443,161 @@ function prunePageviews(views: VisitorPageview[], nowMs: number): VisitorPagevie
   return views.filter((v) => new Date(v.at).getTime() >= cutoff)
 }
 
+async function recordHeartbeatToFiles(input: {
+  sessionId?: string | null
+  path?: string
+  ipHash: string
+  geo: GeoResult
+  now: number
+  nowIso: string
+}): Promise<{ sessionId: string }> {
+  const sessions = pruneSessions(
+    await readJsonFile<VisitorSession[]>(SESSIONS_FILE, []),
+    input.now
+  )
+  const pageviews = prunePageviews(
+    await readJsonFile<VisitorPageview[]>(PAGEVIEWS_FILE, []),
+    input.now
+  )
+
+  const existingId = input.sessionId?.trim() || ""
+  const index = existingId
+    ? sessions.findIndex((s) => s.id === existingId)
+    : -1
+
+  let sessionId = existingId || randomUUID()
+  const pathValue = input.path?.slice(0, 200)
+  let newPageview: VisitorPageview | null = null
+
+  if (index >= 0) {
+    const current = sessions[index]!
+    sessionId = current.id
+    const lastAt = new Date(current.lastSeenAt).getTime()
+    sessions[index] = {
+      ...current,
+      ipHash: input.ipHash,
+      countryCode: input.geo.countryCode,
+      regionCode: input.geo.regionCode,
+      regionLabel: input.geo.regionLabel,
+      lastSeenAt: input.nowIso,
+      path: pathValue || current.path,
+    }
+    const pathChanged = Boolean(pathValue && pathValue !== current.path)
+    if (pathChanged || input.now - lastAt > VISITOR_ONLINE_WINDOW_MS) {
+      newPageview = {
+        id: randomUUID(),
+        sessionId,
+        ipHash: input.ipHash,
+        countryCode: input.geo.countryCode,
+        regionCode: input.geo.regionCode,
+        regionLabel: input.geo.regionLabel,
+        path: pathValue || current.path,
+        at: input.nowIso,
+      }
+      pageviews.push(newPageview)
+    }
+  } else {
+    sessions.push({
+      id: sessionId,
+      ipHash: input.ipHash,
+      countryCode: input.geo.countryCode,
+      regionCode: input.geo.regionCode,
+      regionLabel: input.geo.regionLabel,
+      firstSeenAt: input.nowIso,
+      lastSeenAt: input.nowIso,
+      path: pathValue,
+    })
+    newPageview = {
+      id: randomUUID(),
+      sessionId,
+      ipHash: input.ipHash,
+      countryCode: input.geo.countryCode,
+      regionCode: input.geo.regionCode,
+      regionLabel: input.geo.regionLabel,
+      path: pathValue,
+      at: input.nowIso,
+    }
+    pageviews.push(newPageview)
+  }
+
+  await writeJsonFile(SESSIONS_FILE, sessions)
+  await writeJsonFile(PAGEVIEWS_FILE, pageviews)
+  return { sessionId }
+}
+
+async function recordHeartbeatToCosmos(input: {
+  sessionId?: string | null
+  path?: string
+  ipHash: string
+  geo: GeoResult
+  now: number
+  nowIso: string
+}): Promise<{ sessionId: string }> {
+  const existingId = input.sessionId?.trim() || ""
+  const pathValue = input.path?.slice(0, 200)
+  const current = existingId
+    ? await cosmosGetVisitorSession(existingId)
+    : null
+
+  let sessionId = current?.id || existingId || randomUUID()
+  let newPageview: VisitorPageview | null = null
+
+  if (current) {
+    const lastAt = new Date(current.lastSeenAt).getTime()
+    const nextSession: VisitorSession = {
+      ...current,
+      ipHash: input.ipHash,
+      countryCode: input.geo.countryCode,
+      regionCode: input.geo.regionCode,
+      regionLabel: input.geo.regionLabel,
+      lastSeenAt: input.nowIso,
+      path: pathValue || current.path,
+    }
+    await cosmosUpsertVisitorSession(nextSession)
+    const pathChanged = Boolean(pathValue && pathValue !== current.path)
+    if (pathChanged || input.now - lastAt > VISITOR_ONLINE_WINDOW_MS) {
+      newPageview = {
+        id: randomUUID(),
+        sessionId,
+        ipHash: input.ipHash,
+        countryCode: input.geo.countryCode,
+        regionCode: input.geo.regionCode,
+        regionLabel: input.geo.regionLabel,
+        path: pathValue || current.path,
+        at: input.nowIso,
+      }
+    }
+  } else {
+    const nextSession: VisitorSession = {
+      id: sessionId,
+      ipHash: input.ipHash,
+      countryCode: input.geo.countryCode,
+      regionCode: input.geo.regionCode,
+      regionLabel: input.geo.regionLabel,
+      firstSeenAt: input.nowIso,
+      lastSeenAt: input.nowIso,
+      path: pathValue,
+    }
+    await cosmosUpsertVisitorSession(nextSession)
+    newPageview = {
+      id: randomUUID(),
+      sessionId,
+      ipHash: input.ipHash,
+      countryCode: input.geo.countryCode,
+      regionCode: input.geo.regionCode,
+      regionLabel: input.geo.regionLabel,
+      path: pathValue,
+      at: input.nowIso,
+    }
+  }
+
+  if (newPageview) {
+    await cosmosCreateVisitorPageview(newPageview)
+  }
+
+  return { sessionId }
+}
+
 export async function recordVisitorHeartbeat(input: {
   sessionId?: string | null
   request: Request
@@ -445,76 +608,28 @@ export async function recordVisitorHeartbeat(input: {
   const { ip, candidates } = extractClientIpDetails(input.request)
   const ipHash = anonymizeIp(ip)
   const geo = await resolveGeo(input.request, ip, ipHash, candidates)
-  const sessions = pruneSessions(
-    await readJsonFile<VisitorSession[]>(SESSIONS_FILE, []),
-    now
-  )
-  const pageviews = prunePageviews(
-    await readJsonFile<VisitorPageview[]>(PAGEVIEWS_FILE, []),
-    now
-  )
 
-  const existingId = input.sessionId?.trim() || ""
-  const index = existingId
-    ? sessions.findIndex((s) => s.id === existingId)
-    : -1
-
-  let sessionId = existingId || randomUUID()
-  const pathValue = input.path?.slice(0, 200)
-
-  if (index >= 0) {
-    const current = sessions[index]!
-    sessionId = current.id
-    const lastAt = new Date(current.lastSeenAt).getTime()
-    sessions[index] = {
-      ...current,
-      ipHash,
-      countryCode: geo.countryCode,
-      regionCode: geo.regionCode,
-      regionLabel: geo.regionLabel,
-      lastSeenAt: nowIso,
-      path: pathValue || current.path,
-    }
-    // Neuer Pageview nur bei Pfadwechsel oder nach >2 Minuten
-    const pathChanged = Boolean(pathValue && pathValue !== current.path)
-    if (pathChanged || now - lastAt > VISITOR_ONLINE_WINDOW_MS) {
-      pageviews.push({
-        id: randomUUID(),
-        sessionId,
+  return withCosmosFallback(
+    "recordVisitorHeartbeat",
+    () =>
+      recordHeartbeatToCosmos({
+        sessionId: input.sessionId,
+        path: input.path,
         ipHash,
-        countryCode: geo.countryCode,
-        regionCode: geo.regionCode,
-        regionLabel: geo.regionLabel,
-        path: pathValue || current.path,
-        at: nowIso,
+        geo,
+        now,
+        nowIso,
+      }),
+    () =>
+      recordHeartbeatToFiles({
+        sessionId: input.sessionId,
+        path: input.path,
+        ipHash,
+        geo,
+        now,
+        nowIso,
       })
-    }
-  } else {
-    sessions.push({
-      id: sessionId,
-      ipHash,
-      countryCode: geo.countryCode,
-      regionCode: geo.regionCode,
-      regionLabel: geo.regionLabel,
-      firstSeenAt: nowIso,
-      lastSeenAt: nowIso,
-      path: pathValue,
-    })
-    pageviews.push({
-      id: randomUUID(),
-      sessionId,
-      ipHash,
-      countryCode: geo.countryCode,
-      regionCode: geo.regionCode,
-      regionLabel: geo.regionLabel,
-      path: pathValue,
-      at: nowIso,
-    })
-  }
-
-  await writeJsonFile(SESSIONS_FILE, sessions)
-  await writeJsonFile(PAGEVIEWS_FILE, pageviews)
-  return { sessionId }
+  )
 }
 
 function bucketCounts(
@@ -534,16 +649,44 @@ function bucketCounts(
     .map(([key, count]) => ({ key, label: labelFn(key), count }))
 }
 
+async function loadVisitorAnalyticsData(now: number): Promise<{
+  sessions: VisitorSession[]
+  pageviews: VisitorPageview[]
+}> {
+  const retentionCutoff = new Date(now - PAGEVIEW_RETENTION_MS).toISOString()
+
+  return withCosmosFallback(
+    "getVisitorAnalyticsSnapshot",
+    async () => {
+      const [rawSessions, rawPageviews] = await Promise.all([
+        cosmosListVisitorSessions(),
+        cosmosListVisitorPageviews(retentionCutoff),
+      ])
+      return {
+        sessions: pruneSessions(rawSessions, now),
+        pageviews: prunePageviews(rawPageviews, now),
+      }
+    },
+    async () => {
+      const sessions = pruneSessions(
+        await readJsonFile<VisitorSession[]>(SESSIONS_FILE, []),
+        now
+      )
+      const pageviews = prunePageviews(
+        await readJsonFile<VisitorPageview[]>(PAGEVIEWS_FILE, []),
+        now
+      )
+      // Best-effort prune on local filesystem only
+      await writeJsonFile(SESSIONS_FILE, sessions)
+      await writeJsonFile(PAGEVIEWS_FILE, pageviews)
+      return { sessions, pageviews }
+    }
+  )
+}
+
 export async function getVisitorAnalyticsSnapshot(): Promise<VisitorAnalyticsSnapshot> {
   const now = Date.now()
-  const sessions = pruneSessions(
-    await readJsonFile<VisitorSession[]>(SESSIONS_FILE, []),
-    now
-  )
-  const pageviews = prunePageviews(
-    await readJsonFile<VisitorPageview[]>(PAGEVIEWS_FILE, []),
-    now
-  )
+  const { sessions, pageviews } = await loadVisitorAnalyticsData(now)
 
   const online = sessions.filter(
     (s) => now - new Date(s.lastSeenAt).getTime() <= VISITOR_ONLINE_WINDOW_MS
@@ -642,9 +785,6 @@ export async function getVisitorAnalyticsSnapshot(): Promise<VisitorAnalyticsSna
     monthCounts[date.getMonth()]!.count += 1
     hourCounts[date.getHours()]!.count += 1
   }
-
-  await writeJsonFile(SESSIONS_FILE, sessions)
-  await writeJsonFile(PAGEVIEWS_FILE, pageviews)
 
   const livePages: VisitorLivePage[] = online
     .map((session) => ({

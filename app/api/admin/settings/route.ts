@@ -33,6 +33,8 @@ import {
   normalizeWishlistIcon,
   normalizeWishlistIconCustomUrl,
 } from "@/lib/dripforge/wishlist-icon-settings"
+import type { AnnouncementBannerSettings } from "@/lib/dripforge/announcement-banner-settings"
+import type { ThanksPageSettings } from "@/lib/dripforge/thanks-page-settings"
 
 export async function GET(request: Request) {
   const auth = requireAdminSession(request)
@@ -76,6 +78,8 @@ export async function PUT(request: Request) {
       requireAdmin2fa?: boolean
       wishlistIcon?: string
       wishlistIconCustomUrl?: string | null
+      announcementBanner?: Partial<AnnouncementBannerSettings> | null
+      thanksPage?: Partial<ThanksPageSettings> | null
       orderEmailTemplates?: {
         receivedIntro?: string
         receivedFooter?: string
@@ -189,6 +193,12 @@ export async function PUT(request: Request) {
         body.wishlistIconCustomUrl !== undefined
           ? normalizeWishlistIconCustomUrl(body.wishlistIconCustomUrl)
           : undefined,
+      announcementBanner:
+        body.announcementBanner !== undefined
+          ? body.announcementBanner
+          : undefined,
+      thanksPage:
+        body.thanksPage !== undefined ? body.thanksPage : undefined,
       orderEmailTemplates: body.orderEmailTemplates,
       orderEmailLayout: body.orderEmailLayout,
       launch: body.launch,
