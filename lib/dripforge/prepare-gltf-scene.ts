@@ -39,10 +39,8 @@ export function prepareGltfScene(
     scene.updateMatrixWorld(true)
   }
 
-  const box = new THREE.Box3().setFromObject(scene)
-  const center = box.getCenter(new THREE.Vector3())
-  scene.position.sub(center)
-
+  // Erst skalieren, dann per Bounding-Box zentrieren — sonst driftet das
+  // Modell nach scale.setScalar (position bleibt unskaliert) aus dem Viewer.
   scene.updateMatrixWorld(true)
   const sizedBox = new THREE.Box3().setFromObject(scene)
   const size = sizedBox.getSize(new THREE.Vector3())
@@ -51,17 +49,29 @@ export function prepareGltfScene(
   scene.scale.setScalar(fitScale)
 
   scene.updateMatrixWorld(true)
+  const centeredBox = new THREE.Box3().setFromObject(scene)
+  const center = centeredBox.getCenter(new THREE.Vector3())
+  scene.position.sub(center)
+
+  scene.updateMatrixWorld(true)
   const groundedBox = new THREE.Box3().setFromObject(scene)
   scene.position.y -= groundedBox.min.y
 
   scene.updateMatrixWorld(true)
   const finalBox = new THREE.Box3().setFromObject(scene)
-  const orbitCenterY = (finalBox.min.y + finalBox.max.y) / 2
-  const finalSize = finalBox.getSize(new THREE.Vector3())
+  // XZ erneut auf 0 halten (numerisch / nach Grounding)
+  const finalCenter = finalBox.getCenter(new THREE.Vector3())
+  scene.position.x -= finalCenter.x
+  scene.position.z -= finalCenter.z
+
+  scene.updateMatrixWorld(true)
+  const orbitBox = new THREE.Box3().setFromObject(scene)
+  const orbitCenter = orbitBox.getCenter(new THREE.Vector3())
+  const finalSize = orbitBox.getSize(new THREE.Vector3())
 
   return {
     scene,
-    orbitCenterY,
+    orbitCenterY: orbitCenter.y,
     sizeAt100: { x: finalSize.x, y: finalSize.y, z: finalSize.z },
   }
 }

@@ -9,6 +9,7 @@ import { Canvas } from "@react-three/fiber"
 import { LEITBILD_3D_CANVAS_ATTR } from "@/lib/dripforge/capture-leitbild"
 import { ContactShadows, OrbitControls } from "@react-three/drei"
 import type { BufferGeometry, Material, Object3D } from "three"
+import * as THREE from "three"
 import {
   getDimensionGeometryFromObject,
   getGeometryOrbitTarget,
@@ -223,13 +224,26 @@ function PreviewScene({
       />
 
       <OrbitControls
+        makeDefault
         target={orbitTarget}
         enableZoom
         enablePan
+        enableRotate
         enableDamping
         dampingFactor={0.08}
+        panSpeed={0.8}
+        screenSpacePanning
         minDistance={40}
         maxDistance={280}
+        mouseButtons={{
+          LEFT: THREE.MOUSE.ROTATE,
+          MIDDLE: THREE.MOUSE.DOLLY,
+          RIGHT: THREE.MOUSE.PAN,
+        }}
+        touches={{
+          ONE: THREE.TOUCH.ROTATE,
+          TWO: THREE.TOUCH.DOLLY_PAN,
+        }}
       />
     </>
   )
@@ -358,7 +372,7 @@ export const Model3DPreview = forwardRef<
         </Suspense>
       </Canvas>
       <p className="pointer-events-none absolute bottom-3 left-0 right-0 text-center text-[10px] font-medium text-zinc-600 dark:text-zinc-400">
-        Maus/Touch: drehen · Scroll: zoomen
+        Drehen · Scroll/Pinch zoomen · Rechtsklick/Shift oder 2 Finger: verschieben
       </p>
     </div>
   )
