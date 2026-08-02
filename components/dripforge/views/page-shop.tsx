@@ -21,6 +21,7 @@ import {
   CheckCircle2,
   Loader2,
   Palette,
+  X,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -39,6 +40,13 @@ import {
   pickDefaultFilamentSelection,
   type FilamentSelection,
 } from "@/components/dripforge/shared/filament-color-picker"
+import {
+  FilamentMultiColorPicker,
+  type FilamentMultiColorSelection,
+} from "@/components/dripforge/shared/filament-multi-color-picker"
+import { ProductDescription } from "@/components/dripforge/product-description"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import {
   createDefaultLaserDesignerState,
   LaserDesignerStudio,
@@ -198,6 +206,12 @@ export function PageShop({
   const showAiKonfigurator = showCustom3d && Boolean(aiPublic?.enabled)
   const [filamentTab, setFilamentTab] = useState("pla")
   const [filamentSelection, setFilamentSelection] = useState<FilamentSelection | null>(null)
+  const [multiColorSelection, setMultiColorSelection] =
+    useState<FilamentMultiColorSelection | null>(null)
+  const [customerRemarks, setCustomerRemarks] = useState("")
+  const [extraVariants, setExtraVariants] = useState<
+    Array<{ colorName: string; colorHex: string; filament: string; quantity: number }>
+  >([])
   const [selectedShopVariantId, setSelectedShopVariantId] = useState<string | null>(
     null
   )
@@ -346,8 +360,15 @@ export function PageShop({
     }
     const normalized = normalizeShopProduct(selectedProduct)
     setQuantity(1)
-    setFilamentTab(filamentMaterials[0]?.id ?? "pla")
-    setFilamentSelection(null)
+    setCustomerRemarks("")
+    setExtraVariants([])
+    setMultiColorSelection(null)
+    const preferred = pickDefaultFilamentSelection(filamentMaterials, {
+      colorId: normalized.defaultFilamentColorId,
+      colorName: normalized.defaultFilamentColorName,
+    })
+    setFilamentTab(preferred?.materialId ?? filamentMaterials[0]?.id ?? "pla")
+    setFilamentSelection(preferred)
     const shopVariants = resolveProductShopVariants(normalized)
     setSelectedShopVariantId(shopVariants[0]?.id ?? null)
     if (normalized.type === "laser") {
@@ -361,6 +382,21 @@ export function PageShop({
     // Nur bei Produkt-ID-Wechsel neu initialisieren
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProduct?.id])
+
+  // Default-Filamentfarbe nachladen, sobald Katalog verfügbar ist
+  useEffect(() => {
+    if (!selectedProduct || filamentMaterials.length === 0) return
+    if (selectedProduct.type !== "3d") return
+    if (filamentSelection) return
+    const preferred = pickDefaultFilamentSelection(filamentMaterials, {
+      colorId: selectedProduct.defaultFilamentColorId,
+      colorName: selectedProduct.defaultFilamentColorName,
+    })
+    if (preferred) {
+      setFilamentTab(preferred.materialId)
+      setFilamentSelection(preferred)
+    }
+  }, [filamentMaterials, selectedProduct, filamentSelection])
 
   const openProduct = (product: Product) => {
     if (canInlineEdit) return
@@ -381,14 +417,36 @@ export function PageShop({
   }
 
   const effectiveFilamentSelection =
-    filamentSelection ?? pickDefaultFilamentSelection(filamentMaterials)
+    filamentSelection ?? pickDefaultFilamentSelection(filamentMaterials, {
+      colorId: selectedProduct?.defaultFilamentColorId,
+      colorName: selectedProduct?.defaultFilamentColorName,
+    })
+
+  const isMultiColorProduct = (product: Product) =>
+    Boolean(product.multiColorEnabled) ||
+    (product.partLabels?.length ?? 0) > 1
 
   const handleAddToCart = async () => {
     if (!selectedProduct || cartCapturing) return
 
+    const dimensionsText = selectedProduct.dimensionsMm
+      ? formatProductDimensionsText(selectedProduct.dimensionsMm)
+      : undefined
+    const weightG =
+      selectedProduct.gewicht != null && Number.isFinite(Number(selectedProduct.gewicht))
+        ? Number(selectedProduct.gewicht)
+        : undefined
+    const remarksTrimmed = customerRemarks.trim()
+
     if (selectedProduct.type === "3d") {
-      const selection = effectiveFilamentSelection
-      if (!selection?.inStock) return
+      const useMultiColor = isMultiColorProduct(selectedProduct)
+      if (useMultiColor) {
+        if (!multiColorSelection?.colors.length) return
+        if (!multiColorSelection.colors.every((c) => c.inStock)) return
+      } else {
+        const selection = effectiveFilamentSelection
+        if (!selection?.inStock) return
+      }
       const shopVariants = resolveProductShopVariants(selectedProduct)
       if (shopVariants.length > 0 && !selectedShopVariantId) return
       const activeShopVariant = shopVariants.find((v) => v.id === selectedShopVariantId)
@@ -413,30 +471,91 @@ export function PageShop({
 
         const printFile = resolveProductPrintFile(selectedProduct)
         const modelForCart = variantModelUrl || printFile?.fileUrl || undefined
+        const fileFields =
+          printFile || modelForCart
+            ? {
+                fileName: printFile?.fileName,
+                fileUrl: modelForCart ?? printFile?.fileUrl,
+                modelUrl: modelForCart ?? printFile?.fileUrl,
+              }
+            : {}
 
-        addToCart({
-          id: `${selectedProduct.id}-${Date.now()}`,
-          name: selectedProduct.name,
-          price: unitPrice,
-          quantity,
-          type: "3d",
-          leitbild,
-          customDetails: {
-            filament: selection.materialName,
-            color: selection.colorName,
-            variant: activeShopVariant?.name,
-            dimensions: selectedProduct.dimensionsMm
-              ? formatProductDimensionsText(selectedProduct.dimensionsMm)
-              : undefined,
-            ...(printFile || modelForCart
-              ? {
-                  fileName: printFile?.fileName,
-                  fileUrl: modelForCart ?? printFile?.fileUrl,
-                  modelUrl: modelForCart ?? printFile?.fileUrl,
-                }
-              : {}),
-          },
-        })
+        if (useMultiColor && multiColorSelection) {
+          const primary =
+            multiColorSelection.colors.find(
+              (c) => c.slot === multiColorSelection.primarySlot
+            ) ?? multiColorSelection.colors[0]!
+          const labels = selectedProduct.partLabels ?? []
+          const partColors = multiColorSelection.colors
+            .slice()
+            .sort((a, b) => a.slot - b.slot)
+            .map((slot, index) => ({
+              partId: `part-${slot.slot}`,
+              partName: labels[index] ?? `Teil ${slot.slot}`,
+              colorName: slot.colorName,
+              colorHex: slot.colorHex,
+              filament: multiColorSelection.materialName,
+            }))
+
+          addToCart({
+            id: `${selectedProduct.id}-${Date.now()}`,
+            name: selectedProduct.name,
+            price: unitPrice,
+            quantity,
+            type: "3d",
+            leitbild,
+            customDetails: {
+              filament: multiColorSelection.materialName,
+              color: primary.colorName,
+              variant: activeShopVariant?.name,
+              dimensions: dimensionsText,
+              weightG,
+              ...(remarksTrimmed ? { customerRemarks: remarksTrimmed } : {}),
+              partColors,
+              ...fileFields,
+            },
+          })
+        } else {
+          const selection = effectiveFilamentSelection!
+          addToCart({
+            id: `${selectedProduct.id}-${Date.now()}`,
+            name: selectedProduct.name,
+            price: unitPrice,
+            quantity,
+            type: "3d",
+            leitbild,
+            customDetails: {
+              filament: selection.materialName,
+              color: selection.colorName,
+              variant: activeShopVariant?.name,
+              dimensions: dimensionsText,
+              weightG,
+              ...(remarksTrimmed ? { customerRemarks: remarksTrimmed } : {}),
+              ...fileFields,
+            },
+          })
+
+          for (const extra of extraVariants) {
+            addToCart({
+              id: `${selectedProduct.id}-${Date.now()}-${extra.colorName}`,
+              name: selectedProduct.name,
+              price: unitPrice,
+              quantity: Math.max(1, extra.quantity),
+              type: "3d",
+              leitbild,
+              customDetails: {
+                filament: extra.filament || selection.materialName,
+                color: extra.colorName,
+                variant: activeShopVariant?.name,
+                dimensions: dimensionsText,
+                weightG,
+                ...(remarksTrimmed ? { customerRemarks: remarksTrimmed } : {}),
+                ...fileFields,
+              },
+            })
+          }
+          setExtraVariants([])
+        }
         setCartAddedOpen(true)
       } finally {
         setCartCapturing(false)
@@ -515,18 +634,23 @@ export function PageShop({
         leitbild: previewMockup,
         previewMockup,
         productionLayer,
-        customDetails: buildLaserCartCustomDetails(designSnapshot, {
-          material: selectedProduct.name,
-          variant: activeShopVariant?.name || selectedVariant,
-          productBackgroundUrl:
-            selectedProduct.individualisierungsBild?.trim() ||
-            resolveProductImages(
-              selectedProduct.id,
-              selectedProduct.images,
-              selectedProduct.galerieBilder
-            )[0] ||
-            null,
-        }),
+        customDetails: {
+          ...buildLaserCartCustomDetails(designSnapshot, {
+            material: selectedProduct.name,
+            variant: activeShopVariant?.name || selectedVariant,
+            productBackgroundUrl:
+              selectedProduct.individualisierungsBild?.trim() ||
+              resolveProductImages(
+                selectedProduct.id,
+                selectedProduct.images,
+                selectedProduct.galerieBilder
+              )[0] ||
+              null,
+          }),
+          dimensions: dimensionsText,
+          weightG,
+          ...(remarksTrimmed ? { customerRemarks: remarksTrimmed } : {}),
+        },
       }
 
       addToCart(newItem)
@@ -546,7 +670,10 @@ export function PageShop({
     Boolean(selectedProduct) &&
     (selectedProduct?.type === "3d"
       ? !filamentsLoading &&
-        Boolean(effectiveFilamentSelection?.inStock) &&
+        (isMultiColorProduct(selectedProduct!)
+          ? Boolean(multiColorSelection?.colors.length) &&
+            Boolean(multiColorSelection?.colors.every((c) => c.inStock))
+          : Boolean(effectiveFilamentSelection?.inStock)) &&
         (!productHasShopVariants(selectedProduct!) || Boolean(selectedShopVariantId))
       : Boolean(
           laserDesign &&
@@ -715,9 +842,10 @@ export function PageShop({
                       <h1 className="text-xl font-bold sm:text-2xl">
                         {detailProduct.name}
                       </h1>
-                      <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                        {detailProduct.description}
-                      </p>
+                      <ProductDescription
+                        html={detailProduct.description}
+                        className="mt-2"
+                      />
                     </CardContent>
                   </Card>
                   <LaserDesignerStudio
@@ -759,6 +887,39 @@ export function PageShop({
                     </div>
                   )}
 
+                  {(detailProduct.dimensionsMm || detailProduct.gewicht != null) && (
+                    <Card className="rounded-xl border-border/50 bg-card/50 shadow-sm">
+                      <CardContent className="space-y-2 p-4 sm:p-5">
+                        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          Masse &amp; Gewicht
+                        </h3>
+                        <dl className="space-y-1.5 text-sm">
+                          {detailProduct.dimensionsMm && (
+                            <div className="flex items-center justify-between gap-3">
+                              <dt className="text-muted-foreground">L×B×H</dt>
+                              <dd className="font-mono font-semibold tabular-nums">
+                                {Number(detailProduct.dimensionsMm.length).toFixed(0)}
+                                ×
+                                {Number(detailProduct.dimensionsMm.width).toFixed(0)}
+                                ×
+                                {Number(detailProduct.dimensionsMm.height).toFixed(0)}{" "}
+                                mm
+                              </dd>
+                            </div>
+                          )}
+                          {detailProduct.gewicht != null && (
+                            <div className="flex items-center justify-between gap-3">
+                              <dt className="text-muted-foreground">Gewicht</dt>
+                              <dd className="font-mono font-semibold tabular-nums">
+                                {formatProductWeight(detailProduct.gewicht)}
+                              </dd>
+                            </div>
+                          )}
+                        </dl>
+                      </CardContent>
+                    </Card>
+                  )}
+
                   <Card className="rounded-2xl border-2 border-primary/25 bg-card/80 shadow-md shadow-primary/5">
                     <CardContent className="space-y-4 p-4 sm:p-5">
                       {shopVariantPicker}
@@ -795,6 +956,18 @@ export function PageShop({
                         <span className="ml-auto text-base font-semibold tabular-nums">
                           CHF {(unitPrice * quantity).toFixed(2)}
                         </span>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="laser-customer-remarks">
+                          Bemerkungen / Extrawünsche
+                        </Label>
+                        <Textarea
+                          id="laser-customer-remarks"
+                          value={customerRemarks}
+                          onChange={(e) => setCustomerRemarks(e.target.value)}
+                          placeholder="z. B. besondere Platzierung, Schriftart…"
+                          className="min-h-20 resize-y bg-background/80"
+                        />
                       </div>
                       <Button
                         onClick={() => void handleAddToCart()}
@@ -871,29 +1044,11 @@ export function PageShop({
                 <>
                   <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 md:gap-10">
                     {/*
-                      Mobile: 3D → Filament → Preis/Cart → Galerie/Text/Specs
+                      Mobile: Galerie+Desc+Specs → Live-3D → Filament → Preis/Cart
                       Desktop: Spalte1 Galerie+Text+Specs+3D | Spalte2 Filament+Preis
                     */}
                     <div className="grid grid-cols-1 items-start gap-8 md:grid-cols-2 md:gap-10 lg:items-stretch lg:gap-12">
-                      {/* Mobile: Live-3D ganz oben */}
-                      {productModelUrl && !isMdUp ? (
-                        <div className="order-1 min-w-0">
-                          <Product3DPreview
-                            ref={product3dCanvasRef}
-                            key={`${detailProduct.id}-${productModelUrl}-m`}
-                            modelUrl={productModelUrl}
-                            color={
-                              effectiveFilamentSelection?.colorHex?.trim() ||
-                              "#1a1a1a"
-                            }
-                            fixedDimensionsMm={productDimensionsToViewerMm(
-                              productDimensions
-                            )}
-                          />
-                        </div>
-                      ) : null}
-
-                      <div className="order-4 flex min-w-0 flex-col gap-6 md:order-1">
+                      <div className="order-1 flex min-w-0 flex-col gap-6 md:order-1">
                         <ProductImageGallery
                           images={galleryImages}
                           alt={detailProduct.name}
@@ -913,9 +1068,10 @@ export function PageShop({
                             <h1 className="text-xl font-bold sm:text-2xl lg:text-3xl">
                               {detailProduct.name}
                             </h1>
-                            <p className="mt-3 text-sm leading-relaxed text-muted-foreground sm:text-base">
-                              {detailProduct.description}
-                            </p>
+                            <ProductDescription
+                              html={detailProduct.description}
+                              className="mt-3"
+                            />
                           </CardContent>
                         </Card>
 
@@ -980,8 +1136,15 @@ export function PageShop({
                               key={`${detailProduct.id}-${productModelUrl}-d`}
                               modelUrl={productModelUrl}
                               color={
-                                effectiveFilamentSelection?.colorHex?.trim() ||
-                                "#1a1a1a"
+                                isMultiColorProduct(detailProduct)
+                                  ? multiColorSelection?.colors.find(
+                                      (c) =>
+                                        c.slot === multiColorSelection.primarySlot
+                                    )?.colorHex?.trim() ||
+                                    multiColorSelection?.colors[0]?.colorHex?.trim() ||
+                                    "#1a1a1a"
+                                  : effectiveFilamentSelection?.colorHex?.trim() ||
+                                    "#1a1a1a"
                               }
                               fixedDimensionsMm={productDimensionsToViewerMm(
                                 productDimensions
@@ -991,17 +1154,116 @@ export function PageShop({
                         ) : null}
                       </div>
 
-                      <div className="order-2 flex min-w-0 flex-col gap-6 md:order-2 lg:h-full">
-                        {shopVariantPicker}
-                        <FilamentColorPicker
-                          materials={filamentMaterials}
-                          activeTab={filamentTab}
-                          onTabChange={setFilamentTab}
-                          onSelectionChange={setFilamentSelection}
-                          className="mt-0 border-0 pt-0"
-                        />
+                      {/* Mobile: Live-3D nach Specs */}
+                      {productModelUrl && !isMdUp ? (
+                        <div className="order-2 min-w-0 md:hidden">
+                          <Product3DPreview
+                            ref={product3dCanvasRef}
+                            key={`${detailProduct.id}-${productModelUrl}-m`}
+                            modelUrl={productModelUrl}
+                            color={
+                              isMultiColorProduct(detailProduct)
+                                ? multiColorSelection?.colors.find(
+                                    (c) =>
+                                      c.slot === multiColorSelection.primarySlot
+                                  )?.colorHex?.trim() ||
+                                  multiColorSelection?.colors[0]?.colorHex?.trim() ||
+                                  "#1a1a1a"
+                                : effectiveFilamentSelection?.colorHex?.trim() ||
+                                  "#1a1a1a"
+                            }
+                            fixedDimensionsMm={productDimensionsToViewerMm(
+                              productDimensions
+                            )}
+                          />
+                        </div>
+                      ) : null}
 
-                        <div className="order-3 flex flex-col gap-6 lg:mt-auto">
+                      <div className="order-3 flex min-w-0 flex-col gap-6 md:order-2 lg:h-full">
+                        {shopVariantPicker}
+                        {isMultiColorProduct(detailProduct) ? (
+                          <FilamentMultiColorPicker
+                            materials={filamentMaterials}
+                            activeTab={filamentTab}
+                            onTabChange={setFilamentTab}
+                            onSelectionChange={setMultiColorSelection}
+                            className="mt-0 border-0 pt-0"
+                          />
+                        ) : (
+                          <>
+                            <FilamentColorPicker
+                              materials={filamentMaterials}
+                              activeTab={filamentTab}
+                              onTabChange={setFilamentTab}
+                              onSelectionChange={setFilamentSelection}
+                              preferredColorId={detailProduct.defaultFilamentColorId}
+                              preferredColorName={
+                                detailProduct.defaultFilamentColorName
+                              }
+                              className="mt-0 border-0 pt-0"
+                            />
+                            {effectiveFilamentSelection?.inStock && (
+                              <div className="space-y-3">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  className="w-full"
+                                  onClick={() => {
+                                    const sel = effectiveFilamentSelection
+                                    if (!sel) return
+                                    setExtraVariants((prev) => [
+                                      ...prev,
+                                      {
+                                        colorName: sel.colorName,
+                                        colorHex: sel.colorHex,
+                                        filament: sel.materialName,
+                                        quantity: 1,
+                                      },
+                                    ])
+                                  }}
+                                >
+                                  <Plus className="mr-2 h-4 w-4" />
+                                  Weitere Variante / Farbe hinzufügen
+                                </Button>
+                                {extraVariants.length > 0 && (
+                                  <ul className="space-y-2 rounded-xl border border-border/50 bg-muted/20 p-3">
+                                    {extraVariants.map((extra, index) => (
+                                      <li
+                                        key={`${extra.colorName}-${index}`}
+                                        className="flex items-center gap-3 text-sm"
+                                      >
+                                        <span
+                                          className="h-5 w-5 shrink-0 rounded-full border border-border/50"
+                                          style={{
+                                            backgroundColor: extra.colorHex,
+                                          }}
+                                        />
+                                        <span className="min-w-0 flex-1 truncate">
+                                          {extra.filament} · {extra.colorName} ×
+                                          {extra.quantity}
+                                        </span>
+                                        <button
+                                          type="button"
+                                          className="rounded p-1 text-muted-foreground hover:text-red-500"
+                                          aria-label="Variante entfernen"
+                                          onClick={() =>
+                                            setExtraVariants((prev) =>
+                                              prev.filter((_, i) => i !== index)
+                                            )
+                                          }
+                                        >
+                                          <X className="h-4 w-4" />
+                                        </button>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                )}
+                              </div>
+                            )}
+                          </>
+                        )}
+
+                        <div className="flex flex-col gap-6 lg:mt-auto">
                           <Card className="rounded-xl border-red-500/35 bg-gradient-to-b from-red-500/10 via-red-500/5 to-transparent shadow-sm">
                             <CardContent className="space-y-5 p-6">
                               <h3 className="font-bold">Preisberechnung</h3>
@@ -1040,12 +1302,19 @@ export function PageShop({
                                 <div className="flex justify-between gap-3">
                                   <span className="text-muted-foreground">
                                     Material (
-                                    {effectiveFilamentSelection?.materialName ??
-                                      "PLA"}
+                                    {isMultiColorProduct(detailProduct)
+                                      ? multiColorSelection?.materialName ?? "PLA"
+                                      : effectiveFilamentSelection?.materialName ??
+                                        "PLA"}
                                     )
                                   </span>
-                                  <span className="font-medium">
-                                    {effectiveFilamentSelection?.colorName ?? "—"}
+                                  <span className="max-w-[55%] text-right font-medium">
+                                    {isMultiColorProduct(detailProduct)
+                                      ? multiColorSelection?.colors
+                                          .map((c) => c.colorName)
+                                          .join(", ") || "—"
+                                      : effectiveFilamentSelection?.colorName ??
+                                        "—"}
                                   </span>
                                 </div>
                                 <div className="flex justify-between gap-3">
@@ -1089,12 +1358,35 @@ export function PageShop({
                                 <div className="flex justify-between gap-3 text-lg font-bold">
                                   <span>Gesamtpreis</span>
                                   <span className="text-red-500 dark:text-red-400">
-                                    CHF {(unitPrice * quantity).toFixed(2)}
+                                    CHF{" "}
+                                    {(
+                                      unitPrice *
+                                      (quantity +
+                                        (isMultiColorProduct(detailProduct)
+                                          ? 0
+                                          : extraVariants.reduce(
+                                              (sum, e) => sum + e.quantity,
+                                              0
+                                            )))
+                                    ).toFixed(2)}
                                   </span>
                                 </div>
                               </div>
                             </CardContent>
                           </Card>
+
+                          <div className="space-y-1.5">
+                            <Label htmlFor="3d-customer-remarks">
+                              Bemerkungen / Extrawünsche
+                            </Label>
+                            <Textarea
+                              id="3d-customer-remarks"
+                              value={customerRemarks}
+                              onChange={(e) => setCustomerRemarks(e.target.value)}
+                              placeholder="z. B. besondere Anforderungen…"
+                              className="min-h-20 resize-y bg-background/80"
+                            />
+                          </div>
 
                           <Button
                             onClick={() => void handleAddToCart()}
@@ -1111,10 +1403,18 @@ export function PageShop({
                               ? "Wird hinzugefügt…"
                               : "In den Warenkorb"}
                           </Button>
-                          {effectiveFilamentSelection &&
+                          {!isMultiColorProduct(detailProduct) &&
+                            effectiveFilamentSelection &&
                             !effectiveFilamentSelection.inStock && (
                               <p className="text-center text-sm text-red-500">
                                 Gewaehlte Farbe ist derzeit nicht auf Lager.
+                              </p>
+                            )}
+                          {isMultiColorProduct(detailProduct) &&
+                            multiColorSelection &&
+                            !multiColorSelection.colors.every((c) => c.inStock) && (
+                              <p className="text-center text-sm text-red-500">
+                                Mindestens eine gewaehlte Farbe ist nicht auf Lager.
                               </p>
                             )}
 

@@ -34,8 +34,7 @@ function parseCanAccessShop(data: LaunchApiPayload | null): boolean {
 
 /**
  * Schwebendes Chat-/Support-Widget anzeigen?
- * Ausblenden nur während der Countdown-Landingpage (Shop noch gesperrt).
- * Admin-Portal immer sichtbar.
+ * Nur öffentlicher Webshop — Admin (/dripforgehq) und Countdown ausgeblendet.
  */
 export function useFloatingActionsVisible(): boolean {
   const pathname = usePathname()
@@ -58,7 +57,8 @@ export function useFloatingActionsVisible(): boolean {
     }
   }, [])
 
-  if (isAdminPortalPath(pathname)) return true
+  // Admin-HQ: kein Kunden-Chat-Widget
+  if (isAdminPortalPath(pathname ?? "")) return false
 
   if (canAccessShop === false) return false
 

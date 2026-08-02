@@ -94,6 +94,8 @@ export type StoredOrder = {
   trackingNumber?: string
   /** Versand-E-Mail-Benachrichtigungen (Idempotenz) */
   emailNotifications?: OrderEmailNotifications
+  /** Bestellweite Kundenbemerkung / Hinweise */
+  customerNote?: string
 }
 
 export type OrderEmailNotifications = {
@@ -262,6 +264,8 @@ export type AdminSettings = {
   }
   /** Globale Notification-Bar (optional, Defaults inaktiv) */
   announcementBanner?: import("@/lib/dripforge/announcement-banner-settings").AnnouncementBannerSettings
+  /** Gewichtsstaffeln für Versandpreise (optional) */
+  shippingTiers?: import("@/lib/dripforge/shipping-tiers").ShippingTiersSettings
   /** Dankesseite-Animation (Checkout Success) */
   thanksPage?: import("@/lib/dripforge/thanks-page-settings").ThanksPageSettings
   updatedAt: string

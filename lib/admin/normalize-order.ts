@@ -9,7 +9,12 @@ import type { PaymentMethodId, ShippingMethodId } from "@/lib/dripforge/checkout
 export type OrderPaymentStatus = "pending" | "paid"
 
 const PAYMENT_METHODS = new Set<PaymentMethodId>(["card", "twint", "invoice"])
-const SHIPPING_METHODS = new Set<ShippingMethodId>(["apost", "bpost", "pickup"])
+const SHIPPING_METHODS = new Set<ShippingMethodId>([
+  "apost",
+  "bpost",
+  "pickup",
+  "brief",
+])
 const ORDER_STATUSES = new Set<OrderStatus>([
   "ausstehend",
   "in_produktion",
@@ -227,6 +232,9 @@ export function normalizeOrderForPersistence(
   if (order.trackingNumber) normalized.trackingNumber = order.trackingNumber
   if (order.emailNotifications) {
     normalized.emailNotifications = order.emailNotifications
+  }
+  if (typeof order.customerNote === "string" && order.customerNote.trim()) {
+    normalized.customerNote = order.customerNote.trim().slice(0, 2000)
   }
 
   // JSON roundtrip: keine undefined-Werte / nicht serialisierbare Felder für Cosmos

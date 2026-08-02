@@ -88,6 +88,13 @@ export type Product = {
    * rounded = abgerundete Ecken (Standard), square = scharfe Kanten, circle = rund
    */
   imageShape?: "rounded" | "square" | "circle"
+  /** Standard-Filamentfarbe (3D) */
+  defaultFilamentColorId?: string | null
+  defaultFilamentColorName?: string | null
+  /** Mehrfarbiger Druck / Teilefärbung aktiv */
+  multiColorEnabled?: boolean
+  /** Beschriftung der Teile (z. B. «Teil 1», «Teil 2») */
+  partLabels?: string[]
 }
 
 export type ProductShopVariant = {
@@ -256,6 +263,25 @@ export interface CartItem {
     isCustomerInbound?: boolean
     /** @deprecated Alias — nutze isCustomerInbound */
     customerShipping?: boolean
+    /** Kundenbemerkung zur Position */
+    customerRemarks?: string
+    /** Gewicht der Position in Gramm (Versandstaffeln) */
+    weightG?: number
+    /** Mehrfarbige Teilezuordnung */
+    partColors?: Array<{
+      partId: string
+      partName: string
+      colorName: string
+      colorHex: string
+      filament?: string
+    }>
+    /** Zusätzliche Farbvarianten mit Menge */
+    extraVariants?: Array<{
+      colorName: string
+      colorHex: string
+      filament?: string
+      quantity: number
+    }>
   }
 }
 

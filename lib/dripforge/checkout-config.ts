@@ -66,7 +66,7 @@ export function normalizeCheckoutRuntimeConfig(
   }
 }
 
-export type ShippingMethodId = "apost" | "bpost" | "pickup"
+export type ShippingMethodId = "apost" | "bpost" | "pickup" | "brief"
 
 export type PaymentMethodId = "card" | "twint" | "invoice"
 
@@ -75,6 +75,7 @@ export const SHIPPING_OPTIONS: {
   label: string
   price: number
 }[] = [
+  { id: "brief", label: "Brief", price: 2 },
   { id: "apost", label: "A-Post", price: 9 },
   { id: "bpost", label: "B-Post", price: 7 },
   { id: "pickup", label: "Abholung in Pfäffikon ZH", price: 0 },
@@ -178,5 +179,7 @@ export function calculateCheckoutTotals(
 }
 
 export function getShippingCost(method: ShippingMethodId): number {
+  // Primär über SHIPPING_OPTIONS (inkl. Brief); dynamische Staffeln
+  // überschreiben den Preis im Checkout über resolveShippingOptionsForCart.
   return SHIPPING_OPTIONS.find((o) => o.id === method)?.price ?? 0
 }

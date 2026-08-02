@@ -204,6 +204,25 @@ export function normalizeShopProduct(
         typeof source.sku === "string" && source.sku.trim()
           ? source.sku.trim()
           : undefined,
+      defaultFilamentColorId:
+        typeof source.defaultFilamentColorId === "string"
+          ? source.defaultFilamentColorId.trim() || null
+          : source.defaultFilamentColorId === null
+            ? null
+            : undefined,
+      defaultFilamentColorName:
+        typeof source.defaultFilamentColorName === "string"
+          ? source.defaultFilamentColorName.trim() || null
+          : source.defaultFilamentColorName === null
+            ? null
+            : undefined,
+      multiColorEnabled: Boolean(source.multiColorEnabled),
+      partLabels: Array.isArray(source.partLabels)
+        ? source.partLabels
+            .map((label) => (typeof label === "string" ? label.trim() : ""))
+            .filter(Boolean)
+            .slice(0, 24)
+        : undefined,
     }
   } catch (error) {
     console.error("Shop: normalizeShopProduct fehlgeschlagen.", error, raw)
