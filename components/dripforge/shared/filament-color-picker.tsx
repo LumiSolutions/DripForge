@@ -22,8 +22,36 @@ export type FilamentSelection = {
 }
 
 export function pickDefaultFilamentSelection(
-  materials: FilamentMaterial[]
+  materials: FilamentMaterial[],
+  preferred?: { colorId?: string | null; colorName?: string | null } | null
 ): FilamentSelection | null {
+  const preferredId = preferred?.colorId?.trim().toLowerCase()
+  const preferredName = preferred?.colorName?.trim().toLowerCase()
+
+  if (preferredId || preferredName) {
+    for (const material of materials) {
+      const color = material.colors.find((entry) => {
+        if (preferredId && entry.id.toLowerCase() === preferredId) return true
+        if (preferredName && entry.name.toLowerCase() === preferredName) return true
+        if (
+          preferredName &&
+          entry.displayName?.toLowerCase() === preferredName
+        )
+          return true
+        return false
+      })
+      if (!color) continue
+      return {
+        materialId: material.id,
+        materialName: material.name,
+        colorId: color.id,
+        colorName: color.name,
+        colorHex: color.hex,
+        inStock: color.inStock,
+      }
+    }
+  }
+
   for (const material of materials) {
     const color =
       material.colors.find((entry) => entry.inStock) ?? material.colors[0]
@@ -73,12 +101,16 @@ export function FilamentColorPicker({
   activeTab,
   onTabChange,
   onSelectionChange,
+  preferredColorId,
+  preferredColorName,
   className,
 }: {
   materials: FilamentMaterial[]
   activeTab: string
   onTabChange: (id: string) => void
   onSelectionChange?: (selection: FilamentSelection) => void
+  preferredColorId?: string | null
+  preferredColorName?: string | null
   className?: string
 }) {
   // Independent selected color per material
@@ -91,15 +123,29 @@ export function FilamentColorPicker({
 
   useEffect(() => {
     if (materials.length === 0) return
+    const preferred = pickDefaultFilamentSelection(materials, {
+      colorId: preferredColorId,
+      colorName: preferredColorName,
+    })
     setSelectedColors(
       Object.fromEntries(
-        materials.map((m) => [
-          m.id,
-          m.colors.find((c) => c.inStock)?.id ?? m.colors[0]?.id ?? "",
-        ])
+        materials.map((m) => {
+          if (preferred && preferred.materialId === m.id) {
+            return [m.id, preferred.colorId]
+          }
+          return [
+            m.id,
+            m.colors.find((c) => c.inStock)?.id ?? m.colors[0]?.id ?? "",
+          ]
+        })
       )
     )
-  }, [materials])
+    if (preferred && preferred.materialId !== activeTab) {
+      onTabChange(preferred.materialId)
+    }
+    // preferred + materials drive initial selection; avoid looping on activeTab/onTabChange
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [materials, preferredColorId, preferredColorName])
 
   useEffect(() => {
     if (!onSelectionChange || !currentMaterial || !selectedColor) return

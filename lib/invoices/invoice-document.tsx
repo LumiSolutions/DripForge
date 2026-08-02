@@ -252,6 +252,7 @@ export type InvoiceDocumentProps = {
 }
 
 function shippingLabel(method: StoredOrder["shippingMethod"]): string {
+  if (method === "brief") return "Brief"
   return SHIPPING_OPTIONS.find((o) => o.id === method)?.label ?? method
 }
 

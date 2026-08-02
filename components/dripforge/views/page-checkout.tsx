@@ -40,6 +40,14 @@ import {
   type ShippingMethodId,
 } from "@/lib/dripforge/checkout-config"
 import {
+  estimateCartShippingMetrics,
+  normalizeShippingTiers,
+  resolveShippingOptionsForCart,
+  type ResolvedShippingOption,
+  type ShippingTiersSettings,
+} from "@/lib/dripforge/shipping-tiers"
+import { Textarea } from "@/components/ui/textarea"
+import {
   calculateCheckoutTotalsWithCoupon,
   calculateCheckoutTotalsWithDiscounts,
   type CheckoutTotalsWithCoupon,
@@ -200,6 +208,17 @@ export function PageCheckout({
 
   const [shippingMethod, setShippingMethod] =
     useState<ShippingMethodId>("bpost")
+  const [selectedShippingId, setSelectedShippingId] = useState<string>("bpost")
+  const [shippingOptions, setShippingOptions] = useState<ResolvedShippingOption[]>(
+    () =>
+      SHIPPING_OPTIONS.map((o) => ({
+        id: o.id,
+        methodId: o.id,
+        label: o.label,
+        price: o.price,
+      }))
+  )
+  const [customerNote, setCustomerNote] = useState("")
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodId>("card")
   const [errors, setErrors] = useState<Partial<Record<FieldKey, string>>>({})
   const [submitted, setSubmitted] = useState(false)
@@ -423,7 +442,63 @@ export function PageCheckout({
     () => cart.reduce((sum, item) => sum + item.price * item.quantity, 0),
     [cart]
   )
-  const shippingCost = getShippingCost(shippingMethod)
+  const selectedShippingOption =
+    shippingOptions.find((o) => o.id === selectedShippingId) ??
+    shippingOptions[0] ??
+    null
+  const shippingCost =
+    selectedShippingOption?.price ?? getShippingCost(shippingMethod)
+
+  useEffect(() => {
+    let cancelled = false
+    const fallback: ResolvedShippingOption[] = SHIPPING_OPTIONS.map((o) => ({
+      id: o.id,
+      methodId: o.id,
+      label: o.label,
+      price: o.price,
+    }))
+
+    void fetch("/api/settings/shipping-tiers", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelled) return
+        const settings: ShippingTiersSettings = normalizeShippingTiers(
+          data as Partial<ShippingTiersSettings> | null
+        )
+        const metrics = estimateCartShippingMetrics(cart)
+        const options = resolveShippingOptionsForCart(
+          settings,
+          metrics,
+          fallback
+        )
+        setShippingOptions(options)
+        setSelectedShippingId((prev) => {
+          if (options.some((o) => o.id === prev)) return prev
+          const first = options[0]
+          if (first) {
+            setShippingMethod(first.methodId as ShippingMethodId)
+          }
+          return first?.id ?? prev
+        })
+      })
+      .catch(() => {
+        if (cancelled) return
+        setShippingOptions(fallback)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [cart])
+
+  // Sync methodId when selection changes
+  useEffect(() => {
+    const option = shippingOptions.find((o) => o.id === selectedShippingId)
+    if (option) {
+      setShippingMethod(option.methodId as ShippingMethodId)
+    }
+  }, [selectedShippingId, shippingOptions])
+
   const baseTotals =
     couponTotals ??
     calculateCheckoutTotalsWithCoupon(subtotal, shippingCost, checkoutConfig, null)
@@ -726,6 +801,7 @@ export function PageCheckout({
           }
         : undefined,
       saveAddressToAccount: loggedIn ? saveAddressToAccount : undefined,
+      customerNote: customerNote.trim() || undefined,
       totals: {
         subtotal: totals.subtotal,
         shippingCost: totals.shippingCost,
@@ -1228,8 +1304,8 @@ export function PageCheckout({
                   <h2 className="font-bold">Versandart</h2>
                 </div>
                 <div className="space-y-3">
-                  {SHIPPING_OPTIONS.map((option) => {
-                    const selected = shippingMethod === option.id
+                  {shippingOptions.map((option) => {
+                    const selected = selectedShippingId === option.id
                     const priceLabel =
                       option.price === 0
                         ? "Gratis"
@@ -1249,7 +1325,10 @@ export function PageCheckout({
                             type="radio"
                             name="shipping"
                             checked={selected}
-                            onChange={() => setShippingMethod(option.id)}
+                            onChange={() => {
+                              setSelectedShippingId(option.id)
+                              setShippingMethod(option.methodId as ShippingMethodId)
+                            }}
                             className="h-4 w-4 accent-primary"
                           />
                           <span className="text-sm font-medium">
@@ -1425,6 +1504,21 @@ export function PageCheckout({
                     )}
                   </div>
                 )}
+              </CardContent>
+            </Card>
+
+            <Card className="rounded-2xl border-border/50 bg-card/50">
+              <CardContent className="space-y-3 p-6">
+                <Label htmlFor="checkout-customer-note" className="font-bold">
+                  Bestellhinweis / Nachricht an DripForge
+                </Label>
+                <Textarea
+                  id="checkout-customer-note"
+                  value={customerNote}
+                  onChange={(e) => setCustomerNote(e.target.value)}
+                  placeholder="Optionale Hinweise zur Bestellung…"
+                  className="min-h-24 resize-y bg-background/80"
+                />
               </CardContent>
             </Card>
           </div>

@@ -978,9 +978,13 @@ export function AdminProductsTab() {
                 />
               </ProductEditAccordion>
 
-              {form.type === "3d" && (
+              {(form.type === "3d" || form.type === "laser") && (
                 <ProductEditAccordion
-                  title="Feste Masse"
+                  title={
+                    form.type === "laser"
+                      ? "Masse & Gewicht (Versand)"
+                      : "Feste Masse"
+                  }
                   open={Boolean(openSections.dimensions)}
                   onToggle={() => toggleSection("dimensions")}
                 >
@@ -1017,15 +1021,82 @@ export function AdminProductsTab() {
                         className={adminUi.input}
                       />
                     </div>
-                    <div className="space-y-1.5">
-                      <Label className={cn("text-xs", adminUi.labelMuted)}>Volumen (cm³)</Label>
-                      <Input
-                        type="number"
-                        step="0.1"
-                        value={form.volumen ?? 0}
-                        onChange={(e) =>
-                          updateField("volumen", Number(e.target.value))
+                    {form.type === "3d" ? (
+                      <div className="space-y-1.5">
+                        <Label className={cn("text-xs", adminUi.labelMuted)}>Volumen (cm³)</Label>
+                        <Input
+                          type="number"
+                          step="0.1"
+                          value={form.volumen ?? 0}
+                          onChange={(e) =>
+                            updateField("volumen", Number(e.target.value))
+                          }
+                          className={adminUi.input}
+                        />
+                      </div>
+                    ) : (
+                      <p className={cn("text-xs sm:pt-6", adminUi.muted)}>
+                        Masse und Gewicht steuern die dynamische Versandberechnung
+                        im Checkout.
+                      </p>
+                    )}
+                  </div>
+                </ProductEditAccordion>
+              )}
+
+              {form.type === "3d" && (
+                <ProductEditAccordion
+                  title="Farben & Mehrteiligkeit"
+                  open={Boolean(openSections.colors)}
+                  onToggle={() => toggleSection("colors")}
+                >
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <Label className={adminUi.label}>Mehrfarbig / mehrteilig</Label>
+                        <p className={cn("text-xs", adminUi.muted)}>
+                          Kunde kann einzelnen Teilen Filamentfarben zuweisen.
+                        </p>
+                      </div>
+                      <Switch
+                        checked={Boolean(form.multiColorEnabled)}
+                        onCheckedChange={(checked) =>
+                          updateField("multiColorEnabled", checked)
                         }
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className={cn("text-xs", adminUi.labelMuted)}>
+                        Standard-Farbe (Name)
+                      </Label>
+                      <Input
+                        value={form.defaultFilamentColorName ?? ""}
+                        onChange={(e) =>
+                          updateField(
+                            "defaultFilamentColorName",
+                            e.target.value.trim() || null
+                          )
+                        }
+                        placeholder="z. B. Ash Gray"
+                        className={adminUi.input}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className={cn("text-xs", adminUi.labelMuted)}>
+                        Teil-Bezeichnungen (kommagetrennt)
+                      </Label>
+                      <Input
+                        value={(form.partLabels ?? []).join(", ")}
+                        onChange={(e) =>
+                          updateField(
+                            "partLabels",
+                            e.target.value
+                              .split(",")
+                              .map((s) => s.trim())
+                              .filter(Boolean)
+                          )
+                        }
+                        placeholder="z. B. Basis, Deckel, Einsatz"
                         className={adminUi.input}
                       />
                     </div>
