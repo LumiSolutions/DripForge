@@ -1,4 +1,5 @@
 import * as THREE from "three"
+import { alignObjectFlatOnBed } from "@/lib/dripforge/align-model-flat"
 
 export type PreparedSceneSize = {
   x: number
@@ -13,10 +14,30 @@ export type PreparedGltfScene = {
   sizeAt100: PreparedSceneSize
 }
 
-/** Zentrieren, auf Viewport-Grösse skalieren, Unterkante auf Y = 0 */
-export function prepareGltfScene(source: THREE.Object3D): PreparedGltfScene {
+export type PrepareGltfSceneOptions = {
+  /** STL/CAD flach aufs virtuelle Druckbett ausrichten (Default: true) */
+  autoAlignFlat?: boolean
+  /** Zusätzliche X-Kippung in 90°-Schritten (0–3) */
+  tipSteps?: number
+}
+
+/** Zentrieren, optional flach ausrichten, auf Viewport-Grösse skalieren, Unterkante auf Y = 0 */
+export function prepareGltfScene(
+  source: THREE.Object3D,
+  options?: PrepareGltfSceneOptions
+): PreparedGltfScene {
   const scene = source.clone(true)
   scene.updateMatrixWorld(true)
+
+  if (options?.autoAlignFlat !== false) {
+    alignObjectFlatOnBed(scene)
+  }
+
+  const tipSteps = Math.max(0, Math.round(options?.tipSteps ?? 0)) % 4
+  if (tipSteps > 0) {
+    scene.rotation.x += tipSteps * (Math.PI / 2)
+    scene.updateMatrixWorld(true)
+  }
 
   const box = new THREE.Box3().setFromObject(scene)
   const center = box.getCenter(new THREE.Vector3())

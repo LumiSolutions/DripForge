@@ -109,6 +109,7 @@ import { normalizeShopProduct } from "@/lib/dripforge/normalize-shop-product"
 import { productHref } from "@/lib/dripforge/product-slug"
 import { SHOP_ROUTES } from "@/lib/dripforge/shop-routes"
 import { ProductDetailErrorBoundary } from "@/components/dripforge/product-detail-error-boundary"
+import { HomeTopProductsSection } from "@/components/dripforge/views/home-top-products-section"
 import { SiteText } from "@/components/dripforge/editable-site-text"
 import { SiteTextPhrase } from "@/components/dripforge/site-text-phrase"
 import { useSiteTexts } from "@/components/dripforge/site-texts-provider"
@@ -216,6 +217,15 @@ export function PageShop({
   const [extraVariants, setExtraVariants] = useState<
     Array<{ colorName: string; colorHex: string; filament: string; quantity: number }>
   >([])
+  /**
+   * Nach «Variante hinzufügen» ist die aktuelle Farbe bereits in der Liste —
+   * nicht nochmals zur Mengenrabatt-Stückzahl zählen (Off-by-one).
+   */
+  const [activeVariantCommitted, setActiveVariantCommitted] = useState(false)
+  /** Mehrteilig: Detail-Farbauswahl erst bei «Andere Farben». */
+  const [multiColorMode, setMultiColorMode] = useState<"standard" | "custom">(
+    "standard"
+  )
   const [selectedShopVariantId, setSelectedShopVariantId] = useState<string | null>(
     null
   )
@@ -366,6 +376,8 @@ export function PageShop({
     setQuantity(1)
     setCustomerRemarks("")
     setExtraVariants([])
+    setActiveVariantCommitted(false)
+    setMultiColorMode("standard")
     setMultiColorSelection(null)
     const preferred = pickDefaultFilamentSelection(filamentMaterials, {
       colorId: normalized.defaultFilamentColorId,
@@ -443,7 +455,8 @@ export function PageShop({
     const remarksTrimmed = customerRemarks.trim()
 
     if (selectedProduct.type === "3d") {
-      const useMultiColor = isMultiColorProduct(selectedProduct)
+      const useMultiColor =
+        isMultiColorProduct(selectedProduct) && multiColorMode === "custom"
       if (useMultiColor) {
         if (!multiColorSelection?.colors.length) return
         if (!multiColorSelection.colors.every((c) => c.inStock)) return
@@ -530,25 +543,28 @@ export function PageShop({
           })
         } else {
           const selection = effectiveFilamentSelection!
-          addToCart({
-            id: `${selectedProduct.id}-${Date.now()}`,
-            productId: selectedProduct.id,
-            name: selectedProduct.name,
-            price: baseUnitPrice,
-            quantity,
-            type: "3d",
-            leitbild,
-            ...tierFields,
-            customDetails: {
-              filament: selection.materialName,
-              color: selection.colorName,
-              variant: activeShopVariant?.name,
-              dimensions: dimensionsText,
-              weightG,
-              ...(remarksTrimmed ? { customerRemarks: remarksTrimmed } : {}),
-              ...fileFields,
-            },
-          })
+          // Aktive Farbe nur hinzufügen, wenn sie noch nicht als Variante committed ist
+          if (!activeVariantCommitted || extraVariants.length === 0) {
+            addToCart({
+              id: `${selectedProduct.id}-${Date.now()}`,
+              productId: selectedProduct.id,
+              name: selectedProduct.name,
+              price: baseUnitPrice,
+              quantity,
+              type: "3d",
+              leitbild,
+              ...tierFields,
+              customDetails: {
+                filament: selection.materialName,
+                color: selection.colorName,
+                variant: activeShopVariant?.name,
+                dimensions: dimensionsText,
+                weightG,
+                ...(remarksTrimmed ? { customerRemarks: remarksTrimmed } : {}),
+                ...fileFields,
+              },
+            })
+          }
 
           for (const extra of extraVariants) {
             addToCart({
@@ -572,6 +588,7 @@ export function PageShop({
             })
           }
           setExtraVariants([])
+          setActiveVariantCommitted(false)
         }
         setCartAddedOpen(true)
       } finally {
@@ -695,7 +712,7 @@ export function PageShop({
     Boolean(selectedProduct) &&
     (selectedProduct?.type === "3d"
       ? !filamentsLoading &&
-        (isMultiColorProduct(selectedProduct!)
+        (isMultiColorProduct(selectedProduct!) && multiColorMode === "custom"
           ? Boolean(multiColorSelection?.colors.length) &&
             Boolean(multiColorSelection?.colors.every((c) => c.inStock))
           : Boolean(effectiveFilamentSelection?.inStock)) &&
@@ -721,10 +738,16 @@ export function PageShop({
     const quantityDiscountTiers = normalizeQuantityDiscountTiers(
       detailProduct.quantityDiscountTiers
     )
-    const extraVariantQty = isMultiColorProduct(detailProduct)
+    const showMultiColorPicker =
+      isMultiColorProduct(detailProduct) && multiColorMode === "custom"
+    const extraVariantQty = showMultiColorPicker
       ? 0
       : extraVariants.reduce((sum, e) => sum + e.quantity, 0)
-    const pricingQty = quantity + extraVariantQty
+    const activeQtyForPricing =
+      !showMultiColorPicker && activeVariantCommitted && extraVariants.length > 0
+        ? 0
+        : quantity
+    const pricingQty = activeQtyForPricing + extraVariantQty
     const qtyDiscount = applyQuantityDiscountToUnitPrice(
       baseUnitPrice,
       quantityDiscountTiers,
@@ -794,6 +817,7 @@ export function PageShop({
     const shopProductVarianten = resolveProductVarianten(detailProduct)
 
     return (
+      <>
       <ProductDetailErrorBoundary onReset={closeProduct}>
       <div className="space-y-10 pb-12 md:pb-24">
         <Dialog open={cartAddedOpen} onOpenChange={setCartAddedOpen}>
@@ -1172,6 +1196,20 @@ export function PageShop({
                                     : "—"}
                                 </dd>
                               </div>
+                              {detailProduct.printTimeMinutes != null &&
+                                detailProduct.printTimeMinutes > 0 && (
+                                  <div className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
+                                    <dt className="text-muted-foreground">
+                                      Druckzeit
+                                    </dt>
+                                    <dd className="font-mono font-semibold tabular-nums">
+                                      {Math.floor(detailProduct.printTimeMinutes / 60) >
+                                      0
+                                        ? `${Math.floor(detailProduct.printTimeMinutes / 60)} h ${detailProduct.printTimeMinutes % 60} min`
+                                        : `${detailProduct.printTimeMinutes} min`}
+                                    </dd>
+                                  </div>
+                                )}
                               <div className="flex items-center justify-between gap-4 bg-background/60 px-4 py-3 text-sm">
                                 <dt className="font-medium">Gesamt</dt>
                                 <dd className="font-mono text-base font-bold tabular-nums text-primary">
@@ -1190,7 +1228,7 @@ export function PageShop({
                               key={`${detailProduct.id}-${productModelUrl}-d`}
                               modelUrl={productModelUrl}
                               color={
-                                isMultiColorProduct(detailProduct)
+                                showMultiColorPicker
                                   ? multiColorSelection?.colors.find(
                                       (c) =>
                                         c.slot === multiColorSelection.primarySlot
@@ -1216,7 +1254,7 @@ export function PageShop({
                             key={`${detailProduct.id}-${productModelUrl}-m`}
                             modelUrl={productModelUrl}
                             color={
-                              isMultiColorProduct(detailProduct)
+                              showMultiColorPicker
                                 ? multiColorSelection?.colors.find(
                                     (c) =>
                                       c.slot === multiColorSelection.primarySlot
@@ -1225,7 +1263,7 @@ export function PageShop({
                                   "#1a1a1a"
                                 : effectiveFilamentSelection?.colorHex?.trim() ||
                                   "#1a1a1a"
-                            }
+                              }
                             fixedDimensionsMm={productDimensionsToViewerMm(
                               productDimensions
                             )}
@@ -1235,7 +1273,48 @@ export function PageShop({
 
                       <div className="order-3 flex min-w-0 flex-col gap-6 md:order-2 lg:h-full">
                         {shopVariantPicker}
-                        {isMultiColorProduct(detailProduct) ? (
+                        {isMultiColorProduct(detailProduct) && (
+                          <div className="space-y-2">
+                            <p className="text-sm font-medium">Farbauswahl</p>
+                            <div className="inline-flex w-full rounded-xl bg-secondary p-1">
+                              <button
+                                type="button"
+                                className={cn(
+                                  "flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-all",
+                                  multiColorMode === "standard"
+                                    ? "bg-primary text-primary-foreground shadow"
+                                    : "text-muted-foreground hover:text-foreground"
+                                )}
+                                onClick={() => setMultiColorMode("standard")}
+                              >
+                                Standard
+                              </button>
+                              <button
+                                type="button"
+                                className={cn(
+                                  "flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-all",
+                                  multiColorMode === "custom"
+                                    ? "bg-primary text-primary-foreground shadow"
+                                    : "text-muted-foreground hover:text-foreground"
+                                )}
+                                onClick={() => setMultiColorMode("custom")}
+                              >
+                                Andere Farben
+                              </button>
+                            </div>
+                            {multiColorMode === "standard" &&
+                              detailProduct.defaultFilamentColorName && (
+                                <p className="text-xs text-muted-foreground">
+                                  Standardfarbe:{" "}
+                                  {detailProduct.defaultFilamentColorName}
+                                  {(detailProduct.partLabels?.length ?? 0) > 0
+                                    ? ` · Teile: ${detailProduct.partLabels!.join(", ")}`
+                                    : ""}
+                                </p>
+                              )}
+                          </div>
+                        )}
+                        {showMultiColorPicker ? (
                           <FilamentMultiColorPicker
                             materials={filamentMaterials}
                             activeTab={filamentTab}
@@ -1253,7 +1332,10 @@ export function PageShop({
                               materials={filamentMaterials}
                               activeTab={filamentTab}
                               onTabChange={setFilamentTab}
-                              onSelectionChange={setFilamentSelection}
+                              onSelectionChange={(sel) => {
+                                setFilamentSelection(sel)
+                                setActiveVariantCommitted(false)
+                              }}
                               preferredColorId={detailProduct.defaultFilamentColorId}
                               preferredColorName={
                                 detailProduct.defaultFilamentColorName
@@ -1275,9 +1357,11 @@ export function PageShop({
                                         colorName: sel.colorName,
                                         colorHex: sel.colorHex,
                                         filament: sel.materialName,
-                                        quantity: 1,
+                                        quantity: Math.max(1, quantity),
                                       },
                                     ])
+                                    setQuantity(1)
+                                    setActiveVariantCommitted(true)
                                   }}
                                 >
                                   <Plus className="mr-2 h-4 w-4" />
@@ -1304,11 +1388,12 @@ export function PageShop({
                                           type="button"
                                           className="rounded p-1 text-muted-foreground hover:text-red-500"
                                           aria-label="Variante entfernen"
-                                          onClick={() =>
+                                          onClick={() => {
                                             setExtraVariants((prev) =>
                                               prev.filter((_, i) => i !== index)
                                             )
-                                          }
+                                            setActiveVariantCommitted(false)
+                                          }}
                                         >
                                           <X className="h-4 w-4" />
                                         </button>
@@ -1385,14 +1470,14 @@ export function PageShop({
                                 <div className="flex justify-between gap-3">
                                   <span className="text-muted-foreground">
                                     Material (
-                                    {isMultiColorProduct(detailProduct)
+                                    {showMultiColorPicker
                                       ? multiColorSelection?.materialName ?? "PLA"
                                       : effectiveFilamentSelection?.materialName ??
                                         "PLA"}
                                     )
                                   </span>
                                   <span className="max-w-[55%] text-right font-medium">
-                                    {isMultiColorProduct(detailProduct)
+                                    {showMultiColorPicker
                                       ? multiColorSelection?.colors
                                           .map((c) => c.colorName)
                                           .join(", ") || "—"
@@ -1416,9 +1501,10 @@ export function PageShop({
                                   <Button
                                     size="sm"
                                     variant="outline"
-                                    onClick={() =>
+                                    onClick={() => {
+                                      setActiveVariantCommitted(false)
                                       setQuantity(Math.max(1, quantity - 1))
-                                    }
+                                    }}
                                     aria-label="Anzahl verringern"
                                   >
                                     <Minus className="h-4 w-4" />
@@ -1429,7 +1515,10 @@ export function PageShop({
                                   <Button
                                     size="sm"
                                     variant="outline"
-                                    onClick={() => setQuantity(quantity + 1)}
+                                    onClick={() => {
+                                      setActiveVariantCommitted(false)
+                                      setQuantity(quantity + 1)
+                                    }}
                                     aria-label="Anzahl erhöhen"
                                   >
                                     <Plus className="h-4 w-4" />
@@ -1477,14 +1566,14 @@ export function PageShop({
                               ? "Wird hinzugefügt…"
                               : "In den Warenkorb"}
                           </Button>
-                          {!isMultiColorProduct(detailProduct) &&
+                          {!showMultiColorPicker &&
                             effectiveFilamentSelection &&
                             !effectiveFilamentSelection.inStock && (
                               <p className="text-center text-sm text-red-500">
                                 Gewaehlte Farbe ist derzeit nicht auf Lager.
                               </p>
                             )}
-                          {isMultiColorProduct(detailProduct) &&
+                          {showMultiColorPicker &&
                             multiColorSelection &&
                             !multiColorSelection.colors.every((c) => c.inStock) && (
                               <p className="text-center text-sm text-red-500">
@@ -1510,6 +1599,8 @@ export function PageShop({
         </div>
       </div>
       </ProductDetailErrorBoundary>
+      <HomeTopProductsSection />
+      </>
     )
   }
 
@@ -1731,7 +1822,7 @@ export function PageShop({
         ) : (
           <div
             className={cn(
-              "gap-6",
+              "items-stretch gap-6",
               viewMode === "list" && "grid grid-cols-1",
               viewMode === "grid3" &&
                 "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3",

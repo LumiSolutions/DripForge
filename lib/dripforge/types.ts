@@ -100,6 +100,8 @@ export type Product = {
    * Greift produktübergreifend über Farben/Varianten derselben productId.
    */
   quantityDiscountTiers?: import("@/lib/dripforge/quantity-discount-tiers").QuantityDiscountTier[]
+  /** Optionale Gesamte Druckzeit in Minuten (Admin; Anzeige Shop/Admin). */
+  printTimeMinutes?: number
 }
 
 export type ProductShopVariant = {
