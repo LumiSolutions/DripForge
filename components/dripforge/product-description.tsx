@@ -20,12 +20,13 @@ export function ProductDescription({
   return (
     <div
       className={cn(
-        "product-description text-sm leading-relaxed text-muted-foreground sm:text-base",
+        "product-description text-sm leading-relaxed text-foreground/85 sm:text-base",
         "[&_p]:mb-3 [&_p:last-child]:mb-0",
         "[&_strong]:font-semibold [&_strong]:text-foreground",
         "[&_b]:font-semibold [&_b]:text-foreground",
         "[&_em]:italic [&_i]:italic",
         "[&_u]:underline",
+        "[&_.df-text-highlight]:font-bold",
         className
       )}
       dangerouslySetInnerHTML={{ __html: safe }}

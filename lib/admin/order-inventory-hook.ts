@@ -6,6 +6,7 @@ import {
 import { getOrderById, saveOrder } from "@/lib/admin/db"
 import type { OrderStatus, StoredOrder } from "@/lib/admin/types"
 import { reverseLoyaltyPointsForStoredOrder } from "@/lib/shop/loyalty-order-reversal"
+import { recordOrderStornoJournalEntry } from "@/lib/accounting/order-journal"
 
 export async function applyInventoryReservationForOrder(
   order: StoredOrder
@@ -70,6 +71,14 @@ export async function updateOrderStatusWithInventory(
     await saveOrder(next)
     if (order.status !== "storniert") {
       await reverseLoyaltyPointsForStoredOrder(next)
+      try {
+        await recordOrderStornoJournalEntry(next)
+      } catch (error) {
+        console.warn(
+          `Buchhaltung: Storno-Buchung fehlgeschlagen (${orderId}).`,
+          error
+        )
+      }
     }
     return next
   }
@@ -78,6 +87,14 @@ export async function updateOrderStatusWithInventory(
   await saveOrder(next)
   if (status === "storniert" && order.status !== "storniert") {
     await reverseLoyaltyPointsForStoredOrder(next)
+    try {
+      await recordOrderStornoJournalEntry(next)
+    } catch (error) {
+      console.warn(
+        `Buchhaltung: Storno-Buchung fehlgeschlagen (${orderId}).`,
+        error
+      )
+    }
   }
   return next
 }

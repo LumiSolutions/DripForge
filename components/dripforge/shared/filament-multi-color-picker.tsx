@@ -68,7 +68,44 @@ type FilamentMultiColorPickerProps = {
   activeTab: string
   onTabChange: (id: string) => void
   onSelectionChange?: (selection: FilamentMultiColorSelection) => void
+  /** Teil-Bezeichnungen aus dem Admin (z. B. Rücken, Körper, Pfoten) */
+  slotLabels?: string[]
   className?: string
+  /** Wenn true: keine «Farbe hinzufügen»-Slots über die Labels hinaus */
+  lockSlotCountToLabels?: boolean
+}
+
+function buildInitialSlotIds(
+  materials: FilamentMaterial[],
+  labelCount: number
+): Record<string, number[]> {
+  const count = Math.max(1, labelCount)
+  const ids = Array.from({ length: count }, (_, i) => i + 1)
+  return Object.fromEntries(materials.map((m) => [m.id, [...ids]]))
+}
+
+function buildInitialSlots(
+  materials: FilamentMaterial[],
+  labelCount: number
+): Record<string, MultiColorSlot[]> {
+  const count = Math.max(1, labelCount)
+  const initial: Record<string, MultiColorSlot[]> = {}
+  for (const material of materials) {
+    const defaultColor =
+      material.colors.find((c) => c.inStock) ?? material.colors[0]
+    if (!defaultColor) {
+      initial[material.id] = []
+      continue
+    }
+    initial[material.id] = Array.from({ length: count }, (_, i) => ({
+      slot: i + 1,
+      colorId: defaultColor.id,
+      colorName: defaultColor.name,
+      colorHex: defaultColor.hex,
+      inStock: defaultColor.inStock,
+    }))
+  }
+  return initial
 }
 
 export function FilamentMultiColorPicker({
@@ -76,34 +113,65 @@ export function FilamentMultiColorPicker({
   activeTab,
   onTabChange,
   onSelectionChange,
+  slotLabels = [],
   className,
+  lockSlotCountToLabels = false,
 }: FilamentMultiColorPickerProps) {
+  const labelCount = slotLabels.filter((l) => l.trim()).length
   const [activeSlot, setActiveSlot] = useState(1)
   const [primarySlot, setPrimarySlot] = useState(1)
   const [slotIds, setSlotIds] = useState<Record<string, number[]>>(() =>
-    Object.fromEntries(materials.map((m) => [m.id, [1]]))
+    buildInitialSlotIds(materials, labelCount)
   )
-  const [slots, setSlots] = useState<Record<string, MultiColorSlot[]>>(() => {
-    const initial: Record<string, MultiColorSlot[]> = {}
-    for (const material of materials) {
-      const defaultColor =
-        material.colors.find((c) => c.inStock) ?? material.colors[0]
-      if (defaultColor) {
-        initial[material.id] = [
-          {
-            slot: 1,
+  const [slots, setSlots] = useState<Record<string, MultiColorSlot[]>>(() =>
+    buildInitialSlots(materials, labelCount)
+  )
+
+  // Wenn Admin Teil-Labels setzt/ändert: Slots anpassen (ohne bestehende Farben zu verwerfen)
+  useEffect(() => {
+    if (labelCount <= 0) return
+    setSlotIds((prev) => {
+      const next = { ...prev }
+      for (const material of materials) {
+        const current = next[material.id] ?? [1]
+        if (current.length < labelCount) {
+          const extras = Array.from(
+            { length: labelCount - current.length },
+            (_, i) => (current[current.length - 1] ?? 0) + i + 1
+          )
+          next[material.id] = [...current, ...extras]
+        } else if (lockSlotCountToLabels && current.length > labelCount) {
+          next[material.id] = current.slice(0, labelCount)
+        }
+      }
+      return next
+    })
+    setSlots((prev) => {
+      const next = { ...prev }
+      for (const material of materials) {
+        const defaultColor =
+          material.colors.find((c) => c.inStock) ?? material.colors[0]
+        if (!defaultColor) continue
+        const list = [...(next[material.id] ?? [])]
+        while (list.length < labelCount) {
+          const slot = list.length + 1
+          list.push({
+            slot,
             colorId: defaultColor.id,
             colorName: defaultColor.name,
             colorHex: defaultColor.hex,
             inStock: defaultColor.inStock,
-          },
-        ]
-      } else {
-        initial[material.id] = []
+          })
+        }
+        if (lockSlotCountToLabels && list.length > labelCount) {
+          next[material.id] = list.slice(0, labelCount)
+        } else {
+          next[material.id] = list
+        }
       }
-    }
-    return initial
-  })
+      return next
+    })
+  }, [labelCount, lockSlotCountToLabels, materials])
 
   const currentMaterial = materials.find((m) => m.id === activeTab)
   const currentSlots = slots[activeTab] ?? []
@@ -188,8 +256,9 @@ export function FilamentMultiColorPicker({
   return (
     <div className={cn("space-y-5", className)}>
       <p className="text-sm text-muted-foreground">
-        Waehle beliebig viele AMS-Farben. Klicke «Farbe N», dann eine Kachel —
-        Stern markiert die Primaerfarbe.
+        {labelCount > 0
+          ? "Weise jedem Teil eine Filamentfarbe zu. Stern markiert die Primaerfarbe."
+          : "Waehle beliebig viele AMS-Farben. Klicke «Farbe N», dann eine Kachel — Stern markiert die Primaerfarbe."}
       </p>
 
       <div className="flex justify-center">
@@ -242,7 +311,9 @@ export function FilamentMultiColorPicker({
                     backgroundColor: entry?.colorHex ?? "transparent",
                   }}
                 />
-                <span>Farbe {slotNum}</span>
+                <span>
+                  {slotLabels[slotNum - 1]?.trim() || `Farbe ${slotNum}`}
+                </span>
               </button>
               {entry && (
                 <>
@@ -256,18 +327,19 @@ export function FilamentMultiColorPicker({
                         : "text-muted-foreground hover:text-amber-500"
                     )}
                     title="Als Primaerfarbe setzen"
-                    aria-label={`Farbe ${slotNum} als Primaerfarbe`}
+                    aria-label={`${slotLabels[slotNum - 1]?.trim() || `Farbe ${slotNum}`} als Primaerfarbe`}
                   >
                     <Star
                       className={cn("h-3.5 w-3.5", isPrimary && "fill-current")}
                     />
                   </button>
-                  {currentSlotIds.length > 1 && (
+                  {currentSlotIds.length > 1 &&
+                    !(lockSlotCountToLabels && labelCount > 0) && (
                     <button
                       type="button"
                       onClick={() => removeSlot(slotNum)}
                       className="rounded p-1 text-muted-foreground hover:text-red-500"
-                      aria-label={`Farbe ${slotNum} entfernen`}
+                      aria-label={`${slotLabels[slotNum - 1]?.trim() || `Farbe ${slotNum}`} entfernen`}
                     >
                       <X className="h-3.5 w-3.5" />
                     </button>
@@ -277,16 +349,18 @@ export function FilamentMultiColorPicker({
             </div>
           )
         })}
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={addColorSlot}
-          className="ml-auto h-8 gap-1 text-xs"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          Farbe hinzufuegen
-        </Button>
+        {!(lockSlotCountToLabels && labelCount > 0) && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={addColorSlot}
+            className="ml-auto h-8 gap-1 text-xs"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Farbe hinzufuegen
+          </Button>
+        )}
         {primaryColor && (
           <span className="w-full text-xs text-muted-foreground sm:w-auto sm:ml-0">
             Primaer: {primaryColor.colorName}

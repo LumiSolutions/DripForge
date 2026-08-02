@@ -200,3 +200,83 @@ export async function recordOrderPaymentJournalEntry(
 
   return { recorded: true, entryId: entry.id }
 }
+
+/** Idempotente Source-ID für automatische Storno-/Gegenbuchungen. */
+export function orderStornoSourceId(orderId: string): string {
+  return `${orderId.trim()}:storno`
+}
+
+export function buildOrderStornoJournalLines(order: StoredOrder): JournalLine[] {
+  const paymentLines = buildOrderPaymentJournalLines(order)
+  return paymentLines.map((line) => ({
+    ...line,
+    type: line.type === "SOLL" ? ("HABEN" as const) : ("SOLL" as const),
+  }))
+}
+
+/**
+ * Gegenbuchung zur automatischen Verkaufsbuchung bei Storno/Löschung.
+ * Nur wenn eine Zahlungsbuchung existiert; idempotent via `:storno`-Source.
+ */
+export async function recordOrderStornoJournalEntry(
+  order: StoredOrder,
+  options?: { bookingDate?: string }
+): Promise<{ recorded: boolean; entryId?: string; reason?: string }> {
+  const orderId = order.orderId?.trim()
+  if (!orderId) {
+    return { recorded: false, reason: "missing_order_id" }
+  }
+
+  const stornoSourceId = orderStornoSourceId(orderId)
+  const existingStorno =
+    await cosmosGetJournalEntryBySourceOrderId(stornoSourceId)
+  if (existingStorno) {
+    return {
+      recorded: false,
+      reason: "already_recorded",
+      entryId: existingStorno.id,
+    }
+  }
+
+  const paymentEntry = await cosmosGetJournalEntryBySourceOrderId(orderId)
+  if (!paymentEntry) {
+    // Keine Verkaufsbuchung → nichts zu stornieren (z. B. nie bezahlt)
+    return { recorded: false, reason: "no_payment_entry" }
+  }
+
+  const lines = paymentEntry.lines.length
+    ? paymentEntry.lines.map((line) => ({
+        accountNumber: line.accountNumber,
+        type: (line.type === "SOLL" ? "HABEN" : "SOLL") as JournalLine["type"],
+        amount: roundChf(line.amount),
+        taxRate: Number(line.taxRate) || 0,
+        ...(line.taxCode ? { taxCode: line.taxCode } : {}),
+      }))
+    : buildOrderStornoJournalLines(order)
+
+  if (!lines.length) {
+    return { recorded: false, reason: "empty_lines" }
+  }
+
+  const validation = validateJournalEntryLines(lines)
+  if (!validation.valid) {
+    console.error(
+      `Buchhaltung: Storno-Buchung für ${orderId} ungültig: ${validation.error}`
+    )
+    return { recorded: false, reason: "invalid_lines" }
+  }
+
+  const bookingDate =
+    options?.bookingDate?.slice(0, 10) ||
+    new Date().toISOString().slice(0, 10)
+
+  const entry = await cosmosCreateJournalEntry({
+    date: bookingDate,
+    description: `Storno Bestellung ${orderId}`,
+    lines,
+    source: "order",
+    sourceOrderId: stornoSourceId,
+  })
+
+  return { recorded: true, entryId: entry.id }
+}

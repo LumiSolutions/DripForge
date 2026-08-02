@@ -95,6 +95,11 @@ export type Product = {
   multiColorEnabled?: boolean
   /** Beschriftung der Teile (z. B. «Teil 1», «Teil 2») */
   partLabels?: string[]
+  /**
+   * Staffelpreise / Mengenrabatte (ab X Stück → Y % auf Stückpreis).
+   * Greift produktübergreifend über Farben/Varianten derselben productId.
+   */
+  quantityDiscountTiers?: import("@/lib/dripforge/quantity-discount-tiers").QuantityDiscountTier[]
 }
 
 export type ProductShopVariant = {
@@ -193,6 +198,15 @@ export interface CartItem {
   name: string
   price: number
   quantity: number
+  /**
+   * Stabile Produkt-ID (ohne Timestamp) — für Mengenrabatt über Varianten/Farben.
+   * `id` bleibt die Warenkorbzeilen-ID.
+   */
+  productId?: string
+  /** Stückpreis vor Mengenrabatt (für Neuberechnung bei Mengenänderung). */
+  baseUnitPrice?: number
+  /** Kopierte Staffeln vom Produkt (optional, Merge-sicher). */
+  quantityDiscountTiers?: import("@/lib/dripforge/quantity-discount-tiers").QuantityDiscountTier[]
   /** Mengeneinheit für Belege/PDF (z. B. Stk, Std) — optional. */
   unit?: string
   /**

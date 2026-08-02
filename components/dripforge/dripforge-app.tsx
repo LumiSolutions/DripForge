@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils"
 import { ShopHeader } from "@/components/dripforge/shop-header"
 import type { CartItem, Product } from "@/lib/dripforge/types"
 import { normalizeShopProduct } from "@/lib/dripforge/normalize-shop-product"
+import { applyQuantityDiscountsToCartItems } from "@/lib/dripforge/quantity-discount-tiers"
 import type {
   ServiceVisibilitySettings,
   ShopConfiguratorSettings,
@@ -148,7 +149,9 @@ export default function DripForgeApp() {
   }, [currentView, pendingProductId])
 
   const addToCart = (item: CartItem) => {
-    setCart(prev => [...prev, item])
+    setCart((prev) =>
+      applyQuantityDiscountsToCartItems([...prev, item])
+    )
   }
   
   const [chatMessages, setChatMessages] = useState([

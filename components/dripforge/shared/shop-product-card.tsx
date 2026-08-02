@@ -11,6 +11,7 @@ import {
   productImageShapeClass,
   type Product,
 } from "@/lib/dripforge/types"
+import { productDescriptionPreview } from "@/lib/dripforge/product-description-html"
 import { cn } from "@/lib/utils"
 
 export type ShopCardSurface = "brand" | "neutral"
@@ -145,7 +146,7 @@ export function ShopProductCard({
               {product.name}
             </h3>
             <p className="mt-1.5 line-clamp-2 text-sm leading-relaxed text-muted-foreground">
-              {product.description}
+              {productDescriptionPreview(product.description, 120)}
             </p>
           </div>
           <div className="flex shrink-0 items-center justify-between gap-4 sm:flex-col sm:items-end">
@@ -237,7 +238,7 @@ export function ShopProductCard({
           {product.name}
         </h3>
         <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground sm:text-sm">
-          {product.description}
+          {productDescriptionPreview(product.description, 100)}
         </p>
         <div className="mt-auto flex items-center justify-between gap-2 pt-2">
           <ProductShopPrice product={product} />
