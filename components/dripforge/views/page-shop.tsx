@@ -209,6 +209,15 @@ export function PageShop({
   const [cartCapturing, setCartCapturing] = useState(false)
   const product3dCanvasRef = useRef<HTMLCanvasElement>(null)
   const laserPreviewRef = useRef<HTMLDivElement>(null)
+  /** Ein Viewer-Mount (Ref) — Mobile vs. Desktop-Platzierung */
+  const [isMdUp, setIsMdUp] = useState(false)
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 768px)")
+    const sync = () => setIsMdUp(mq.matches)
+    sync()
+    mq.addEventListener("change", sync)
+    return () => mq.removeEventListener("change", sync)
+  }, [])
   const [shopProducts, setShopProducts] = useState<Product[]>(staticProducts)
   const [productTags, setProductTags] = useState<ProductTag[]>([])
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([])
@@ -867,11 +876,11 @@ export function PageShop({
                     */}
                     <div className="grid grid-cols-1 items-start gap-8 md:grid-cols-2 md:gap-10 lg:items-stretch lg:gap-12">
                       {/* Mobile: Live-3D ganz oben */}
-                      {productModelUrl ? (
-                        <div className="order-1 min-w-0 md:hidden">
+                      {productModelUrl && !isMdUp ? (
+                        <div className="order-1 min-w-0">
                           <Product3DPreview
                             ref={product3dCanvasRef}
-                            key={`m-${detailProduct.id}-${productModelUrl}`}
+                            key={`${detailProduct.id}-${productModelUrl}-m`}
                             modelUrl={productModelUrl}
                             color={
                               effectiveFilamentSelection?.colorHex?.trim() ||
@@ -964,11 +973,11 @@ export function PageShop({
                         </Card>
 
                         {/* Desktop: 3D unter Beschreibung/Spezifikationen */}
-                        {productModelUrl ? (
-                          <div className="hidden min-w-0 md:block">
+                        {productModelUrl && isMdUp ? (
+                          <div className="min-w-0">
                             <Product3DPreview
                               ref={product3dCanvasRef}
-                              key={`d-${detailProduct.id}-${productModelUrl}`}
+                              key={`${detailProduct.id}-${productModelUrl}-d`}
                               modelUrl={productModelUrl}
                               color={
                                 effectiveFilamentSelection?.colorHex?.trim() ||
