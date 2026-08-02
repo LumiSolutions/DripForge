@@ -1,6 +1,6 @@
 "use client"
 
-import Link from "next/link"
+import { SafeLink } from "@/components/dripforge/safe-link"
 import { Heart } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -38,9 +38,8 @@ export function SupportMissionLink({
   const isMain = variant === "main"
 
   return (
-    <Link
+    <SafeLink
       href={SUPPORT_ROUTE}
-      prefetch
       onClick={onNavigate}
       title="Unsere Mission"
       aria-label="Unsere Mission unterstützen"
@@ -82,7 +81,7 @@ export function SupportMissionLink({
       <span className="pointer-events-none hidden whitespace-nowrap md:inline">
         Unsere Mission
       </span>
-    </Link>
+    </SafeLink>
   )
 }
 

@@ -1,6 +1,6 @@
 "use client"
 
-import Link from "next/link"
+import { SafeLink } from "@/components/dripforge/safe-link"
 import { Mail, MapPin, Phone, Printer, Zap } from "lucide-react"
 import {
   isShopNavVisible,
@@ -63,35 +63,35 @@ export function ShopFooter() {
             <ul className="space-y-2 text-sm text-muted-foreground">
               {services.druck3d && (
                 <li>
-                  <Link href={shopViewHref("3d-druck")} className="hover:text-primary">
+                  <SafeLink href={shopViewHref("3d-druck")} className="hover:text-primary">
                     3D-Druck
-                  </Link>
+                  </SafeLink>
                 </li>
               )}
               {(services.lasergravur ||
                 services.laserschnitt ||
                 services.markierungAetzung) && (
                 <li>
-                  <Link href={shopViewHref("laser")} className="hover:text-primary">
+                  <SafeLink href={shopViewHref("laser")} className="hover:text-primary">
                     Lasergravur
-                  </Link>
+                  </SafeLink>
                 </li>
               )}
               {isShopNavVisible(services) && (
                 <li>
-                  <Link href={shopViewHref("shop")} className="hover:text-primary">
+                  <SafeLink href={shopViewHref("shop")} className="hover:text-primary">
                     Shop
-                  </Link>
+                  </SafeLink>
                 </li>
               )}
               {services.druck3d && (
                 <li>
-                  <Link
+                  <SafeLink
                     href={shopViewHref("individual-3d")}
                     className="hover:text-primary"
                   >
                     Individueller 3D-Druck
-                  </Link>
+                  </SafeLink>
                 </li>
               )}
             </ul>
@@ -100,24 +100,24 @@ export function ShopFooter() {
             <h4 className="mb-4 font-semibold text-foreground"><SiteText k="footer_company_heading" /></h4>
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li>
-                <Link href="/kontakt" className="hover:text-primary">
+                <SafeLink href="/kontakt" className="hover:text-primary">
                   Kontakt
-                </Link>
+                </SafeLink>
               </li>
               <li>
-                <Link href="/faq" className="hover:text-primary">
+                <SafeLink href="/faq" className="hover:text-primary">
                   FAQ
-                </Link>
+                </SafeLink>
               </li>
               <li>
-                <Link href={shopViewHref("impressum")} className="hover:text-primary">
+                <SafeLink href={shopViewHref("impressum")} className="hover:text-primary">
                   Impressum
-                </Link>
+                </SafeLink>
               </li>
               <li>
-                <Link href="/agb" className="hover:text-primary">
+                <SafeLink href="/agb" className="hover:text-primary">
                   AGB
-                </Link>
+                </SafeLink>
               </li>
             </ul>
           </div>
@@ -157,12 +157,12 @@ export function ShopFooter() {
             © 2026 {company.firmenname || "DripForge"}. <SiteText k="footer_copyright_suffix" />
           </p>
           <div className="flex gap-6 text-sm text-muted-foreground">
-            <Link href="/datenschutz" className="hover:text-primary">
+            <SafeLink href="/datenschutz" className="hover:text-primary">
               Datenschutz
-            </Link>
-            <Link href="/agb" className="hover:text-primary">
+            </SafeLink>
+            <SafeLink href="/agb" className="hover:text-primary">
               AGB
-            </Link>
+            </SafeLink>
           </div>
         </div>
       </div>

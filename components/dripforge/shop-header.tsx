@@ -1,8 +1,10 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
+import { SafeLink } from "@/components/dripforge/safe-link"
+import { safeNavigate } from "@/lib/dripforge/safe-navigate"
+import { safeLocalGet, safeLocalSet } from "@/lib/dripforge/safe-storage"
 import {
   Box,
   Menu,
@@ -96,7 +98,7 @@ export function ShopHeader(props: ShopHeaderProps) {
   const kontoHref = kontoLoggedIn ? "/konto" : "/konto/login"
 
   useEffect(() => {
-    const savedTheme = localStorage.getItem("theme") as "light" | "dark" | null
+    const savedTheme = safeLocalGet("theme") as "light" | "dark" | null
     const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches
     const initialTheme = savedTheme || (prefersDark ? "dark" : "light")
     setTheme(initialTheme)
@@ -174,7 +176,7 @@ export function ShopHeader(props: ShopHeaderProps) {
     }
     setTheme((prev) => {
       const newTheme = prev === "dark" ? "light" : "dark"
-      localStorage.setItem("theme", newTheme)
+      safeLocalSet("theme", newTheme)
       return newTheme
     })
   }
@@ -259,13 +261,12 @@ export function ShopHeader(props: ShopHeaderProps) {
             {logo}
           </button>
         ) : (
-          <Link
+          <SafeLink
             href={withPreviewHref("/")}
-            prefetch
             className="relative z-20 flex min-w-0 shrink items-center gap-2 pr-1 sm:shrink-0 sm:pr-4"
           >
             {logo}
-          </Link>
+          </SafeLink>
         )}
 
         <nav className="hidden min-w-0 flex-1 items-center justify-center gap-0.5 md:flex">
@@ -287,15 +288,14 @@ export function ShopHeader(props: ShopHeaderProps) {
                   )
                 }
                 return (
-                  <Link
+                  <SafeLink
                     key={item.id}
                     href={href}
-                    prefetch
                     className={navLinkClass(isNavActive(item.id, href))}
                   >
                     <Icon className="h-4 w-4 shrink-0" />
                     <EditableCmsNavLabel navId={item.id} label={item.label} />
-                  </Link>
+                  </SafeLink>
                 )
               })
             : fallbackNavItems.map((item) =>
@@ -310,15 +310,14 @@ export function ShopHeader(props: ShopHeaderProps) {
                     {item.label}
                   </button>
                 ) : (
-                  <Link
+                  <SafeLink
                     key={item.id}
                     href={withPreviewHref(shopNavHref(item.id))}
-                    prefetch
                     className={navLinkClass(isNavActive(item.id))}
                   >
                     <item.icon className="h-4 w-4 shrink-0" />
                     {item.label}
-                  </Link>
+                  </SafeLink>
                 )
               )}
         </nav>
@@ -394,7 +393,9 @@ export function ShopHeader(props: ShopHeaderProps) {
                                 if (props.mode === "spa") {
                                   props.onNavigate("shop")
                                 } else {
-                                  router.push(productHref(p, catalogProducts))
+                                  safeNavigate(productHref(p, catalogProducts), {
+                                    routerPush: (to) => router.push(to),
+                                  })
                                 }
                                 setSearchOpen(false)
                                 setSearchQuery("")
@@ -438,15 +439,14 @@ export function ShopHeader(props: ShopHeaderProps) {
             </Button>
           ) : (
             <Button asChild className="hidden bg-primary text-primary-foreground hover:bg-primary/90 md:flex">
-              <Link href={shopNavHref("shop")} prefetch>
+              <SafeLink href={shopNavHref("shop")}>
                 Jetzt Erstellen
-              </Link>
+              </SafeLink>
             </Button>
           )}
 
-          <Link
+          <SafeLink
             href={kontoHref}
-            prefetch
             className={cn(
               "flex shrink-0 items-center gap-1.5 rounded-lg px-1 py-1.5 text-sm font-medium transition-colors sm:gap-2 sm:px-2",
               kontoActive || (props.mode === "spa" && kontoLoggedIn)
@@ -473,7 +473,7 @@ export function ShopHeader(props: ShopHeaderProps) {
               />
             </span>
             <span className="hidden lg:inline">Mein Konto</span>
-          </Link>
+          </SafeLink>
 
           {props.mode === "spa" ? (
             <button
@@ -490,9 +490,8 @@ export function ShopHeader(props: ShopHeaderProps) {
               )}
             </button>
           ) : (
-            <Link
+            <SafeLink
               href={shopCartHref()}
-              prefetch
               className={cn(HEADER_ICON_BTN_CLASS, "relative hover:text-primary")}
               title="Warenkorb"
             >
@@ -502,7 +501,7 @@ export function ShopHeader(props: ShopHeaderProps) {
                   {cartCount}
                 </span>
               )}
-            </Link>
+            </SafeLink>
           )}
 
           <button
@@ -543,10 +542,9 @@ export function ShopHeader(props: ShopHeaderProps) {
                     )
                   }
                   return (
-                    <Link
+                    <SafeLink
                       key={item.id}
                       href={href}
-                      prefetch
                       onClick={() => setMobileMenuOpen(false)}
                       className={cn(
                         "inline-flex min-h-11 items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors touch-manipulation",
@@ -557,7 +555,7 @@ export function ShopHeader(props: ShopHeaderProps) {
                     >
                       <Icon className="h-5 w-5" />
                       <EditableCmsNavLabel navId={item.id} label={item.label} />
-                    </Link>
+                    </SafeLink>
                   )
                 })
               : fallbackNavItems.map((item) =>
@@ -577,10 +575,9 @@ export function ShopHeader(props: ShopHeaderProps) {
                       {item.label}
                     </button>
                   ) : (
-                    <Link
+                    <SafeLink
                       key={item.id}
                       href={shopNavHref(item.id)}
-                      prefetch
                       onClick={() => setMobileMenuOpen(false)}
                       className={cn(
                         "inline-flex min-h-11 items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors touch-manipulation",
@@ -591,12 +588,11 @@ export function ShopHeader(props: ShopHeaderProps) {
                     >
                       <item.icon className="h-5 w-5" />
                       {item.label}
-                    </Link>
+                    </SafeLink>
                   )
                 )}
-            <Link
+            <SafeLink
               href={kontoHref}
-              prefetch
               onClick={() => setMobileMenuOpen(false)}
               className={cn(
                 "flex min-h-11 items-center gap-3 rounded-lg border border-primary/20 px-4 py-3 text-sm font-medium touch-manipulation",
@@ -607,7 +603,7 @@ export function ShopHeader(props: ShopHeaderProps) {
             >
               <User className="h-5 w-5" />
               Mein Konto
-            </Link>
+            </SafeLink>
           </nav>
         </div>
       )}

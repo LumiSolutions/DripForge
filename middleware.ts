@@ -33,6 +33,7 @@ type LaunchPayload = {
   hasPreviewAccess?: boolean
   showSupportOnMainSite?: boolean
   showSupportOnCountdownPage?: boolean
+  degraded?: boolean
 }
 
 function allowsShopAccess(data: LaunchPayload, hasPreviewCookie: boolean): boolean {
@@ -90,13 +91,34 @@ export async function middleware(request: NextRequest) {
       cache: "no-store",
     })
 
+    // Fail-open: API-Ausfall darf nicht wie „tote Links“ wirken
+    // (Incognito / Instagram In-App-Browser).
+    if (!res.ok) {
+      console.warn(
+        "Middleware: Launch-API nicht OK — fail-open für Storefront.",
+        res.status
+      )
+      return NextResponse.next()
+    }
+
     launchData = (await res.json().catch(() => ({}))) as LaunchPayload
+
+    if (launchData.degraded) {
+      console.warn(
+        "Middleware: Launch-Status degraded — fail-open für Storefront."
+      )
+      return NextResponse.next()
+    }
 
     if (allowsShopAccess(launchData, hasPreviewCookie)) {
       return NextResponse.next()
     }
   } catch (error) {
-    console.warn("Middleware: Launch-Status nicht verfügbar — Coming Soon aktiv.", error)
+    console.warn(
+      "Middleware: Launch-Status nicht verfügbar — fail-open für Storefront.",
+      error
+    )
+    return NextResponse.next()
   }
 
   if (pathname.startsWith("/konfigurator")) {
@@ -117,6 +139,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
+  // Absichtliches Coming Soon: Shop geschlossen → Unterseiten zur Startseite
   return NextResponse.redirect(new URL("/", request.url))
 }
 

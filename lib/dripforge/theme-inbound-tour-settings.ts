@@ -70,12 +70,20 @@ export function buildThemeInboundTourPublicSettings(input?: {
 
 export function hasSeenThemeInboundTour(): boolean {
   if (typeof window === "undefined") return true
-  return localStorage.getItem(THEME_DRIP_STORAGE_KEY) === "true"
+  try {
+    return localStorage.getItem(THEME_DRIP_STORAGE_KEY) === "true"
+  } catch {
+    return true
+  }
 }
 
 export function markThemeInboundTourSeen(): void {
   if (typeof window === "undefined") return
-  localStorage.setItem(THEME_DRIP_STORAGE_KEY, "true")
+  try {
+    localStorage.setItem(THEME_DRIP_STORAGE_KEY, "true")
+  } catch {
+    /* Incognito / In-App: Storage blockiert */
+  }
   window.dispatchEvent(new CustomEvent("dripforge:theme-tour-seen"))
 }
 

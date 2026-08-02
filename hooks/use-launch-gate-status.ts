@@ -55,25 +55,34 @@ export function useLaunchGateStatus(): {
       const hasPreviewAccess = Boolean(data.hasPreviewAccess)
       const shopLive = Boolean(data.shopLive)
       const canBypassCountdown = Boolean(data.canBypassCountdown)
+      // degradierte API / DB-Ausfall: Storefront nicht mit Coming-Soon sperren
       const canAccessShop =
-        Boolean(data.canAccessShop) || hasPreviewAccess || shopLive
+        Boolean(data.degraded) ||
+        Boolean(data.canAccessShop) ||
+        hasPreviewAccess ||
+        shopLive ||
+        !res.ok
 
       setBaseStatus({
         canAccessShop,
-        shopLive,
+        shopLive: shopLive || Boolean(data.degraded),
         hasPreviewAccess,
         canBypassCountdown,
         launch: { ...DEFAULT_LAUNCH_SETTINGS, ...data.launch },
         countdown: data.countdown ?? buildPublicCountdownConfig(data.launch),
       })
     } catch (err) {
-      console.warn("Launch-Gate: Status konnte nicht geladen werden.", err)
+      console.warn(
+        "Launch-Gate: Status konnte nicht geladen werden — fail-open.",
+        err
+      )
+      // Incognito / In-App: Storage-/Netz-Fehler dürfen die Site nicht blockieren
       setBaseStatus({
-        canAccessShop: false,
-        shopLive: false,
+        canAccessShop: true,
+        shopLive: true,
         hasPreviewAccess: false,
         canBypassCountdown: false,
-        launch: { ...DEFAULT_LAUNCH_SETTINGS },
+        launch: { ...DEFAULT_LAUNCH_SETTINGS, shopLive: true },
         countdown: buildPublicCountdownConfig(null),
       })
     } finally {

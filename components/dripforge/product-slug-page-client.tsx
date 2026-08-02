@@ -7,6 +7,7 @@ import { useShopNavigate } from "@/hooks/use-shop-navigate"
 import { useServiceVisibility } from "@/hooks/use-service-visibility"
 import type { Product } from "@/lib/dripforge/types"
 import { productHref } from "@/lib/dripforge/product-slug"
+import { safeNavigate } from "@/lib/dripforge/safe-navigate"
 
 type ProductSlugPageClientProps = {
   product: Product
@@ -29,10 +30,14 @@ export function ProductSlugPageClient({
       selectedProduct={product}
       setSelectedProduct={(next) => {
         if (!next) {
-          router.push("/shop")
+          safeNavigate("/shop", {
+            routerPush: (to) => router.push(to),
+          })
           return
         }
-        router.replace(productHref(next, catalog.length ? catalog : [next]))
+        safeNavigate(productHref(next, catalog.length ? catalog : [next]), {
+          routerPush: (to) => router.replace(to),
+        })
       }}
       addToCart={addToCart}
       services={services}

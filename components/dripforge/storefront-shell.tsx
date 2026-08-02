@@ -8,10 +8,17 @@ export function StorefrontShell({ children }: { children: React.ReactNode }) {
   const { cart } = useCart()
 
   useEffect(() => {
-    const savedTheme = localStorage.getItem("theme") as "light" | "dark" | null
-    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches
-    const theme = savedTheme ?? (prefersDark ? "dark" : "light")
-    document.documentElement.classList.toggle("dark", theme === "dark")
+    try {
+      const savedTheme = window.localStorage.getItem("theme") as
+        | "light"
+        | "dark"
+        | null
+      const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches
+      const theme = savedTheme ?? (prefersDark ? "dark" : "light")
+      document.documentElement.classList.toggle("dark", theme === "dark")
+    } catch {
+      /* Incognito / In-App: Storage blockiert */
+    }
   }, [])
 
   return (

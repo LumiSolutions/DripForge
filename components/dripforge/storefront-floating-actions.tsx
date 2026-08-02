@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState, type ChangeEvent } from "react"
 import { createPortal } from "react-dom"
-import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { SafeLink } from "@/components/dripforge/safe-link"
+import { safeNavigate } from "@/lib/dripforge/safe-navigate"
 import {
   Send,
   MessageCircle,
@@ -249,7 +250,11 @@ export function StorefrontFloatingActions() {
             </div>
             <button
               type="button"
-              onClick={() => router.push(shopViewHref("kontakt"))}
+              onClick={() =>
+                safeNavigate(shopViewHref("kontakt"), {
+                  routerPush: (to) => router.push(to),
+                })
+              }
               className="mt-2 text-xs text-primary hover:underline"
             >
               <SiteText k="chat_contact_link" />
@@ -260,15 +265,14 @@ export function StorefrontFloatingActions() {
 
       {supportPageVisible && (
         <EditableSiteTextField textKey="chat_support_mission">
-          <Link
+          <SafeLink
             href={SUPPORT_ROUTE}
-            prefetch
             className="pointer-events-auto flex h-12 w-12 touch-manipulation items-center justify-center rounded-full border border-primary/30 bg-background/95 text-primary shadow-lg backdrop-blur-sm transition-transform hover:scale-105 hover:bg-primary/10"
             title={chatSupportMission}
             aria-label={chatSupportMission}
           >
             <Heart className="h-5 w-5 fill-primary/20 text-primary" />
-          </Link>
+          </SafeLink>
         </EditableSiteTextField>
       )}
 
