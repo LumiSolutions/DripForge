@@ -1,6 +1,6 @@
 /**
  * Sicheres HTML für Produktbeschreibungen (Admin Rich-Text → Storefront).
- * Erlaubt: p, br, strong/b, em/i, u, span.df-highlight, span[style font-family]
+ * Erlaubt: p, br, strong/b, em/i, u, span.df-text-highlight, span[style font-family]
  */
 
 const ALLOWED_TAGS = new Set([
@@ -34,12 +34,30 @@ export function looksLikeHtml(value: string): boolean {
   return /<\/?[a-z][\s\S]*>/i.test(value)
 }
 
+function cleanElementAttributes(el: HTMLElement): void {
+  const tag = el.tagName.toUpperCase()
+  const keepHighlight = el.classList.contains(DF_HIGHLIGHT_CLASS)
+  const fontFamily = el.getAttribute("style")?.match(
+    /font-family\s*:\s*[^;]+/i
+  )?.[0]
+
+  // Alle Attribute entfernen, dann nur Erlaubtes zurücksetzen
+  for (const attr of Array.from(el.attributes)) {
+    el.removeAttribute(attr.name)
+  }
+
+  if (keepHighlight) {
+    el.className = DF_HIGHLIGHT_CLASS
+  } else if (tag === "SPAN" && fontFamily) {
+    el.setAttribute("style", `${fontFamily};`)
+  }
+}
+
 export function sanitizeProductDescriptionHtml(input: string): string {
   if (typeof input !== "string") return ""
   const trimmed = input.trim()
   if (!trimmed) return ""
 
-  // Server-safe: kein DOM — strip gefährliche Tags/Attrs per Regex + allowlist
   if (typeof document === "undefined") {
     return sanitizeProductDescriptionHtmlServer(trimmed)
   }
@@ -57,39 +75,27 @@ export function sanitizeProductDescriptionHtml(input: string): string {
       const el = child as HTMLElement
       const tag = el.tagName.toUpperCase()
       if (!ALLOWED_TAGS.has(tag)) {
-        // Unwrap: behalte Textinhalt
         while (el.firstChild) {
           el.parentNode?.insertBefore(el.firstChild, el)
         }
         el.parentNode?.removeChild(el)
         continue
       }
-      // Attribute bereinigen
-      for (const attr of Array.from(el.attributes)) {
-        const name = attr.name.toLowerCase()
-        if (name === "class" && el.classList.contains(DF_HIGHLIGHT_CLASS)) {
-          el.className = DF_HIGHLIGHT_CLASS
-          continue
+
+      cleanElementAttributes(el)
+
+      if (
+        tag === "SPAN" &&
+        !el.classList.contains(DF_HIGHLIGHT_CLASS) &&
+        !el.getAttribute("style")
+      ) {
+        while (el.firstChild) {
+          el.parentNode?.insertBefore(el.firstChild, el)
         }
-        if (
-          name === "style" &&
-          tag === "SPAN" &&
-          /^font-family\s*:\s*[^;]+;?$/i.test(attr.value.trim())
-        ) {
-          continue
-        }
-        el.removeAttribute(attr.name)
+        el.parentNode?.removeChild(el)
+        continue
       }
-      if (tag === "SPAN" && !el.classList.contains(DF_HIGHLIGHT_CLASS)) {
-        const style = el.getAttribute("style")
-        if (!style) {
-          while (el.firstChild) {
-            el.parentNode?.insertBefore(el.firstChild, el)
-          }
-          el.parentNode?.removeChild(el)
-          continue
-        }
-      }
+
       walk(el)
     }
   }
@@ -98,16 +104,25 @@ export function sanitizeProductDescriptionHtml(input: string): string {
 }
 
 function sanitizeProductDescriptionHtmlServer(html: string): string {
-  // Grobe Server-Sanitisierung: Scripts/Event-Handler entfernen
   let out = html
     .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "")
     .replace(/ on\w+="[^"]*"/gi, "")
     .replace(/ on\w+='[^']*'/gi, "")
     .replace(/javascript:/gi, "")
-  // Nicht-erlaubte Tags entpacken
+    // data-* und Klassenjunk (z. B. ChatGPT-Paste) entfernen
+    .replace(/\sdata-[\w-]+="[^"]*"/gi, "")
+    .replace(/\sdata-[\w-]+='[^']*'/gi, "")
+    .replace(/\sclass="(?![^"]*\bdf-text-highlight\b)[^"]*"/gi, "")
+    .replace(/\sclass='(?![^']*\bdf-text-highlight\b)[^']*'/gi, "")
   out = out.replace(
     /<\/?(?!p|br|strong|b|em|i|u|span|div\b)[a-z][^>]*>/gi,
     ""
+  )
+  // class nur behalten wenn Highlight
+  out = out.replace(
+    /\sclass="([^"]*)"/gi,
+    (_m, cls: string) =>
+      cls.includes(DF_HIGHLIGHT_CLASS) ? ` class="${DF_HIGHLIGHT_CLASS}"` : ""
   )
   return out
 }
@@ -121,24 +136,41 @@ export function descriptionToDisplayHtml(raw: string | null | undefined): string
   return plainTextToDescriptionHtml(value)
 }
 
+function decodeBasicEntities(value: string): string {
+  return value
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, h) =>
+      String.fromCharCode(parseInt(h, 16))
+    )
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+}
+
+function stripTagsOnce(raw: string): string {
+  if (typeof document !== "undefined") {
+    const template = document.createElement("template")
+    template.innerHTML = raw
+    return template.content.textContent ?? ""
+  }
+  return raw
+    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+}
+
 /** Entfernt HTML für Karten-/Grid-Vorschauen — nur sichtbarer Klartext. */
 export function stripHtmlTags(raw: string | null | undefined): string {
   if (!raw?.trim()) return ""
-  let text = raw
-  if (typeof document !== "undefined") {
-    const template = document.createElement("template")
-    template.innerHTML = looksLikeHtml(raw) ? raw : plainTextToDescriptionHtml(raw)
-    text = template.content.textContent ?? ""
-  } else {
-    text = raw
-      .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, " ")
-      .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, " ")
-      .replace(/<[^>]+>/g, " ")
-      .replace(/&nbsp;/gi, " ")
-      .replace(/&amp;/gi, "&")
-      .replace(/&lt;/gi, "<")
-      .replace(/&gt;/gi, ">")
-      .replace(/&quot;/gi, '"')
+  // Bis zu 2x: zuerst Tags, dann Entity-decodiertes HTML (Doppelkodierung).
+  let text = stripTagsOnce(raw)
+  text = decodeBasicEntities(text)
+  if (looksLikeHtml(text)) {
+    text = stripTagsOnce(text)
+    text = decodeBasicEntities(text)
   }
   return text.replace(/\s+/g, " ").trim()
 }
