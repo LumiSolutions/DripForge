@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import dynamic from "next/dynamic"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { safeNavigate } from "@/lib/dripforge/safe-navigate"
 import {
   Printer,
   Zap,
@@ -356,13 +357,17 @@ export function PageShop({
     if (canInlineEdit) return
     const initial = normalizeShopProduct(product)
     const catalog = productCatalog?.length ? productCatalog : shopProducts
-    router.push(productHref(initial, catalog))
+    safeNavigate(productHref(initial, catalog), {
+      routerPush: (to) => router.push(to),
+    })
   }
 
   const closeProduct = () => {
     setSelectedProduct(null)
     if (productDetailMode) {
-      router.push("/shop")
+      safeNavigate("/shop", {
+        routerPush: (to) => router.push(to),
+      })
     }
   }
 
@@ -645,7 +650,9 @@ export function PageShop({
                 className="w-full bg-primary hover:bg-primary/90"
                 onClick={() => {
                   setCartAddedOpen(false)
-                  router.push(SHOP_ROUTES.warenkorb)
+                  safeNavigate(SHOP_ROUTES.warenkorb, {
+                    routerPush: (to) => router.push(to),
+                  })
                 }}
               >
                 <ShoppingCart className="mr-2 h-4 w-4" />
@@ -657,7 +664,9 @@ export function PageShop({
                 className="w-full"
                 onClick={() => {
                   setCartAddedOpen(false)
-                  router.push(SHOP_ROUTES.checkout)
+                  safeNavigate(SHOP_ROUTES.checkout, {
+                    routerPush: (to) => router.push(to),
+                  })
                 }}
               >
                 Zur Kasse

@@ -51,10 +51,22 @@ export default function LaunchGate() {
         console.warn("Launch-Gate: API-Fehler.", data.error ?? res.status)
       }
 
-      setStatus(parseLaunchStatus(data))
+      // Fail-open bei API-Fehler / degraded — sonst wirken Links „tot“
+      if (!res.ok || data.degraded) {
+        setStatus({
+          canAccessShop: true,
+          shopLive: true,
+          hasPreviewAccess: Boolean(data.hasPreviewAccess),
+        })
+      } else {
+        setStatus(parseLaunchStatus(data))
+      }
     } catch (err) {
-      console.warn("Launch-Gate: Status konnte nicht geladen werden.", err)
-      setStatus({ canAccessShop: false, shopLive: false, hasPreviewAccess: false })
+      console.warn(
+        "Launch-Gate: Status konnte nicht geladen werden — fail-open.",
+        err
+      )
+      setStatus({ canAccessShop: true, shopLive: true, hasPreviewAccess: false })
     } finally {
       setLoading(false)
     }

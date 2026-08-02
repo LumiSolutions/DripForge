@@ -2,6 +2,7 @@
 
 import { useEffect } from "react"
 import { usePathname } from "next/navigation"
+import { safeSessionGet, safeSessionSet } from "@/lib/dripforge/safe-storage"
 
 const STORAGE_KEY = "df-visitor-session"
 const INTERVAL_MS = 45_000
@@ -15,10 +16,7 @@ export function VisitorHeartbeat() {
     const beat = async () => {
       if (cancelled) return
       try {
-        const sessionId =
-          typeof window !== "undefined"
-            ? window.sessionStorage.getItem(STORAGE_KEY)
-            : null
+        const sessionId = safeSessionGet(STORAGE_KEY)
         const res = await fetch("/api/analytics/heartbeat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -30,8 +28,8 @@ export function VisitorHeartbeat() {
         })
         if (!res.ok) return
         const data = (await res.json()) as { sessionId?: string | null }
-        if (data.sessionId && typeof window !== "undefined") {
-          window.sessionStorage.setItem(STORAGE_KEY, data.sessionId)
+        if (data.sessionId) {
+          safeSessionSet(STORAGE_KEY, data.sessionId)
         }
       } catch {
         /* ignore */

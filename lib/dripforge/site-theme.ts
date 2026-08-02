@@ -1,10 +1,12 @@
+import { safeLocalGet, safeLocalSet } from "@/lib/dripforge/safe-storage"
+
 export type SiteTheme = "light" | "dark"
 
 const STORAGE_KEY = "theme"
 
 export function getStoredSiteTheme(): SiteTheme | null {
   if (typeof window === "undefined") return null
-  const saved = localStorage.getItem(STORAGE_KEY)
+  const saved = safeLocalGet(STORAGE_KEY)
   return saved === "light" || saved === "dark" ? saved : null
 }
 
@@ -18,7 +20,7 @@ export function resolveSiteTheme(): SiteTheme {
 export function applySiteTheme(theme: SiteTheme): void {
   if (typeof document === "undefined") return
   document.documentElement.classList.toggle("dark", theme === "dark")
-  localStorage.setItem(STORAGE_KEY, theme)
+  safeLocalSet(STORAGE_KEY, theme)
 }
 
 export function toggleSiteTheme(current: SiteTheme): SiteTheme {

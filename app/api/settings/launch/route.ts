@@ -62,17 +62,18 @@ export async function GET(request: Request) {
     logCosmosError("launch-api:getSettings", error)
     const countdown = buildPublicCountdownConfig(null)
 
+    // Fail-open: bei DB-Ausfall Storefront nicht sperren (Incognito / In-App).
     return NextResponse.json({
-      shopLive: false,
+      shopLive: true,
       launchAt: countdown.targetAt,
-      previewMode: true,
+      previewMode: false,
       hasPreviewAccess,
       canBypassCountdown,
-      canAccessShop: hasPreviewAccess,
-      showSupportOnMainSite: false,
-      showSupportOnCountdownPage: false,
+      canAccessShop: true,
+      showSupportOnMainSite: true,
+      showSupportOnCountdownPage: true,
       blockedPath: null,
-      launch: normalizeLaunchSettings(null),
+      launch: normalizeLaunchSettings({ shopLive: true }),
       countdown,
       degraded: true,
     })

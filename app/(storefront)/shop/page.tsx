@@ -9,6 +9,7 @@ import { useServiceVisibility } from "@/hooks/use-service-visibility"
 import type { Product } from "@/lib/dripforge/types"
 import { normalizeShopProduct } from "@/lib/dripforge/normalize-shop-product"
 import { productHref } from "@/lib/dripforge/product-slug"
+import { safeNavigate } from "@/lib/dripforge/safe-navigate"
 
 function ShopPageInner() {
   const navigate = useShopNavigate()
@@ -52,7 +53,11 @@ function ShopPageInner() {
       setCurrentView={navigate}
       selectedProduct={null}
       setSelectedProduct={(product) => {
-        if (product) router.push(productHref(product))
+        if (product) {
+          safeNavigate(productHref(product), {
+            routerPush: (to) => router.push(to),
+          })
+        }
       }}
       addToCart={addToCart}
       services={services}

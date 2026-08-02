@@ -1,17 +1,24 @@
 "use client"
 
 import { useEffect, type ReactNode } from "react"
-import Link from "next/link"
+import { SafeLink } from "@/components/dripforge/safe-link"
 import { SiteText } from "@/components/dripforge/editable-site-text"
 import { SiteImage } from "@/components/dripforge/editable-site-image"
 import { cn } from "@/lib/utils"
 
 export function LegalSubpageLayout({ children }: { children: ReactNode }) {
   useEffect(() => {
-    const savedTheme = localStorage.getItem("theme") as "light" | "dark" | null
-    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches
-    const theme = savedTheme ?? (prefersDark ? "dark" : "light")
-    document.documentElement.classList.toggle("dark", theme === "dark")
+    try {
+      const savedTheme = window.localStorage.getItem("theme") as
+        | "light"
+        | "dark"
+        | null
+      const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches
+      const theme = savedTheme ?? (prefersDark ? "dark" : "light")
+      document.documentElement.classList.toggle("dark", theme === "dark")
+    } catch {
+      /* Incognito / In-App: Storage blockiert */
+    }
   }, [])
 
   return (
@@ -24,7 +31,7 @@ export function LegalSubpageLayout({ children }: { children: ReactNode }) {
         )}
       >
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4">
-          <Link href="/" className="flex items-center gap-2">
+          <SafeLink href="/" className="flex items-center gap-2">
             <SiteImage
               imageKey="brand_logo"
               width={32}
@@ -38,13 +45,13 @@ export function LegalSubpageLayout({ children }: { children: ReactNode }) {
                 Forge
               </span>
             </span>
-          </Link>
-          <Link
+          </SafeLink>
+          <SafeLink
             href="/"
             className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
           >
             <SiteText k="legal_subpage_back" />
-          </Link>
+          </SafeLink>
         </div>
       </header>
       <div className="h-16 shrink-0" aria-hidden="true" />

@@ -20,6 +20,8 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  // Keine restriktiven Cross-Origin-/Service-Worker-Header — In-App-WebViews
+  // (Instagram) und Incognito brauchen ungehinderte Full-Page-Navigation.
 }
 
 export default nextConfig

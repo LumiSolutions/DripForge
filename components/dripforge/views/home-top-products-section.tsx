@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
+import { safeNavigate } from "@/lib/dripforge/safe-navigate"
 import useEmblaCarousel from "embla-carousel-react"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import { SiteText } from "@/components/dripforge/editable-site-text"
@@ -158,7 +159,10 @@ export function HomeTopProductsSection() {
                       canInlineEdit={canInlineEdit}
                       onOpen={() => {
                         if (canInlineEdit) return
-                        router.push(`/shop/${encodeURIComponent(product.id)}`)
+                        safeNavigate(
+                          `/shop/${encodeURIComponent(product.id)}`,
+                          { routerPush: (to) => router.push(to) }
+                        )
                       }}
                     />
                   </div>
