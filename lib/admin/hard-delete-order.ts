@@ -7,6 +7,7 @@ import { saveCustomer } from "@/lib/admin/customer-store"
 import { deleteOrder, getCustomerByNumber, getOrderById } from "@/lib/admin/db"
 import { CosmosDatabaseError } from "@/lib/admin/storage-bridge"
 import { reverseLoyaltyPointsForStoredOrder } from "@/lib/shop/loyalty-order-reversal"
+import { recordOrderStornoJournalEntry } from "@/lib/accounting/order-journal"
 
 export class HardDeleteOrderError extends Error {
   constructor(
@@ -34,6 +35,15 @@ export async function hardDeleteOrder(orderId: string): Promise<void> {
   }
 
   await reverseLoyaltyPointsForStoredOrder(order)
+
+  try {
+    await recordOrderStornoJournalEntry(order)
+  } catch (error) {
+    console.warn(
+      `Buchhaltung: Storno-Buchung vor Löschen fehlgeschlagen (${trimmed}).`,
+      error
+    )
+  }
 
   try {
     const belege = await cosmosFindBelegeBySourceOrderId(trimmed)

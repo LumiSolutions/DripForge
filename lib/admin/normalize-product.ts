@@ -17,6 +17,7 @@ import {
 } from "@/lib/admin/product-status"
 import { normalizeProductSku } from "@/lib/admin/product-sku"
 import { normalizeProductImageShape } from "@/lib/dripforge/types"
+import { normalizeQuantityDiscountTiers } from "@/lib/dripforge/quantity-discount-tiers"
 
 export { isProductActive }
 
@@ -177,6 +178,14 @@ export function normalizeAdminProductInput(
       : Array.isArray(existing?.partLabels)
         ? existing.partLabels
         : undefined,
+    quantityDiscountTiers: (() => {
+      const tiers = normalizeQuantityDiscountTiers(
+        input.quantityDiscountTiers !== undefined
+          ? input.quantityDiscountTiers
+          : existing?.quantityDiscountTiers
+      )
+      return tiers.length > 0 ? tiers : undefined
+    })(),
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   }

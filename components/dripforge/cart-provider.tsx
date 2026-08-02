@@ -16,6 +16,7 @@ import {
   readClientCart,
   writeClientCart,
 } from "@/lib/dripforge/cart-storage"
+import { applyQuantityDiscountsToCartItems } from "@/lib/dripforge/quantity-discount-tiers"
 
 type CartContextValue = {
   cart: CartItem[]
@@ -51,7 +52,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const cartRef = useRef<CartItem[]>([])
 
   useEffect(() => {
-    const initial = readClientCart()
+    const initial = applyQuantityDiscountsToCartItems(readClientCart())
     cartRef.current = initial
     setCart(initial)
     setHydrated(true)
@@ -66,12 +67,25 @@ export function CartProvider({ children }: { children: ReactNode }) {
     writeClientCart(cart)
   }, [cart, hydrated])
 
+  const setCartWithDiscounts = useCallback(
+    (updater: React.SetStateAction<CartItem[]>) => {
+      setCart((prev) => {
+        const next =
+          typeof updater === "function"
+            ? (updater as (p: CartItem[]) => CartItem[])(prev)
+            : updater
+        return applyQuantityDiscountsToCartItems(next)
+      })
+    },
+    []
+  )
+
   const addToCart = useCallback((item: CartItem) => {
-    setCart((prev) => [...prev, item])
+    setCart((prev) => applyQuantityDiscountsToCartItems([...prev, item]))
   }, [])
 
   const applyMergedCart = useCallback((items: CartItem[]) => {
-    setCart(items)
+    setCart(applyQuantityDiscountsToCartItems(items))
   }, [])
 
   /** Stabil — kein Dependency auf `cart`, sonst Re-Render-Loops. */
@@ -112,13 +126,20 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const value = useMemo(
     () => ({
       cart,
-      setCart,
+      setCart: setCartWithDiscounts,
       addToCart,
       applyMergedCart,
       clearCart,
       syncCartToAccount,
     }),
-    [cart, addToCart, applyMergedCart, clearCart, syncCartToAccount]
+    [
+      cart,
+      setCartWithDiscounts,
+      addToCart,
+      applyMergedCart,
+      clearCart,
+      syncCartToAccount,
+    ]
   )
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>

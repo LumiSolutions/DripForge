@@ -120,3 +120,34 @@ export function descriptionToDisplayHtml(raw: string | null | undefined): string
   }
   return plainTextToDescriptionHtml(value)
 }
+
+/** Entfernt HTML für Karten-/Grid-Vorschauen — nur sichtbarer Klartext. */
+export function stripHtmlTags(raw: string | null | undefined): string {
+  if (!raw?.trim()) return ""
+  let text = raw
+  if (typeof document !== "undefined") {
+    const template = document.createElement("template")
+    template.innerHTML = looksLikeHtml(raw) ? raw : plainTextToDescriptionHtml(raw)
+    text = template.content.textContent ?? ""
+  } else {
+    text = raw
+      .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, " ")
+      .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, " ")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/&nbsp;/gi, " ")
+      .replace(/&amp;/gi, "&")
+      .replace(/&lt;/gi, "<")
+      .replace(/&gt;/gi, ">")
+      .replace(/&quot;/gi, '"')
+  }
+  return text.replace(/\s+/g, " ").trim()
+}
+
+export function productDescriptionPreview(
+  raw: string | null | undefined,
+  maxChars = 100
+): string {
+  const plain = stripHtmlTags(raw)
+  if (plain.length <= maxChars) return plain
+  return `${plain.slice(0, maxChars).trimEnd()}…`
+}

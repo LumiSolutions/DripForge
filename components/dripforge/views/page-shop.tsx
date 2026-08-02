@@ -65,6 +65,10 @@ import {
   resolveShopVariantModelUrl,
   resolveShopVariantUnitPrice,
 } from "@/lib/dripforge/types"
+import {
+  applyQuantityDiscountToUnitPrice,
+  normalizeQuantityDiscountTiers,
+} from "@/lib/dripforge/quantity-discount-tiers"
 import { resolveProductModelUrl } from "@/lib/dripforge/product-model-defaults"
 import { resolveProductPrintFile } from "@/lib/dripforge/product-print-file"
 import {
@@ -450,9 +454,12 @@ export function PageShop({
       const shopVariants = resolveProductShopVariants(selectedProduct)
       if (shopVariants.length > 0 && !selectedShopVariantId) return
       const activeShopVariant = shopVariants.find((v) => v.id === selectedShopVariantId)
-      const unitPrice = resolveShopVariantUnitPrice(
+      const baseUnitPrice = resolveShopVariantUnitPrice(
         selectedProduct,
         selectedShopVariantId
+      )
+      const quantityDiscountTiers = normalizeQuantityDiscountTiers(
+        selectedProduct.quantityDiscountTiers
       )
       const variantModelUrl = resolveShopVariantModelUrl(
         selectedProduct,
@@ -479,6 +486,10 @@ export function PageShop({
                 modelUrl: modelForCart ?? printFile?.fileUrl,
               }
             : {}
+        const tierFields =
+          quantityDiscountTiers.length > 0
+            ? { quantityDiscountTiers, baseUnitPrice }
+            : { baseUnitPrice }
 
         if (useMultiColor && multiColorSelection) {
           const primary =
@@ -499,11 +510,13 @@ export function PageShop({
 
           addToCart({
             id: `${selectedProduct.id}-${Date.now()}`,
+            productId: selectedProduct.id,
             name: selectedProduct.name,
-            price: unitPrice,
+            price: baseUnitPrice,
             quantity,
             type: "3d",
             leitbild,
+            ...tierFields,
             customDetails: {
               filament: multiColorSelection.materialName,
               color: primary.colorName,
@@ -519,11 +532,13 @@ export function PageShop({
           const selection = effectiveFilamentSelection!
           addToCart({
             id: `${selectedProduct.id}-${Date.now()}`,
+            productId: selectedProduct.id,
             name: selectedProduct.name,
-            price: unitPrice,
+            price: baseUnitPrice,
             quantity,
             type: "3d",
             leitbild,
+            ...tierFields,
             customDetails: {
               filament: selection.materialName,
               color: selection.colorName,
@@ -538,11 +553,13 @@ export function PageShop({
           for (const extra of extraVariants) {
             addToCart({
               id: `${selectedProduct.id}-${Date.now()}-${extra.colorName}`,
+              productId: selectedProduct.id,
               name: selectedProduct.name,
-              price: unitPrice,
+              price: baseUnitPrice,
               quantity: Math.max(1, extra.quantity),
               type: "3d",
               leitbild,
+              ...tierFields,
               customDetails: {
                 filament: extra.filament || selection.materialName,
                 color: extra.colorName,
@@ -625,10 +642,18 @@ export function PageShop({
         console.warn("Produktions-Layer: Shop-Export fehlgeschlagen.")
       }
 
+      const laserTiers = normalizeQuantityDiscountTiers(
+        selectedProduct.quantityDiscountTiers
+      )
       const newItem: CartItem = {
         id: `${selectedProduct.id}-${Date.now()}`,
+        productId: selectedProduct.id,
         name: selectedProduct.name,
         price: laserUnitPrice,
+        baseUnitPrice: laserUnitPrice,
+        ...(laserTiers.length > 0
+          ? { quantityDiscountTiers: laserTiers }
+          : {}),
         quantity,
         type: "laser",
         leitbild: previewMockup,
@@ -689,10 +714,23 @@ export function PageShop({
   if (selectedProduct) {
     const detailProduct = normalizeShopProduct(selectedProduct)
     const detailShopVariants = resolveProductShopVariants(detailProduct)
-    const unitPrice = resolveShopVariantUnitPrice(
+    const baseUnitPrice = resolveShopVariantUnitPrice(
       detailProduct,
       selectedShopVariantId
     )
+    const quantityDiscountTiers = normalizeQuantityDiscountTiers(
+      detailProduct.quantityDiscountTiers
+    )
+    const extraVariantQty = isMultiColorProduct(detailProduct)
+      ? 0
+      : extraVariants.reduce((sum, e) => sum + e.quantity, 0)
+    const pricingQty = quantity + extraVariantQty
+    const qtyDiscount = applyQuantityDiscountToUnitPrice(
+      baseUnitPrice,
+      quantityDiscountTiers,
+      pricingQty
+    )
+    const unitPrice = qtyDiscount.unitPrice
     const shopLaserMaterial =
       detailProduct.type === "laser"
         ? getLaserMaterialForProduct(detailProduct)
@@ -930,6 +968,22 @@ export function PageShop({
                         <p className="text-2xl font-bold tabular-nums text-primary">
                           CHF {unitPrice.toFixed(2)}
                         </p>
+                        {qtyDiscount.tier ? (
+                          <p className="text-xs text-emerald-600 dark:text-emerald-400">
+                            Mengenrabatt −{qtyDiscount.discountPercent.toFixed(0)}%
+                            (ab {qtyDiscount.tier.minQty} Stk.)
+                          </p>
+                        ) : quantityDiscountTiers.length > 0 ? (
+                          <p className="text-xs text-muted-foreground">
+                            Mengenrabatt ab{" "}
+                            {quantityDiscountTiers
+                              .map(
+                                (t) =>
+                                  `${t.minQty} Stk. (−${t.discountPercent}%)`
+                              )
+                              .join(", ")}
+                          </p>
+                        ) : null}
                       </div>
                       <div className="flex items-center gap-3">
                         <Button
@@ -1187,6 +1241,10 @@ export function PageShop({
                             activeTab={filamentTab}
                             onTabChange={setFilamentTab}
                             onSelectionChange={setMultiColorSelection}
+                            slotLabels={detailProduct.partLabels ?? []}
+                            lockSlotCountToLabels={
+                              (detailProduct.partLabels?.length ?? 0) > 0
+                            }
                             className="mt-0 border-0 pt-0"
                           />
                         ) : (
@@ -1276,6 +1334,31 @@ export function PageShop({
                                     CHF {unitPrice.toFixed(2)}
                                   </span>
                                 </div>
+                                {qtyDiscount.tier && (
+                                  <div className="flex justify-between gap-3">
+                                    <span className="text-muted-foreground">
+                                      Mengenrabatt (ab {qtyDiscount.tier.minQty} Stk.)
+                                    </span>
+                                    <span className="font-medium text-emerald-600 dark:text-emerald-400">
+                                      −{qtyDiscount.discountPercent.toFixed(0)}%
+                                      {baseUnitPrice !== unitPrice
+                                        ? ` · statt CHF ${baseUnitPrice.toFixed(2)}`
+                                        : ""}
+                                    </span>
+                                  </div>
+                                )}
+                                {!qtyDiscount.tier &&
+                                  quantityDiscountTiers.length > 0 && (
+                                    <p className="text-xs text-muted-foreground">
+                                      Mengenrabatt ab{" "}
+                                      {quantityDiscountTiers
+                                        .map(
+                                          (t) =>
+                                            `${t.minQty} Stk. (−${t.discountPercent}%)`
+                                        )
+                                        .join(", ")}
+                                    </p>
+                                  )}
                                 {detailShopVariants.length > 0 && (
                                   <div className="flex justify-between gap-3">
                                     <span className="text-muted-foreground">
@@ -1359,16 +1442,7 @@ export function PageShop({
                                   <span>Gesamtpreis</span>
                                   <span className="text-red-500 dark:text-red-400">
                                     CHF{" "}
-                                    {(
-                                      unitPrice *
-                                      (quantity +
-                                        (isMultiColorProduct(detailProduct)
-                                          ? 0
-                                          : extraVariants.reduce(
-                                              (sum, e) => sum + e.quantity,
-                                              0
-                                            )))
-                                    ).toFixed(2)}
+                                    {(unitPrice * pricingQty).toFixed(2)}
                                   </span>
                                 </div>
                               </div>

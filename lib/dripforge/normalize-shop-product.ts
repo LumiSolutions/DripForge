@@ -4,6 +4,7 @@ import { normalizeShopVariants } from "@/lib/dripforge/product-shop-variants"
 import { PRODUCT_DOC_TYPE } from "@/lib/cosmos/products-container"
 import { normalizeProductTagIds } from "@/lib/admin/product-tags"
 import { NEUTRAL_PRODUCT_PLACEHOLDER } from "@/lib/dripforge/neutral-placeholder"
+import { normalizeQuantityDiscountTiers } from "@/lib/dripforge/quantity-discount-tiers"
 
 const PLACEHOLDER_IMAGE = NEUTRAL_PRODUCT_PLACEHOLDER
 
@@ -223,6 +224,10 @@ export function normalizeShopProduct(
             .filter(Boolean)
             .slice(0, 24)
         : undefined,
+      quantityDiscountTiers: (() => {
+        const tiers = normalizeQuantityDiscountTiers(source.quantityDiscountTiers)
+        return tiers.length > 0 ? tiers : undefined
+      })(),
     }
   } catch (error) {
     console.error("Shop: normalizeShopProduct fehlgeschlagen.", error, raw)

@@ -57,6 +57,14 @@ function lineTouchesLiquid(line: JournalLine, liquidAccounts: Set<string>): bool
   return liquidAccounts.has(line.accountNumber)
 }
 
+/** Automatische Gegenbuchung zu einer Verkaufs-Order (`orderId:storno`). */
+function isOrderStornoEntry(entry: JournalEntry): boolean {
+  const sourceId = entry.sourceOrderId?.trim() ?? ""
+  if (sourceId.endsWith(":storno")) return true
+  const desc = entry.description?.toLowerCase() ?? ""
+  return entry.source === "order" && desc.startsWith("storno ")
+}
+
 export function computeCashFlowSummary(
   entries: JournalEntry[],
   accounts: Account[],
@@ -79,10 +87,22 @@ export function computeCashFlowSummary(
     if (!isInRange(entry.date, from, to)) continue
     const monthIndex = Number(entry.date.slice(5, 7)) - 1
     if (monthIndex < 0 || monthIndex > 11) continue
+    const isStorno = isOrderStornoEntry(entry)
 
     for (const line of entry.lines) {
       if (!lineTouchesLiquid(line, liquidAccounts)) continue
       const amount = roundChf(line.amount)
+      if (isStorno) {
+        // Gegenbuchung: HABEN Bank mindert Einnahmen (bereinigt wie Dashboard-Umsatz)
+        if (line.type === "HABEN") {
+          months[monthIndex].income = roundChf(months[monthIndex].income - amount)
+          totalIncome = roundChf(totalIncome - amount)
+        } else {
+          months[monthIndex].expense = roundChf(months[monthIndex].expense - amount)
+          totalExpense = roundChf(totalExpense - amount)
+        }
+        continue
+      }
       if (line.type === "SOLL") {
         months[monthIndex].income = roundChf(months[monthIndex].income + amount)
         totalIncome = roundChf(totalIncome + amount)

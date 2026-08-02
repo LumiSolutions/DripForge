@@ -28,6 +28,65 @@ function exec(command: string, value?: string) {
   document.execCommand(command, false, value)
 }
 
+function closestHighlight(node: Node | null): HTMLElement | null {
+  let current: Node | null = node
+  while (current) {
+    if (
+      current instanceof HTMLElement &&
+      current.classList.contains(DF_HIGHLIGHT_CLASS)
+    ) {
+      return current
+    }
+    current = current.parentNode
+  }
+  return null
+}
+
+function unwrapElement(el: HTMLElement) {
+  const parent = el.parentNode
+  if (!parent) return
+  while (el.firstChild) {
+    parent.insertBefore(el.firstChild, el)
+  }
+  parent.removeChild(el)
+}
+
+/** Entfernt Highlight-Spans, die die Selection ganz oder teilweise umfassen. */
+function unwrapHighlightsInRange(range: Range): boolean {
+  const root =
+    range.commonAncestorContainer.nodeType === Node.ELEMENT_NODE
+      ? (range.commonAncestorContainer as HTMLElement)
+      : range.commonAncestorContainer.parentElement
+  if (!root) return false
+
+  const highlights = Array.from(
+    root.querySelectorAll(`.${DF_HIGHLIGHT_CLASS}`)
+  ) as HTMLElement[]
+
+  // Auch Ancestor der Selection prüfen
+  const startHighlight = closestHighlight(range.startContainer)
+  const endHighlight = closestHighlight(range.endContainer)
+  const candidates = new Set(highlights)
+  if (startHighlight) candidates.add(startHighlight)
+  if (endHighlight) candidates.add(endHighlight)
+
+  let unwrapped = false
+  for (const span of candidates) {
+    try {
+      if (
+        range.intersectsNode(span) ||
+        span.contains(range.commonAncestorContainer)
+      ) {
+        unwrapElement(span)
+        unwrapped = true
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+  return unwrapped
+}
+
 export function ProductDescriptionEditor({
   value,
   onChange,
@@ -47,6 +106,8 @@ export function ProductDescriptionEditor({
       return
     }
     if (value === lastEmitted.current) return
+    // Nur aktualisieren wenn Editor nicht fokussiert — sonst Selection/Toggle kaputt
+    if (document.activeElement === el) return
     if (el.innerHTML !== value) {
       el.innerHTML = value || ""
       lastEmitted.current = value || ""
@@ -59,10 +120,19 @@ export function ProductDescriptionEditor({
     onChange(html)
   }
 
-  const wrapHighlight = () => {
+  const toggleHighlight = () => {
     const selection = window.getSelection()
     if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return
     const range = selection.getRangeAt(0)
+
+    // Toggle OFF: vorhandenes Highlight entfernen
+    if (unwrapHighlightsInRange(range.cloneRange())) {
+      selection.removeAllRanges()
+      emitChange()
+      return
+    }
+
+    // Toggle ON: neu wrappen
     const span = document.createElement("span")
     span.className = DF_HIGHLIGHT_CLASS
     try {
@@ -156,9 +226,9 @@ export function ProductDescriptionEditor({
           variant="ghost"
           size="sm"
           className="h-8 gap-1 px-2 text-xs"
-          title="Hervorheben"
+          title="Hervorheben ein/aus"
           onMouseDown={(e) => e.preventDefault()}
-          onClick={wrapHighlight}
+          onClick={toggleHighlight}
         >
           <Highlighter className="h-4 w-4" />
           Highlight
@@ -173,7 +243,8 @@ export function ProductDescriptionEditor({
         className={cn(
           "min-h-[96px] max-h-[320px] overflow-y-auto px-3 py-2 text-sm outline-none",
           "prose prose-sm dark:prose-invert max-w-none",
-          "bg-background focus-visible:ring-0"
+          "bg-background text-foreground focus-visible:ring-0",
+          "[&_.df-text-highlight]:font-bold"
         )}
         onInput={emitChange}
         onBlur={emitChange}

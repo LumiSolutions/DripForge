@@ -41,6 +41,10 @@ import {
   validateSaleDiscount,
   type SaleRabattTyp,
 } from "@/lib/dripforge/product-sale"
+import {
+  normalizeQuantityDiscountTiers,
+  type QuantityDiscountTier,
+} from "@/lib/dripforge/quantity-discount-tiers"
 import type { LaserMaterialId, Product } from "@/lib/dripforge/types"
 import {
   buildLaserMaterialSelectOptions,
@@ -170,8 +174,10 @@ function marginToneClass(marginPercent: number | null): string {
 const DEFAULT_PRODUCT_SECTIONS: Record<string, boolean> = {
   allgemein: true,
   sale: false,
+  quantityDiscount: false,
   tags: false,
   dimensions: false,
+  colors: false,
   laser: false,
   varianten: false,
   materials: false,
@@ -238,9 +244,24 @@ export function AdminProductsTab() {
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     ...DEFAULT_PRODUCT_SECTIONS,
   })
+  /** Freitext während der Eingabe — Parsing erst bei Blur/Speichern. */
+  const [partLabelsDraft, setPartLabelsDraft] = useState<string | null>(null)
 
   const toggleSection = (key: string) => {
     setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }))
+  }
+
+  const parsePartLabelsDraft = (raw: string): string[] =>
+    raw
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .slice(0, 24)
+
+  const commitPartLabelsDraft = () => {
+    if (partLabelsDraft === null) return
+    updateField("partLabels", parsePartLabelsDraft(partLabelsDraft))
+    setPartLabelsDraft(null)
   }
 
   const archivedCount = useMemo(
@@ -274,6 +295,7 @@ export function AdminProductsTab() {
   const closeEditor = () => {
     setIsEditing(false)
     setForm(EMPTY_FORM)
+    setPartLabelsDraft(null)
     setImageUrlInput("")
     setLaserMaterialFilter("")
     setMaterialLinkFilters({})
@@ -332,6 +354,7 @@ export function AdminProductsTab() {
       id: `p-${Date.now()}`,
       sku: allocateNextProductSku(products),
     })
+    setPartLabelsDraft(null)
     setLaserMaterialFilter("")
     setMaterialLinkFilters({})
     setOpenSections({ ...DEFAULT_PRODUCT_SECTIONS })
@@ -358,7 +381,11 @@ export function AdminProductsTab() {
       tags: product.tags ?? [],
       imageShape: product.imageShape ?? "rounded",
       sku: product.sku ?? "",
+      quantityDiscountTiers: normalizeQuantityDiscountTiers(
+        product.quantityDiscountTiers
+      ),
     })
+    setPartLabelsDraft(null)
     setLaserMaterialFilter("")
     setMaterialLinkFilters({})
     setOpenSections({
@@ -598,6 +625,15 @@ export function AdminProductsTab() {
     setSaving(true)
     setError(null)
 
+    const committedPartLabels =
+      partLabelsDraft !== null
+        ? parsePartLabelsDraft(partLabelsDraft)
+        : form.partLabels
+    if (partLabelsDraft !== null) {
+      setPartLabelsDraft(null)
+      updateField("partLabels", committedPartLabels)
+    }
+
     if (form.sale) {
       const basis = Number(form.basisPreis) || 0
       const typ = (form.saleRabattTyp ?? "percent") as SaleRabattTyp
@@ -616,6 +652,9 @@ export function AdminProductsTab() {
         ? "/api/admin/products"
         : `/api/admin/products/${form.id}`
       const method = isNew ? "POST" : "PUT"
+      const quantityDiscountTiers = normalizeQuantityDiscountTiers(
+        form.quantityDiscountTiers
+      )
 
       const res = await fetch(url, {
         method,
@@ -623,6 +662,9 @@ export function AdminProductsTab() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
+          partLabels: committedPartLabels,
+          quantityDiscountTiers:
+            quantityDiscountTiers.length > 0 ? quantityDiscountTiers : [],
           purchasePriceChf: pricingBreakdown.totalSelfCostChf,
           additionalBaseCostChf: pricingBreakdown.additionalBaseCostChf,
         }),
@@ -964,6 +1006,109 @@ export function AdminProductsTab() {
               )}
 
               <ProductEditAccordion
+                title="Mengenrabatt (Staffelpreise)"
+                open={Boolean(openSections.quantityDiscount)}
+                onToggle={() => toggleSection("quantityDiscount")}
+              >
+                <p className={cn("text-xs", adminUi.muted)}>
+                  Rabatt greift ab der angegebenen Stückzahl — auch wenn der Kunde
+                  dasselbe Produkt in verschiedenen Farben/Varianten wählt
+                  (Summe zählt).
+                </p>
+                <div className="space-y-3">
+                  {(form.quantityDiscountTiers ?? []).map((tier, index) => (
+                    <div
+                      key={`qty-tier-${index}`}
+                      className="grid grid-cols-[1fr_1fr_auto] items-end gap-2"
+                    >
+                      <div className="space-y-1.5">
+                        <Label className={cn("text-xs", adminUi.labelMuted)}>
+                          Ab Stückzahl
+                        </Label>
+                        <Input
+                          type="number"
+                          min={2}
+                          step={1}
+                          value={tier.minQty}
+                          onChange={(e) => {
+                            const next = [
+                              ...(form.quantityDiscountTiers ?? []),
+                            ] as QuantityDiscountTier[]
+                            next[index] = {
+                              ...next[index],
+                              minQty: Math.max(2, Math.round(Number(e.target.value) || 2)),
+                            }
+                            updateField("quantityDiscountTiers", next)
+                          }}
+                          className={adminUi.input}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className={cn("text-xs", adminUi.labelMuted)}>
+                          Rabatt (%)
+                        </Label>
+                        <Input
+                          type="number"
+                          min={0.1}
+                          max={90}
+                          step={0.5}
+                          value={tier.discountPercent}
+                          onChange={(e) => {
+                            const next = [
+                              ...(form.quantityDiscountTiers ?? []),
+                            ] as QuantityDiscountTier[]
+                            next[index] = {
+                              ...next[index],
+                              discountPercent: Math.min(
+                                90,
+                                Math.max(0.1, Number(e.target.value) || 0)
+                              ),
+                            }
+                            updateField("quantityDiscountTiers", next)
+                          }}
+                          className={adminUi.input}
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="h-10 px-2 text-red-600 hover:text-red-500"
+                        onClick={() => {
+                          const next = (form.quantityDiscountTiers ?? []).filter(
+                            (_, i) => i !== index
+                          )
+                          updateField("quantityDiscountTiers", next)
+                        }}
+                        aria-label="Staffel entfernen"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const existing = form.quantityDiscountTiers ?? []
+                      const lastMin = existing[existing.length - 1]?.minQty ?? 2
+                      updateField("quantityDiscountTiers", [
+                        ...existing,
+                        {
+                          minQty: Math.max(2, lastMin + 2),
+                          discountPercent: existing.length === 0 ? 10 : 15,
+                        },
+                      ])
+                    }}
+                  >
+                    <Plus className="mr-1 h-3.5 w-3.5" />
+                    Staffel hinzufügen
+                  </Button>
+                </div>
+              </ProductEditAccordion>
+
+              <ProductEditAccordion
                 title="Shop-Tags"
                 open={Boolean(openSections.tags)}
                 onToggle={() => toggleSection("tags")}
@@ -1086,19 +1231,19 @@ export function AdminProductsTab() {
                         Teil-Bezeichnungen (kommagetrennt)
                       </Label>
                       <Input
-                        value={(form.partLabels ?? []).join(", ")}
-                        onChange={(e) =>
-                          updateField(
-                            "partLabels",
-                            e.target.value
-                              .split(",")
-                              .map((s) => s.trim())
-                              .filter(Boolean)
-                          )
+                        value={
+                          partLabelsDraft ??
+                          (form.partLabels ?? []).join(", ")
                         }
-                        placeholder="z. B. Basis, Deckel, Einsatz"
+                        onChange={(e) => setPartLabelsDraft(e.target.value)}
+                        onBlur={commitPartLabelsDraft}
+                        placeholder="z. B. Rücken, Körper, Pfoten"
                         className={adminUi.input}
                       />
+                      <p className={cn("text-xs", adminUi.muted)}>
+                        Kommas und Leerzeichen sind erlaubt — z. B.
+                        «Rücken, Körper, Pfoten».
+                      </p>
                     </div>
                   </div>
                 </ProductEditAccordion>

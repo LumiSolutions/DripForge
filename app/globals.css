@@ -146,7 +146,16 @@
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+  -webkit-text-fill-color: transparent;
   font-weight: 700;
+}
+
+@supports not ((-webkit-background-clip: text) or (background-clip: text)) {
+  .df-text-highlight {
+    color: #e65a41;
+    -webkit-text-fill-color: #e65a41;
+    background-image: none;
+  }
 }
 
 .scrollbar-none {
