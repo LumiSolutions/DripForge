@@ -1,6 +1,13 @@
 "use client"
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react"
+import {
+  FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react"
 import {
   AlertTriangle,
   Copy,
@@ -154,6 +161,10 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
   const [addRolls, setAddRolls] = useState("0")
   const [partialGrams, setPartialGrams] = useState("")
   const [adjustingStockId, setAdjustingStockId] = useState<string | null>(null)
+  /** Debounced Hintergrund-Persist für Drag-&-Drop (kein UI-Block). */
+  const reorderTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pendingOrderRef = useRef<MaterialItem[] | null>(null)
+  const reorderGenerationRef = useRef(0)
 
   const categoryLabel = useMemo(
     () =>
@@ -251,9 +262,8 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
     setArtFilter("all")
   }, [category])
 
-  const persistOrder = useCallback(
-    async (ordered: MaterialItem[]) => {
-      setReordering(true)
+  const persistOrderInBackground = useCallback(
+    async (ordered: MaterialItem[], generation: number) => {
       setError(null)
       try {
         const res = await fetch("/api/admin/materials/reorder", {
@@ -262,39 +272,92 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ orderedIds: ordered.map((m) => m.id) }),
         })
-        const data = await res.json()
-        if (!res.ok) throw new Error(data.error ?? "Reihenfolge speichern fehlgeschlagen")
-        // Reload full list for this category to stay consistent with filters
-        await load()
-        setSortMode("sort-order")
+        const data = (await res.json()) as {
+          error?: string
+          materials?: MaterialItem[]
+        }
+        if (!res.ok) {
+          throw new Error(data.error ?? "Reihenfolge speichern fehlgeschlagen")
+        }
+        // Neuere lokale Drag-Aktion hat Vorrang — kein Zurücksetzen der UI
+        if (generation !== reorderGenerationRef.current) return
+        if (Array.isArray(data.materials) && data.materials.length > 0) {
+          const orderIndex = new Map(
+            ordered.map((m, i) => [m.id, i] as const)
+          )
+          setMaterials(
+            [...data.materials].sort(
+              (a, b) =>
+                (orderIndex.get(a.id) ?? a.sortOrder ?? 0) -
+                (orderIndex.get(b.id) ?? b.sortOrder ?? 0)
+            )
+          )
+        }
       } catch (err) {
+        if (generation !== reorderGenerationRef.current) return
         setError(
           err instanceof Error
             ? err.message
             : "Reihenfolge konnte nicht gespeichert werden."
         )
+        // Bei Fehler Server-Stand wiederherstellen
+        await load()
       } finally {
-        setReordering(false)
+        if (generation === reorderGenerationRef.current) {
+          setReordering(false)
+          pendingOrderRef.current = null
+        }
       }
     },
     [load]
   )
 
-  const handleDragReorder = useCallback(
-    async (orderedIds: string[]) => {
-      const byId = new Map(materials.map((m) => [m.id, m]))
+  useEffect(() => {
+    return () => {
+      if (reorderTimerRef.current) clearTimeout(reorderTimerRef.current)
+      const pending = pendingOrderRef.current
+      if (!pending?.length) return
+      // Letzte Reihenfolge noch absenden, bevor der Tab unmountet
+      void fetch("/api/admin/materials/reorder", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderedIds: pending.map((m) => m.id) }),
+        keepalive: true,
+      }).catch(() => {
+        /* ignore unload errors */
+      })
+    }
+  }, [])
+
+  const handleDragReorder = useCallback((orderedIds: string[]) => {
+    setMaterials((prev) => {
+      const byId = new Map(prev.map((m) => [m.id, m]))
       const next = orderedIds
         .map((id) => byId.get(id))
         .filter((m): m is MaterialItem => Boolean(m))
-      // Append any filtered-out items (search) at the end in prior order
-      for (const m of materials) {
+      // Ausgefilterte Artikel (Suche) am Ende belassen
+      for (const m of prev) {
         if (!next.some((x) => x.id === m.id)) next.push(m)
       }
-      setMaterials(next)
-      await persistOrder(next)
-    },
-    [materials, persistOrder]
-  )
+      const withOrder = next.map((m, index) => ({
+        ...m,
+        sortOrder: index,
+      }))
+      pendingOrderRef.current = withOrder
+      return withOrder
+    })
+    setSortMode("sort-order")
+    setReordering(true)
+
+    const generation = ++reorderGenerationRef.current
+    if (reorderTimerRef.current) clearTimeout(reorderTimerRef.current)
+    reorderTimerRef.current = setTimeout(() => {
+      const ordered = pendingOrderRef.current
+      if (!ordered) return
+      void persistOrderInBackground(ordered, generation)
+    }, 400)
+  }, [persistOrderInBackground])
 
   const openCreate = () => {
     const maxOrder = materials.reduce(
@@ -606,20 +669,18 @@ export function AdminMaterialsTab({ category }: AdminMaterialsTabProps) {
           <p className={cn("text-xs", adminUi.muted)}>
             Shop-Reihenfolge per Drag &amp; Drop ändern (Griff oben links). Oben =
             erste Stelle im Konfigurator.
-            {reordering ? " Speichern…" : ""}
+            {reordering ? " Speichern im Hintergrund…" : ""}
           </p>
           <AdminMaterialsSortableGrid
             ids={displayedMaterials.map((m) => m.id)}
-            disabled={reordering || Boolean(searchQuery.trim()) || artFilter !== "all"}
-            onReorder={(orderedIds) => void handleDragReorder(orderedIds)}
+            disabled={Boolean(searchQuery.trim()) || artFilter !== "all"}
+            onReorder={handleDragReorder}
           >
             {displayedMaterials.map((material) => (
               <SortableMaterialShell
                 key={material.id}
                 id={material.id}
-                disabled={
-                  reordering || Boolean(searchQuery.trim()) || artFilter !== "all"
-                }
+                disabled={Boolean(searchQuery.trim()) || artFilter !== "all"}
               >
                 <div
                   className={cn(

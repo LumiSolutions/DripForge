@@ -203,7 +203,7 @@ export function FilamentMultiColorPicker({
       const list = [...(prev[activeTab] ?? [])]
       const slotIndex = list.findIndex((c) => c.slot === activeSlot)
 
-      // Deselect: erneuter Klick auf die aktive Farbe entfernt die Zuweisung
+      // Deselect nur für das aktive Teil — andere Teile behalten ihre Farbe
       if (slotIndex >= 0 && list[slotIndex].colorId === color.id) {
         list.splice(slotIndex, 1)
         return { ...prev, [activeTab]: list }
@@ -217,15 +217,9 @@ export function FilamentMultiColorPicker({
         inStock: color.inStock,
       }
 
-      // Farbe war einem anderen Teil zugewiesen → dort entfernen, hier setzen
-      const existingIndex = list.findIndex((c) => c.colorId === color.id)
-      if (existingIndex >= 0 && existingIndex !== slotIndex) {
-        list.splice(existingIndex, 1)
-      }
-
-      const nextSlotIndex = list.findIndex((c) => c.slot === activeSlot)
-      if (nextSlotIndex >= 0) {
-        list[nextSlotIndex] = slotEntry
+      // Gleiche colorId darf auf mehreren Teilen gleichzeitig liegen
+      if (slotIndex >= 0) {
+        list[slotIndex] = slotEntry
       } else {
         list.push(slotEntry)
         list.sort((a, b) => a.slot - b.slot)
@@ -406,7 +400,10 @@ export function FilamentMultiColorPicker({
           </p>
           <div className={FILAMENT_SWATCH_GRID_CLASS}>
             {(currentMaterial?.colors ?? []).map((color) => {
-              const inSelection = currentSlots?.some((c) => c.colorId === color.id)
+              const onActiveSlot = currentSlots?.some(
+                (c) => c.slot === activeSlot && c.colorId === color.id
+              )
+              const usedOnAnyPart = currentSlots?.some((c) => c.colorId === color.id)
               return (
                 <button
                   key={color.id}
@@ -415,7 +412,7 @@ export function FilamentMultiColorPicker({
                   onClick={() => assignColor(color)}
                   className={cn(
                     FILAMENT_SWATCH_TILE_CLASS,
-                    inSelection
+                    onActiveSlot || usedOnAnyPart
                       ? "border-primary bg-primary/10"
                       : "border-border/50 hover:border-primary/40",
                     !color.inStock && "cursor-not-allowed opacity-40"
@@ -439,10 +436,10 @@ export function FilamentMultiColorPicker({
                   <span className={cn(FILAMENT_SWATCH_LABEL_CLASS, "text-muted-foreground")}>
                     {color.name}
                   </span>
-                  {inSelection && (
+                  {onActiveSlot && (
                     <span
                       className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-white shadow-sm"
-                      title="Klicken zum Abwählen"
+                      title="Klicken zum Abwählen für dieses Teil"
                       aria-hidden
                     >
                       <X className="h-2.5 w-2.5" />
