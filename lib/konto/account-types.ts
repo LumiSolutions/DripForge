@@ -15,6 +15,8 @@ export type CustomerAccount = {
   deliverySameAsBilling?: boolean
   /** Verknüpfung zum CRM (falls bereits Bestellungen) */
   kundennummer?: string
+  /** Zugeordnete Kundenkategorie (Rabatt/Versand); Konfig in AdminSettings. */
+  customerCategoryId?: string | null
   /** Portal-Kontostatus (Soft Delete) */
   status?: import("@/lib/konto/account-status").CustomerAccountStatus
   /** Zeitpunkt der Kontolöschung */

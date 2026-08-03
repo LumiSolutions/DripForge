@@ -183,6 +183,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       delivery?: unknown | null
       email?: unknown
       status?: unknown
+      customerCategoryId?: unknown
     }
 
     const nextBilling =
@@ -229,12 +230,21 @@ export async function PATCH(request: Request, context: RouteContext) {
       nextStatus = body.status
     }
 
+    let nextCategoryId = customer.customerCategoryId ?? null
+    if (body.customerCategoryId !== undefined) {
+      nextCategoryId =
+        typeof body.customerCategoryId === "string" && body.customerCategoryId.trim()
+          ? body.customerCategoryId.trim()
+          : null
+    }
+
     const updated: StoredCustomer = {
       ...customer,
       email: nextEmail,
       billing: nextBilling,
       delivery: nextDelivery,
       status: nextStatus,
+      customerCategoryId: nextCategoryId,
     }
 
     const saved = await saveCustomer(updated)
@@ -251,6 +261,8 @@ export async function PATCH(request: Request, context: RouteContext) {
         zip: nextBilling.zip || portalAccount.zip,
         city: nextBilling.city || portalAccount.city,
         status: nextStatus,
+        // Kategorie mit dem Portal-Konto synchronisieren (Shop-Preislogik nutzt das Konto).
+        customerCategoryId: nextCategoryId,
       })
     }
 

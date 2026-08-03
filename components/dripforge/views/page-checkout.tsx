@@ -25,6 +25,7 @@ import {
   resolveCheckoutPointsPurchaseSelection,
 } from "@/components/dripforge/checkout-reward-points"
 import { useCart } from "@/components/dripforge/cart-provider"
+import { useCustomerCategory } from "@/components/dripforge/customer-category-provider"
 import { CheckoutAuthDialog } from "@/components/konto/checkout-auth-dialog"
 import {
   DEFAULT_CHECKOUT_RUNTIME_CONFIG,
@@ -198,6 +199,7 @@ export function PageCheckout({
 }) {
   const { applyMergedCart, clearCart } = useCart()
   const { company } = useCompanySettings()
+  const { category: customerCategory } = useCustomerCategory()
   const [checkoutConfig, setCheckoutConfig] = useState<CheckoutRuntimeConfig>(
     DEFAULT_CHECKOUT_RUNTIME_CONFIG
   )
@@ -438,10 +440,20 @@ export function PageCheckout({
   const cardPaymentsEnabled = checkoutConfig.paymentCardAktiv
   const twintPaymentsEnabled = checkoutConfig.paymentTwintAktiv
 
-  const subtotal = useMemo(
+  const baseSubtotal = useMemo(
     () => cart.reduce((sum, item) => sum + item.price * item.quantity, 0),
     [cart]
   )
+  const categoryDiscountPercent = customerCategory?.discountPercent ?? 0
+  // Kundenkategorie-Rabatt auf die Zwischensumme (serverseitig verbindlich).
+  const categoryDiscountChf = useMemo(
+    () =>
+      categoryDiscountPercent > 0
+        ? Math.round(baseSubtotal * (categoryDiscountPercent / 100) * 100) / 100
+        : 0,
+    [baseSubtotal, categoryDiscountPercent]
+  )
+  const subtotal = Math.max(0, baseSubtotal - categoryDiscountChf)
   const selectedShippingOption =
     shippingOptions.find((o) => o.id === selectedShippingId) ??
     shippingOptions[0] ??
@@ -466,11 +478,20 @@ export function PageCheckout({
           data as Partial<ShippingTiersSettings> | null
         )
         const metrics = estimateCartShippingMetrics(cart)
-        const options = resolveShippingOptionsForCart(
+        const resolved = resolveShippingOptionsForCart(
           settings,
           metrics,
           fallback
         )
+        // Kundenkategorie: nur erlaubte Versandarten anzeigen (leer = alle).
+        const allowed = customerCategory?.allowedShippingMethodIds ?? []
+        const filtered =
+          allowed.length > 0
+            ? resolved.filter((o) =>
+                allowed.includes(o.methodId as (typeof allowed)[number])
+              )
+            : resolved
+        const options = filtered.length > 0 ? filtered : resolved
         setShippingOptions(options)
         setSelectedShippingId((prev) => {
           if (options.some((o) => o.id === prev)) return prev
@@ -489,7 +510,7 @@ export function PageCheckout({
     return () => {
       cancelled = true
     }
-  }, [cart])
+  }, [cart, customerCategory])
 
   // Sync methodId when selection changes
   useEffect(() => {
@@ -1610,9 +1631,22 @@ export function PageCheckout({
                 <div className="flex justify-between gap-3">
                   <span className="text-muted-foreground">Zwischensumme</span>
                   <span className="font-medium tabular-nums">
-                    CHF {totals.subtotal.toFixed(2)}
+                    CHF {baseSubtotal.toFixed(2)}
                   </span>
                 </div>
+                {categoryDiscountChf > 0 && (
+                  <div className="flex justify-between gap-3">
+                    <span className="text-muted-foreground">
+                      Kundenrabatt
+                      {customerCategory?.name
+                        ? ` (${customerCategory.name}, ${categoryDiscountPercent}%)`
+                        : ` (${categoryDiscountPercent}%)`}
+                    </span>
+                    <span className="font-medium tabular-nums text-emerald-600 dark:text-emerald-400">
+                      − CHF {categoryDiscountChf.toFixed(2)}
+                    </span>
+                  </div>
+                )}
                 <div className="flex justify-between gap-3">
                   <span className="text-muted-foreground">Versandkosten</span>
                   <span className="font-medium tabular-nums">

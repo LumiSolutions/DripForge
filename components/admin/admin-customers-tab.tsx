@@ -65,6 +65,10 @@ import type { LoyaltyPointTransaction } from "@/lib/konto/loyalty-points-config"
 import type { SavedCustomerDesign } from "@/lib/konto/account-types"
 import type { CustomerOffer } from "@/lib/konto/customer-offer-types"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
+import {
+  normalizeCustomerCategories,
+  type CustomerCategory,
+} from "@/lib/dripforge/customer-categories"
 import { cn } from "@/lib/utils"
 
 type CustomerLoyaltyInfo = {
@@ -411,6 +415,7 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
   const [visibleCount, setVisibleCount] = useState(50)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [detail, setDetail] = useState<CustomerDetail | null>(null)
+  const [customerCategories, setCustomerCategories] = useState<CustomerCategory[]>([])
   const [orders, setOrders] = useState<StoredOrder[]>([])
   const [loyalty, setLoyalty] = useState<CustomerLoyaltyInfo | null>(null)
   const [designs, setDesigns] = useState<SavedCustomerDesign[]>([])
@@ -570,6 +575,23 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
     },
     [resetOrderFilters]
   )
+
+  useEffect(() => {
+    let cancelled = false
+    void fetch("/api/admin/settings", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!cancelled) {
+          setCustomerCategories(
+            normalizeCustomerCategories(data?.customerCategories)
+          )
+        }
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const loadCustomers = useCallback(async () => {
     setLoading(true)
@@ -841,6 +863,7 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
     delivery?: OrderAddress | null
     email?: string
     status?: "aktiv" | "inaktiv"
+    customerCategoryId?: string | null
   }) => {
     if (!detail) return false
 
@@ -1243,6 +1266,36 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
                       <SelectContent>
                         <SelectItem value="aktiv">Aktiv</SelectItem>
                         <SelectItem value="inaktiv">Inaktiv</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {canEditCustomer && customerCategories.length > 0 && (
+                  <div className="mt-4 max-w-xs space-y-1.5">
+                    <Label className={adminUi.label}>Kundenkategorie</Label>
+                    <Select
+                      value={detail.customerCategoryId ?? "none"}
+                      onValueChange={(value) => {
+                        void patchCustomer({
+                          customerCategoryId: value === "none" ? null : value,
+                        })
+                      }}
+                      disabled={saving}
+                    >
+                      <SelectTrigger className={cn("w-full", adminUi.input)}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Keine Kategorie</SelectItem>
+                        {customerCategories.map((cat) => (
+                          <SelectItem key={cat.id} value={cat.id}>
+                            {cat.name}
+                            {cat.discountPercent > 0
+                              ? ` (−${cat.discountPercent}%)`
+                              : ""}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>

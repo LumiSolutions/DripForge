@@ -80,6 +80,7 @@ export async function PUT(request: Request) {
       wishlistIcon?: string
       wishlistIconCustomUrl?: string | null
       announcementBanner?: Partial<AnnouncementBannerSettings> | null
+      customerCategories?: unknown
       shippingTiers?: Partial<ShippingTiersSettings> | null
       thanksPage?: Partial<ThanksPageSettings> | null
       orderEmailTemplates?: {
@@ -198,6 +199,10 @@ export async function PUT(request: Request) {
       announcementBanner:
         body.announcementBanner !== undefined
           ? body.announcementBanner
+          : undefined,
+      customerCategories:
+        body.customerCategories !== undefined
+          ? body.customerCategories
           : undefined,
       shippingTiers:
         body.shippingTiers !== undefined ? body.shippingTiers : undefined,

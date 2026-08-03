@@ -142,6 +142,8 @@ export type StoredCustomer = {
   billing: OrderAddress
   delivery?: OrderAddress
   orderIds: string[]
+  /** Zugeordnete Kundenkategorie (Rabatt/Versand); Konfiguration in AdminSettings. */
+  customerCategoryId?: string | null
   /** CRM-Status (Soft Delete über Portal) */
   status?: import("@/lib/konto/account-status").CustomerAccountStatus
   createdAt: string
@@ -270,6 +272,8 @@ export type AdminSettings = {
   }
   /** Globale Notification-Bar (optional, Defaults inaktiv) */
   announcementBanner?: import("@/lib/dripforge/announcement-banner-settings").AnnouncementBannerSettings
+  /** Kundenkategorien / -gruppen mit Rabatt und erlaubten Versandarten */
+  customerCategories?: import("@/lib/dripforge/customer-categories").CustomerCategory[]
   /** Gewichtsstaffeln für Versandpreise (optional) */
   shippingTiers?: import("@/lib/dripforge/shipping-tiers").ShippingTiersSettings
   /** Dankesseite-Animation (Checkout Success) */
