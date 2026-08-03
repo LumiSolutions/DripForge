@@ -95,7 +95,11 @@ import {
 } from "@/lib/dripforge/wishlist-icon-settings"
 import {
   DEFAULT_ANNOUNCEMENT_BANNER,
+  createEmptyAnnouncementEntry,
   normalizeAnnouncementBanner,
+  MIN_ANNOUNCEMENT_ROTATE_SECONDS,
+  MAX_ANNOUNCEMENT_ROTATE_SECONDS,
+  type AnnouncementBannerEntry,
   type AnnouncementBannerSettings,
 } from "@/lib/dripforge/announcement-banner-settings"
 import {
@@ -224,6 +228,29 @@ export function AdminSettingsTab({
   )
   const [announcementBanner, setAnnouncementBanner] =
     useState<AnnouncementBannerSettings>({ ...DEFAULT_ANNOUNCEMENT_BANNER })
+
+  const updateAnnouncementEntry = (
+    id: string,
+    patch: Partial<AnnouncementBannerEntry>
+  ) =>
+    setAnnouncementBanner((prev) => ({
+      ...prev,
+      entries: prev.entries.map((entry) =>
+        entry.id === id ? { ...entry, ...patch } : entry
+      ),
+    }))
+
+  const addAnnouncementEntry = () =>
+    setAnnouncementBanner((prev) => ({
+      ...prev,
+      entries: [...prev.entries, createEmptyAnnouncementEntry()],
+    }))
+
+  const removeAnnouncementEntry = (id: string) =>
+    setAnnouncementBanner((prev) => ({
+      ...prev,
+      entries: prev.entries.filter((entry) => entry.id !== id),
+    }))
   const [shippingTiers, setShippingTiers] = useState<ShippingTiersSettings>(() =>
     normalizeShippingTiers(DEFAULT_SHIPPING_TIERS)
   )
@@ -844,59 +871,186 @@ export function AdminSettingsTab({
                   }
                 />
               </div>
+
               <div className="space-y-2">
-                <Label htmlFor="announcement-text" className={adminUi.label}>
-                  Banner-Text
-                </Label>
-                <Input
-                  id="announcement-text"
-                  value={announcementBanner.text}
-                  onChange={(e) =>
-                    setAnnouncementBanner((prev) => ({
-                      ...prev,
-                      text: e.target.value,
-                    }))
-                  }
-                  placeholder="z. B. Frühlingssale — 10 % auf alles"
-                  className={adminUi.input}
-                />
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="announcement-code" className={adminUi.label}>
-                    Rabattcode (optional)
-                  </Label>
-                  <Input
-                    id="announcement-code"
-                    value={announcementBanner.discountCode}
-                    onChange={(e) =>
-                      setAnnouncementBanner((prev) => ({
-                        ...prev,
-                        discountCode: e.target.value,
-                      }))
-                    }
-                    placeholder="SAVE10"
-                    className={adminUi.input}
-                  />
+                <Label className={adminUi.label}>Anzeigemodus</Label>
+                <div className="flex flex-wrap gap-4">
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="radio"
+                      name="announcement-display-mode"
+                      checked={announcementBanner.displayMode === "marquee"}
+                      onChange={() =>
+                        setAnnouncementBanner((prev) => ({
+                          ...prev,
+                          displayMode: "marquee",
+                        }))
+                      }
+                    />
+                    Lauftext / Marquee
+                  </label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="radio"
+                      name="announcement-display-mode"
+                      checked={announcementBanner.displayMode === "rotate"}
+                      onChange={() =>
+                        setAnnouncementBanner((prev) => ({
+                          ...prev,
+                          displayMode: "rotate",
+                        }))
+                      }
+                    />
+                    Statisch / Rotierend
+                  </label>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="announcement-link" className={adminUi.label}>
-                    Link-URL (optional)
-                  </Label>
-                  <Input
-                    id="announcement-link"
-                    value={announcementBanner.linkUrl}
-                    onChange={(e) =>
-                      setAnnouncementBanner((prev) => ({
-                        ...prev,
-                        linkUrl: e.target.value,
-                      }))
-                    }
-                    placeholder="/shop oder https://…"
-                    className={adminUi.input}
-                  />
-                </div>
+                {announcementBanner.displayMode === "rotate" && (
+                  <div className="flex items-center gap-2 pt-1">
+                    <Label
+                      htmlFor="announcement-rotate-seconds"
+                      className={cn("text-sm", adminUi.muted)}
+                    >
+                      Wechsel alle
+                    </Label>
+                    <Input
+                      id="announcement-rotate-seconds"
+                      type="number"
+                      min={MIN_ANNOUNCEMENT_ROTATE_SECONDS}
+                      max={MAX_ANNOUNCEMENT_ROTATE_SECONDS}
+                      value={announcementBanner.rotateSeconds}
+                      onChange={(e) =>
+                        setAnnouncementBanner((prev) => ({
+                          ...prev,
+                          rotateSeconds: Number(e.target.value) || prev.rotateSeconds,
+                        }))
+                      }
+                      className={cn("w-20", adminUi.input)}
+                    />
+                    <span className={cn("text-sm", adminUi.muted)}>Sekunden</span>
+                  </div>
+                )}
               </div>
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label className={adminUi.label}>Banner-Texte</Label>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={addAnnouncementEntry}
+                  >
+                    + Text hinzufügen
+                  </Button>
+                </div>
+                {announcementBanner.entries.length === 0 ? (
+                  <p className={cn("text-sm", adminUi.muted)}>
+                    Noch keine Banner-Texte. Füge mindestens einen Text hinzu.
+                  </p>
+                ) : (
+                  <div className="space-y-4">
+                    {announcementBanner.entries.map((entry, index) => (
+                      <div
+                        key={entry.id}
+                        className="space-y-3 rounded-lg border border-border/60 p-4"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className={cn("text-sm font-semibold", adminUi.muted)}>
+                            Text {index + 1}
+                          </span>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="text-red-600 hover:text-red-700"
+                            onClick={() => removeAnnouncementEntry(entry.id)}
+                          >
+                            Entfernen
+                          </Button>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className={adminUi.label}>Banner-Text</Label>
+                          <Input
+                            value={entry.text}
+                            onChange={(e) =>
+                              updateAnnouncementEntry(entry.id, {
+                                text: e.target.value,
+                              })
+                            }
+                            placeholder="z. B. Frühlingssale — 10 % auf alles"
+                            className={adminUi.input}
+                          />
+                        </div>
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label className={adminUi.label}>
+                              Rabattcode (optional)
+                            </Label>
+                            <Input
+                              value={entry.discountCode}
+                              onChange={(e) =>
+                                updateAnnouncementEntry(entry.id, {
+                                  discountCode: e.target.value,
+                                })
+                              }
+                              placeholder="SAVE10"
+                              className={adminUi.input}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label className={adminUi.label}>
+                              Link-URL (optional)
+                            </Label>
+                            <Input
+                              value={entry.linkUrl}
+                              onChange={(e) =>
+                                updateAnnouncementEntry(entry.id, {
+                                  linkUrl: e.target.value,
+                                })
+                              }
+                              placeholder="/shop oder https://…"
+                              className={adminUi.input}
+                            />
+                          </div>
+                        </div>
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label className={adminUi.label}>
+                              Von (optional)
+                            </Label>
+                            <Input
+                              type="datetime-local"
+                              value={entry.startAt ?? ""}
+                              onChange={(e) =>
+                                updateAnnouncementEntry(entry.id, {
+                                  startAt: e.target.value || null,
+                                })
+                              }
+                              className={adminUi.input}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label className={adminUi.label}>
+                              Bis (optional)
+                            </Label>
+                            <Input
+                              type="datetime-local"
+                              value={entry.endAt ?? ""}
+                              onChange={(e) =>
+                                updateAnnouncementEntry(entry.id, {
+                                  endAt: e.target.value || null,
+                                })
+                              }
+                              className={adminUi.input}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               <div className="space-y-2">
                 <Label className={adminUi.label}>Stil</Label>
                 <div className="flex flex-wrap gap-4">
