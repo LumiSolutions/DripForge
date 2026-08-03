@@ -268,7 +268,14 @@ export async function getOrderById(orderId: string): Promise<StoredOrder | null>
 
 async function saveOrderToFile(order: StoredOrder): Promise<void> {
   const orders = await readJsonFile<StoredOrder[]>(ORDERS_FILE, [])
-  orders.unshift(order)
+  // Upsert per orderId (wie Cosmos) — sonst würden Status-/Zahlungs-Updates
+  // im Datei-Fallback jede Bestellung duplizieren statt zu aktualisieren.
+  const index = orders.findIndex((o) => o.orderId === order.orderId)
+  if (index >= 0) {
+    orders[index] = order
+  } else {
+    orders.unshift(order)
+  }
   await writeJsonFile(ORDERS_FILE, orders)
 }
 
