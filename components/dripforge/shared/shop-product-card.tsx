@@ -136,6 +136,7 @@ export function ShopProductCard({
                 alt={product.name}
                 fill
                 sizes="200px"
+                quality={55}
                 className="object-contain p-1.5"
               />
             </div>
@@ -218,6 +219,7 @@ export function ShopProductCard({
             alt={product.name}
             fill
             sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+            quality={60}
             className="object-contain p-2 transition-transform duration-300 group-hover:scale-[1.02] sm:p-3"
           />
         </div>
