@@ -113,6 +113,7 @@ import { filterFilamentMaterialsForProduct } from "@/lib/dripforge/product-filam
 import { SiteText } from "@/components/dripforge/editable-site-text"
 import { SiteTextPhrase } from "@/components/dripforge/site-text-phrase"
 import { useSiteTexts } from "@/components/dripforge/site-texts-provider"
+import { useCustomerCategory } from "@/components/dripforge/customer-category-provider"
 import { captureProductionLayerPng } from "@/lib/dripforge/capture-production-layer"
 import { LoadSavedDesignButton } from "@/components/konto/load-saved-design-button"
 import { hydrateLaserDesignerFromConfig } from "@/lib/konto/hydrate-laser-design"
@@ -204,6 +205,8 @@ export function PageShop({
   // der Shop-Übersicht (Performance beim Initial-Load).
   const { materials: filamentMaterialsAll, loading: filamentsLoading } =
     useFilamentCatalog({ enabled: productDetailMode || Boolean(selectedProduct) })
+  // Kundenkategorie-Rabatt (eingeloggter Kunde) für die Detail-Preisanzeige.
+  const customerCategory = useCustomerCategory()
 
   const filamentMaterials = useMemo(
     () =>
@@ -782,7 +785,10 @@ export function PageShop({
       quantityDiscountTiers,
       pricingQty
     )
-    const unitPrice = qtyDiscount.unitPrice
+    // Kundenkategorie-Rabatt zusätzlich auf den (mengenrabattierten) Anzeigepreis.
+    // Der Warenkorb speichert weiterhin den Basispreis; der Rabatt wird
+    // serverseitig verbindlich angewendet (processOrderPayload).
+    const unitPrice = customerCategory.applyDiscount(qtyDiscount.unitPrice)
     const shopLaserMaterial =
       detailProduct.type === "laser"
         ? getLaserMaterialForProduct(detailProduct)
