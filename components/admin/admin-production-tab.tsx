@@ -564,7 +564,7 @@ function ProductionOrderCard({
                 : "border-amber-500/40 bg-amber-500/15 text-amber-800 dark:text-amber-200"
             )}
           >
-            {paid ? "Bezahlt" : `Zahlung offen · ${order.paymentMethodLabel}`}
+            {paid ? "Bezahlt" : "Zahlung offen"}
           </Badge>
         </div>
       </CardHeader>

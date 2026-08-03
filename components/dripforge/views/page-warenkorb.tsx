@@ -64,6 +64,7 @@ import {
   getShippingCost,
   type CheckoutRuntimeConfig,
 } from "@/lib/dripforge/checkout-config"
+import { useCustomerCategory } from "@/components/dripforge/customer-category-provider"
 
 export function PageWarenkorb({ 
   setCurrentView, 
@@ -74,6 +75,9 @@ export function PageWarenkorb({
   cart: CartItem[]
   setCart: (cart: CartItem[]) => void
 }) {
+  const { applyDiscount: applyCategoryDiscount, discountPercent: categoryDiscountPercent } =
+    useCustomerCategory()
+
   const removeFromCart = (id: string) => {
     setCart(cart.filter(item => item.id !== id))
   }
@@ -105,7 +109,12 @@ export function PageWarenkorb({
       })
   }, [])
 
-  const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0)
+  const baseSubtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0)
+  const categoryDiscountChf =
+    categoryDiscountPercent > 0
+      ? Math.round(baseSubtotal * (categoryDiscountPercent / 100) * 100) / 100
+      : 0
+  const subtotal = Math.max(0, baseSubtotal - categoryDiscountChf)
   const shipping = subtotal > 0 ? getShippingCost("bpost") : 0
   const totals = calculateCheckoutTotals(subtotal, shipping, checkoutConfig)
 
@@ -240,7 +249,16 @@ export function PageWarenkorb({
                         )}
                       </div>
                       <div className="text-right">
-                        <p className="mb-4 text-lg font-bold">CHF {item.price.toFixed(2)}</p>
+                        {categoryDiscountPercent > 0 ? (
+                          <p className="mb-4 text-lg font-bold">
+                            CHF {applyCategoryDiscount(item.price).toFixed(2)}
+                            <span className="ml-2 text-sm font-normal text-muted-foreground line-through">
+                              CHF {item.price.toFixed(2)}
+                            </span>
+                          </p>
+                        ) : (
+                          <p className="mb-4 text-lg font-bold">CHF {item.price.toFixed(2)}</p>
+                        )}
                         <div className="flex items-center gap-3 justify-end mb-4">
                           <Button
                             size="sm"
@@ -281,8 +299,18 @@ export function PageWarenkorb({
                   <div className="space-y-3 border-b border-border pb-4 mb-4">
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Zwischensumme</span>
-                      <span>CHF {subtotal.toFixed(2)}</span>
+                      <span>CHF {baseSubtotal.toFixed(2)}</span>
                     </div>
+                    {categoryDiscountChf > 0 && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">
+                          Kundenrabatt ({categoryDiscountPercent}%)
+                        </span>
+                        <span className="text-emerald-600 dark:text-emerald-400">
+                          − CHF {categoryDiscountChf.toFixed(2)}
+                        </span>
+                      </div>
+                    )}
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Versand</span>
                       <span>CHF {totals.shippingCost.toFixed(2)}</span>
