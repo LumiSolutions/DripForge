@@ -58,6 +58,32 @@ export async function POST(request: Request) {
     )
   }
 
+  // Häufige Fehlkonfiguration: Secret- und Publishable-Key in unterschiedlichen
+  // Modi (live vs. test). Führt sonst zu kryptischen Stripe-Fehlern erst nach
+  // dem Redirect — hier früh und verständlich abfangen.
+  const stripeDiag = getStripeEnvDiagnostics()
+  if (stripeDiag.modeMismatch) {
+    console.error(
+      "Stripe Checkout: Live-/Test-Key-Mismatch",
+      "secret:",
+      stripeDiag.secretKeyMode,
+      "publishable:",
+      stripeDiag.publishableKeyMode
+    )
+    return NextResponse.json(
+      {
+        error:
+          "Stripe Live- und Test-Schlüssel passen nicht zusammen (Secret ist " +
+          `${stripeDiag.secretKeyMode}, Publishable ist ${stripeDiag.publishableKeyMode}). ` +
+          "Bitte beide im gleichen Modus konfigurieren.",
+        stripeCode: "key_mode_mismatch",
+        configured: false,
+        success: false,
+      },
+      { status: 400 }
+    )
+  }
+
   try {
     try {
       await warmCosmosInfrastructure()
