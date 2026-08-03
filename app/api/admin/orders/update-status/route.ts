@@ -12,6 +12,7 @@ import {
   isValidTrackingNumber,
   normalizeTrackingNumber,
 } from "@/lib/admin/production-status"
+import { confirmOrderPaymentManually } from "@/lib/shop/confirm-order-payment"
 import {
   isAuthError,
   requireAdminSession,
@@ -27,6 +28,8 @@ type UpdateStatusBody = {
   status?: OrderStatus
   productionStatus?: ProductionStatus
   trackingNumber?: string
+  /** Manuelle Zahlungsbestätigung (Rechnung/TWINT). */
+  confirmPayment?: boolean
 }
 
 export async function PATCH(request: Request) {
@@ -44,6 +47,17 @@ export async function PATCH(request: Request) {
     const existing = await getOrderById(orderId)
     if (!existing) {
       return NextResponse.json({ error: "Bestellung nicht gefunden." }, { status: 404 })
+    }
+
+    if (body.confirmPayment) {
+      const result = await confirmOrderPaymentManually(orderId)
+      if (!result.ok) {
+        return NextResponse.json({ error: result.error }, { status: 400 })
+      }
+      return NextResponse.json({
+        order: result.order,
+        alreadyConfirmed: result.alreadyConfirmed,
+      })
     }
 
     if (body.status === "versendet" || body.productionStatus === "versendet") {

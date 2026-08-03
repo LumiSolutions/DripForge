@@ -27,15 +27,21 @@ export const ORDER_STATUS_OPTIONS: {
   { value: "storniert", label: "Storniert" },
 ]
 
-/** Produktions-Cockpit (Kanban), unabhängig vom Shop-Bestellstatus. */
+/**
+ * Produktions-Cockpit (Kanban) — erweiterte Pipeline inkl. Zahlungsstufen.
+ * Reihenfolge: Bestellungseingang → Bezahlt → Bereit für Produktion →
+ * In Produktion → Qualitätskontrolle → Bereit für Versand → Versendet.
+ */
 export type ProductionStatus =
+  | "bestellungseingang"
+  | "bezahlt"
   | "bereit_fuer_produktion"
   | "in_produktion"
   | "qualitaetskontrolle"
   | "bereit_fuer_versand"
   | "versendet"
 
-export const DEFAULT_PRODUCTION_STATUS: ProductionStatus = "bereit_fuer_produktion"
+export const DEFAULT_PRODUCTION_STATUS: ProductionStatus = "bestellungseingang"
 
 export type StoredOrderItem = CartItem & {
   leitbildUrl?: string | null

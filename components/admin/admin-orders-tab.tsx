@@ -54,8 +54,15 @@ import {
 import {
   ORDER_STATUS_OPTIONS,
   type OrderStatus,
+  type ProductionStatus,
   type StoredOrder,
 } from "@/lib/admin/types"
+import {
+  isOrderPaid,
+  needsManualPaymentConfirmation,
+  PRODUCTION_COLUMNS,
+  resolveProductionStatus,
+} from "@/lib/admin/production-status"
 import { formatBelegDisplayId } from "@/lib/documents/beleg-number"
 import { LASER_FONT_OPTIONS } from "@/lib/dripforge/laser-fonts"
 import { getLaserFontFamily } from "@/lib/dripforge/laser-fonts"
@@ -639,6 +646,68 @@ export function AdminOrdersTab({
     }
   }
 
+  const updateProductionStatus = async (
+    orderId: string,
+    productionStatus: ProductionStatus
+  ) => {
+    setUpdatingId(orderId)
+    try {
+      const res = await fetch(`/api/admin/orders/${orderId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productionStatus }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? "Update fehlgeschlagen")
+      setOrders((prev) =>
+        prev.map((o) => (o.orderId === orderId ? data.order : o))
+      )
+    } catch (err) {
+      console.warn("Admin: Produktionsstatus-Update fehlgeschlagen.", err)
+      setError(
+        err instanceof Error ? err.message : "Status konnte nicht aktualisiert werden."
+      )
+    } finally {
+      setUpdatingId(null)
+    }
+  }
+
+  const confirmOrderPayment = async (orderId: string) => {
+    setUpdatingId(orderId)
+    try {
+      const res = await fetch(`/api/admin/orders/update-status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId, confirmPayment: true }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? "Zahlungsbestätigung fehlgeschlagen")
+      setOrders((prev) =>
+        prev.map((o) => (o.orderId === orderId ? data.order : o))
+      )
+    } catch (err) {
+      console.warn("Admin: Zahlungsbestätigung fehlgeschlagen.", err)
+      setError(
+        err instanceof Error ? err.message : "Zahlung konnte nicht bestätigt werden."
+      )
+    } finally {
+      setUpdatingId(null)
+    }
+  }
+
+  /** Belege-Statusauswahl: Pipeline-Stufen + Storno + manuelle Zahlungsbestätigung. */
+  const handleBelegeStatusChange = (order: StoredOrder, value: string) => {
+    if (value === "storniert") {
+      void updateStatus(order.orderId, "storniert")
+      return
+    }
+    if (value === "bezahlt" && !isOrderPaid(order)) {
+      void confirmOrderPayment(order.orderId)
+      return
+    }
+    void updateProductionStatus(order.orderId, value as ProductionStatus)
+  }
+
   const deleteOrder = async (orderId: string) => {
     setDeleting(true)
     setDeleteError(null)
@@ -886,24 +955,42 @@ export function AdminOrdersTab({
                         CHF {order.totals.total.toFixed(2)}
                       </TableCell>
                       <TableCell onClick={(e) => e.stopPropagation()}>
-                        <Select
-                          value={order.status}
-                          disabled={updatingId === order.orderId}
-                          onValueChange={(value) =>
-                            void updateStatus(order.orderId, value as OrderStatus)
-                          }
-                        >
-                          <SelectTrigger className={cn("h-9 w-[160px]", adminUi.select)}>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className={adminUi.card}>
-                            {ORDER_STATUS_OPTIONS.map((opt) => (
-                              <SelectItem key={opt.value} value={opt.value}>
-                                {opt.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <div className="flex flex-col gap-1.5">
+                          <Select
+                            value={
+                              order.status === "storniert"
+                                ? "storniert"
+                                : resolveProductionStatus(order)
+                            }
+                            disabled={updatingId === order.orderId}
+                            onValueChange={(value) =>
+                              handleBelegeStatusChange(order, value)
+                            }
+                          >
+                            <SelectTrigger className={cn("h-9 w-[200px]", adminUi.select)}>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className={adminUi.card}>
+                              {PRODUCTION_COLUMNS.map((opt) => (
+                                <SelectItem key={opt.id} value={opt.id}>
+                                  {opt.label}
+                                </SelectItem>
+                              ))}
+                              <SelectItem value="storniert">Storniert</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          {needsManualPaymentConfirmation(order) && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              disabled={updatingId === order.orderId}
+                              className="h-7 bg-emerald-600 text-xs text-white hover:bg-emerald-700"
+                              onClick={() => void confirmOrderPayment(order.orderId)}
+                            >
+                              Zahlungseingang bestätigen
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell
                         className="text-right"

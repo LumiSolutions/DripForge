@@ -65,8 +65,10 @@ export async function POST(request: Request) {
     )
 
     // 1) Bestellung zuerst persistent speichern (ohne Mails im processOrderPayload)
+    // Kauf auf Rechnung: Zahlung gilt als AUSSTEHEND — zählt erst nach manueller
+    // Bestätigung im Admin zum Umsatz (Produktionsstatus "Bestellungseingang").
     const { order, itemResults, settings } = await processOrderPayload(payload, {
-      paymentConfirmed: true,
+      paymentConfirmed: false,
       enforceGatewayMinForPoints: false,
       sessionEmail,
       skipInboundEmails: true,

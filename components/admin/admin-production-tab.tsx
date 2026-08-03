@@ -53,10 +53,13 @@ import {
 } from "@/lib/admin/layout-placement"
 import { getItemPersonalizationLines } from "@/lib/admin/order-personalization"
 import {
+  isOrderPaid,
   isOrderVisibleInProductionCockpit,
+  needsManualPaymentConfirmation,
   nextProductionStatus,
   prevProductionStatus,
   PRODUCTION_COLUMNS,
+  productionStatusLabel,
   requiresShipmentModal,
   resolveProductionStatus,
 } from "@/lib/admin/production-status"
@@ -321,10 +324,14 @@ function ProductionOrderDetailDialog({
   order,
   open,
   onOpenChange,
+  onConfirmPayment,
+  confirming,
 }: {
   order: StoredOrder | null
   open: boolean
   onOpenChange: (open: boolean) => void
+  onConfirmPayment: (orderId: string) => void
+  confirming: boolean
 }) {
   if (!order) return null
 
@@ -352,11 +359,22 @@ function ProductionOrderDetailDialog({
               <p>{order.paymentMethodLabel}</p>
               <p className={adminUi.muted}>Zahlungsstatus: {paymentLabel(order)}</p>
               <p className={adminUi.muted}>
-                Shop-Status: {shopStatusLabel(order.status)}
+                Produktion: {productionStatusLabel(resolveProductionStatus(order))}
               </p>
               <p className={cn("font-semibold tabular-nums", adminUi.heading)}>
                 {formatChf(order.totals.total)}
               </p>
+              {needsManualPaymentConfirmation(order) && (
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={confirming}
+                  className="mt-1 bg-emerald-600 text-white hover:bg-emerald-700"
+                  onClick={() => onConfirmPayment(order.orderId)}
+                >
+                  Zahlungseingang bestätigen
+                </Button>
+              )}
             </div>
           </div>
 
@@ -419,6 +437,7 @@ function ProductionOrderCard({
   order,
   columnStatus,
   onMove,
+  onConfirmPayment,
   onRequestShipment,
   onShowDetails,
   updating,
@@ -429,6 +448,7 @@ function ProductionOrderCard({
   order: StoredOrder
   columnStatus: ProductionStatus
   onMove: (orderId: string, status: ProductionStatus) => void
+  onConfirmPayment: (orderId: string) => void
   onRequestShipment: (order: StoredOrder) => void
   onShowDetails: (order: StoredOrder) => void
   updating: boolean
@@ -440,6 +460,8 @@ function ProductionOrderCard({
   const prev = prevProductionStatus(columnStatus)
   const next = nextProductionStatus(columnStatus)
   const customerInbound = isCustomerInboundOrder(order)
+  const paid = isOrderPaid(order)
+  const awaitingPayment = needsManualPaymentConfirmation(order)
 
   return (
     <Card
@@ -539,6 +561,16 @@ function ProductionOrderCard({
           <Badge variant="outline" className={cn("text-[10px]", adminUi.badgeOutline)}>
             {order.items.length} Pos.
           </Badge>
+          <Badge
+            className={cn(
+              "text-[10px]",
+              paid
+                ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+                : "border-amber-500/40 bg-amber-500/15 text-amber-800 dark:text-amber-200"
+            )}
+          >
+            {paid ? "Bezahlt" : `Zahlung offen · ${order.paymentMethodLabel}`}
+          </Badge>
         </div>
       </CardHeader>
 
@@ -592,6 +624,17 @@ function ProductionOrderCard({
             <Eye className="mr-1.5 h-3.5 w-3.5" />
             Bestellung anzeigen
           </Button>
+          {awaitingPayment && (
+            <Button
+              type="button"
+              size="sm"
+              disabled={updating}
+              className="h-8 w-full bg-emerald-600 text-xs text-white hover:bg-emerald-700"
+              onClick={() => onConfirmPayment(order.orderId)}
+            >
+              Zahlungseingang bestätigen
+            </Button>
+          )}
           <div className="flex w-full gap-2">
             {prev && columnStatus !== "versendet" && (
               <Button
@@ -606,7 +649,7 @@ function ProductionOrderCard({
                 <span className="truncate">Zurück</span>
               </Button>
             )}
-            {next && (
+            {next && !awaitingPayment && (
               <Button
                 type="button"
                 size="sm"
@@ -720,6 +763,14 @@ export function AdminProductionTab() {
 
   const moveOrder = async (orderId: string, productionStatus: ProductionStatus) => {
     if (productionStatus === "versendet") return
+    // Zahlung muss vor "Bezahlt" bestätigt sein (Rechnung/TWINT).
+    if (productionStatus === "bezahlt") {
+      const target = orders.find((o) => o.orderId === orderId)
+      if (target && !isOrderPaid(target)) {
+        void confirmPayment(orderId)
+        return
+      }
+    }
     setUpdatingId(orderId)
     try {
       const res = await fetch("/api/admin/orders/update-status", {
@@ -738,6 +789,31 @@ export function AdminProductionTab() {
       console.warn("Admin: Produktionsstatus-Update fehlgeschlagen.", err)
       setError(
         err instanceof Error ? err.message : "Status konnte nicht gespeichert werden."
+      )
+    } finally {
+      setUpdatingId(null)
+    }
+  }
+
+  const confirmPayment = async (orderId: string) => {
+    setUpdatingId(orderId)
+    try {
+      const res = await fetch("/api/admin/orders/update-status", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId, confirmPayment: true }),
+      })
+      const data = (await res.json()) as { order?: StoredOrder; error?: string }
+      if (!res.ok) throw new Error(data.error ?? "Zahlungsbestätigung fehlgeschlagen")
+      if (data.order) {
+        setOrders((prev) =>
+          prev.map((o) => (o.orderId === orderId ? data.order! : o))
+        )
+      }
+    } catch (err) {
+      console.warn("Admin: Zahlungsbestätigung fehlgeschlagen.", err)
+      setError(
+        err instanceof Error ? err.message : "Zahlung konnte nicht bestätigt werden."
       )
     } finally {
       setUpdatingId(null)
@@ -869,6 +945,7 @@ export function AdminProductionTab() {
                 order={order}
                 columnStatus={column.id}
                 onMove={moveOrder}
+                onConfirmPayment={confirmPayment}
                 onRequestShipment={openShipmentModal}
                 onShowDetails={setDetailOrder}
                 updating={updatingId === order.orderId}
@@ -1026,14 +1103,16 @@ export function AdminProductionTab() {
         {PRODUCTION_COLUMNS.filter((c) => c.id === mobileColumn).map(renderColumn)}
       </div>
 
-      {/* Desktop: 5 Spalten */}
-      <div className="hidden gap-4 md:grid xl:grid-cols-5 lg:grid-cols-3 md:grid-cols-2">
+      {/* Desktop: 7 Spalten (Pipeline) */}
+      <div className="hidden gap-3 md:grid xl:grid-cols-7 lg:grid-cols-4 md:grid-cols-2">
         {PRODUCTION_COLUMNS.map(renderColumn)}
       </div>
 
       <ProductionOrderDetailDialog
         order={detailOrder}
         open={detailOrder != null}
+        onConfirmPayment={confirmPayment}
+        confirming={updatingId === detailOrder?.orderId}
         onOpenChange={(open) => {
           if (!open) setDetailOrder(null)
         }}

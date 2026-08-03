@@ -600,10 +600,15 @@ export async function fulfillPaidShopOrder(
       ? { ...order.billing, email: stripeCustomerEmail }
       : order.billing
 
+  // Zahlungseingang rückt den Produktionsstatus automatisch auf "bezahlt"
+  // (Kreditkarte/Stripe/TWINT), sofern die Bestellung noch am Eingang steht.
+  const advanceProduction =
+    !order.productionStatus || order.productionStatus === "bestellungseingang"
   const updated: StoredOrder = {
     ...order,
     billing,
     paymentConfirmed: true,
+    ...(advanceProduction ? { productionStatus: "bezahlt" as const } : {}),
     ...(options.stripeSessionId
       ? { stripeSessionId: options.stripeSessionId }
       : {}),
