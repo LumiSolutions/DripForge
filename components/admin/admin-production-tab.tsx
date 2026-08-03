@@ -70,7 +70,6 @@ import {
 } from "@/lib/admin/customer-inbound-order"
 import { formatChf } from "@/lib/admin/format-chf"
 import type { ProductionStatus, StoredOrder, StoredOrderItem } from "@/lib/admin/types"
-import { ORDER_STATUS_OPTIONS } from "@/lib/admin/types"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
 import { cn } from "@/lib/utils"
 
@@ -96,10 +95,6 @@ function paymentLabel(order: StoredOrder) {
     return "Ausstehend"
   }
   return order.paymentMethodLabel
-}
-
-function shopStatusLabel(status: StoredOrder["status"]) {
-  return ORDER_STATUS_OPTIONS.find((o) => o.value === status)?.label ?? status
 }
 
 function triggerFileDownload(filename: string, href: string) {

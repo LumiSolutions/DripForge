@@ -40,10 +40,9 @@ export function useFilamentCatalog(options?: { enabled?: boolean }): {
   const [loading, setLoading] = useState(enabled)
 
   useEffect(() => {
-    if (!enabled) {
-      setLoading(false)
-      return
-    }
+    // Wenn deaktiviert: nicht laden. Der Ladezustand ist über den Initialwert
+    // (useState(enabled)) bereits korrekt (false).
+    if (!enabled) return
     let cancelled = false
 
     void fetch("/api/filaments", { cache: "no-store" })

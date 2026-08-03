@@ -111,11 +111,8 @@ export function AnnouncementBanner() {
   const displayMode = banner?.displayMode ?? DEFAULT_ANNOUNCEMENT_BANNER.displayMode
   const rotateSeconds = banner?.rotateSeconds ?? DEFAULT_ANNOUNCEMENT_BANNER.rotateSeconds
 
-  // Rotationsmodus: aktiven Text zyklisch wechseln.
-  useEffect(() => {
-    setRotateIndex(0)
-  }, [activeEntries.length, displayMode])
-
+  // Rotationsmodus: aktiven Text zyklisch wechseln. Der Index wird beim Rendern
+  // stets via `% activeEntries.length` normalisiert, daher kein Reset-Effekt nötig.
   useEffect(() => {
     if (displayMode !== "rotate" || activeEntries.length <= 1) return
     const interval = setInterval(() => {

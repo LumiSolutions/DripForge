@@ -1,7 +1,7 @@
 "use client"
 
 import Image from "next/image"
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { cn } from "@/lib/utils"
 
 const FALLBACK_IMAGE_SRC = "/placeholder.svg"
@@ -32,17 +32,15 @@ export function SafeProductImage({
   priority,
   quality,
 }: SafeProductImageProps) {
-  const initialSrc = src?.trim() || FALLBACK_IMAGE_SRC
-  const [currentSrc, setCurrentSrc] = useState(initialSrc)
-
-  // Bei Bildwechsel (z. B. neues Produkt) den Fehlerzustand zurücksetzen.
-  useEffect(() => {
-    setCurrentSrc(src?.trim() || FALLBACK_IMAGE_SRC)
-  }, [src])
+  const requestedSrc = src?.trim() || FALLBACK_IMAGE_SRC
+  // Merkt sich den zuletzt fehlgeschlagenen Pfad. Ändert sich `src`, unterscheidet
+  // er sich automatisch wieder → kein Reset-Effekt nötig.
+  const [failedSrc, setFailedSrc] = useState<string | null>(null)
+  const currentSrc =
+    failedSrc === requestedSrc ? FALLBACK_IMAGE_SRC : requestedSrc
 
   const handleError = () => {
-    // Fehlgeschlagenes Bild einmalig auf Platzhalter zurückfallen lassen.
-    setCurrentSrc((prev) => (prev === FALLBACK_IMAGE_SRC ? prev : FALLBACK_IMAGE_SRC))
+    if (requestedSrc !== FALLBACK_IMAGE_SRC) setFailedSrc(requestedSrc)
   }
 
   if (!isOptimizableImageSrc(currentSrc)) {
