@@ -72,3 +72,16 @@ export async function cosmosListAllCustomerOffers(): Promise<CustomerOffer[]> {
     throw error
   }
 }
+
+export async function cosmosDeleteCustomerOffer(id: string): Promise<boolean> {
+  const container = await getSettingsContainer()
+  try {
+    await container.item(id, id).delete()
+    return true
+  } catch (error) {
+    const code = (error as { code?: number }).code
+    if (code === 404) return false
+    logCosmosError(`cosmosDeleteCustomerOffer:${id}`, error)
+    throw error
+  }
+}

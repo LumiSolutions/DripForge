@@ -453,6 +453,9 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
   const [deliveryDraft, setDeliveryDraft] = useState<{
     id: string
     label: string
+    firstName: string
+    lastName: string
+    company: string
     street: string
     zip: string
     city: string
@@ -966,6 +969,9 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
       id: newDeliveryAddressId(),
       label:
         detailDeliveryAddresses.length === 0 ? "Hauptadresse" : "Lieferadresse",
+      firstName: detail?.billing.firstName ?? "",
+      lastName: detail?.billing.lastName ?? "",
+      company: "",
       street: "",
       zip: "",
       city: "",
@@ -981,6 +987,9 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
     setDeliveryDraft({
       id: address.id,
       label: address.label,
+      firstName: address.firstName ?? "",
+      lastName: address.lastName ?? "",
+      company: address.company ?? "",
       street: address.street,
       zip: address.zip,
       city: address.city,
@@ -1012,6 +1021,9 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
     const zip = deliveryDraft.zip.trim()
     const city = deliveryDraft.city.trim()
     const label = deliveryDraft.label.trim() || "Lieferadresse"
+    const firstName = deliveryDraft.firstName.trim()
+    const lastName = deliveryDraft.lastName.trim()
+    const company = deliveryDraft.company.trim()
     if (!street || !zip || !city) {
       setSaveError("Bitte Strasse, PLZ und Ort ausfüllen.")
       return
@@ -1026,6 +1038,9 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
         zip,
         city,
         isDefault: detailDeliveryAddresses.length === 0,
+        ...(firstName ? { firstName } : {}),
+        ...(lastName ? { lastName } : {}),
+        ...(company ? { company } : {}),
       }
       next = normalizeDeliveryAddresses(
         [...detailDeliveryAddresses, entry],
@@ -1040,7 +1055,16 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
       next = normalizeDeliveryAddresses(
         detailDeliveryAddresses.map((a) =>
           a.id === deliveryDraft.id
-            ? { ...a, label, street, zip, city }
+            ? {
+                ...a,
+                label,
+                street,
+                zip,
+                city,
+                firstName: firstName || undefined,
+                lastName: lastName || undefined,
+                company: company || undefined,
+              }
             : a
         )
       )
@@ -1568,7 +1592,18 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
                               ) : null}
                             </div>
                             <p className={cn("mt-0.5 text-sm", adminUi.muted)}>
-                              {address.street}, {address.zip} {address.city}
+                              {(() => {
+                                const name = [address.firstName, address.lastName]
+                                  .filter(Boolean)
+                                  .join(" ")
+                                const prefix = [name, address.company]
+                                  .filter(Boolean)
+                                  .join(" · ")
+                                const location = `${address.street}, ${address.zip} ${address.city}`
+                                return prefix
+                                  ? `${prefix} — ${location}`
+                                  : location
+                              })()}
                             </p>
                           </div>
                           {canEditCustomer &&
@@ -1639,6 +1674,48 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
                           disabled={saving}
                           className={adminUi.input}
                           placeholder="z. B. Büro"
+                        />
+                      </div>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="space-y-1.5">
+                          <Label className={adminUi.label}>Vorname</Label>
+                          <Input
+                            value={deliveryDraft.firstName}
+                            onChange={(e) =>
+                              setDeliveryDraft((d) =>
+                                d ? { ...d, firstName: e.target.value } : d
+                              )
+                            }
+                            disabled={saving}
+                            className={adminUi.input}
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className={adminUi.label}>Nachname</Label>
+                          <Input
+                            value={deliveryDraft.lastName}
+                            onChange={(e) =>
+                              setDeliveryDraft((d) =>
+                                d ? { ...d, lastName: e.target.value } : d
+                              )
+                            }
+                            disabled={saving}
+                            className={adminUi.input}
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className={adminUi.label}>Firma</Label>
+                        <Input
+                          value={deliveryDraft.company}
+                          onChange={(e) =>
+                            setDeliveryDraft((d) =>
+                              d ? { ...d, company: e.target.value } : d
+                            )
+                          }
+                          disabled={saving}
+                          className={adminUi.input}
+                          placeholder="optional"
                         />
                       </div>
                       <div className="space-y-1.5">

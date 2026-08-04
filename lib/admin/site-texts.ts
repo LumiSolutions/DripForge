@@ -347,8 +347,10 @@ export function mergeSiteTexts(
   if (!partial) return merged
   for (const key of Object.keys(DEFAULT_SITE_TEXTS) as SiteTextKey[]) {
     const value = partial[key]
-    if (typeof value === "string" && value.trim()) {
-      merged[key] = value.trim()
+    // Leere Strings sind absichtlich (z. B. nach Rich-Text-Titel-Migration) —
+    // nicht durch Defaults überschreiben.
+    if (typeof value === "string") {
+      merged[key] = value
     }
   }
   return merged

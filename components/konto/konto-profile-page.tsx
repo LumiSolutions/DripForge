@@ -51,6 +51,9 @@ type AddressForm = {
 type DeliveryDraft = {
   id: string
   label: string
+  firstName: string
+  lastName: string
+  company: string
   street: string
   zip: string
   city: string
@@ -69,6 +72,9 @@ const EMPTY: AddressForm = {
 const EMPTY_DRAFT: DeliveryDraft = {
   id: "",
   label: "",
+  firstName: "",
+  lastName: "",
+  company: "",
   street: "",
   zip: "",
   city: "",
@@ -190,6 +196,9 @@ export function KontoProfilePage() {
     setDeliveryDraft({
       id: newDeliveryAddressId(),
       label: deliveryAddresses.length === 0 ? "Hauptadresse" : "Lieferadresse",
+      firstName: form.firstName || "",
+      lastName: form.lastName || "",
+      company: "",
       street: "",
       zip: "",
       city: "",
@@ -203,6 +212,9 @@ export function KontoProfilePage() {
     setDeliveryDraft({
       id: address.id,
       label: address.label,
+      firstName: address.firstName ?? "",
+      lastName: address.lastName ?? "",
+      company: address.company ?? "",
       street: address.street,
       zip: address.zip,
       city: address.city,
@@ -221,6 +233,9 @@ export function KontoProfilePage() {
     const zip = deliveryDraft.zip.trim()
     const city = deliveryDraft.city.trim()
     const label = deliveryDraft.label.trim() || "Lieferadresse"
+    const firstName = deliveryDraft.firstName.trim()
+    const lastName = deliveryDraft.lastName.trim()
+    const company = deliveryDraft.company.trim()
     if (!street || !zip || !city) {
       setDeliveryError("Bitte Strasse, PLZ und Ort ausfüllen.")
       return
@@ -239,6 +254,9 @@ export function KontoProfilePage() {
           zip,
           city,
           isDefault: deliveryAddresses.length === 0,
+          ...(firstName ? { firstName } : {}),
+          ...(lastName ? { lastName } : {}),
+          ...(company ? { company } : {}),
         }
         next = normalizeDeliveryAddresses([...deliveryAddresses, entry], undefined, {
           defaultId: entry.isDefault
@@ -249,7 +267,16 @@ export function KontoProfilePage() {
         next = normalizeDeliveryAddresses(
           deliveryAddresses.map((a) =>
             a.id === deliveryDraft.id
-              ? { ...a, label, street, zip, city }
+              ? {
+                  ...a,
+                  label,
+                  street,
+                  zip,
+                  city,
+                  firstName: firstName || undefined,
+                  lastName: lastName || undefined,
+                  company: company || undefined,
+                }
               : a
           )
         )
@@ -527,7 +554,16 @@ export function KontoProfilePage() {
                         ) : null}
                       </div>
                       <p className="mt-1 text-sm text-muted-foreground">
-                        {address.street}, {address.zip} {address.city}
+                        {(() => {
+                          const name = [address.firstName, address.lastName]
+                            .filter(Boolean)
+                            .join(" ")
+                          const prefix = [name, address.company]
+                            .filter(Boolean)
+                            .join(" · ")
+                          const location = `${address.street}, ${address.zip} ${address.city}`
+                          return prefix ? `${prefix} — ${location}` : location
+                        })()}
                       </p>
                     </div>
                     <div className="flex flex-wrap gap-1">
@@ -584,6 +620,48 @@ export function KontoProfilePage() {
                       setDeliveryDraft((d) => ({ ...d, label: e.target.value }))
                     }
                     placeholder="z. B. Büro, Elternhaus"
+                  />
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="deliveryFirstName">Vorname</Label>
+                    <Input
+                      id="deliveryFirstName"
+                      value={deliveryDraft.firstName}
+                      onChange={(e) =>
+                        setDeliveryDraft((d) => ({
+                          ...d,
+                          firstName: e.target.value,
+                        }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="deliveryLastName">Nachname</Label>
+                    <Input
+                      id="deliveryLastName"
+                      value={deliveryDraft.lastName}
+                      onChange={(e) =>
+                        setDeliveryDraft((d) => ({
+                          ...d,
+                          lastName: e.target.value,
+                        }))
+                      }
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="deliveryCompany">Firma</Label>
+                  <Input
+                    id="deliveryCompany"
+                    value={deliveryDraft.company}
+                    onChange={(e) =>
+                      setDeliveryDraft((d) => ({
+                        ...d,
+                        company: e.target.value,
+                      }))
+                    }
+                    placeholder="optional"
                   />
                 </div>
                 <div className="space-y-2">

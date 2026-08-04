@@ -6,7 +6,11 @@ import { Button } from "@/components/ui/button"
 type Props = {
   children: ReactNode
   onReset?: () => void
+  /** Called when an error is caught (e.g. close lightbox). */
+  onError?: () => void
   fallbackTitle?: string
+  /** Custom fallback; when provided, replaces the default error UI. */
+  fallback?: ReactNode
 }
 
 type State = { hasError: boolean }
@@ -20,10 +24,14 @@ export class ProductDetailErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.warn("Produkt-Detail: Rendering fehlgeschlagen.", error, info)
+    this.props.onError?.()
   }
 
   render() {
     if (this.state.hasError) {
+      if (this.props.fallback !== undefined) {
+        return this.props.fallback
+      }
       return (
         <div className="rounded-xl border border-red-500/30 bg-red-500/5 p-6 text-center">
           <p className="font-medium text-red-600 dark:text-red-400">

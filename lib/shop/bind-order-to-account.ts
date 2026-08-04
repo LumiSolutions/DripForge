@@ -186,7 +186,16 @@ export async function bindOrderToCustomer(
                 )
                 if (match) {
                   nextAddresses = normalizeDeliveryAddresses(
-                    existingAddresses,
+                    existingAddresses.map((a) =>
+                      a.id === match.id
+                        ? {
+                            ...a,
+                            firstName:
+                              delivery.firstName?.trim() || a.firstName,
+                            lastName: delivery.lastName?.trim() || a.lastName,
+                          }
+                        : a
+                    ),
                     undefined,
                     { defaultId: match.id }
                   )
@@ -198,6 +207,12 @@ export async function bindOrderToCustomer(
                     zip,
                     city,
                     isDefault: true,
+                    ...(delivery.firstName?.trim()
+                      ? { firstName: delivery.firstName.trim() }
+                      : {}),
+                    ...(delivery.lastName?.trim()
+                      ? { lastName: delivery.lastName.trim() }
+                      : {}),
                   }
                   nextAddresses = normalizeDeliveryAddresses(
                     [

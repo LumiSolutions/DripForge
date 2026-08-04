@@ -1,6 +1,9 @@
 export type SavedDeliveryAddress = {
   id: string
   label: string
+  firstName?: string
+  lastName?: string
+  company?: string
   street: string
   zip: string
   city: string

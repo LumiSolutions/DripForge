@@ -65,7 +65,10 @@ import {
   SITE_CONFIG_PREVIEW_PARAM,
 } from "@/lib/admin/site-config"
 import {
+  CMS_CANCEL_EDITING_EVENT,
+  CMS_EDITING_EVENT,
   CMS_HISTORY_MESSAGE_SOURCE,
+  CMS_SAVE_ALL_EVENT,
   isCmsHistoryParentCommand,
   type CmsHistoryIframeEvent,
 } from "@/lib/admin/cms-edit-history"
@@ -202,8 +205,16 @@ export function SiteTextsProvider({ children }: { children: ReactNode }) {
   const [staffRole, setStaffRole] = useState<"admin" | "tester" | null>(null)
   const [undoStack, setUndoStack] = useState<SiteTexts[]>([])
   const [redoStack, setRedoStack] = useState<SiteTexts[]>([])
+  const [editingCount, setEditingCount] = useState(0)
   const textsRef = useRef(texts)
   textsRef.current = texts
+  const baselineTextsRef = useRef<SiteTexts | null>(null)
+  const undoStackRef = useRef(undoStack)
+  undoStackRef.current = undoStack
+  const redoStackRef = useRef(redoStack)
+  redoStackRef.current = redoStack
+  const editingCountRef = useRef(editingCount)
+  editingCountRef.current = editingCount
 
   const pushTextHistory = useCallback((snapshot: SiteTexts) => {
     setUndoStack((prev) => [...prev.slice(-(HISTORY_LIMIT - 1)), snapshot])
@@ -326,6 +337,12 @@ export function SiteTextsProvider({ children }: { children: ReactNode }) {
       applyBundle(null, setters)
     } finally {
       setLoading(false)
+      // Baseline nach (Re-)Load: Verwerfen stellt diesen Stand wieder her.
+      queueMicrotask(() => {
+        baselineTextsRef.current = textsRef.current
+        setUndoStack([])
+        setRedoStack([])
+      })
     }
   }, [pathname])
 
@@ -657,17 +674,33 @@ export function SiteTextsProvider({ children }: { children: ReactNode }) {
   const canRedo = redoStack.length > 0
   const mediaLibrary = useMemo(() => collectSiteImageLibrary(images), [images])
 
-  // Keyboard-Shortcuts + Parent-Iframe-Kommunikation für Undo/Redo
+  useEffect(() => {
+    if (!canInlineEdit) return
+    const onEditing = (event: Event) => {
+      const detail = (event as CustomEvent<{ active?: boolean }>).detail
+      if (typeof detail?.active !== "boolean") return
+      setEditingCount((count) =>
+        Math.max(0, count + (detail.active ? 1 : -1))
+      )
+    }
+    window.addEventListener(CMS_EDITING_EVENT, onEditing)
+    return () => window.removeEventListener(CMS_EDITING_EVENT, onEditing)
+  }, [canInlineEdit])
+
+  // Keyboard-Shortcuts + Parent-Iframe-Kommunikation für Undo/Redo / Dirty-Guard
   useEffect(() => {
     if (!canInlineEdit) return
 
     const publishState = () => {
       if (typeof window === "undefined" || window.parent === window) return
+      const dirty =
+        undoStackRef.current.length > 0 || editingCountRef.current > 0
       const payload: CmsHistoryIframeEvent = {
         source: CMS_HISTORY_MESSAGE_SOURCE,
         type: "state",
-        canUndo: undoStack.length > 0,
-        canRedo: redoStack.length > 0,
+        canUndo: undoStackRef.current.length > 0,
+        canRedo: redoStackRef.current.length > 0,
+        dirty,
       }
       window.parent.postMessage(payload, "*")
     }
@@ -688,14 +721,42 @@ export function SiteTextsProvider({ children }: { children: ReactNode }) {
       if (!mod) return
       const key = event.key.toLowerCase()
       if (key === "z" && !event.shiftKey) {
-        if (undoStack.length === 0) return
+        if (undoStackRef.current.length === 0) return
         event.preventDefault()
         void undo()
       } else if (key === "y" || (key === "z" && event.shiftKey)) {
-        if (redoStack.length === 0) return
+        if (redoStackRef.current.length === 0) return
         event.preventDefault()
         void redo()
       }
+    }
+
+    const markSaved = () => {
+      baselineTextsRef.current = textsRef.current
+      setUndoStack([])
+      setRedoStack([])
+      window.dispatchEvent(new CustomEvent(CMS_CANCEL_EDITING_EVENT))
+      setEditingCount(0)
+      queueMicrotask(publishState)
+    }
+
+    const discardSession = async () => {
+      window.dispatchEvent(new CustomEvent(CMS_CANCEL_EDITING_EVENT))
+      setEditingCount(0)
+      const baseline = baselineTextsRef.current
+      if (baseline) {
+        try {
+          await persistFullTexts(baseline)
+        } catch (err) {
+          console.warn("CMS discard: Baseline konnte nicht wiederhergestellt werden.", err)
+        }
+      } else {
+        await refresh()
+      }
+      setUndoStack([])
+      setRedoStack([])
+      baselineTextsRef.current = textsRef.current
+      queueMicrotask(publishState)
     }
 
     const onMessage = (event: MessageEvent) => {
@@ -706,6 +767,18 @@ export function SiteTextsProvider({ children }: { children: ReactNode }) {
       }
       if (event.data.type === "undo") void undo()
       if (event.data.type === "redo") void redo()
+      if (event.data.type === "save-all") {
+        window.dispatchEvent(new CustomEvent(CMS_SAVE_ALL_EVENT))
+        window.setTimeout(markSaved, 350)
+        return
+      }
+      if (event.data.type === "mark-saved") {
+        markSaved()
+        return
+      }
+      if (event.data.type === "discard") {
+        void discardSession()
+      }
     }
 
     window.addEventListener("keydown", onKeyDown)
@@ -714,7 +787,16 @@ export function SiteTextsProvider({ children }: { children: ReactNode }) {
       window.removeEventListener("keydown", onKeyDown)
       window.removeEventListener("message", onMessage)
     }
-  }, [canInlineEdit, undo, redo, undoStack.length, redoStack.length])
+  }, [
+    canInlineEdit,
+    undo,
+    redo,
+    persistFullTexts,
+    refresh,
+    undoStack.length,
+    redoStack.length,
+    editingCount,
+  ])
 
   const value = useMemo<SiteTextsContextValue>(
     () => ({

@@ -28,6 +28,12 @@ function trimAddress(raw: Partial<SavedDeliveryAddress>): SavedDeliveryAddress |
     typeof raw.label === "string" && raw.label.trim()
       ? raw.label.trim()
       : "Lieferadresse"
+  const firstName =
+    typeof raw.firstName === "string" ? raw.firstName.trim() : ""
+  const lastName =
+    typeof raw.lastName === "string" ? raw.lastName.trim() : ""
+  const company =
+    typeof raw.company === "string" ? raw.company.trim() : ""
 
   return {
     id,
@@ -36,6 +42,9 @@ function trimAddress(raw: Partial<SavedDeliveryAddress>): SavedDeliveryAddress |
     zip,
     city,
     isDefault: raw.isDefault === true,
+    ...(firstName ? { firstName } : {}),
+    ...(lastName ? { lastName } : {}),
+    ...(company ? { company } : {}),
   }
 }
 
@@ -153,10 +162,18 @@ export function setDefaultDeliveryAddressId(
 
 /** Format for display in selects / lists. */
 export function formatDeliveryAddressLabel(address: SavedDeliveryAddress): string {
+  const name = [address.firstName, address.lastName]
+    .map((p) => (typeof p === "string" ? p.trim() : ""))
+    .filter(Boolean)
+    .join(" ")
+  const company =
+    typeof address.company === "string" ? address.company.trim() : ""
+  const nameLine = [name, company].filter(Boolean).join(", ")
   const parts = [address.street, [address.zip, address.city].filter(Boolean).join(" ")]
     .map((p) => p.trim())
     .filter(Boolean)
   const location = parts.join(", ")
-  if (address.label && location) return `${address.label} — ${location}`
-  return address.label || location || "Lieferadresse"
+  const detail = [nameLine, location].filter(Boolean).join(" — ")
+  if (address.label && detail) return `${address.label} — ${detail}`
+  return address.label || detail || "Lieferadresse"
 }

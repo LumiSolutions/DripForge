@@ -205,7 +205,13 @@ export function PageCheckout({
 }) {
   const { applyMergedCart, clearCart } = useCart()
   const { company } = useCompanySettings()
-  const { category: customerCategory } = useCustomerCategory()
+  const { category: customerCategory, refresh: refreshCustomerCategory } =
+    useCustomerCategory()
+
+  // Kategorie nach Login / Seitenaufruf frisch laden (Provider cached sonst den Gast-Stand).
+  useEffect(() => {
+    refreshCustomerCategory()
+  }, [refreshCustomerCategory])
   const [checkoutConfig, setCheckoutConfig] = useState<CheckoutRuntimeConfig>(
     DEFAULT_CHECKOUT_RUNTIME_CONFIG
   )
@@ -448,8 +454,18 @@ export function PageCheckout({
             zip: a.zip || prev.zip || "",
             city: a.city || prev.city || "",
             phone: a.phone || prev.phone || "",
-            deliveryFirstName: a.firstName || prev.deliveryFirstName || "",
-            deliveryLastName: a.lastName || prev.deliveryLastName || "",
+            deliveryFirstName:
+              (deliverySame
+                ? a.firstName
+                : defaultAddr?.firstName || a.firstName) ||
+              prev.deliveryFirstName ||
+              "",
+            deliveryLastName:
+              (deliverySame
+                ? a.lastName
+                : defaultAddr?.lastName || a.lastName) ||
+              prev.deliveryLastName ||
+              "",
             deliveryStreet:
               (deliverySame
                 ? a.street
@@ -498,8 +514,10 @@ export function PageCheckout({
     if (!chosen) return
     setForm((prev) => ({
       ...prev,
-      deliveryFirstName: billing.firstName || prev.firstName,
-      deliveryLastName: billing.lastName || prev.lastName,
+      deliveryFirstName:
+        chosen.firstName?.trim() || billing.firstName || prev.firstName,
+      deliveryLastName:
+        chosen.lastName?.trim() || billing.lastName || prev.lastName,
       deliveryStreet: chosen.street,
       deliveryZip: chosen.zip,
       deliveryCity: chosen.city,
@@ -509,10 +527,10 @@ export function PageCheckout({
   const enabledPaymentOptions = useMemo(() => {
     const base = getEnabledPaymentOptions(checkoutConfig)
     // Kundenkategorie: nur erlaubte Zahlungsarten (leer = alle erlaubt).
+    // Kein Soft-Fallback auf «alle», sonst greifen Restriktionen (z. B. Personal) nicht.
     const allowed = customerCategory?.allowedPaymentMethodIds ?? []
     if (allowed.length === 0) return base
-    const filtered = base.filter((o) => allowed.includes(o.id))
-    return filtered.length > 0 ? filtered : base
+    return base.filter((o) => allowed.includes(o.id))
   }, [checkoutConfig, customerCategory])
 
   // Falls die aktuelle Zahlungsart durch die Kategorie ausgeschlossen wird,
@@ -570,14 +588,14 @@ export function PageCheckout({
           fallback
         )
         // Kundenkategorie: nur erlaubte Versandarten anzeigen (leer = alle).
+        // Kein Soft-Fallback auf ungefilterte Liste — sonst greifen Restriktionen nicht.
         const allowed = customerCategory?.allowedShippingMethodIds ?? []
-        const filtered =
+        const options =
           allowed.length > 0
             ? resolved.filter((o) =>
                 allowed.includes(o.methodId as (typeof allowed)[number])
               )
             : resolved
-        const options = filtered.length > 0 ? filtered : resolved
         setShippingOptions(options)
         setSelectedShippingId((prev) => {
           if (options.some((o) => o.id === prev)) return prev
@@ -590,7 +608,14 @@ export function PageCheckout({
       })
       .catch(() => {
         if (cancelled) return
-        setShippingOptions(fallback)
+        const allowed = customerCategory?.allowedShippingMethodIds ?? []
+        const options =
+          allowed.length > 0
+            ? fallback.filter((o) =>
+                allowed.includes(o.methodId as (typeof allowed)[number])
+              )
+            : fallback
+        setShippingOptions(options)
       })
 
     return () => {
@@ -766,8 +791,18 @@ export function PageCheckout({
       zip: account.zip || prev.zip || "",
       city: account.city || prev.city || "",
       phone: account.phone || prev.phone || "",
-      deliveryFirstName: account.firstName || prev.deliveryFirstName || "",
-      deliveryLastName: account.lastName || prev.deliveryLastName || "",
+      deliveryFirstName:
+        (deliverySame
+          ? account.firstName
+          : defaultAddr?.firstName || account.firstName) ||
+        prev.deliveryFirstName ||
+        "",
+      deliveryLastName:
+        (deliverySame
+          ? account.lastName
+          : defaultAddr?.lastName || account.lastName) ||
+        prev.deliveryLastName ||
+        "",
       deliveryStreet:
         (deliverySame
           ? account.street
@@ -1417,7 +1452,15 @@ export function PageCheckout({
                                 </span>
                               ) : null}
                               <span className="mt-0.5 block text-muted-foreground">
-                                {address.street}, {address.zip} {address.city}
+                                {[
+                                  [address.firstName, address.lastName]
+                                    .filter(Boolean)
+                                    .join(" "),
+                                  address.company,
+                                  `${address.street}, ${address.zip} ${address.city}`,
+                                ]
+                                  .filter(Boolean)
+                                  .join(" · ")}
                               </span>
                             </span>
                           </label>
@@ -1452,10 +1495,7 @@ export function PageCheckout({
                   </div>
                 )}
 
-                {!sameAsBilling &&
-                  (selectedDeliveryId === "new" ||
-                    savedDeliveryAddresses.length === 0 ||
-                    !loggedIn) && (
+                {!sameAsBilling && (
                   <div className="space-y-4 border-t border-border/50 pt-4">
                     <h3 className="text-sm font-semibold">Lieferadresse</h3>
                     <div className="grid gap-4 sm:grid-cols-2">
@@ -1506,19 +1546,15 @@ export function PageCheckout({
                       onChange={(v) => updateField("deliveryCountry", v)}
                       error={errors.deliveryCountry}
                     />
-                  </div>
-                )}
-
-                {!sameAsBilling &&
-                  loggedIn &&
-                  selectedDeliveryId !== "new" &&
-                  savedDeliveryAddresses.length > 0 && (
-                  <div className="rounded-xl border border-border/40 bg-muted/10 px-4 py-3 text-sm text-muted-foreground">
-                    Lieferung an:{" "}
-                    <span className="font-medium text-foreground">
-                      {form.deliveryStreet}, {form.deliveryZip}{" "}
-                      {form.deliveryCity}
-                    </span>
+                    {loggedIn &&
+                      selectedDeliveryId !== "new" &&
+                      selectedDeliveryId !== "billing" &&
+                      savedDeliveryAddresses.length > 0 && (
+                        <p className="text-xs text-muted-foreground">
+                          Gespeicherte Adresse vorausgefüllt — Namen und Adresse
+                          kannst du anpassen.
+                        </p>
+                      )}
                   </div>
                 )}
 
