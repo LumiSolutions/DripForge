@@ -67,6 +67,7 @@ import {
 } from "@/lib/dripforge/wishlist-icon-settings"
 import { normalizeAnnouncementBanner } from "@/lib/dripforge/announcement-banner-settings"
 import { normalizeCustomerCategories } from "@/lib/dripforge/customer-categories"
+import { normalizeBrandUrl } from "@/lib/admin/branding-settings"
 import { normalizeShippingTiers } from "@/lib/dripforge/shipping-tiers"
 import { normalizeThanksPageSettings } from "@/lib/dripforge/thanks-page-settings"
 import {
@@ -625,6 +626,8 @@ async function getSettingsFromFile(): Promise<AdminSettings> {
       wishlistIconCustomUrl: normalizeWishlistIconCustomUrl(
         stored.wishlistIconCustomUrl
       ),
+      brandIconUrl: normalizeBrandUrl(stored.brandIconUrl),
+      brandLogoUrl: normalizeBrandUrl(stored.brandLogoUrl),
       orderEmailTemplates: normalizeOrderEmailTemplates(
         stored.orderEmailTemplates
       ),
@@ -663,6 +666,8 @@ async function getSettingsFromFile(): Promise<AdminSettings> {
     requireAdmin2fa: true,
     wishlistIcon: DEFAULT_WISHLIST_ICON,
     wishlistIconCustomUrl: null,
+    brandIconUrl: null,
+    brandLogoUrl: null,
     orderEmailTemplates: normalizeOrderEmailTemplates(undefined),
     orderEmailLayout: normalizeOrderEmailLayout(undefined),
     announcementBanner: normalizeAnnouncementBanner(undefined),
@@ -707,6 +712,8 @@ export async function saveSettings(input: {
   requireAdmin2fa?: boolean
   wishlistIcon?: AdminSettings["wishlistIcon"]
   wishlistIconCustomUrl?: string | null
+  brandIconUrl?: string | null
+  brandLogoUrl?: string | null
   orderEmailTemplates?: {
     receivedIntro?: string
     receivedFooter?: string
@@ -829,6 +836,14 @@ export async function saveSettings(input: {
       input.wishlistIconCustomUrl !== undefined
         ? normalizeWishlistIconCustomUrl(input.wishlistIconCustomUrl)
         : normalizeWishlistIconCustomUrl(current.wishlistIconCustomUrl),
+    brandIconUrl:
+      input.brandIconUrl !== undefined
+        ? normalizeBrandUrl(input.brandIconUrl)
+        : normalizeBrandUrl(current.brandIconUrl),
+    brandLogoUrl:
+      input.brandLogoUrl !== undefined
+        ? normalizeBrandUrl(input.brandLogoUrl)
+        : normalizeBrandUrl(current.brandLogoUrl),
     orderEmailTemplates:
       input.orderEmailTemplates !== undefined
         ? normalizeOrderEmailTemplates({

@@ -242,6 +242,10 @@ export type AdminSettings = {
   wishlistIcon?: "star" | "heart" | "bookmark" | "fire" | "custom"
   /** Custom-SVG/URL wenn wishlistIcon === "custom" */
   wishlistIconCustomUrl?: string | null
+  /** Kleine Icon-Marke / Favicon (Header, Footer, Browser-Tab, Apple-Touch-Icon) */
+  brandIconUrl?: string | null
+  /** Haupt-/Branding-Logo (grosse Darstellung, Home/Hero) */
+  brandLogoUrl?: string | null
   /** Bearbeitbare Texte für Bestell-Bestätigungsmails */
   orderEmailTemplates?: {
     receivedIntro: string

@@ -67,6 +67,8 @@ export function buildDefaultAdminSettings(): AdminSettings {
     },
     announcementBanner: { ...DEFAULT_ANNOUNCEMENT_BANNER },
     customerCategories: [],
+    brandIconUrl: null,
+    brandLogoUrl: null,
     shippingTiers: {
       ...DEFAULT_SHIPPING_TIERS,
       tiers: DEFAULT_SHIPPING_TIERS.tiers.map((t) => ({ ...t })),

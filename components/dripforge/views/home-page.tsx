@@ -62,6 +62,33 @@ import {
   SiteText,
 } from "@/components/dripforge/editable-site-text"
 import { SiteImage } from "@/components/dripforge/editable-site-image"
+import { useBranding } from "@/hooks/use-branding"
+
+/**
+ * Hero-Bild: Haupt-/Branding-Logo (Slot 2) falls hochgeladen, sonst das
+ * bisherige CMS-Hero-Bild.
+ */
+function HomeHeroBrandImage() {
+  const { brandLogoUrl } = useBranding()
+  if (brandLogoUrl) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={brandLogoUrl}
+        alt="DripForge"
+        className="animate-float absolute inset-0 h-full w-full object-contain"
+      />
+    )
+  }
+  return (
+    <SiteImage
+      imageKey="landingpage_hero_image"
+      fill
+      imageClassName="animate-float object-contain"
+      priority
+    />
+  )
+}
 import { SiteTextPhrase } from "@/components/dripforge/site-text-phrase"
 import { useAiPublicSettings } from "@/hooks/use-ai-public-settings"
 import { SHOP_ROUTES } from "@/lib/dripforge/shop-routes"
@@ -129,12 +156,7 @@ export function HomePage({
             </div>
             <div className="relative w-full lg:w-1/2">
               <div className="relative aspect-square">
-                <SiteImage
-                  imageKey="landingpage_hero_image"
-                  fill
-                  imageClassName="animate-float object-contain"
-                  priority
-                />
+                <HomeHeroBrandImage />
               </div>
             </div>
           </div>
