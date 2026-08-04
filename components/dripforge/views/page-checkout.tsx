@@ -4,6 +4,7 @@ import { useMemo, useState, useEffect, useRef } from "react"
 import {
   ArrowLeft,
   CreditCard,
+  Loader2,
   Lock,
   MapPin,
   Package,
@@ -205,8 +206,11 @@ export function PageCheckout({
 }) {
   const { applyMergedCart, clearCart } = useCart()
   const { company } = useCompanySettings()
-  const { category: customerCategory, refresh: refreshCustomerCategory } =
-    useCustomerCategory()
+  const {
+    category: customerCategory,
+    loaded: categoryLoaded,
+    refresh: refreshCustomerCategory,
+  } = useCustomerCategory()
 
   // Kategorie nach Login / Seitenaufruf frisch laden (Provider cached sonst den Gast-Stand).
   useEffect(() => {
@@ -525,22 +529,24 @@ export function PageCheckout({
   }
 
   const enabledPaymentOptions = useMemo(() => {
+    if (!categoryLoaded) return []
     const base = getEnabledPaymentOptions(checkoutConfig)
     // Kundenkategorie: nur erlaubte Zahlungsarten (leer = alle erlaubt).
     // Kein Soft-Fallback auf «alle», sonst greifen Restriktionen (z. B. Personal) nicht.
     const allowed = customerCategory?.allowedPaymentMethodIds ?? []
     if (allowed.length === 0) return base
     return base.filter((o) => allowed.includes(o.id))
-  }, [checkoutConfig, customerCategory])
+  }, [checkoutConfig, customerCategory, categoryLoaded])
 
   // Falls die aktuelle Zahlungsart durch die Kategorie ausgeschlossen wird,
   // auf die erste erlaubte umstellen.
   useEffect(() => {
+    if (!categoryLoaded) return
     if (enabledPaymentOptions.length === 0) return
     if (!enabledPaymentOptions.some((o) => o.id === paymentMethod)) {
       setPaymentMethod(enabledPaymentOptions[0]!.id)
     }
-  }, [enabledPaymentOptions, paymentMethod])
+  }, [enabledPaymentOptions, paymentMethod, categoryLoaded])
   const cardPaymentsEnabled = checkoutConfig.paymentCardAktiv
   const twintPaymentsEnabled = checkoutConfig.paymentTwintAktiv
 
@@ -566,6 +572,9 @@ export function PageCheckout({
     selectedShippingOption?.price ?? getShippingCost(shippingMethod)
 
   useEffect(() => {
+    // Warten bis Kategorie geladen — sonst kurz ungefilterte Optionen (Flash).
+    if (!categoryLoaded) return
+
     let cancelled = false
     const fallback: ResolvedShippingOption[] = SHIPPING_OPTIONS.map((o) => ({
       id: o.id,
@@ -621,7 +630,7 @@ export function PageCheckout({
     return () => {
       cancelled = true
     }
-  }, [cart, customerCategory])
+  }, [cart, customerCategory, categoryLoaded])
 
   // Sync methodId when selection changes
   useEffect(() => {
@@ -1574,43 +1583,52 @@ export function PageCheckout({
                   <h2 className="font-bold">Versandart</h2>
                 </div>
                 <div className="space-y-3">
-                  {shippingOptions.map((option) => {
-                    const selected = selectedShippingId === option.id
-                    const priceLabel =
-                      option.price === 0
-                        ? "Gratis"
-                        : `CHF ${option.price.toFixed(2)}`
-                    return (
-                      <label
-                        key={option.id}
-                        className={cn(
-                          "flex cursor-pointer items-center justify-between rounded-xl border p-4 transition-all",
-                          selected
-                            ? "border-primary bg-primary/5 shadow-sm"
-                            : "border-border/60 hover:border-primary/40"
-                        )}
-                      >
-                        <div className="flex items-center gap-3">
-                          <input
-                            type="radio"
-                            name="shipping"
-                            checked={selected}
-                            onChange={() => {
-                              setSelectedShippingId(option.id)
-                              setShippingMethod(option.methodId as ShippingMethodId)
-                            }}
-                            className="h-4 w-4 accent-primary"
-                          />
-                          <span className="text-sm font-medium">
-                            {option.label}
+                  {!categoryLoaded ? (
+                    <div className="flex items-center gap-2 rounded-xl border border-border/60 px-4 py-6 text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Versandoptionen werden geladen …
+                    </div>
+                  ) : (
+                    shippingOptions.map((option) => {
+                      const selected = selectedShippingId === option.id
+                      const priceLabel =
+                        option.price === 0
+                          ? "Gratis"
+                          : `CHF ${option.price.toFixed(2)}`
+                      return (
+                        <label
+                          key={option.id}
+                          className={cn(
+                            "flex cursor-pointer items-center justify-between rounded-xl border p-4 transition-all",
+                            selected
+                              ? "border-primary bg-primary/5 shadow-sm"
+                              : "border-border/60 hover:border-primary/40"
+                          )}
+                        >
+                          <div className="flex items-center gap-3">
+                            <input
+                              type="radio"
+                              name="shipping"
+                              checked={selected}
+                              onChange={() => {
+                                setSelectedShippingId(option.id)
+                                setShippingMethod(
+                                  option.methodId as ShippingMethodId
+                                )
+                              }}
+                              className="h-4 w-4 accent-primary"
+                            />
+                            <span className="text-sm font-medium">
+                              {option.label}
+                            </span>
+                          </div>
+                          <span className="text-sm font-semibold tabular-nums">
+                            {priceLabel}
                           </span>
-                        </div>
-                        <span className="text-sm font-semibold tabular-nums">
-                          {priceLabel}
-                        </span>
-                      </label>
-                    )
-                  })}
+                        </label>
+                      )
+                    })
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -1623,7 +1641,12 @@ export function PageCheckout({
                   <h2 className="font-bold">Zahlungsart</h2>
                 </div>
                 <div className="space-y-3">
-                  {enabledPaymentOptions.length === 0 ? (
+                  {!categoryLoaded ? (
+                    <div className="flex items-center gap-2 rounded-xl border border-border/60 px-4 py-6 text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Zahlungsarten werden geladen …
+                    </div>
+                  ) : enabledPaymentOptions.length === 0 ? (
                     <p
                       role="alert"
                       className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-3 text-sm text-amber-900 dark:text-amber-100"

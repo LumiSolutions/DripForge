@@ -94,8 +94,9 @@ export async function syncAccountToCrm(
     delivery = undefined
   } else if (defaultDelivery) {
     delivery = {
-      firstName: billing.firstName,
-      lastName: billing.lastName,
+      firstName:
+        defaultDelivery.firstName?.trim() || billing.firstName,
+      lastName: defaultDelivery.lastName?.trim() || billing.lastName,
       street: defaultDelivery.street,
       zip: defaultDelivery.zip,
       city: defaultDelivery.city,
@@ -125,17 +126,33 @@ export async function syncAccountToCrm(
         updatedAt: now,
       }
 
-  if (
-    existingCustomer &&
-    existingCustomer.kundennummer !== kundennummer
-  ) {
-    await replaceCustomerForEmail(email, customer, existingCustomer.kundennummer)
-  } else {
-    await saveCustomer(customer)
+  try {
+    if (
+      existingCustomer &&
+      existingCustomer.kundennummer !== kundennummer
+    ) {
+      await replaceCustomerForEmail(email, customer, existingCustomer.kundennummer)
+    } else {
+      await saveCustomer(customer)
+    }
+  } catch (error) {
+    // Ohne Cosmos: Portal-Konto (JSON) bleibt gültig — CRM-Write optional.
+    console.warn(
+      "CRM-Sync: Kunde konnte nicht gespeichert werden (Cosmos?). Portal-Konto bleibt erhalten.",
+      error
+    )
   }
 
   if (account.kundennummer !== kundennummer) {
-    return saveAccount({ ...account, kundennummer })
+    try {
+      return await saveAccount({ ...account, kundennummer })
+    } catch (error) {
+      console.warn(
+        "CRM-Sync: Kundennummer konnte lokal nicht persistiert werden.",
+        error
+      )
+      return { ...account, kundennummer }
+    }
   }
 
   return account

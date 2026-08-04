@@ -39,16 +39,19 @@ export function LegalRichText({
   const [error, setError] = useState<string | null>(null)
 
   const displayHtml = legalToDisplayHtml(withCompany(raw))
+  const dirty = draft !== raw
 
   const content = (
     <div
       className={cn(
-        "legal-rich-text space-y-4 text-[0.9375rem] leading-relaxed text-muted-foreground md:text-base",
-        "[&_h1]:mb-3 [&_h1]:text-xl [&_h1]:font-bold [&_h1]:text-foreground md:[&_h1]:text-2xl",
+        "legal-rich-text text-[0.9375rem] leading-[1.4] text-muted-foreground md:text-base",
+        "[&_h1]:mb-3 [&_h1]:mt-0 [&_h1]:text-xl [&_h1]:font-bold [&_h1]:text-foreground md:[&_h1]:text-2xl",
         "[&_h2]:mb-3 [&_h2]:mt-6 [&_h2]:text-lg [&_h2]:font-bold [&_h2]:text-foreground md:[&_h2]:text-xl",
         "[&_h3]:mb-2 [&_h3]:mt-4 [&_h3]:text-base [&_h3]:font-semibold [&_h3]:text-foreground",
-        "[&_p]:mb-3 [&_ul]:mb-3 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:mb-3 [&_ol]:list-decimal [&_ol]:pl-5",
-        "[&_li]:mb-1 [&_a]:text-primary [&_a]:underline-offset-2 hover:[&_a]:underline",
+        "[&_p]:mb-1 [&_p]:mt-0",
+        "[&_ul]:mb-2 [&_ul]:mt-0 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:mb-2 [&_ol]:mt-0 [&_ol]:list-decimal [&_ol]:pl-5",
+        "[&_li]:mb-0.5 [&_a]:text-primary [&_a]:underline-offset-2 hover:[&_a]:underline",
+        "[&_br]:leading-[1.25] [&_p:empty]:m-0 [&_p:empty]:h-0",
         "[&_strong]:text-foreground",
         className
       )}
@@ -77,6 +80,25 @@ export function LegalRichText({
     }
   }
 
+  const handleDiscard = () => {
+    setDraft(raw)
+    setError(null)
+    setOpen(false)
+  }
+
+  const handleOpenChange = (next: boolean) => {
+    if (!next && dirty) {
+      const shouldSave = window.confirm(
+        "Ungespeicherte Änderungen. OK = Speichern & Schliessen, Abbrechen = weiter bearbeiten"
+      )
+      if (shouldSave) {
+        void handleSave()
+      }
+      return
+    }
+    setOpen(next)
+  }
+
   return (
     <div className="group/legal relative rounded-sm outline-offset-2 hover:outline hover:outline-1 hover:outline-amber-500/50">
       {content}
@@ -91,8 +113,22 @@ export function LegalRichText({
         Inhalt bearbeiten
       </Button>
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="z-[350] max-h-[90vh] overflow-y-auto sm:max-w-3xl">
+      <Dialog open={open} onOpenChange={handleOpenChange}>
+        <DialogContent
+          className="z-[350] max-h-[90vh] overflow-y-auto sm:max-w-3xl"
+          onInteractOutside={(event) => {
+            if (dirty) event.preventDefault()
+          }}
+          onEscapeKeyDown={(event) => {
+            if (dirty) {
+              event.preventDefault()
+              const shouldSave = window.confirm(
+                "Ungespeicherte Änderungen. OK = Speichern & Schliessen, Abbrechen = weiter bearbeiten"
+              )
+              if (shouldSave) void handleSave()
+            }
+          }}
+        >
           <DialogHeader>
             <DialogTitle>Inhalt bearbeiten</DialogTitle>
           </DialogHeader>
@@ -104,18 +140,28 @@ export function LegalRichText({
             editorClassName="min-h-[320px] max-h-[60vh]"
           />
           {error && <p className="text-sm text-red-600">{error}</p>}
-          <DialogFooter>
+          <DialogFooter className="gap-2 sm:justify-between">
             <Button
               type="button"
-              variant="outline"
-              onClick={() => setOpen(false)}
+              variant="ghost"
+              onClick={handleDiscard}
               disabled={saving}
             >
-              Abbrechen
+              Verwerfen
             </Button>
-            <Button type="button" onClick={() => void handleSave()} disabled={saving}>
-              {saving ? "Speichern …" : "Speichern"}
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => handleOpenChange(false)}
+                disabled={saving}
+              >
+                Abbrechen
+              </Button>
+              <Button type="button" onClick={() => void handleSave()} disabled={saving}>
+                {saving ? "Speichern …" : "Speichern"}
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

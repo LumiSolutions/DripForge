@@ -325,14 +325,26 @@ export function ProductDescriptionEditor({
         role="textbox"
         aria-label={ariaLabel}
         className={cn(
-          "min-h-[96px] max-h-[320px] overflow-y-auto px-3 py-2 text-sm outline-none",
+          "min-h-[96px] max-h-[320px] overflow-y-auto px-3 py-2 text-sm leading-[1.4] outline-none",
           "prose prose-sm dark:prose-invert max-w-none",
           "bg-background text-foreground focus-visible:ring-0",
           "[&_.df-text-highlight]:font-bold",
           "[&_h1]:text-xl [&_h1]:font-bold [&_h2]:text-lg [&_h2]:font-bold",
+          "[&_p]:my-0 [&_p]:mb-1 [&_br]:leading-[1.25]",
           "[&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5",
           editorClassName
         )}
+        onKeyDown={(event) => {
+          if (event.key !== "Enter" || event.shiftKey) return
+          if (!enableBlockFormats) return
+          event.preventDefault()
+          // Zeilenumbruch statt neuer Absatz (Adress-/Rechtstext-Stil)
+          const inserted = document.execCommand("insertLineBreak")
+          if (!inserted) {
+            document.execCommand("insertHTML", false, "<br>")
+          }
+          emitChange()
+        }}
         onInput={emitChange}
         onBlur={emitChange}
       />

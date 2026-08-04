@@ -53,9 +53,16 @@ export function CustomerCategoryProvider({ children }: { children: ReactNode }) 
         const data = (await res.json().catch(() => null)) as {
           category?: ResolvedCustomerCategory | null
         } | null
-        if (!cancelled) setCategory(data?.category ?? null)
+        if (cancelled) return
+        // Vorherigen Stand behalten, bis die Antwort da ist — kein Flash auf null.
+        // Null nur setzen, wenn Request OK und category explizit null/fehlend ist.
+        if (res.ok) {
+          if (data && Object.prototype.hasOwnProperty.call(data, "category")) {
+            setCategory(data.category ?? null)
+          }
+        }
       } catch {
-        if (!cancelled) setCategory(null)
+        // Netzwerkfehler: Kategorie nicht zurücksetzen
       } finally {
         if (!cancelled) setLoaded(true)
       }

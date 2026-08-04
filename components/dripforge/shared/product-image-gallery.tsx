@@ -5,6 +5,7 @@ import {
   useEffect,
   useRef,
   useState,
+  type MouseEvent as ReactMouseEvent,
   type TouchEvent as ReactTouchEvent,
 } from "react"
 import { createPortal } from "react-dom"
@@ -35,6 +36,7 @@ function LightboxZoomImage({ src, alt }: { src: string; alt: string }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [scale, setScale] = useState(1)
   const [offset, setOffset] = useState({ x: 0, y: 0 })
+  const [dragging, setDragging] = useState(false)
   const pinchRef = useRef<{ distance: number; scale: number } | null>(null)
   const dragRef = useRef<{
     x: number
@@ -47,11 +49,56 @@ function LightboxZoomImage({ src, alt }: { src: string; alt: string }) {
   const reset = useCallback(() => {
     setScale(1)
     setOffset({ x: 0, y: 0 })
+    setDragging(false)
+    dragRef.current = null
   }, [])
 
   useEffect(() => {
     reset()
   }, [src, reset])
+
+  // Non-passive wheel listener — React onWheel is often passive and can't preventDefault.
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const onWheelNative = (event: WheelEvent) => {
+      event.preventDefault()
+      const delta = event.deltaY > 0 ? -0.15 : 0.15
+      setScale((prev) => {
+        const next = clamp(prev + delta, 1, 4)
+        if (next <= 1) setOffset({ x: 0, y: 0 })
+        return next
+      })
+    }
+    el.addEventListener("wheel", onWheelNative, { passive: false })
+    return () => el.removeEventListener("wheel", onWheelNative)
+  }, [])
+
+  const onMouseDown = (event: ReactMouseEvent) => {
+    if (event.button !== 0 || scale <= 1) return
+    event.preventDefault()
+    dragRef.current = {
+      x: event.clientX,
+      y: event.clientY,
+      ox: offset.x,
+      oy: offset.y,
+    }
+    setDragging(true)
+  }
+
+  const onMouseMove = (event: ReactMouseEvent) => {
+    if (!dragRef.current || scale <= 1) return
+    event.preventDefault()
+    setOffset({
+      x: dragRef.current.ox + (event.clientX - dragRef.current.x),
+      y: dragRef.current.oy + (event.clientY - dragRef.current.y),
+    })
+  }
+
+  const endMouseDrag = () => {
+    dragRef.current = null
+    setDragging(false)
+  }
 
   const onTouchStart = (event: ReactTouchEvent) => {
     if (event.touches.length === 2) {
@@ -112,7 +159,18 @@ function LightboxZoomImage({ src, alt }: { src: string; alt: string }) {
   return (
     <div
       ref={containerRef}
-      className="relative flex h-[min(80vh,720px)] w-full touch-none items-center justify-center overflow-hidden"
+      className={cn(
+        "relative flex h-[min(80vh,720px)] w-full touch-none items-center justify-center overflow-hidden",
+        scale > 1
+          ? dragging
+            ? "cursor-grabbing"
+            : "cursor-grab"
+          : "cursor-zoom-in"
+      )}
+      onMouseDown={onMouseDown}
+      onMouseMove={onMouseMove}
+      onMouseUp={endMouseDrag}
+      onMouseLeave={endMouseDrag}
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
@@ -137,7 +195,7 @@ function LightboxZoomImage({ src, alt }: { src: string; alt: string }) {
         }}
       />
       <p className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-black/55 px-3 py-1 text-[11px] text-white/90">
-        Pinch oder Doppeltipp zum Zoomen
+        Mausrad zoomen · Ziehen zum Verschieben · Pinch / Doppeltipp
       </p>
     </div>
   )

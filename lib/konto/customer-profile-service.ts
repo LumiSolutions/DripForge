@@ -175,7 +175,18 @@ export async function updateCustomerAddress(
     deliverySameAsBilling,
     deliveryAddresses,
   })
-  const synced = await syncAccountToCrm(saved)
+
+  let synced = saved
+  try {
+    synced = await syncAccountToCrm(saved)
+  } catch (error) {
+    // Profil speichern muss ohne Cosmos gelingen (JSON-Fallback).
+    console.warn(
+      "Profil: CRM-Sync nach Adress-Update fehlgeschlagen — gespeichertes Konto wird zurückgegeben.",
+      error
+    )
+  }
+
   const { getSettings } = await import("@/lib/admin/db")
   const { buildRewardPointsPublicSettings } = await import(
     "@/lib/dripforge/reward-points-settings"

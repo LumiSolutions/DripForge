@@ -245,8 +245,8 @@ export async function PATCH(request: Request, context: RouteContext) {
       } else {
         const base = customer.delivery ?? customer.billing
         nextDelivery = {
-          firstName: base.firstName,
-          lastName: base.lastName,
+          firstName: def.firstName?.trim() || base.firstName,
+          lastName: def.lastName?.trim() || base.lastName,
           street: def.street,
           zip: def.zip,
           city: def.city,
