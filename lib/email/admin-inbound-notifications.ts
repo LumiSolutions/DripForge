@@ -43,7 +43,26 @@ export function buildAdminDruckanfrageDetailUrl(anfrageId: string): string {
 }
 
 export function buildAdminKontaktDetailUrl(anfrageId: string): string {
-  return buildAdminPortalUrl("/kundenverwaltung", { kontakt: anfrageId })
+  return buildAdminPortalUrl("/anfragen", { id: anfrageId })
+}
+
+/** mailto:-Link zum sofortigen Antworten an eine:n Absender:in. */
+export function buildKontaktReplyMailto(
+  email: string,
+  subject: string,
+  referenceId: string,
+  originalMessage?: string
+): string {
+  const cleanEmail = email.trim()
+  const replySubject = `Re: ${subject} (#${referenceId})`.trim()
+  const bodyParts = ["", "", `--- Ursprüngliche Anfrage (${referenceId}) ---`]
+  if (originalMessage?.trim()) bodyParts.push(originalMessage.trim())
+  const body = bodyParts.join("\n")
+  return (
+    `mailto:${encodeURIComponent(cleanEmail)}` +
+    `?subject=${encodeURIComponent(replySubject)}` +
+    `&body=${encodeURIComponent(body)}`
+  )
 }
 
 function formatItemOptionLines(item: StoredOrderItem): string[] {
@@ -148,6 +167,8 @@ async function sendAdminInboundEmail(options: {
   to?: string
   /** Zusätzlicher HTML-Block (z. B. Download-Links). */
   extraHtml?: string
+  /** Zweiter CTA-Button (z. B. "Direkt per Mail antworten" mit mailto:). */
+  secondaryCta?: { href: string; label: string }
 }): Promise<boolean> {
   try {
     const adminSettings = options.settings ?? (await getSettings())
@@ -177,12 +198,23 @@ async function sendAdminInboundEmail(options: {
       options.plainBody,
       "",
       `Im Admin-Dashboard öffnen: ${options.dashboardUrl}`,
-    ].join("\n")
+      options.secondaryCta
+        ? `${options.secondaryCta.label}: ${options.secondaryCta.href}`
+        : null,
+    ]
+      .filter(Boolean)
+      .join("\n")
 
     const bodyHtml =
       textToHtmlParagraphs(options.plainBody) +
       (options.extraHtml ?? "") +
-      renderEmailCtaButton(options.dashboardUrl, "Im Admin-Dashboard öffnen")
+      renderEmailCtaButton(options.dashboardUrl, "Im Admin-Dashboard öffnen") +
+      (options.secondaryCta
+        ? renderEmailCtaButton(
+            options.secondaryCta.href,
+            options.secondaryCta.label
+          )
+        : "")
 
     const html = renderDripForgeEmailHtml({
       title: options.title,
@@ -314,6 +346,17 @@ export async function notifyAdminNewDruckanfrage(
     plainBody,
     dashboardUrl,
     settings,
+    secondaryCta:
+      anfrage.contactMethod === "email" && anfrage.customerEmail.trim()
+        ? {
+            href: buildKontaktReplyMailto(
+              anfrage.customerEmail,
+              `3D-Druckanfrage ${anfrage.fileName || anfrage.id}`,
+              anfrage.id
+            ),
+            label: "Direkt per Mail antworten",
+          }
+        : undefined,
   })
 }
 
@@ -347,5 +390,14 @@ export async function notifyAdminNewKontaktanfrage(
     plainBody,
     dashboardUrl,
     settings,
+    secondaryCta: {
+      href: buildKontaktReplyMailto(
+        anfrage.email,
+        anfrage.subject,
+        anfrage.id,
+        anfrage.message
+      ),
+      label: "Direkt per Mail antworten",
+    },
   })
 }

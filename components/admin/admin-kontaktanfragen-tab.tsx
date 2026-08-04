@@ -1,9 +1,19 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { Loader2, Mail, RefreshCw } from "lucide-react"
+import { Loader2, Mail, RefreshCw, Reply, Send } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import {
   Select,
   SelectContent,
@@ -57,6 +67,62 @@ export function AdminKontaktanfragenTab() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
+
+  const [replyTarget, setReplyTarget] = useState<Kontaktanfrage | null>(null)
+  const [replySubject, setReplySubject] = useState("")
+  const [replyMessage, setReplyMessage] = useState("")
+  const [replySending, setReplySending] = useState(false)
+  const [replyError, setReplyError] = useState<string | null>(null)
+  const [replyNotice, setReplyNotice] = useState<string | null>(null)
+
+  const openReply = (item: Kontaktanfrage) => {
+    setReplyTarget(item)
+    setReplySubject(`Re: ${item.subject || "Deine Anfrage"} (#${item.id})`)
+    setReplyMessage(`Guten Tag ${item.name},\n\n`)
+    setReplyError(null)
+    setReplyNotice(null)
+  }
+
+  const sendReply = async () => {
+    if (!replyTarget) return
+    setReplySending(true)
+    setReplyError(null)
+    setReplyNotice(null)
+    try {
+      const res = await fetch(
+        `/api/admin/kontaktanfragen/${encodeURIComponent(replyTarget.id)}/reply`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            subject: replySubject,
+            message: replyMessage,
+          }),
+        }
+      )
+      const data = (await res.json().catch(() => null)) as {
+        ok?: boolean
+        anfrage?: Kontaktanfrage
+        error?: string
+      } | null
+      if (!res.ok || !data?.ok) {
+        throw new Error(data?.error ?? "E-Mail konnte nicht gesendet werden.")
+      }
+      if (data.anfrage) {
+        setItems((prev) =>
+          prev.map((item) => (item.id === data.anfrage!.id ? data.anfrage! : item))
+        )
+      }
+      setReplyNotice("Antwort gesendet — Anfrage als «beantwortet» markiert.")
+      setReplyTarget(null)
+    } catch (err) {
+      setReplyError(
+        err instanceof Error ? err.message : "E-Mail konnte nicht gesendet werden."
+      )
+    } finally {
+      setReplySending(false)
+    }
+  }
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -128,6 +194,11 @@ export function AdminKontaktanfragenTab() {
       </div>
 
       {error && <p className={adminUi.errorLg}>{error}</p>}
+      {replyNotice && (
+        <p className="text-sm text-emerald-600 dark:text-emerald-400">
+          {replyNotice}
+        </p>
+      )}
 
       <Card className={adminUi.card}>
         <CardHeader className="pb-2">
@@ -158,6 +229,7 @@ export function AdminKontaktanfragenTab() {
                     <TableHead>Typ</TableHead>
                     <TableHead>Nachricht</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Aktionen</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -219,6 +291,17 @@ export function AdminKontaktanfragenTab() {
                           </Select>
                         </div>
                       </TableCell>
+                      <TableCell>
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="h-8 gap-1.5 whitespace-nowrap"
+                          onClick={() => openReply(item)}
+                        >
+                          <Reply className="h-3.5 w-3.5" />
+                          Antworten
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -227,6 +310,78 @@ export function AdminKontaktanfragenTab() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog
+        open={replyTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setReplyTarget(null)
+        }}
+      >
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Per E-Mail antworten</DialogTitle>
+            <DialogDescription>
+              {replyTarget
+                ? `An ${replyTarget.name} <${replyTarget.email}>`
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+          {replyTarget && (
+            <div className="space-y-4">
+              <div className="rounded-lg border border-border/60 bg-muted/40 p-3">
+                <p className="text-xs font-semibold text-foreground/70">
+                  Ursprüngliche Nachricht ({replyTarget.subject})
+                </p>
+                <p className="mt-1 whitespace-pre-wrap text-xs text-muted-foreground">
+                  {replyTarget.message}
+                </p>
+              </div>
+              <div className="space-y-1.5">
+                <Label className={adminUi.label}>Betreff</Label>
+                <Input
+                  value={replySubject}
+                  onChange={(e) => setReplySubject(e.target.value)}
+                  className={adminUi.input}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className={adminUi.label}>Antwort</Label>
+                <Textarea
+                  value={replyMessage}
+                  onChange={(e) => setReplyMessage(e.target.value)}
+                  rows={8}
+                  placeholder="Deine Antwort an den Kunden…"
+                  className={adminUi.input}
+                />
+              </div>
+              {replyError && <p className="text-sm text-red-600">{replyError}</p>}
+              <div className="flex justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setReplyTarget(null)}
+                  disabled={replySending}
+                >
+                  Abbrechen
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => void sendReply()}
+                  disabled={replySending || !replyMessage.trim()}
+                  className="gap-1.5"
+                >
+                  {replySending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Send className="h-4 w-4" />
+                  )}
+                  E-Mail senden
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
