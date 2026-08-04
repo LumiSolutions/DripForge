@@ -14,7 +14,7 @@
     "telefonnummer": ""
   },
   "launch": {
-    "shopLive": true
+    "shopLive": false
   },
   "services": {
     "druck3d": false,
@@ -22,18 +22,5 @@
     "laserschnitt": false,
     "markierungAetzung": false
   },
-  "updatedAt": "2026-06-02T18:13:56.197Z",
-  "customerCategories": [
-    {
-      "id": "cat-personal-test",
-      "name": "Personal",
-      "discountPercent": 0,
-      "allowedShippingMethodIds": [
-        "pickup"
-      ],
-      "allowedPaymentMethodIds": [
-        "cash"
-      ]
-    }
-  ]
+  "updatedAt": "2026-06-02T18:13:56.197Z"
 }
