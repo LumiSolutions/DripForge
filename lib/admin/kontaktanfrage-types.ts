@@ -19,6 +19,17 @@ export const KONTAKT_STATUS_LABELS: Record<KontaktStatus, string> = {
   archiviert: "Archiviert",
 }
 
+/** Ein Eintrag im Nachrichtenverlauf (Thread) einer Kontaktanfrage. */
+export type KontaktThreadEntry = {
+  id: string
+  /** "customer" = Kunde, "admin" = Antwort aus dem Admin */
+  role: "customer" | "admin"
+  subject?: string
+  body: string
+  /** ISO-Zeitstempel */
+  at: string
+}
+
 export type Kontaktanfrage = {
   id: string
   docType: typeof KONTAKTANFRAGE_DOC_TYPE
@@ -30,6 +41,8 @@ export type Kontaktanfrage = {
   subject: string
   message: string
   status: KontaktStatus
+  /** Nachrichtenverlauf (Antworten des Admins, spätere Folgenachrichten). */
+  thread?: KontaktThreadEntry[]
   /** Zusätzliche Formularfelder aus dem CMS-Form-Builder */
   extraFields?: Record<string, string>
   createdAt: string
@@ -109,6 +122,20 @@ export function normalizeKontaktanfrage(
     subject: String(raw.subject ?? ""),
     message: String(raw.message ?? ""),
     status: normalizeKontaktStatus(raw.status),
+    thread: Array.isArray(raw.thread)
+      ? raw.thread
+          .filter(
+            (e): e is KontaktThreadEntry =>
+              Boolean(e) && typeof e.body === "string"
+          )
+          .map((e) => ({
+            id: String(e.id ?? `msg-${Date.now()}`),
+            role: e.role === "admin" ? "admin" : "customer",
+            subject: typeof e.subject === "string" ? e.subject : undefined,
+            body: String(e.body ?? ""),
+            at: typeof e.at === "string" ? e.at : new Date().toISOString(),
+          }))
+      : undefined,
     extraFields: raw.extraFields,
     createdAt: raw.createdAt ?? new Date().toISOString(),
     updatedAt: raw.updatedAt ?? new Date().toISOString(),

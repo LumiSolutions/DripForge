@@ -102,9 +102,12 @@ export async function POST(request: Request) {
       )
     }
 
-    if (payload.paymentMethod === "invoice") {
+    if (payload.paymentMethod === "invoice" || payload.paymentMethod === "cash") {
       return NextResponse.json(
-        { error: "Rechnungskauf nutzt /api/orders, nicht Stripe Checkout." },
+        {
+          error:
+            "Rechnung/Barzahlung nutzt /api/orders, nicht Stripe Checkout.",
+        },
         { status: 400 }
       )
     }

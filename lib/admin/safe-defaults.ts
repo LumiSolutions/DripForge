@@ -69,6 +69,7 @@ export function buildDefaultAdminSettings(): AdminSettings {
     customerCategories: [],
     brandIconUrl: null,
     brandLogoUrl: null,
+    emailSignature: "",
     shippingTiers: {
       ...DEFAULT_SHIPPING_TIERS,
       tiers: DEFAULT_SHIPPING_TIERS.tiers.map((t) => ({ ...t })),

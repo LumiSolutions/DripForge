@@ -205,6 +205,7 @@ export function AdminSettingsTab({
   const [loyaltyPointsExpiryMonths, setLoyaltyPointsExpiryMonths] = useState("6")
   const [orderEmailTemplates, setOrderEmailTemplates] =
     useState<OrderEmailTemplates>({ ...DEFAULT_ORDER_EMAIL_TEMPLATES })
+  const [emailSignature, setEmailSignature] = useState("")
   const [orderEmailLayout, setOrderEmailLayout] = useState<OrderEmailLayout>(
     () => ({
       ...DEFAULT_ORDER_EMAIL_LAYOUT,
@@ -322,6 +323,7 @@ export function AdminSettingsTab({
       setOrderEmailTemplates(
         normalizeOrderEmailTemplates(data.orderEmailTemplates)
       )
+      setEmailSignature(typeof data.emailSignature === "string" ? data.emailSignature : "")
       setOrderEmailLayout(normalizeOrderEmailLayout(data.orderEmailLayout))
       setThemeInboundTourImageUrl(
         normalizeThemeInboundTourImageUrl(data.themeInboundTourImageUrl)
@@ -407,6 +409,7 @@ export function AdminSettingsTab({
           loyaltyEarnPercent: Number(loyaltyEarnPercent),
           loyaltyPointValueChf: Number(loyaltyPointValueChf),
           loyaltyPointsExpiryMonths: Number(loyaltyPointsExpiryMonths),
+          emailSignature,
           orderEmailTemplates,
           orderEmailLayout,
           launch,
@@ -476,6 +479,7 @@ export function AdminSettingsTab({
       setOrderEmailTemplates(
         normalizeOrderEmailTemplates(data.orderEmailTemplates)
       )
+      setEmailSignature(typeof data.emailSignature === "string" ? data.emailSignature : "")
       setOrderEmailLayout(normalizeOrderEmailLayout(data.orderEmailLayout))
       setThemeInboundTourImageUrl(
         normalizeThemeInboundTourImageUrl(data.themeInboundTourImageUrl)
@@ -1733,6 +1737,29 @@ export function AdminSettingsTab({
           </Card>
         )}
 
+        {show("email") && (
+          <Card className={adminUi.card}>
+            <CardContent className="space-y-3 p-6">
+              <div>
+                <h3 className={cn("text-lg font-bold", adminUi.heading)}>
+                  E-Mail-Signatur
+                </h3>
+                <p className={cn("mt-1 text-sm", adminUi.muted)}>
+                  Wird beim Antworten auf Kontaktanfragen automatisch unten ins
+                  Antwortfeld vorausgefüllt.
+                </p>
+              </div>
+              <Textarea
+                value={emailSignature}
+                onChange={(e) => setEmailSignature(e.target.value)}
+                rows={5}
+                placeholder={"Freundliche Grüsse\nDripForge\nRobin Schulz\nshop@dripforge.ch"}
+                className={adminUi.input}
+              />
+            </CardContent>
+          </Card>
+        )}
+
         {show("onboarding") && (
           <Card className={adminUi.card}>
             <CardContent className="space-y-4 p-6">
@@ -2265,6 +2292,11 @@ export function AdminSettingsTab({
                       label: "Kauf auf Rechnung / Vorkasse",
                       hint: "Banküberweisung gemäss Firmendaten unten",
                     },
+                    {
+                      key: "paymentCashAktiv" as const,
+                      label: "Barzahlung bei Abholung",
+                      hint: "Zahlung in bar vor Ort bei der Abholung",
+                    },
                   ] as const
                 ).map((row) => (
                   <div
@@ -2289,7 +2321,8 @@ export function AdminSettingsTab({
 
                 {!checkout.paymentCardAktiv &&
                   !checkout.paymentTwintAktiv &&
-                  !checkout.paymentInvoiceAktiv && (
+                  !checkout.paymentInvoiceAktiv &&
+                  !checkout.paymentCashAktiv && (
                     <p className="text-sm font-medium text-amber-700 dark:text-amber-300">
                       Achtung: Alle Zahlungsarten sind deaktiviert — Kunden können
                       nicht bestellen.

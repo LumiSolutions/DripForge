@@ -8,7 +8,12 @@ import type { PaymentMethodId, ShippingMethodId } from "@/lib/dripforge/checkout
 
 export type OrderPaymentStatus = "pending" | "paid"
 
-const PAYMENT_METHODS = new Set<PaymentMethodId>(["card", "twint", "invoice"])
+const PAYMENT_METHODS = new Set<PaymentMethodId>([
+  "card",
+  "twint",
+  "invoice",
+  "cash",
+])
 const SHIPPING_METHODS = new Set<ShippingMethodId>([
   "apost",
   "bpost",

@@ -1,5 +1,5 @@
-/** Default-Texte für AGB, Impressum, Datenschutz und FAQ (site_config). */
-export const LEGAL_SITE_TEXT_DEFAULTS = {
+/** Basis-Texte (Hero + Abschnitte) für AGB, Impressum, Datenschutz und FAQ. */
+const LEGAL_TEXT_BASE = {
   legal_subpage_back: "Zurueck zur Startseite",
 
   agb_hero_badge: "Rechtliches",
@@ -168,25 +168,75 @@ export const LEGAL_SITE_TEXT_DEFAULTS = {
 export const AGB_BULLET_SECTIONS = new Set([4, 5, 6])
 export const DATENSCHUTZ_BULLET_SECTIONS = new Set([3])
 
-function buildLegalSectionFields(
-  prefix: string,
-  count: number,
-  labelPrefix: string
-) {
-  const fields: { key: string; label: string; multiline?: boolean }[] = []
-  for (let i = 1; i <= count; i += 1) {
-    fields.push({
-      key: `${prefix}_section_${i}_title`,
-      label: `${labelPrefix} ${i} — Titel`,
-    })
-    fields.push({
-      key: `${prefix}_section_${i}_body`,
-      label: `${labelPrefix} ${i} — Inhalt`,
-      multiline: true,
-    })
-  }
-  return fields
+function escapeLegalHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
 }
+
+/**
+ * Baut aus den Einzelabschnitten (Titel + Inhalt) ein durchgängiges HTML-Dokument
+ * als Default für das neue Rich-Text-Feld — so bleibt der bestehende Inhalt
+ * erhalten. {platzhalter} werden erst beim Rendern ersetzt.
+ */
+function buildLegalContentHtml(
+  prefix: "agb" | "impressum" | "datenschutz",
+  count: number,
+  bulletSections: Set<number>,
+  startAt = 1
+): string {
+  const parts: string[] = []
+  for (let i = startAt; i <= count; i += 1) {
+    const title =
+      LEGAL_TEXT_BASE[`${prefix}_section_${i}_title` as keyof typeof LEGAL_TEXT_BASE]
+    const body =
+      LEGAL_TEXT_BASE[`${prefix}_section_${i}_body` as keyof typeof LEGAL_TEXT_BASE]
+    if (title) parts.push(`<h2>${escapeLegalHtml(String(title))}</h2>`)
+    if (!body) continue
+    if (bulletSections.has(i)) {
+      const items = String(body)
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .map((line) => line.replace(/^[-•]\s*/, ""))
+      parts.push(
+        `<ul>${items
+          .map((it) => `<li>${escapeLegalHtml(it)}</li>`)
+          .join("")}</ul>`
+      )
+    } else {
+      const paragraphs = String(body)
+        .split(/\n{2,}/)
+        .map((p) => p.trim())
+        .filter(Boolean)
+      for (const p of paragraphs) {
+        parts.push(`<p>${escapeLegalHtml(p).replace(/\n/g, "<br>")}</p>`)
+      }
+    }
+  }
+  return parts.join("")
+}
+
+/** Default-Texte für AGB, Impressum, Datenschutz und FAQ (site_config). */
+export const LEGAL_SITE_TEXT_DEFAULTS = {
+  ...LEGAL_TEXT_BASE,
+  // Durchgängige Rich-Text-Felder (ersetzen die Einzelblock-Eingabe im Frontend).
+  datenschutz_content_html: buildLegalContentHtml(
+    "datenschutz",
+    8,
+    DATENSCHUTZ_BULLET_SECTIONS
+  ),
+  agb_content_html: buildLegalContentHtml("agb", 11, AGB_BULLET_SECTIONS),
+  // Impressum-Sektionen 1–2 bleiben als dynamischer Firmen-Identitätsblock;
+  // das Rich-Text-Feld deckt die Abschnitte 3–6 ab.
+  impressum_content_html: buildLegalContentHtml(
+    "impressum",
+    6,
+    new Set<number>(),
+    3
+  ),
+} as const
 
 function buildFaqFields(count: number) {
   const fields: { key: string; label: string; multiline?: boolean }[] = []
@@ -211,7 +261,11 @@ export const LEGAL_SITE_TEXT_SECTIONS = [
       { key: "agb_hero_title_highlight", label: "Hero-Titel (hervorgehoben)" },
       { key: "agb_hero_title_suffix", label: "Hero-Titel (Suffix)" },
       { key: "agb_footer_date", label: "Stand-Datum" },
-      ...buildLegalSectionFields("agb", 11, "Abschnitt"),
+      {
+        key: "agb_content_html",
+        label: "Inhalt (Rich-Text)",
+        multiline: true,
+      },
     ],
   },
   {
@@ -222,7 +276,11 @@ export const LEGAL_SITE_TEXT_SECTIONS = [
       { key: "impressum_hero_title_prefix", label: "Hero-Titel (Prefix)" },
       { key: "impressum_hero_title_highlight", label: "Hero-Titel (hervorgehoben)" },
       { key: "impressum_hero_title_suffix", label: "Hero-Titel (Suffix)" },
-      ...buildLegalSectionFields("impressum", 6, "Abschnitt"),
+      {
+        key: "impressum_content_html",
+        label: "Inhalt (Rich-Text)",
+        multiline: true,
+      },
     ],
   },
   {
@@ -234,7 +292,11 @@ export const LEGAL_SITE_TEXT_SECTIONS = [
       { key: "datenschutz_hero_title_highlight", label: "Hero-Titel (hervorgehoben)" },
       { key: "datenschutz_hero_title_suffix", label: "Hero-Titel (Suffix)" },
       { key: "datenschutz_footer_date", label: "Stand-Datum" },
-      ...buildLegalSectionFields("datenschutz", 8, "Abschnitt"),
+      {
+        key: "datenschutz_content_html",
+        label: "Inhalt (Rich-Text)",
+        multiline: true,
+      },
     ],
   },
   {

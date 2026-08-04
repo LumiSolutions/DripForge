@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { Loader2, Mail, RefreshCw, Reply, Send } from "lucide-react"
+import { ChevronDown, Loader2, Mail, RefreshCw, Reply, Send } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -62,6 +62,43 @@ function statusBadgeClass(status: KontaktStatus) {
   }
 }
 
+function ThreadMessage({
+  role,
+  author,
+  subject,
+  body,
+  at,
+}: {
+  role: "customer" | "admin"
+  author: string
+  subject?: string
+  body: string
+  at: string
+}) {
+  const isAdmin = role === "admin"
+  return (
+    <div
+      className={cn(
+        "rounded-lg border p-2.5 text-xs",
+        isAdmin
+          ? "border-primary/30 bg-primary/5 ml-6"
+          : "border-border/60 bg-background mr-6"
+      )}
+    >
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <span className="font-semibold text-foreground/80">
+          {isAdmin ? "Antwort" : "Kunde"} · {author}
+        </span>
+        <span className="text-muted-foreground">{formatDate(at)}</span>
+      </div>
+      {subject ? (
+        <p className="text-[11px] font-medium text-muted-foreground">{subject}</p>
+      ) : null}
+      <p className="mt-1 whitespace-pre-wrap text-muted-foreground">{body}</p>
+    </div>
+  )
+}
+
 export function AdminKontaktanfragenTab() {
   const [items, setItems] = useState<Kontaktanfrage[]>([])
   const [loading, setLoading] = useState(true)
@@ -74,11 +111,30 @@ export function AdminKontaktanfragenTab() {
   const [replySending, setReplySending] = useState(false)
   const [replyError, setReplyError] = useState<string | null>(null)
   const [replyNotice, setReplyNotice] = useState<string | null>(null)
+  const [emailSignature, setEmailSignature] = useState("")
+  const [showThread, setShowThread] = useState(true)
+
+  // Globale E-Mail-Signatur für die Vorbefüllung laden.
+  useEffect(() => {
+    void fetch("/api/admin/settings", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (typeof data?.emailSignature === "string") {
+          setEmailSignature(data.emailSignature)
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   const openReply = (item: Kontaktanfrage) => {
     setReplyTarget(item)
     setReplySubject(`Re: ${item.subject || "Deine Anfrage"} (#${item.id})`)
-    setReplyMessage(`Guten Tag ${item.name},\n\n`)
+    // Anrede oben, Signatur unten — genau dieser Text wird 1:1 versendet.
+    const greeting = `Guten Tag ${item.name},\n\n`
+    setReplyMessage(
+      emailSignature.trim() ? `${greeting}\n\n${emailSignature}` : greeting
+    )
+    setShowThread(true)
     setReplyError(null)
     setReplyNotice(null)
   }
@@ -331,13 +387,46 @@ export function AdminKontaktanfragenTab() {
           </DialogHeader>
           {replyTarget && (
             <div className="space-y-4">
-              <div className="rounded-lg border border-border/60 bg-muted/40 p-3">
-                <p className="text-xs font-semibold text-foreground/70">
-                  Ursprüngliche Nachricht ({replyTarget.subject})
-                </p>
-                <p className="mt-1 whitespace-pre-wrap text-xs text-muted-foreground">
-                  {replyTarget.message}
-                </p>
+              <div className="rounded-lg border border-border/60 bg-muted/40">
+                <button
+                  type="button"
+                  onClick={() => setShowThread((v) => !v)}
+                  className="flex w-full items-center justify-between gap-2 p-3 text-left"
+                >
+                  <span className="text-xs font-semibold text-foreground/70">
+                    Verlauf ({1 + (replyTarget.thread?.length ?? 0)} Nachricht
+                    {1 + (replyTarget.thread?.length ?? 0) === 1 ? "" : "en"})
+                  </span>
+                  <ChevronDown
+                    className={cn(
+                      "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
+                      showThread && "rotate-180"
+                    )}
+                  />
+                </button>
+                {showThread && (
+                  <div className="max-h-64 space-y-2 overflow-y-auto border-t border-border/60 p-3">
+                    <ThreadMessage
+                      role="customer"
+                      author={replyTarget.name}
+                      subject={replyTarget.subject}
+                      body={replyTarget.message}
+                      at={replyTarget.createdAt}
+                    />
+                    {(replyTarget.thread ?? []).map((entry) => (
+                      <ThreadMessage
+                        key={entry.id}
+                        role={entry.role}
+                        author={
+                          entry.role === "admin" ? "DripForge" : replyTarget.name
+                        }
+                        subject={entry.subject}
+                        body={entry.body}
+                        at={entry.at}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
               <div className="space-y-1.5">
                 <Label className={adminUi.label}>Betreff</Label>

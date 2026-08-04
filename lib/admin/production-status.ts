@@ -70,7 +70,11 @@ export function isOrderPaid(order: StoredOrder): boolean {
  */
 export function needsManualPaymentConfirmation(order: StoredOrder): boolean {
   if (isOrderPaid(order)) return false
-  return order.paymentMethod === "invoice" || order.paymentMethod === "twint"
+  return (
+    order.paymentMethod === "invoice" ||
+    order.paymentMethod === "twint" ||
+    order.paymentMethod === "cash"
+  )
 }
 
 export function productionStatusLabel(status: ProductionStatus): string {

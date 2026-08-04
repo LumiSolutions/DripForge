@@ -1,7 +1,16 @@
 "use client"
 
 import { useEffect, useRef } from "react"
-import { Bold, Highlighter, Italic, Underline } from "lucide-react"
+import {
+  Bold,
+  Heading1,
+  Heading2,
+  Highlighter,
+  Italic,
+  List,
+  ListOrdered,
+  Underline,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { DF_HIGHLIGHT_CLASS } from "@/lib/dripforge/product-description-html"
 import { cn } from "@/lib/utils"
@@ -22,6 +31,11 @@ type ProductDescriptionEditorProps = {
   value: string
   onChange: (html: string) => void
   className?: string
+  /** Zusätzliche Block-Formate (H1/H2, Listen) für Rich-Text (z. B. Rechtstexte). */
+  enableBlockFormats?: boolean
+  ariaLabel?: string
+  /** Überschreibt die Höhe des Editier-Bereichs. */
+  editorClassName?: string
 }
 
 function exec(command: string, value?: string) {
@@ -91,6 +105,9 @@ export function ProductDescriptionEditor({
   value,
   onChange,
   className,
+  enableBlockFormats = false,
+  ariaLabel = "Produktbeschreibung",
+  editorClassName,
 }: ProductDescriptionEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null)
   const lastEmitted = useRef<string | null>(null)
@@ -171,6 +188,16 @@ export function ProductDescriptionEditor({
     emitChange()
   }
 
+  const applyBlock = (tag: "h1" | "h2" | "p") => {
+    exec("formatBlock", tag)
+    emitChange()
+  }
+
+  const applyList = (ordered: boolean) => {
+    exec(ordered ? "insertOrderedList" : "insertUnorderedList")
+    emitChange()
+  }
+
   return (
     <div className={cn("overflow-hidden rounded-md border border-border/60", className)}>
       <div className="flex flex-wrap items-center gap-1 border-b border-border/60 bg-muted/30 p-1.5">
@@ -241,18 +268,70 @@ export function ProductDescriptionEditor({
           <Highlighter className="h-4 w-4" />
           Highlight
         </Button>
+        {enableBlockFormats && (
+          <>
+            <span className="mx-1 h-5 w-px bg-border/60" aria-hidden />
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 px-0"
+              title="Überschrift 1"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => applyBlock("h1")}
+            >
+              <Heading1 className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 px-0"
+              title="Überschrift 2"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => applyBlock("h2")}
+            >
+              <Heading2 className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 px-0"
+              title="Aufzählung"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => applyList(false)}
+            >
+              <List className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 px-0"
+              title="Nummerierte Liste"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => applyList(true)}
+            >
+              <ListOrdered className="h-4 w-4" />
+            </Button>
+          </>
+        )}
       </div>
       <div
         ref={editorRef}
         contentEditable
         suppressContentEditableWarning
         role="textbox"
-        aria-label="Produktbeschreibung"
+        aria-label={ariaLabel}
         className={cn(
           "min-h-[96px] max-h-[320px] overflow-y-auto px-3 py-2 text-sm outline-none",
           "prose prose-sm dark:prose-invert max-w-none",
           "bg-background text-foreground focus-visible:ring-0",
-          "[&_.df-text-highlight]:font-bold"
+          "[&_.df-text-highlight]:font-bold",
+          "[&_h1]:text-xl [&_h1]:font-bold [&_h2]:text-lg [&_h2]:font-bold",
+          "[&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5",
+          editorClassName
         )}
         onInput={emitChange}
         onBlur={emitChange}

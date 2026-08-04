@@ -68,6 +68,7 @@ import {
 import { normalizeAnnouncementBanner } from "@/lib/dripforge/announcement-banner-settings"
 import { normalizeCustomerCategories } from "@/lib/dripforge/customer-categories"
 import { normalizeBrandUrl } from "@/lib/admin/branding-settings"
+import { normalizeEmailSignature } from "@/lib/admin/email-signature"
 import { normalizeShippingTiers } from "@/lib/dripforge/shipping-tiers"
 import { normalizeThanksPageSettings } from "@/lib/dripforge/thanks-page-settings"
 import {
@@ -628,6 +629,7 @@ async function getSettingsFromFile(): Promise<AdminSettings> {
       ),
       brandIconUrl: normalizeBrandUrl(stored.brandIconUrl),
       brandLogoUrl: normalizeBrandUrl(stored.brandLogoUrl),
+      emailSignature: normalizeEmailSignature(stored.emailSignature),
       orderEmailTemplates: normalizeOrderEmailTemplates(
         stored.orderEmailTemplates
       ),
@@ -668,6 +670,7 @@ async function getSettingsFromFile(): Promise<AdminSettings> {
     wishlistIconCustomUrl: null,
     brandIconUrl: null,
     brandLogoUrl: null,
+    emailSignature: "",
     orderEmailTemplates: normalizeOrderEmailTemplates(undefined),
     orderEmailLayout: normalizeOrderEmailLayout(undefined),
     announcementBanner: normalizeAnnouncementBanner(undefined),
@@ -714,6 +717,7 @@ export async function saveSettings(input: {
   wishlistIconCustomUrl?: string | null
   brandIconUrl?: string | null
   brandLogoUrl?: string | null
+  emailSignature?: string
   orderEmailTemplates?: {
     receivedIntro?: string
     receivedFooter?: string
@@ -844,6 +848,10 @@ export async function saveSettings(input: {
       input.brandLogoUrl !== undefined
         ? normalizeBrandUrl(input.brandLogoUrl)
         : normalizeBrandUrl(current.brandLogoUrl),
+    emailSignature:
+      input.emailSignature !== undefined
+        ? normalizeEmailSignature(input.emailSignature)
+        : normalizeEmailSignature(current.emailSignature),
     orderEmailTemplates:
       input.orderEmailTemplates !== undefined
         ? normalizeOrderEmailTemplates({

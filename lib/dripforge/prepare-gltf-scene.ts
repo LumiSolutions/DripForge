@@ -81,11 +81,27 @@ export function prepareGltfScene(
   const orbitCenter = orbitBox.getCenter(new THREE.Vector3())
   const finalSize = orbitBox.getSize(new THREE.Vector3())
 
+  // Schatten aktivieren: Ein <primitive object={scene}> überträgt castShadow
+  // NICHT automatisch auf die Kind-Meshes. Damit der Bodenschatten (Directional-
+  // Light-Shadow-Map) auch auf regulären Shop-Produkten erscheint (wie beim
+  // Eigenupload-Viewer), müssen die Meshes castShadow explizit setzen.
+  enableShadowsOnScene(scene)
+
   return {
     scene,
     orbitCenterY: orbitCenter.y,
     sizeAt100: { x: finalSize.x, y: finalSize.y, z: finalSize.z },
   }
+}
+
+/** Aktiviert castShadow (und receiveShadow) auf allen Meshes einer Szene. */
+export function enableShadowsOnScene(root: THREE.Object3D): void {
+  root.traverse((child) => {
+    if (child instanceof THREE.Mesh) {
+      child.castShadow = true
+      child.receiveShadow = true
+    }
+  })
 }
 
 /** Masse in mm: 1 Viewport-Einheit entspricht 1 mm bei 100 % Skalierung */

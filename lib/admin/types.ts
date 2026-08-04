@@ -246,6 +246,8 @@ export type AdminSettings = {
   brandIconUrl?: string | null
   /** Haupt-/Branding-Logo (grosse Darstellung, Home/Hero) */
   brandLogoUrl?: string | null
+  /** Globale E-Mail-Signatur (z. B. für Antworten auf Kontaktanfragen) */
+  emailSignature?: string
   /** Bearbeitbare Texte für Bestell-Bestätigungsmails */
   orderEmailTemplates?: {
     receivedIntro: string
@@ -299,6 +301,8 @@ export function getPaymentMethodLabel(
       return "Kreditkarte"
     case "invoice":
       return "Kauf auf Rechnung"
+    case "cash":
+      return "Barzahlung bei Abholung"
     case "twint":
       // Offizieller TWINT-Zahlungslink (Checkout) — Gateway-Flag nur noch Label-Hinweis
       return checkout.twintGatewayAktiv ? "TWINT (Gateway)" : "TWINT"

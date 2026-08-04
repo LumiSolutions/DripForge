@@ -83,6 +83,7 @@ export async function PUT(request: Request) {
       customerCategories?: unknown
       shippingTiers?: Partial<ShippingTiersSettings> | null
       thanksPage?: Partial<ThanksPageSettings> | null
+      emailSignature?: string
       orderEmailTemplates?: {
         receivedIntro?: string
         receivedFooter?: string
@@ -129,6 +130,7 @@ export async function PUT(request: Request) {
       paymentCardAktiv: body.checkout.paymentCardAktiv,
       paymentTwintAktiv: body.checkout.paymentTwintAktiv,
       paymentInvoiceAktiv: body.checkout.paymentInvoiceAktiv,
+      paymentCashAktiv: body.checkout.paymentCashAktiv,
     })
 
     const company: CompanySettings = {
@@ -208,6 +210,7 @@ export async function PUT(request: Request) {
         body.shippingTiers !== undefined ? body.shippingTiers : undefined,
       thanksPage:
         body.thanksPage !== undefined ? body.thanksPage : undefined,
+      emailSignature: body.emailSignature,
       orderEmailTemplates: body.orderEmailTemplates,
       orderEmailLayout: body.orderEmailLayout,
       launch: body.launch,

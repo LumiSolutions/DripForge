@@ -31,7 +31,9 @@ export function CheckoutSuccessModal({
   paymentMethod,
 }: CheckoutSuccessModalProps) {
   const isPrepaid =
-    paymentMethod === "invoice" || paymentMethod === "twint"
+    paymentMethod === "invoice" ||
+    paymentMethod === "twint" ||
+    paymentMethod === "cash"
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onContinueShopping()}>

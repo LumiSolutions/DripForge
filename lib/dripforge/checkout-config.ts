@@ -13,6 +13,8 @@ export type CheckoutRuntimeConfig = {
   paymentCardAktiv: boolean
   paymentTwintAktiv: boolean
   paymentInvoiceAktiv: boolean
+  /** Barzahlung bei Abholung (offline, Zahlung vor Ort) */
+  paymentCashAktiv: boolean
 }
 
 /** Standard: alle Zahlungsarten aktiv; Kleinunternehmer ohne MwSt. */
@@ -25,6 +27,8 @@ export const DEFAULT_CHECKOUT_RUNTIME_CONFIG: CheckoutRuntimeConfig = {
   paymentCardAktiv: true,
   paymentTwintAktiv: true,
   paymentInvoiceAktiv: true,
+  // Neue Zahlungsart — standardmässig deaktiviert (Admin aktiviert bei Bedarf).
+  paymentCashAktiv: false,
 }
 
 function boolOrDefault(value: unknown, fallback: boolean): boolean {
@@ -63,12 +67,16 @@ export function normalizeCheckoutRuntimeConfig(
       input?.paymentInvoiceAktiv,
       DEFAULT_CHECKOUT_RUNTIME_CONFIG.paymentInvoiceAktiv
     ),
+    paymentCashAktiv: boolOrDefault(
+      input?.paymentCashAktiv,
+      DEFAULT_CHECKOUT_RUNTIME_CONFIG.paymentCashAktiv
+    ),
   }
 }
 
 export type ShippingMethodId = "apost" | "bpost" | "pickup" | "brief"
 
-export type PaymentMethodId = "card" | "twint" | "invoice"
+export type PaymentMethodId = "card" | "twint" | "invoice" | "cash"
 
 export const SHIPPING_OPTIONS: {
   id: ShippingMethodId
@@ -102,13 +110,18 @@ export const PAYMENT_OPTIONS: {
     label: "Kauf auf Rechnung",
     description: "Zahlung innerhalb von 30 Tagen",
   },
+  {
+    id: "cash",
+    label: "Barzahlung bei Abholung",
+    description: "Zahlung in bar vor Ort bei der Abholung",
+  },
 ]
 
 export function isPaymentMethodEnabled(
   method: PaymentMethodId,
   config: Pick<
     CheckoutRuntimeConfig,
-    "paymentCardAktiv" | "paymentTwintAktiv" | "paymentInvoiceAktiv"
+    "paymentCardAktiv" | "paymentTwintAktiv" | "paymentInvoiceAktiv" | "paymentCashAktiv"
   >
 ): boolean {
   switch (method) {
@@ -118,6 +131,8 @@ export function isPaymentMethodEnabled(
       return config.paymentTwintAktiv
     case "invoice":
       return config.paymentInvoiceAktiv
+    case "cash":
+      return config.paymentCashAktiv
     default:
       return false
   }
@@ -126,7 +141,7 @@ export function isPaymentMethodEnabled(
 export function getEnabledPaymentOptions(
   config: Pick<
     CheckoutRuntimeConfig,
-    "paymentCardAktiv" | "paymentTwintAktiv" | "paymentInvoiceAktiv"
+    "paymentCardAktiv" | "paymentTwintAktiv" | "paymentInvoiceAktiv" | "paymentCashAktiv"
   >
 ): typeof PAYMENT_OPTIONS {
   return PAYMENT_OPTIONS.filter((option) =>
@@ -137,7 +152,7 @@ export function getEnabledPaymentOptions(
 export function getDefaultPaymentMethod(
   config: Pick<
     CheckoutRuntimeConfig,
-    "paymentCardAktiv" | "paymentTwintAktiv" | "paymentInvoiceAktiv"
+    "paymentCardAktiv" | "paymentTwintAktiv" | "paymentInvoiceAktiv" | "paymentCashAktiv"
   >
 ): PaymentMethodId | null {
   return getEnabledPaymentOptions(config)[0]?.id ?? null
