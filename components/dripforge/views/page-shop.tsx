@@ -1218,7 +1218,7 @@ export function PageShop({
             </div>
             </ProductDetailErrorBoundary>
           ) : (
-                <>
+                <ProductDetailErrorBoundary onReset={closeProduct}>
                   <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 md:gap-10">
                     {/*
                       Mobile: Galerie+Desc+Specs → Live-3D → Filament → Preis/Cart
@@ -1268,9 +1268,16 @@ export function PageShop({
                           }
                         />
 
-                        {/* Desktop: 3D unter Beschreibung/Spezifikationen */}
-                        {productModelUrl && isMdUp && !galleryLightboxOpen ? (
-                          <div className="min-w-0">
+                        {/* Desktop: 3D unter Beschreibung/Spezifikationen.
+                            Bei Lightbox nur verstecken (nicht unmounten) — sonst WebGL-Context-Loss. */}
+                        {productModelUrl && isMdUp ? (
+                          <div
+                            className={cn(
+                              "min-w-0",
+                              galleryLightboxOpen && "pointer-events-none invisible absolute h-0 w-0 overflow-hidden opacity-0"
+                            )}
+                            aria-hidden={galleryLightboxOpen}
+                          >
                             <ProductDetailErrorBoundary
                               fallbackTitle="3D-Vorschau konnte nicht geladen werden."
                             >
@@ -1278,6 +1285,7 @@ export function PageShop({
                               ref={product3dCanvasRef}
                               key={`${detailProduct.id}-${productModelUrl}-d`}
                               modelUrl={productModelUrl}
+                              paused={galleryLightboxOpen}
                               color={
                                 showMultiColorPicker
                                   ? multiColorSelection?.colors.find(
@@ -1299,9 +1307,16 @@ export function PageShop({
                         ) : null}
                       </div>
 
-                      {/* Mobile: Live-3D nach Specs */}
-                      {productModelUrl && !isMdUp && !galleryLightboxOpen ? (
-                        <div className="order-2 min-w-0 md:hidden">
+                      {/* Mobile: Live-3D nach Specs — bei Lightbox pausieren/verstecken, nicht unmounten */}
+                      {productModelUrl && !isMdUp ? (
+                        <div
+                          className={cn(
+                            "order-2 min-w-0 md:hidden",
+                            galleryLightboxOpen &&
+                              "pointer-events-none invisible absolute h-0 w-0 overflow-hidden opacity-0"
+                          )}
+                          aria-hidden={galleryLightboxOpen}
+                        >
                           <ProductDetailErrorBoundary
                             fallbackTitle="3D-Vorschau konnte nicht geladen werden."
                           >
@@ -1309,6 +1324,7 @@ export function PageShop({
                             ref={product3dCanvasRef}
                             key={`${detailProduct.id}-${productModelUrl}-m`}
                             modelUrl={productModelUrl}
+                            paused={galleryLightboxOpen}
                             color={
                               showMultiColorPicker
                                 ? multiColorSelection?.colors.find(
@@ -1655,7 +1671,7 @@ export function PageShop({
                       </div>
                     </div>
                   </div>
-                </>
+                </ProductDetailErrorBoundary>
           )}
         </div>
       </div>
