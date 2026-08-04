@@ -1,4 +1,7 @@
-import type { ShippingMethodId } from "@/lib/dripforge/checkout-config"
+import type {
+  PaymentMethodId,
+  ShippingMethodId,
+} from "@/lib/dripforge/checkout-config"
 
 /**
  * Kundenkategorie / -gruppe (z. B. "Friends & Family", "B2B").
@@ -12,9 +15,12 @@ export type CustomerCategory = {
   discountPercent: number
   /** Zugelassene Versandarten für diese Kategorie (leer = alle erlaubt). */
   allowedShippingMethodIds: ShippingMethodId[]
+  /** Zugelassene Zahlungsarten für diese Kategorie (leer = alle erlaubt). */
+  allowedPaymentMethodIds: PaymentMethodId[]
 }
 
 const SHIPPING_METHOD_IDS: ShippingMethodId[] = ["apost", "bpost", "pickup", "brief"]
+const PAYMENT_METHOD_IDS: PaymentMethodId[] = ["card", "twint", "invoice"]
 
 function makeCategoryId(): string {
   try {
@@ -44,6 +50,17 @@ function normalizeShippingIds(input: unknown): ShippingMethodId[] {
   return Array.from(seen)
 }
 
+function normalizePaymentIds(input: unknown): PaymentMethodId[] {
+  if (!Array.isArray(input)) return []
+  const seen = new Set<PaymentMethodId>()
+  for (const raw of input) {
+    if (typeof raw === "string" && (PAYMENT_METHOD_IDS as string[]).includes(raw)) {
+      seen.add(raw as PaymentMethodId)
+    }
+  }
+  return Array.from(seen)
+}
+
 export function normalizeCustomerCategory(
   input: Partial<CustomerCategory> | null | undefined
 ): CustomerCategory {
@@ -55,6 +72,7 @@ export function normalizeCustomerCategory(
     name: typeof input?.name === "string" ? input.name.trim().slice(0, 80) : "",
     discountPercent: clampDiscountPercent(input?.discountPercent),
     allowedShippingMethodIds: normalizeShippingIds(input?.allowedShippingMethodIds),
+    allowedPaymentMethodIds: normalizePaymentIds(input?.allowedPaymentMethodIds),
   }
 }
 
@@ -73,6 +91,7 @@ export function createEmptyCustomerCategory(): CustomerCategory {
     name: "",
     discountPercent: 0,
     allowedShippingMethodIds: [],
+    allowedPaymentMethodIds: [],
   }
 }
 
@@ -82,6 +101,26 @@ export function findCustomerCategory(
 ): CustomerCategory | null {
   if (!categoryId) return null
   return categories?.find((c) => c.id === categoryId) ?? null
+}
+
+/** Zahlungsart für die Kategorie erlaubt? (leere Liste = alle erlaubt). */
+export function isPaymentMethodAllowedForCategory(
+  category: CustomerCategory | null | undefined,
+  methodId: PaymentMethodId
+): boolean {
+  const allowed = category?.allowedPaymentMethodIds ?? []
+  if (allowed.length === 0) return true
+  return allowed.includes(methodId)
+}
+
+/** Versandart für die Kategorie erlaubt? (leere Liste = alle erlaubt). */
+export function isShippingMethodAllowedForCategory(
+  category: CustomerCategory | null | undefined,
+  methodId: ShippingMethodId
+): boolean {
+  const allowed = category?.allowedShippingMethodIds ?? []
+  if (allowed.length === 0) return true
+  return allowed.includes(methodId)
 }
 
 /** Wendet den Kategorierabatt auf einen Preis an (nie negativ). */

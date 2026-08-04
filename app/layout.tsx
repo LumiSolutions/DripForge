@@ -64,10 +64,36 @@ const laserCaveat = Caveat({
   subsets: ["latin"],
 })
 
-export const metadata: Metadata = {
-  title: "DripForge | 3D-Druck & Lasergravur",
-  description:
-    "Schweizer Präzision für 3D-Druck und Lasergravur – von der Idee bis zum fertigen Produkt.",
+/** Standard-Favicon (existiert unter public/), falls kein Marken-Icon gesetzt ist. */
+const DEFAULT_BRAND_ICON = "/icon.svg"
+
+/**
+ * Favicon / Apple-Touch-Icon dynamisch aus den Admin-Einstellungen (Slot 1:
+ * kleine Icon-Marke). So werden <link rel="icon"> und <link rel="apple-touch-icon">
+ * beim Upload automatisch aktualisiert.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  let iconUrl = DEFAULT_BRAND_ICON
+  try {
+    const { getSettings } = await import("@/lib/admin/db")
+    const settings = await getSettings()
+    if (settings.brandIconUrl && settings.brandIconUrl.trim()) {
+      iconUrl = settings.brandIconUrl.trim()
+    }
+  } catch {
+    /* Fallback auf Standard-Icon */
+  }
+
+  return {
+    title: "DripForge | 3D-Druck & Lasergravur",
+    description:
+      "Schweizer Präzision für 3D-Druck und Lasergravur – von der Idee bis zum fertigen Produkt.",
+    icons: {
+      icon: [{ url: iconUrl }],
+      shortcut: [{ url: iconUrl }],
+      apple: [{ url: iconUrl }],
+    },
+  }
 }
 
 export const viewport: Viewport = {

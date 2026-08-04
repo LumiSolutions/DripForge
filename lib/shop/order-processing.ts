@@ -23,6 +23,8 @@ import { getShippingCost } from "@/lib/dripforge/checkout-config"
 import {
   applyCategoryDiscount,
   findCustomerCategory,
+  isPaymentMethodAllowedForCategory,
+  isShippingMethodAllowedForCategory,
 } from "@/lib/dripforge/customer-categories"
 import type { OrderPayload } from "@/lib/dripforge/submit-order"
 import { grantAiCreditsForPaidOrder } from "@/lib/konto/ai-credits"
@@ -128,22 +130,37 @@ export async function processOrderPayload(
   const rewardCfg = buildRewardPointsPublicSettings(settings)
   const rewardPointsEnabled = rewardCfg.enableRewardPointsSystem
 
-  // Kundenkategorie-Rabatt (eingeloggter Kunde) serverseitig auf die
-  // Artikelpreise anwenden — verbindliche Preisberechnung (Trust Boundary).
+  // Kundenkategorie (eingeloggter Kunde) serverseitig auswerten — verbindlich
+  // (Trust Boundary): Rabatt anwenden UND erlaubte Zahlungs-/Versandart prüfen.
   if (options?.sessionEmail) {
     const categoryAccount = await getAccountByEmail(options.sessionEmail)
     const category = findCustomerCategory(
       settings.customerCategories,
       categoryAccount?.customerCategoryId
     )
-    const pct = category?.discountPercent ?? 0
-    if (pct > 0) {
-      payload = {
-        ...payload,
-        items: payload.items.map((item) => ({
-          ...item,
-          price: applyCategoryDiscount(item.price, pct),
-        })),
+    if (category) {
+      if (!isPaymentMethodAllowedForCategory(category, payload.paymentMethod)) {
+        throw new Error(
+          "Diese Zahlungsart ist für deine Kundenkategorie nicht verfügbar."
+        )
+      }
+      if (
+        payload.shippingMethod &&
+        !isShippingMethodAllowedForCategory(category, payload.shippingMethod)
+      ) {
+        throw new Error(
+          "Diese Versandart ist für deine Kundenkategorie nicht verfügbar."
+        )
+      }
+      const pct = category.discountPercent ?? 0
+      if (pct > 0) {
+        payload = {
+          ...payload,
+          items: payload.items.map((item) => ({
+            ...item,
+            price: applyCategoryDiscount(item.price, pct),
+          })),
+        }
       }
     }
   }

@@ -1299,6 +1299,40 @@ export function AdminProductsTab() {
                       </div>
                     ))}
                   </div>
+                  {form.type === "3d" && (
+                    <div className="space-y-1.5 rounded-lg border border-border/50 p-3">
+                      <Label className={cn("text-xs font-semibold", adminUi.labelMuted)}>
+                        Standard-Ausrichtung 3D-Vorschau (Grad)
+                      </Label>
+                      <div className="grid gap-3 sm:grid-cols-3">
+                        {(["x", "y", "z"] as const).map((axis) => (
+                          <div key={axis} className="space-y-1.5">
+                            <Label className={cn("text-xs", adminUi.labelMuted)}>
+                              Rotation {axis.toUpperCase()}°
+                            </Label>
+                            <Input
+                              type="number"
+                              step="15"
+                              value={form.defaultRotationDeg?.[axis] ?? 0}
+                              onChange={(e) =>
+                                updateField("defaultRotationDeg", {
+                                  x: form.defaultRotationDeg?.x ?? 0,
+                                  y: form.defaultRotationDeg?.y ?? 0,
+                                  z: form.defaultRotationDeg?.z ?? 0,
+                                  [axis]: Number(e.target.value),
+                                })
+                              }
+                              className={adminUi.input}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                      <p className={cn("text-xs", adminUi.muted)}>
+                        Orientierung, in der das Modell beim Öffnen der
+                        Produktseite initial angezeigt wird (0/0/0 = automatisch).
+                      </p>
+                    </div>
+                  )}
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="space-y-1.5">
                       <Label className={cn("text-xs", adminUi.labelMuted)}>Gewicht (g)</Label>

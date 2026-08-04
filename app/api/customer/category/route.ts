@@ -36,6 +36,7 @@ export async function GET() {
         name: category.name,
         discountPercent: category.discountPercent,
         allowedShippingMethodIds: category.allowedShippingMethodIds,
+        allowedPaymentMethodIds: category.allowedPaymentMethodIds,
       },
     },
     { headers: noStore }

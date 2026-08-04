@@ -433,10 +433,23 @@ export function PageCheckout({
       })
   }, [loggedIn, loyaltyLoading])
 
-  const enabledPaymentOptions = useMemo(
-    () => getEnabledPaymentOptions(checkoutConfig),
-    [checkoutConfig]
-  )
+  const enabledPaymentOptions = useMemo(() => {
+    const base = getEnabledPaymentOptions(checkoutConfig)
+    // Kundenkategorie: nur erlaubte Zahlungsarten (leer = alle erlaubt).
+    const allowed = customerCategory?.allowedPaymentMethodIds ?? []
+    if (allowed.length === 0) return base
+    const filtered = base.filter((o) => allowed.includes(o.id))
+    return filtered.length > 0 ? filtered : base
+  }, [checkoutConfig, customerCategory])
+
+  // Falls die aktuelle Zahlungsart durch die Kategorie ausgeschlossen wird,
+  // auf die erste erlaubte umstellen.
+  useEffect(() => {
+    if (enabledPaymentOptions.length === 0) return
+    if (!enabledPaymentOptions.some((o) => o.id === paymentMethod)) {
+      setPaymentMethod(enabledPaymentOptions[0]!.id)
+    }
+  }, [enabledPaymentOptions, paymentMethod])
   const cardPaymentsEnabled = checkoutConfig.paymentCardAktiv
   const twintPaymentsEnabled = checkoutConfig.paymentTwintAktiv
 

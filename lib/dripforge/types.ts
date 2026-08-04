@@ -49,6 +49,8 @@ export type Product = {
   images?: string[]
   /** Feste Abmessungen — nicht durch den Kunden veränderbar */
   dimensionsMm?: ProductDimensionsMm
+  /** Standard-Orientierung (Grad, X/Y/Z) der 3D-Vorschau beim Laden */
+  defaultRotationDeg?: { x: number; y: number; z: number }
   /** Volumen (Standard: cm³) */
   volumen?: number
   volumenEinheit?: "cm3" | "mm3"

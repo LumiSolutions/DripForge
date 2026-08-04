@@ -43,6 +43,8 @@ export type Product3DPreviewProps = {
   color?: string
   /** Feste Produktmasse für Bemaßungslabels im Viewer */
   fixedDimensionsMm?: DimensionsMm | null
+  /** Produktdefinierte Standard-Orientierung (Grad) für die Initialansicht */
+  initialRotationDeg?: { x?: number; y?: number; z?: number } | null
   className?: string
 }
 
@@ -67,11 +69,21 @@ function usePreparedModel(
   color: string,
   tipSteps: number,
   onOrbitCenter: (y: number) => void,
-  onPrepared: (scene: Object3D, sizeAt100: PreparedSceneSize) => void
+  onPrepared: (scene: Object3D, sizeAt100: PreparedSceneSize) => void,
+  initialRotationDeg?: { x?: number; y?: number; z?: number } | null
 ) {
+  const rotationKey = initialRotationDeg
+    ? `${initialRotationDeg.x ?? 0}|${initialRotationDeg.y ?? 0}|${initialRotationDeg.z ?? 0}`
+    : ""
   const prepared = useMemo(
-    () => prepareGltfScene(scene, { autoAlignFlat: true, tipSteps }),
-    [scene, tipSteps]
+    () =>
+      prepareGltfScene(scene, {
+        autoAlignFlat: true,
+        tipSteps,
+        extraRotationDeg: initialRotationDeg,
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [scene, tipSteps, rotationKey]
   )
 
   useEffect(() => {
@@ -95,12 +107,14 @@ function GltfModel({
   tipSteps,
   onOrbitCenter,
   onPrepared,
+  initialRotationDeg,
 }: {
   url: string
   color: string
   tipSteps: number
   onOrbitCenter: (y: number) => void
   onPrepared: (scene: Object3D, sizeAt100: PreparedSceneSize) => void
+  initialRotationDeg?: { x?: number; y?: number; z?: number } | null
 }) {
   const { scene } = useGLTF(url)
 
@@ -115,7 +129,8 @@ function GltfModel({
     color,
     tipSteps,
     onOrbitCenter,
-    onPrepared
+    onPrepared,
+    initialRotationDeg
   )
   return <primitive object={preparedScene} />
 }
@@ -126,12 +141,14 @@ function StlModel({
   tipSteps,
   onOrbitCenter,
   onPrepared,
+  initialRotationDeg,
 }: {
   url: string
   color: string
   tipSteps: number
   onOrbitCenter: (y: number) => void
   onPrepared: (scene: Object3D, sizeAt100: PreparedSceneSize) => void
+  initialRotationDeg?: { x?: number; y?: number; z?: number } | null
 }) {
   const geometry = useLoader(STLLoader, url) as BufferGeometry
   const source = useMemo(() => {
@@ -148,7 +165,8 @@ function StlModel({
     color,
     tipSteps,
     onOrbitCenter,
-    onPrepared
+    onPrepared,
+    initialRotationDeg
   )
   return <primitive object={preparedScene} />
 }
@@ -160,6 +178,7 @@ function ProductPreviewScene({
   tipSteps,
   fixedDimensionsMm,
   showDimensions,
+  initialRotationDeg,
 }: {
   modelUrl: string
   modelFormat: Product3dModelFormat
@@ -167,6 +186,7 @@ function ProductPreviewScene({
   tipSteps: number
   fixedDimensionsMm?: DimensionsMm | null
   showDimensions: boolean
+  initialRotationDeg?: { x?: number; y?: number; z?: number } | null
 }) {
   const [orbitCenterY, setOrbitCenterY] = useState(50)
   const [modelScene, setModelScene] = useState<Object3D | null>(null)
@@ -220,6 +240,7 @@ function ProductPreviewScene({
             tipSteps={tipSteps}
             onOrbitCenter={setOrbitCenterY}
             onPrepared={handlePrepared}
+            initialRotationDeg={initialRotationDeg}
           />
         ) : (
           <GltfModel
@@ -229,6 +250,7 @@ function ProductPreviewScene({
             tipSteps={tipSteps}
             onOrbitCenter={setOrbitCenterY}
             onPrepared={handlePrepared}
+            initialRotationDeg={initialRotationDeg}
           />
         )}
         {showDimensions && modelScene && dimensionsMm && (
@@ -280,7 +302,13 @@ export const Product3DPreview = forwardRef<
   HTMLCanvasElement,
   Product3DPreviewProps
 >(function Product3DPreview(
-  { modelUrl, color = "#1a1a1a", fixedDimensionsMm = null, className },
+  {
+    modelUrl,
+    color = "#1a1a1a",
+    fixedDimensionsMm = null,
+    initialRotationDeg = null,
+    className,
+  },
   ref
 ) {
   const [showDimensions, setShowDimensions] = useState(true)
@@ -357,6 +385,7 @@ export const Product3DPreview = forwardRef<
               tipSteps={tipSteps}
               fixedDimensionsMm={fixedDimensionsMm}
               showDimensions={showDimensions}
+              initialRotationDeg={initialRotationDeg}
             />
           </Suspense>
         </Canvas>

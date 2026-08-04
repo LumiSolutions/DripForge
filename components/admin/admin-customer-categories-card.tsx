@@ -5,7 +5,12 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { SHIPPING_OPTIONS, type ShippingMethodId } from "@/lib/dripforge/checkout-config"
+import {
+  PAYMENT_OPTIONS,
+  SHIPPING_OPTIONS,
+  type PaymentMethodId,
+  type ShippingMethodId,
+} from "@/lib/dripforge/checkout-config"
 import {
   clampDiscountPercent,
   createEmptyCustomerCategory,
@@ -26,7 +31,9 @@ export function AdminCustomerCategoriesCard() {
     let cancelled = false
     void (async () => {
       try {
-        const res = await fetch("/api/admin/settings", { cache: "no-store" })
+        const res = await fetch("/api/admin/customer-categories", {
+          cache: "no-store",
+        })
         const data = await res.json().catch(() => null)
         if (!cancelled) {
           setCategories(normalizeCustomerCategories(data?.customerCategories))
@@ -61,12 +68,26 @@ export function AdminCustomerCategoriesCard() {
       })
     )
 
+  const togglePayment = (id: string, methodId: PaymentMethodId) =>
+    setCategories((prev) =>
+      prev.map((c) => {
+        if (c.id !== id) return c
+        const has = c.allowedPaymentMethodIds.includes(methodId)
+        return {
+          ...c,
+          allowedPaymentMethodIds: has
+            ? c.allowedPaymentMethodIds.filter((m) => m !== methodId)
+            : [...c.allowedPaymentMethodIds, methodId],
+        }
+      })
+    )
+
   const save = async () => {
     setSaving(true)
     setNotice(null)
     setError(null)
     try {
-      const res = await fetch("/api/admin/settings", {
+      const res = await fetch("/api/admin/customer-categories", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -185,6 +206,30 @@ export function AdminCustomerCategoriesCard() {
                   </div>
                   <p className={cn("text-xs", adminUi.muted)}>
                     Keine Auswahl = alle Versandarten erlaubt.
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <Label className={adminUi.label}>Erlaubte Zahlungsarten</Label>
+                  <div className="flex flex-wrap gap-3">
+                    {PAYMENT_OPTIONS.map((opt) => {
+                      const checked = cat.allowedPaymentMethodIds.includes(opt.id)
+                      return (
+                        <label
+                          key={opt.id}
+                          className="flex items-center gap-2 text-sm"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => togglePayment(cat.id, opt.id)}
+                          />
+                          {opt.label}
+                        </label>
+                      )
+                    })}
+                  </div>
+                  <p className={cn("text-xs", adminUi.muted)}>
+                    Keine Auswahl = alle Zahlungsarten erlaubt.
                   </p>
                 </div>
               </div>

@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server"
 import type { PrintPriceBreakdown } from "@/lib/dripforge/calculate-3d-print-price"
 import { createDruckanfrage } from "@/lib/admin/druckanfragen-db"
+import { allocateReferenceNumber } from "@/lib/admin/reference-number"
 import {
-  createDruckanfrageId,
   DRUCKANFRAGE_CONTACT_METHODS,
   isValidContactEmail,
   isValidContactPhone,
@@ -201,7 +201,7 @@ export async function POST(request: Request) {
       )
     }
 
-    const draftId = createDruckanfrageId()
+    const draftId = await allocateReferenceNumber("DRA")
     const modelBuffer = Buffer.from(await modelFile.arrayBuffer())
     let fileUrl = await uploadDruckanfrageFile(
       draftId,

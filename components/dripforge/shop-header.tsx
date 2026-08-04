@@ -27,7 +27,7 @@ import {
 import type { ServiceVisibilitySettings } from "@/lib/admin/types"
 import { shopCartHref, shopNavHref } from "@/lib/dripforge/shop-routes"
 import { HEADER_ICON_BTN_CLASS } from "@/components/dripforge/support-nav-link"
-import { SiteImage } from "@/components/dripforge/editable-site-image"
+import { BrandIconImage } from "@/components/dripforge/brand-icon-image"
 import { EditableCmsNavLabel } from "@/components/dripforge/editable-cms-nav-label"
 import { useSiteTexts } from "@/components/dripforge/site-texts-provider"
 import { cmsPreviewHref, cmsReadonlyPreviewHref } from "@/lib/admin/cms-preview-pages"
@@ -218,13 +218,7 @@ export function ShopHeader(props: ShopHeaderProps) {
 
   const logo = (
     <>
-      <SiteImage
-        imageKey="brand_logo"
-        width={32}
-        height={32}
-        imageClassName="rounded"
-        className="shrink-0"
-      />
+      <BrandIconImage size={32} />
       <span className="text-xl font-bold">
         <span className="text-primary">Drip</span>
         <span className="bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent">

@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server"
 import { createKontaktanfrage } from "@/lib/admin/kontaktanfragen-db"
 import {
-  createKontaktanfrageId,
   isValidKontaktEmail,
   parseKontaktInquiryType,
 } from "@/lib/admin/kontaktanfrage-types"
+import { allocateReferenceNumber } from "@/lib/admin/reference-number"
 import { notifyAdminNewKontaktanfrage } from "@/lib/email/admin-inbound-notifications"
 import { notifyKontaktanfrageReceived } from "@/lib/email/order-notifications"
 
@@ -94,7 +94,7 @@ export async function POST(request: Request) {
         extraFields,
         status: "offen",
       },
-      createKontaktanfrageId()
+      await allocateReferenceNumber("ANF")
     )
 
     const results = await Promise.allSettled([

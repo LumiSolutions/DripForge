@@ -19,12 +19,13 @@ import type { StoredOrder } from "@/lib/admin/types"
 
 function buildPreviewOrder(documentType: DocumentTemplateType): StoredOrder {
   const now = new Date().toISOString()
+  const previewYear = new Date().getFullYear()
   const orderId =
     documentType === "quote"
-      ? "OF-0001"
+      ? `OFF-${previewYear}-0105`
       : documentType === "deliveryNote"
-        ? "LS-0001"
-        : "RE-0018"
+        ? `LS-${previewYear}-0001`
+        : `INV-${previewYear}-0089`
 
   return {
     orderId: "df-1785123456-abc123",

@@ -83,6 +83,21 @@ function safeDimensions(raw: unknown): ProductDimensionsMm | undefined {
   }
 }
 
+function safeRotationDeg(
+  raw: unknown
+): { x: number; y: number; z: number } | undefined {
+  if (!raw || typeof raw !== "object") return undefined
+  const r = raw as { x?: unknown; y?: unknown; z?: unknown }
+  const norm = (value: unknown): number => {
+    const n = Number(value)
+    if (!Number.isFinite(n)) return 0
+    return ((Math.round(n) % 360) + 360) % 360
+  }
+  const rot = { x: norm(r.x), y: norm(r.y), z: norm(r.z) }
+  if (rot.x === 0 && rot.y === 0 && rot.z === 0) return undefined
+  return rot
+}
+
 function inferIdFromMediaUrl(url: string | undefined): string | undefined {
   if (!url) return undefined
   const match = url.match(/\/product-media\/([^/]+)\//i)
@@ -145,6 +160,8 @@ export function normalizeShopProduct(
       safeDimensions(source.dimensions) ??
       safeDimensions(source.masse)
 
+    const defaultRotationDeg = safeRotationDeg(source.defaultRotationDeg)
+
     return {
       id: resolveProductId(source),
       name:
@@ -178,6 +195,7 @@ export function normalizeShopProduct(
       images: images ?? [PLACEHOLDER_IMAGE],
       galerieBilder: galerieBilder ?? images ?? [PLACEHOLDER_IMAGE],
       dimensionsMm,
+      defaultRotationDeg,
       volumen:
         source.volumen != null && Number.isFinite(Number(source.volumen))
           ? Number(source.volumen)

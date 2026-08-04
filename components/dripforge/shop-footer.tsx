@@ -9,7 +9,7 @@ import {
 import type { ServiceVisibilitySettings } from "@/lib/admin/types"
 import { shopViewHref } from "@/lib/dripforge/shop-routes"
 import { SiteText } from "@/components/dripforge/editable-site-text"
-import { SiteImage } from "@/components/dripforge/editable-site-image"
+import { BrandIconImage } from "@/components/dripforge/brand-icon-image"
 import { useCompanySettings } from "@/components/dripforge/company-settings-provider"
 import { useEffect, useState } from "react"
 
@@ -36,13 +36,7 @@ export function ShopFooter() {
         <div className="grid gap-8 md:grid-cols-4">
           <div>
             <div className="mb-4 flex items-center gap-2">
-              <SiteImage
-                imageKey="brand_logo"
-                width={28}
-                height={28}
-                imageClassName="rounded"
-                className="shrink-0"
-              />
+              <BrandIconImage size={28} />
               <span className="font-bold">
                 <span className="text-primary">Drip</span>
                 <span className="bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent">
@@ -117,6 +111,11 @@ export function ShopFooter() {
               <li>
                 <SafeLink href="/agb" className="hover:text-primary">
                   AGB
+                </SafeLink>
+              </li>
+              <li>
+                <SafeLink href="/datenschutz" className="hover:text-primary">
+                  Datenschutzerklärung
                 </SafeLink>
               </li>
             </ul>

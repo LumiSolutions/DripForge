@@ -78,7 +78,7 @@ export type StoredOrder = {
   rechnungPdfUrl?: string
   /** Lokaler Dateiname unter data/admin/invoices/ */
   rechnungPdfPath?: string
-  /** Kurze Rechnungsnummer (z. B. RE-0018), getrennt von der Shop-Bestell-ID */
+  /** Kurze Rechnungsnummer (z. B. INV-2026-0089), getrennt von der Shop-Bestell-ID */
   invoiceNumber?: string | null
   /** Stripe Checkout Session (Shop) */
   stripeSessionId?: string | null
@@ -242,6 +242,10 @@ export type AdminSettings = {
   wishlistIcon?: "star" | "heart" | "bookmark" | "fire" | "custom"
   /** Custom-SVG/URL wenn wishlistIcon === "custom" */
   wishlistIconCustomUrl?: string | null
+  /** Kleine Icon-Marke / Favicon (Header, Footer, Browser-Tab, Apple-Touch-Icon) */
+  brandIconUrl?: string | null
+  /** Haupt-/Branding-Logo (grosse Darstellung, Home/Hero) */
+  brandLogoUrl?: string | null
   /** Bearbeitbare Texte für Bestell-Bestätigungsmails */
   orderEmailTemplates?: {
     receivedIntro: string
