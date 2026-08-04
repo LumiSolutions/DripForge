@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import dynamic from "next/dynamic"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -247,11 +247,6 @@ export function PageShop({
   const [multiColorMode, setMultiColorMode] = useState<"standard" | "custom">(
     "standard"
   )
-  /** Lightbox offen → 3D-Viewer unmounten, damit Zoom den Three.js-Tree nicht killt. */
-  const [galleryLightboxOpen, setGalleryLightboxOpen] = useState(false)
-  const handleGalleryLightboxChange = useCallback((open: boolean) => {
-    setGalleryLightboxOpen((prev) => (prev === open ? prev : open))
-  }, [])
   const [selectedShopVariantId, setSelectedShopVariantId] = useState<string | null>(
     null
   )
@@ -1233,7 +1228,6 @@ export function PageShop({
                         <ProductImageGallery
                           images={galleryImages}
                           alt={detailProduct.name}
-                          onLightboxChange={handleGalleryLightboxChange}
                         />
                         <Card className="rounded-2xl border-border/50 bg-card/50 shadow-sm">
                           <CardContent className="p-4 sm:p-6">
@@ -1272,15 +1266,9 @@ export function PageShop({
                           }
                         />
 
-                        {/* Desktop: 3D — bei Lightbox pausieren/ausblenden, Layout behalten */}
+                        {/* Desktop: 3D — Lightbox ist portaliert und entkoppelt (kein Parent-State). */}
                         {productModelUrl && isMdUp ? (
-                          <div
-                            className={cn(
-                              "min-w-0",
-                              galleryLightboxOpen && "pointer-events-none invisible"
-                            )}
-                            aria-hidden={galleryLightboxOpen}
-                          >
+                          <div className="min-w-0">
                             <ProductDetailErrorBoundary
                               fallbackTitle="3D-Vorschau konnte nicht geladen werden."
                             >
@@ -1288,7 +1276,6 @@ export function PageShop({
                               ref={product3dCanvasRef}
                               key={`${detailProduct.id}-${productModelUrl}-d`}
                               modelUrl={productModelUrl}
-                              paused={galleryLightboxOpen}
                               color={
                                 showMultiColorPicker
                                   ? multiColorSelection?.colors.find(
@@ -1310,15 +1297,9 @@ export function PageShop({
                         ) : null}
                       </div>
 
-                      {/* Mobile: Live-3D — bei Lightbox pausieren/ausblenden */}
+                      {/* Mobile: Live-3D */}
                       {productModelUrl && !isMdUp ? (
-                        <div
-                          className={cn(
-                            "order-2 min-w-0 md:hidden",
-                            galleryLightboxOpen && "pointer-events-none invisible"
-                          )}
-                          aria-hidden={galleryLightboxOpen}
-                        >
+                        <div className="order-2 min-w-0 md:hidden">
                           <ProductDetailErrorBoundary
                             fallbackTitle="3D-Vorschau konnte nicht geladen werden."
                           >
@@ -1326,7 +1307,6 @@ export function PageShop({
                             ref={product3dCanvasRef}
                             key={`${detailProduct.id}-${productModelUrl}-m`}
                             modelUrl={productModelUrl}
-                            paused={galleryLightboxOpen}
                             color={
                               showMultiColorPicker
                                 ? multiColorSelection?.colors.find(

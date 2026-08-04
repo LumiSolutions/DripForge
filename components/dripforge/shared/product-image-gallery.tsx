@@ -12,11 +12,6 @@ import { createPortal } from "react-dom"
 import useEmblaCarousel from "embla-carousel-react"
 import { ChevronLeft, ChevronRight, X, ZoomIn } from "lucide-react"
 import { SafeProductImage } from "@/components/dripforge/shared/safe-product-image"
-import {
-  Dialog,
-  DialogContent,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import { ProductDetailErrorBoundary } from "@/components/dripforge/product-detail-error-boundary"
 import { cn } from "@/lib/utils"
 
@@ -24,8 +19,6 @@ type ProductImageGalleryProps = {
   images: string[]
   alt: string
   className?: string
-  /** Notifies parent when the lightbox opens/closes (e.g. to pause Three.js). */
-  onLightboxChange?: (open: boolean) => void
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -45,6 +38,8 @@ function LightboxZoomImage({ src, alt }: { src: string; alt: string }) {
     oy: number
   } | null>(null)
   const lastTapRef = useRef(0)
+  const scaleRef = useRef(1)
+  scaleRef.current = scale
 
   const reset = useCallback(() => {
     setScale(1)
@@ -57,11 +52,6 @@ function LightboxZoomImage({ src, alt }: { src: string; alt: string }) {
     reset()
   }, [src, reset])
 
-  useEffect(() => {
-    if (scale > 1) return
-    setOffset((prev) => (prev.x === 0 && prev.y === 0 ? prev : { x: 0, y: 0 }))
-  }, [scale])
-
   // Non-passive wheel listener — React onWheel is often passive and can't preventDefault.
   useEffect(() => {
     const el = containerRef.current
@@ -69,14 +59,19 @@ function LightboxZoomImage({ src, alt }: { src: string; alt: string }) {
     const onWheelNative = (event: WheelEvent) => {
       event.preventDefault()
       const delta = event.deltaY > 0 ? -0.15 : 0.15
-      setScale((prev) => clamp(prev + delta, 1, 4))
+      const next = clamp(scaleRef.current + delta, 1, 4)
+      scaleRef.current = next
+      setScale(next)
+      if (next <= 1) {
+        setOffset((o) => (o.x === 0 && o.y === 0 ? o : { x: 0, y: 0 }))
+      }
     }
     el.addEventListener("wheel", onWheelNative, { passive: false })
     return () => el.removeEventListener("wheel", onWheelNative)
   }, [])
 
   const onMouseDown = (event: ReactMouseEvent) => {
-    if (event.button !== 0 || scale <= 1) return
+    if (event.button !== 0 || scaleRef.current <= 1) return
     event.preventDefault()
     dragRef.current = {
       x: event.clientX,
@@ -88,7 +83,7 @@ function LightboxZoomImage({ src, alt }: { src: string; alt: string }) {
   }
 
   const onMouseMove = (event: ReactMouseEvent) => {
-    if (!dragRef.current || scale <= 1) return
+    if (!dragRef.current || scaleRef.current <= 1) return
     event.preventDefault()
     setOffset({
       x: dragRef.current.ox + (event.clientX - dragRef.current.x),
@@ -105,11 +100,11 @@ function LightboxZoomImage({ src, alt }: { src: string; alt: string }) {
     if (event.touches.length === 2) {
       const [a, b] = [event.touches[0]!, event.touches[1]!]
       const distance = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY)
-      pinchRef.current = { distance, scale }
+      pinchRef.current = { distance, scale: scaleRef.current }
       dragRef.current = null
       return
     }
-    if (event.touches.length === 1 && scale > 1) {
+    if (event.touches.length === 1 && scaleRef.current > 1) {
       const touch = event.touches[0]!
       dragRef.current = {
         x: touch.clientX,
@@ -131,10 +126,12 @@ function LightboxZoomImage({ src, alt }: { src: string; alt: string }) {
         4
       )
       setScale(next)
-      if (next <= 1) setOffset({ x: 0, y: 0 })
+      if (next <= 1) {
+        setOffset((o) => (o.x === 0 && o.y === 0 ? o : { x: 0, y: 0 }))
+      }
       return
     }
-    if (event.touches.length === 1 && dragRef.current && scale > 1) {
+    if (event.touches.length === 1 && dragRef.current && scaleRef.current > 1) {
       event.preventDefault()
       const touch = event.touches[0]!
       setOffset({
@@ -150,7 +147,7 @@ function LightboxZoomImage({ src, alt }: { src: string; alt: string }) {
       dragRef.current = null
       const now = Date.now()
       if (now - lastTapRef.current < 280) {
-        if (scale > 1) reset()
+        if (scaleRef.current > 1) reset()
         else setScale(2)
       }
       lastTapRef.current = now
@@ -176,7 +173,7 @@ function LightboxZoomImage({ src, alt }: { src: string; alt: string }) {
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
       onDoubleClick={() => {
-        if (scale > 1) reset()
+        if (scaleRef.current > 1) reset()
         else setScale(2)
       }}
     >
@@ -202,11 +199,103 @@ function LightboxZoomImage({ src, alt }: { src: string; alt: string }) {
   )
 }
 
+/**
+ * Lightweight lightbox (no Radix Dialog) — avoids open-state feedback loops with
+ * Three.js / parent re-renders. Mounted via portal to document.body.
+ */
+function ImageLightbox({
+  open,
+  onClose,
+  src,
+  alt,
+  showNavigation,
+  onPrev,
+  onNext,
+}: {
+  open: boolean
+  onClose: () => void
+  src: string
+  alt: string
+  showNavigation: boolean
+  onPrev: () => void
+  onNext: () => void
+}) {
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  useEffect(() => {
+    if (!open) return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose()
+      if (event.key === "ArrowLeft") onPrev()
+      if (event.key === "ArrowRight") onNext()
+    }
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+    window.addEventListener("keydown", onKey)
+    return () => {
+      document.body.style.overflow = prevOverflow
+      window.removeEventListener("keydown", onKey)
+    }
+  }, [open, onClose, onPrev, onNext])
+
+  if (!mounted || !open || typeof document === "undefined") return null
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-2 sm:p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`${alt} — Vollbild`}
+      onClick={(event) => {
+        if (event.target === event.currentTarget) onClose()
+      }}
+    >
+      <button
+        type="button"
+        onClick={onClose}
+        className="absolute right-3 top-3 z-20 rounded-full bg-white/15 p-2 text-white hover:bg-white/25"
+        aria-label="Schliessen"
+      >
+        <X className="h-4 w-4" />
+      </button>
+      {showNavigation && (
+        <>
+          <button
+            type="button"
+            onClick={onPrev}
+            className="absolute left-2 top-1/2 z-20 -translate-y-1/2 rounded-full bg-white/15 p-2 text-white hover:bg-white/25"
+            aria-label="Vorheriges Bild"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+          <button
+            type="button"
+            onClick={onNext}
+            className="absolute right-2 top-1/2 z-20 -translate-y-1/2 rounded-full bg-white/15 p-2 text-white hover:bg-white/25"
+            aria-label="Nächstes Bild"
+          >
+            <ChevronRight className="h-5 w-5" />
+          </button>
+        </>
+      )}
+      <div className="relative w-full max-w-4xl" onClick={(e) => e.stopPropagation()}>
+        <ProductDetailErrorBoundary onError={onClose} fallback={null}>
+          <LightboxZoomImage src={src} alt={alt} />
+        </ProductDetailErrorBoundary>
+      </div>
+    </div>,
+    document.body
+  )
+}
+
 export function ProductImageGallery({
   images,
   alt,
   className,
-  onLightboxChange,
 }: ProductImageGalleryProps) {
   const safeImages = Array.isArray(images)
     ? images.filter(
@@ -214,9 +303,7 @@ export function ProductImageGallery({
       )
     : []
   const galleryImages =
-    safeImages.length > 0
-      ? safeImages
-      : ["/placeholder.svg"]
+    safeImages.length > 0 ? safeImages : ["/placeholder.svg"]
 
   const [emblaRef, emblaApi] = useEmblaCarousel({
     loop: galleryImages.length > 1,
@@ -229,22 +316,6 @@ export function ProductImageGallery({
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [lightboxOpen, setLightboxOpen] = useState(false)
   const [lightboxIndex, setLightboxIndex] = useState(0)
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => {
-    setMounted(true)
-  }, [])
-
-  // Parent nur bei echtem Open-Wechsel benachrichtigen (Callback per Ref,
-  // damit Parent-Re-Renders keinen Effect-Loop auslösen).
-  const onLightboxChangeRef = useRef(onLightboxChange)
-  onLightboxChangeRef.current = onLightboxChange
-  const lastNotifiedOpen = useRef<boolean | null>(null)
-  useEffect(() => {
-    if (lastNotifiedOpen.current === lightboxOpen) return
-    lastNotifiedOpen.current = lightboxOpen
-    onLightboxChangeRef.current?.(lightboxOpen)
-  }, [lightboxOpen])
 
   const onSelect = useCallback(() => {
     if (!emblaApi) return
@@ -262,12 +333,7 @@ export function ProductImageGallery({
     }
   }, [emblaApi, onSelect])
 
-  // Stabiler Schlüssel über den Bild-INHALT: Die Parent-Komponente erzeugt bei
-  // jedem Render ein neues `images`-Array (neue Referenz), obwohl der Inhalt
-  // gleich bleibt. Früher lief dieser Effekt dadurch bei jedem Parent-Render und
-  // sprang per scrollTo(0) zurück auf das erste Bild — die Thumbnail-Auswahl
-  // wurde sofort wieder überschrieben. Jetzt nur zurücksetzen, wenn sich die
-  // Bildmenge tatsächlich ändert (anderes Produkt).
+  // Stabiler Schlüssel über den Bild-INHALT: Parent liefert oft neue Array-Referenzen.
   const imagesKey = galleryImages.join("|")
   useEffect(() => {
     if (!emblaApi) return
@@ -279,7 +345,6 @@ export function ProductImageGallery({
   const showNavigation = galleryImages.length > 1
 
   const scrollTo = (index: number) => {
-    // Aktiven Zustand sofort setzen (optimistisch), Embla bestätigt via "select".
     setSelectedIndex(index)
     emblaApi?.scrollTo(index)
   }
@@ -293,74 +358,20 @@ export function ProductImageGallery({
     setLightboxOpen(false)
   }, [])
 
+  const goPrev = useCallback(() => {
+    setLightboxIndex((i) => (i - 1 + galleryImages.length) % galleryImages.length)
+  }, [galleryImages.length])
+
+  const goNext = useCallback(() => {
+    setLightboxIndex((i) => (i + 1) % galleryImages.length)
+  }, [galleryImages.length])
+
   const lightboxSrc =
     galleryImages[lightboxIndex] ?? galleryImages[0] ?? "/placeholder.svg"
-
-  const lightboxDialog =
-    mounted && typeof document !== "undefined"
-      ? createPortal(
-          <Dialog open={lightboxOpen} onOpenChange={setLightboxOpen}>
-            <DialogContent
-              showCloseButton={false}
-              className="max-w-4xl border-none bg-black/95 p-2 text-white sm:p-4"
-            >
-              <DialogTitle className="sr-only">{alt} — Vollbild</DialogTitle>
-              <button
-                type="button"
-                onClick={closeLightbox}
-                className="absolute right-3 top-3 z-20 rounded-full bg-white/15 p-2 text-white hover:bg-white/25"
-                aria-label="Schliessen"
-              >
-                <X className="h-4 w-4" />
-              </button>
-              {showNavigation && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setLightboxIndex(
-                        (lightboxIndex - 1 + galleryImages.length) %
-                          galleryImages.length
-                      )
-                    }
-                    className="absolute left-2 top-1/2 z-20 -translate-y-1/2 rounded-full bg-white/15 p-2 text-white hover:bg-white/25"
-                    aria-label="Vorheriges Bild"
-                  >
-                    <ChevronLeft className="h-5 w-5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setLightboxIndex(
-                        (lightboxIndex + 1) % galleryImages.length
-                      )
-                    }
-                    className="absolute right-2 top-1/2 z-20 -translate-y-1/2 rounded-full bg-white/15 p-2 text-white hover:bg-white/25"
-                    aria-label="Nächstes Bild"
-                  >
-                    <ChevronRight className="h-5 w-5" />
-                  </button>
-                </>
-              )}
-              <ProductDetailErrorBoundary
-                onError={closeLightbox}
-                fallback={null}
-              >
-                <LightboxZoomImage
-                  src={lightboxSrc}
-                  alt={`${alt} — Ansicht ${lightboxIndex + 1}`}
-                />
-              </ProductDetailErrorBoundary>
-            </DialogContent>
-          </Dialog>,
-          document.body
-        )
-      : null
 
   return (
     <div className={cn("flex flex-col gap-3", className)}>
       <div className="group relative w-full overflow-hidden rounded-xl border border-border/50 bg-secondary/30 shadow-sm">
-        {/* touch-pan-y: vertikales Page-Scrollen bleibt möglich; Embla nutzt horizontale Gesten */}
         <div className="overflow-hidden touch-pan-y" ref={emblaRef}>
           <div className="flex">
             {galleryImages.map((src, index) => (
@@ -469,7 +480,15 @@ export function ProductImageGallery({
         </div>
       )}
 
-      {lightboxDialog}
+      <ImageLightbox
+        open={lightboxOpen}
+        onClose={closeLightbox}
+        src={lightboxSrc}
+        alt={`${alt} — Ansicht ${lightboxIndex + 1}`}
+        showNavigation={showNavigation}
+        onPrev={goPrev}
+        onNext={goNext}
+      />
     </div>
   )
 }
