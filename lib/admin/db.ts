@@ -66,6 +66,7 @@ import {
   normalizeWishlistIconCustomUrl,
 } from "@/lib/dripforge/wishlist-icon-settings"
 import { normalizeAnnouncementBanner } from "@/lib/dripforge/announcement-banner-settings"
+import { normalizeCustomerCategories } from "@/lib/dripforge/customer-categories"
 import { normalizeShippingTiers } from "@/lib/dripforge/shipping-tiers"
 import { normalizeThanksPageSettings } from "@/lib/dripforge/thanks-page-settings"
 import {
@@ -268,7 +269,14 @@ export async function getOrderById(orderId: string): Promise<StoredOrder | null>
 
 async function saveOrderToFile(order: StoredOrder): Promise<void> {
   const orders = await readJsonFile<StoredOrder[]>(ORDERS_FILE, [])
-  orders.unshift(order)
+  // Upsert per orderId (wie Cosmos) — sonst würden Status-/Zahlungs-Updates
+  // im Datei-Fallback jede Bestellung duplizieren statt zu aktualisieren.
+  const index = orders.findIndex((o) => o.orderId === order.orderId)
+  if (index >= 0) {
+    orders[index] = order
+  } else {
+    orders.unshift(order)
+  }
   await writeJsonFile(ORDERS_FILE, orders)
 }
 
@@ -622,6 +630,7 @@ async function getSettingsFromFile(): Promise<AdminSettings> {
       ),
       orderEmailLayout: normalizeOrderEmailLayout(stored.orderEmailLayout),
       announcementBanner: normalizeAnnouncementBanner(stored.announcementBanner),
+      customerCategories: normalizeCustomerCategories(stored.customerCategories),
       shippingTiers: normalizeShippingTiers(stored.shippingTiers),
       thanksPage: normalizeThanksPageSettings(stored.thanksPage),
       updatedAt: stored.updatedAt,
@@ -657,6 +666,7 @@ async function getSettingsFromFile(): Promise<AdminSettings> {
     orderEmailTemplates: normalizeOrderEmailTemplates(undefined),
     orderEmailLayout: normalizeOrderEmailLayout(undefined),
     announcementBanner: normalizeAnnouncementBanner(undefined),
+    customerCategories: [],
     shippingTiers: normalizeShippingTiers(undefined),
     thanksPage: normalizeThanksPageSettings(undefined),
     updatedAt: new Date().toISOString(),
@@ -703,6 +713,7 @@ export async function saveSettings(input: {
   }
   orderEmailLayout?: unknown
   announcementBanner?: Partial<AdminSettings["announcementBanner"]> | null
+  customerCategories?: unknown
   shippingTiers?: Partial<AdminSettings["shippingTiers"]> | null
   thanksPage?: Partial<AdminSettings["thanksPage"]> | null
 }): Promise<AdminSettings> {
@@ -842,6 +853,10 @@ export async function saveSettings(input: {
             ...input.announcementBanner,
           })
         : normalizeAnnouncementBanner(current.announcementBanner),
+    customerCategories:
+      input.customerCategories !== undefined
+        ? normalizeCustomerCategories(input.customerCategories)
+        : normalizeCustomerCategories(current.customerCategories),
     shippingTiers:
       input.shippingTiers !== undefined && input.shippingTiers !== null
         ? normalizeShippingTiers({

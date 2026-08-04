@@ -135,6 +135,63 @@
   animation: df-announcement-gradient 8s ease infinite;
 }
 
+/* Announcement-Banner — Lauftext (Marquee) */
+.df-marquee-viewport {
+  display: flex;
+  width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.df-marquee-track {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  min-width: 100%;
+  animation: df-marquee 28s linear infinite;
+  will-change: transform;
+}
+
+.df-marquee-item {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 2.5rem;
+}
+
+@keyframes df-marquee {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-100%);
+  }
+}
+
+/* Announcement-Banner — Rotierender Text (Ein-/Ausblenden) */
+.df-announcement-rotate {
+  animation: df-announcement-fade 0.5s ease;
+}
+
+@keyframes df-announcement-fade {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .df-marquee-track {
+    animation-duration: 60s;
+  }
+  .df-announcement-rotate {
+    animation: none;
+  }
+}
+
 /** Design-Highlight wie «Einzigartiges» — Orange → Cyan */
 .df-text-highlight {
   background-image: linear-gradient(

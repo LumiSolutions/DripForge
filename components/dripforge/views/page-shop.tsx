@@ -113,6 +113,7 @@ import { filterFilamentMaterialsForProduct } from "@/lib/dripforge/product-filam
 import { SiteText } from "@/components/dripforge/editable-site-text"
 import { SiteTextPhrase } from "@/components/dripforge/site-text-phrase"
 import { useSiteTexts } from "@/components/dripforge/site-texts-provider"
+import { useCustomerCategory } from "@/components/dripforge/customer-category-provider"
 import { captureProductionLayerPng } from "@/lib/dripforge/capture-production-layer"
 import { LoadSavedDesignButton } from "@/components/konto/load-saved-design-button"
 import { hydrateLaserDesignerFromConfig } from "@/lib/konto/hydrate-laser-design"
@@ -182,6 +183,11 @@ function sortShopProducts(products: Product[], sortMode: ShopSortMode): Product[
   }
 }
 
+/** Shop-Übersicht: initial gerenderte Produktanzahl (Rest via «Mehr laden»). */
+const SHOP_INITIAL_VISIBLE = 12
+/** Anzahl weiterer Produkte pro «Mehr laden»-Klick. */
+const SHOP_LOAD_MORE_STEP = 12
+
 export function PageShop({
   setCurrentView,
   selectedProduct,
@@ -195,8 +201,12 @@ export function PageShop({
 }: PageShopProps) {
   const router = useRouter()
   const { canInlineEdit } = useSiteTexts()
+  // Lazy-Load: Filamentfarben nur auf der Produktdetailseite abrufen, nicht auf
+  // der Shop-Übersicht (Performance beim Initial-Load).
   const { materials: filamentMaterialsAll, loading: filamentsLoading } =
-    useFilamentCatalog()
+    useFilamentCatalog({ enabled: productDetailMode || Boolean(selectedProduct) })
+  // Kundenkategorie-Rabatt (eingeloggter Kunde) für die Detail-Preisanzeige.
+  const customerCategory = useCustomerCategory()
 
   const filamentMaterials = useMemo(
     () =>
@@ -260,6 +270,8 @@ export function PageShop({
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([])
   const [categoryFilter, setCategoryFilter] = useState<ShopFilterId>("all")
   const [sortMode, setSortMode] = useState<ShopSortMode>("newest")
+  // Performance: initial nur eine Seite rendern, Rest per «Mehr laden».
+  const [visibleCount, setVisibleCount] = useState(SHOP_INITIAL_VISIBLE)
   const [viewMode, setViewMode] = useState<ShopViewMode>("grid3")
   const [cardSurface, setCardSurface] = useState<ShopCardSurface>("brand")
 
@@ -355,6 +367,17 @@ export function PageShop({
     })
     return sortShopProducts(filtered, sortMode)
   }, [shopProducts, categoryFilter, selectedTagIds, sortMode])
+
+  // Bei Filter-/Sortierwechsel wieder auf die erste Seite zurücksetzen.
+  useEffect(() => {
+    setVisibleCount(SHOP_INITIAL_VISIBLE)
+  }, [categoryFilter, selectedTagIds, sortMode])
+
+  const visibleProducts = useMemo(
+    () => displayedProducts.slice(0, visibleCount),
+    [displayedProducts, visibleCount]
+  )
+  const hasMoreProducts = displayedProducts.length > visibleProducts.length
 
   const handleCategoryChange = (next: ShopFilterId) => {
     setCategoryFilter(next)
@@ -762,7 +785,10 @@ export function PageShop({
       quantityDiscountTiers,
       pricingQty
     )
-    const unitPrice = qtyDiscount.unitPrice
+    // Kundenkategorie-Rabatt zusätzlich auf den (mengenrabattierten) Anzeigepreis.
+    // Der Warenkorb speichert weiterhin den Basispreis; der Rabatt wird
+    // serverseitig verbindlich angewendet (processOrderPayload).
+    const unitPrice = customerCategory.applyDiscount(qtyDiscount.unitPrice)
     const shopLaserMaterial =
       detailProduct.type === "laser"
         ? getLaserMaterialForProduct(detailProduct)
@@ -1743,7 +1769,7 @@ export function PageShop({
 
         <div className="mt-8 flex flex-col gap-8 lg:mt-10 lg:flex-row lg:items-start lg:gap-10">
           <ShopTagFilterPanel
-            className="hidden w-full lg:sticky lg:top-[calc(var(--header-height,4rem)+8.5rem)] lg:block lg:w-64 lg:shrink-0 lg:self-start"
+            className="hidden w-full lg:sticky lg:top-[calc(var(--df-banner-h,0px)+var(--header-height,4rem)+8.5rem)] lg:block lg:w-64 lg:shrink-0 lg:self-start"
             tags={visibleProductTags ?? []}
             selectedTagIds={selectedTagIds}
             onToggleTag={toggleTagFilter}
@@ -1768,7 +1794,7 @@ export function PageShop({
                 "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5"
             )}
           >
-            {displayedProducts.map((product) => {
+            {visibleProducts.map((product) => {
               const cardImages = resolveProductImages(
                 product.id,
                 product.images,
@@ -1790,6 +1816,23 @@ export function PageShop({
                 />
               )
             })}
+          </div>
+        )}
+        {hasMoreProducts && (
+          <div className="mt-8 flex flex-col items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="lg"
+              onClick={() =>
+                setVisibleCount((prev) => prev + SHOP_LOAD_MORE_STEP)
+              }
+            >
+              Mehr laden
+            </Button>
+            <p className="text-xs text-muted-foreground">
+              {visibleProducts.length} von {displayedProducts.length} Produkten
+            </p>
           </div>
         )}
           </div>

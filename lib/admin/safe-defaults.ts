@@ -66,6 +66,7 @@ export function buildDefaultAdminSettings(): AdminSettings {
       sectionOrder: [...DEFAULT_ORDER_EMAIL_LAYOUT.sectionOrder],
     },
     announcementBanner: { ...DEFAULT_ANNOUNCEMENT_BANNER },
+    customerCategories: [],
     shippingTiers: {
       ...DEFAULT_SHIPPING_TIERS,
       tiers: DEFAULT_SHIPPING_TIERS.tiers.map((t) => ({ ...t })),

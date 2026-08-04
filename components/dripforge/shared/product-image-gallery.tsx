@@ -116,6 +116,11 @@ function LightboxZoomImage({ src, alt }: { src: string; alt: string }) {
         src={src}
         alt={alt}
         draggable={false}
+        onError={(event) => {
+          const el = event.currentTarget
+          if (el.src.endsWith("/placeholder.svg")) return
+          el.src = "/placeholder.svg"
+        }}
         className="max-h-full max-w-full select-none object-contain transition-transform duration-150"
         style={{
           transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
@@ -171,15 +176,25 @@ export function ProductImageGallery({
     }
   }, [emblaApi, onSelect])
 
+  // Stabiler Schlüssel über den Bild-INHALT: Die Parent-Komponente erzeugt bei
+  // jedem Render ein neues `images`-Array (neue Referenz), obwohl der Inhalt
+  // gleich bleibt. Früher lief dieser Effekt dadurch bei jedem Parent-Render und
+  // sprang per scrollTo(0) zurück auf das erste Bild — die Thumbnail-Auswahl
+  // wurde sofort wieder überschrieben. Jetzt nur zurücksetzen, wenn sich die
+  // Bildmenge tatsächlich ändert (anderes Produkt).
+  const imagesKey = galleryImages.join("|")
   useEffect(() => {
-    emblaApi?.reInit()
-    emblaApi?.scrollTo(0, true)
+    if (!emblaApi) return
+    emblaApi.reInit()
+    emblaApi.scrollTo(0, true)
     setSelectedIndex(0)
-  }, [emblaApi, galleryImages.length, images])
+  }, [emblaApi, imagesKey])
 
   const showNavigation = galleryImages.length > 1
 
   const scrollTo = (index: number) => {
+    // Aktiven Zustand sofort setzen (optimistisch), Embla bestätigt via "select".
+    setSelectedIndex(index)
     emblaApi?.scrollTo(index)
   }
 
@@ -293,6 +308,7 @@ export function ProductImageGallery({
                 fill
                 className="object-cover"
                 sizes="64px"
+                quality={45}
               />
             </button>
           ))}

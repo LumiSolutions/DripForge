@@ -6,9 +6,19 @@ export const PRODUCTION_COLUMNS: {
   hint: string
 }[] = [
   {
+    id: "bestellungseingang",
+    label: "Bestellungseingang",
+    hint: "Neu — Rechnung/TWINT bis Zahlungseingang",
+  },
+  {
+    id: "bezahlt",
+    label: "Bezahlt",
+    hint: "Zahlung bestätigt — bereit zur Freigabe",
+  },
+  {
     id: "bereit_fuer_produktion",
     label: "Bereit für Produktion",
-    hint: "Neue, personalisierte Aufträge",
+    hint: "Freigegebene, personalisierte Aufträge",
   },
   {
     id: "in_produktion",
@@ -38,20 +48,29 @@ export function isProductionStatus(value: string): value is ProductionStatus {
   return (VALID as string[]).includes(value)
 }
 
-/** Legacy-Bestellungen ohne productionStatus aus Shop-Status ableiten. */
+/** Legacy-Bestellungen ohne productionStatus aus Shop-/Zahlungsstatus ableiten. */
 export function resolveProductionStatus(order: StoredOrder): ProductionStatus {
-  if (order.productionStatus === "versendet" || order.status === "versendet") {
-    return "versendet"
-  }
+  if (order.status === "versendet") return "versendet"
   if (order.productionStatus && isProductionStatus(order.productionStatus)) {
     return order.productionStatus
   }
-  switch (order.status) {
-    case "in_produktion":
-      return "in_produktion"
-    default:
-      return "bereit_fuer_produktion"
-  }
+  if (order.status === "in_produktion") return "in_produktion"
+  const paid = order.paymentConfirmed === true || order.paymentStatus === "paid"
+  return paid ? "bezahlt" : "bestellungseingang"
+}
+
+/** Zahlung bestätigt? (paymentConfirmed oder abgeleitetes paymentStatus). */
+export function isOrderPaid(order: StoredOrder): boolean {
+  return order.paymentConfirmed === true || order.paymentStatus === "paid"
+}
+
+/**
+ * Manuelle Zahlungsbestätigung nötig? (Rechnung/TWINT, noch nicht bezahlt).
+ * Kreditkarte/Stripe wird automatisch nach dem Webhook bestätigt.
+ */
+export function needsManualPaymentConfirmation(order: StoredOrder): boolean {
+  if (isOrderPaid(order)) return false
+  return order.paymentMethod === "invoice" || order.paymentMethod === "twint"
 }
 
 export function productionStatusLabel(status: ProductionStatus): string {

@@ -27,15 +27,21 @@ export const ORDER_STATUS_OPTIONS: {
   { value: "storniert", label: "Storniert" },
 ]
 
-/** Produktions-Cockpit (Kanban), unabhängig vom Shop-Bestellstatus. */
+/**
+ * Produktions-Cockpit (Kanban) — erweiterte Pipeline inkl. Zahlungsstufen.
+ * Reihenfolge: Bestellungseingang → Bezahlt → Bereit für Produktion →
+ * In Produktion → Qualitätskontrolle → Bereit für Versand → Versendet.
+ */
 export type ProductionStatus =
+  | "bestellungseingang"
+  | "bezahlt"
   | "bereit_fuer_produktion"
   | "in_produktion"
   | "qualitaetskontrolle"
   | "bereit_fuer_versand"
   | "versendet"
 
-export const DEFAULT_PRODUCTION_STATUS: ProductionStatus = "bereit_fuer_produktion"
+export const DEFAULT_PRODUCTION_STATUS: ProductionStatus = "bestellungseingang"
 
 export type StoredOrderItem = CartItem & {
   leitbildUrl?: string | null
@@ -136,6 +142,8 @@ export type StoredCustomer = {
   billing: OrderAddress
   delivery?: OrderAddress
   orderIds: string[]
+  /** Zugeordnete Kundenkategorie (Rabatt/Versand); Konfiguration in AdminSettings. */
+  customerCategoryId?: string | null
   /** CRM-Status (Soft Delete über Portal) */
   status?: import("@/lib/konto/account-status").CustomerAccountStatus
   createdAt: string
@@ -264,6 +272,8 @@ export type AdminSettings = {
   }
   /** Globale Notification-Bar (optional, Defaults inaktiv) */
   announcementBanner?: import("@/lib/dripforge/announcement-banner-settings").AnnouncementBannerSettings
+  /** Kundenkategorien / -gruppen mit Rabatt und erlaubten Versandarten */
+  customerCategories?: import("@/lib/dripforge/customer-categories").CustomerCategory[]
   /** Gewichtsstaffeln für Versandpreise (optional) */
   shippingTiers?: import("@/lib/dripforge/shipping-tiers").ShippingTiersSettings
   /** Dankesseite-Animation (Checkout Success) */

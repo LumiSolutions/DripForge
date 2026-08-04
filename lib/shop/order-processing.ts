@@ -20,6 +20,10 @@ import {
 } from "@/lib/admin/types"
 import { calculateCheckoutTotalsWithCoupon, calculateCheckoutTotalsWithDiscounts } from "@/lib/dripforge/coupon-checkout"
 import { getShippingCost } from "@/lib/dripforge/checkout-config"
+import {
+  applyCategoryDiscount,
+  findCustomerCategory,
+} from "@/lib/dripforge/customer-categories"
 import type { OrderPayload } from "@/lib/dripforge/submit-order"
 import { grantAiCreditsForPaidOrder } from "@/lib/konto/ai-credits"
 import { getAccountByEmail } from "@/lib/konto/account-db"
@@ -123,6 +127,26 @@ export async function processOrderPayload(
   const settings = await getSettings()
   const rewardCfg = buildRewardPointsPublicSettings(settings)
   const rewardPointsEnabled = rewardCfg.enableRewardPointsSystem
+
+  // Kundenkategorie-Rabatt (eingeloggter Kunde) serverseitig auf die
+  // Artikelpreise anwenden — verbindliche Preisberechnung (Trust Boundary).
+  if (options?.sessionEmail) {
+    const categoryAccount = await getAccountByEmail(options.sessionEmail)
+    const category = findCustomerCategory(
+      settings.customerCategories,
+      categoryAccount?.customerCategoryId
+    )
+    const pct = category?.discountPercent ?? 0
+    if (pct > 0) {
+      payload = {
+        ...payload,
+        items: payload.items.map((item) => ({
+          ...item,
+          price: applyCategoryDiscount(item.price, pct),
+        })),
+      }
+    }
+  }
 
   const subtotal = payload.items.reduce(
     (sum, item) => sum + item.price * item.quantity,
@@ -600,10 +624,15 @@ export async function fulfillPaidShopOrder(
       ? { ...order.billing, email: stripeCustomerEmail }
       : order.billing
 
+  // Zahlungseingang rückt den Produktionsstatus automatisch auf "bezahlt"
+  // (Kreditkarte/Stripe/TWINT), sofern die Bestellung noch am Eingang steht.
+  const advanceProduction =
+    !order.productionStatus || order.productionStatus === "bestellungseingang"
   const updated: StoredOrder = {
     ...order,
     billing,
     paymentConfirmed: true,
+    ...(advanceProduction ? { productionStatus: "bezahlt" as const } : {}),
     ...(options.stripeSessionId
       ? { stripeSessionId: options.stripeSessionId }
       : {}),

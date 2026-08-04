@@ -20,12 +20,15 @@ function resolveClientMaterials(
   return legacyMaterialsFallback(materialTypes)
 }
 
-export function useFilamentCatalog(): {
+export function useFilamentCatalog(options?: { enabled?: boolean }): {
   materials: FilamentMaterial[]
   materialTypes: MaterialTypeDefinition[]
   materialStats: ReturnType<typeof typesToLegacyMap>
   loading: boolean
 } {
+  // Lazy-Load: Der Filament-Katalog wird erst geladen, wenn er gebraucht wird
+  // (Produktdetailseite). Auf der Shop-Übersicht wäre der Abruf unnötig.
+  const enabled = options?.enabled ?? true
   const defaults = buildDefaultMaterialTypes()
   const [materialTypes, setMaterialTypes] = useState(defaults)
   const [materials, setMaterials] = useState<FilamentMaterial[]>(() =>
@@ -34,9 +37,12 @@ export function useFilamentCatalog(): {
   const [materialStats, setMaterialStats] = useState(() =>
     typesToLegacyMap(getActiveMaterialTypes(defaults))
   )
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(enabled)
 
   useEffect(() => {
+    // Wenn deaktiviert: nicht laden. Der Ladezustand ist über den Initialwert
+    // (useState(enabled)) bereits korrekt (false).
+    if (!enabled) return
     let cancelled = false
 
     void fetch("/api/filaments", { cache: "no-store" })
@@ -78,7 +84,7 @@ export function useFilamentCatalog(): {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [enabled])
 
   return { materials, materialTypes, materialStats, loading }
 }

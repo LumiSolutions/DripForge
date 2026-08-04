@@ -45,9 +45,14 @@ type ShopStickyFilterChromeProps = {
   viewToggle: React.ReactNode
 }
 
-/** Sticky unter Header; z-40 über Produkt-Raster, unter Select-Portal (z-[110]) */
+/**
+ * Sticky unter Header; z-40 über Produkt-Raster, unter Select-Portal (z-[110]).
+ * WICHTIG: Der fixe Header ist zusätzlich um die Banner-Höhe (--df-banner-h) nach
+ * unten versetzt. Ohne diesen Offset dockte die Filterleiste zu hoch an und
+ * verschwand hinter dem Header — Produktinhalte schienen darunter "durch".
+ */
 const stickyBarClass =
-  "sticky top-[var(--header-height,4rem)] z-40 isolate border-b border-border/40 bg-background/95 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/95"
+  "sticky top-[calc(var(--df-banner-h,0px)+var(--header-height,4rem))] z-40 isolate border-b border-border/40 bg-background shadow-sm supports-[backdrop-filter]:bg-background/95 supports-[backdrop-filter]:backdrop-blur"
 
 export function ShopStickyFilterChrome({
   mainFilterOptions,
