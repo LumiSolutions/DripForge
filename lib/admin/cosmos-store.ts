@@ -63,6 +63,7 @@ import {
 import { normalizeAnnouncementBanner } from "@/lib/dripforge/announcement-banner-settings"
 import { normalizeCustomerCategories } from "@/lib/dripforge/customer-categories"
 import { normalizeBrandUrl } from "@/lib/admin/branding-settings"
+import { normalizeEmailSignature } from "@/lib/admin/email-signature"
 import { normalizeShippingTiers } from "@/lib/dripforge/shipping-tiers"
 import { normalizeThanksPageSettings } from "@/lib/dripforge/thanks-page-settings"
 import {
@@ -479,6 +480,7 @@ export async function cosmosGetSettings(): Promise<AdminSettings> {
         ),
         brandIconUrl: normalizeBrandUrl(resource.brandIconUrl),
         brandLogoUrl: normalizeBrandUrl(resource.brandLogoUrl),
+        emailSignature: normalizeEmailSignature(resource.emailSignature),
         orderEmailTemplates: normalizeOrderEmailTemplates(
           resource.orderEmailTemplates
         ),

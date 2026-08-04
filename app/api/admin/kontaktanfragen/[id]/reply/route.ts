@@ -4,8 +4,8 @@ import {
   requireAdminSession,
 } from "@/lib/admin/require-admin-session"
 import {
+  appendKontaktanfrageReply,
   getKontaktanfrageById,
-  updateKontaktanfrageStatus,
 } from "@/lib/admin/kontaktanfragen-db"
 import { getSettings } from "@/lib/admin/db"
 import { resolveEmailBranding } from "@/lib/email/order-email-context"
@@ -72,26 +72,16 @@ export async function POST(
       (body?.subject ?? "").trim() ||
       `Re: ${anfrage.subject || "Deine Anfrage"} (#${anfrage.id})`
 
-    const plain = [
-      `Guten Tag ${anfrage.name},`,
-      "",
-      message,
-      "",
-      "Freundliche Grüsse",
-      branding.companyName,
-      "",
-      "———",
-      `Bezug: Anfrage ${anfrage.id}${anfrage.subject ? ` — ${anfrage.subject}` : ""}`,
-    ].join("\n")
-
+    // Nur der im Editor eingegebene Text wird gerendert — keine automatische
+    // Begrüssung/Verabschiedung mehr (Anrede + Signatur kommen aus dem Textfeld).
     const sent = await sendSmtpMail({
       from: resolveSmtpFrom(branding.companyName, branding.contactEmail),
       to: anfrage.email,
       subject,
-      text: plain,
+      text: message,
       html: renderDripForgeEmailHtml({
         title: "Antwort auf deine Anfrage",
-        bodyHtml: textToHtmlParagraphs(plain),
+        bodyHtml: textToHtmlParagraphs(message),
         footerLines: branding.footerLines,
         logoUrl: branding.logoUrl ?? undefined,
       }),
@@ -104,8 +94,12 @@ export async function POST(
       )
     }
 
-    // Nach erfolgreichem Versand als beantwortet markieren.
-    const updated = await updateKontaktanfrageStatus(anfrage.id, "beantwortet")
+    // Antwort im Verlauf speichern und als beantwortet markieren.
+    const updated = await appendKontaktanfrageReply(
+      anfrage.id,
+      { role: "admin", subject, body: message },
+      "beantwortet"
+    )
 
     return NextResponse.json({ ok: true, anfrage: updated ?? anfrage })
   } catch (error) {

@@ -15,6 +15,7 @@ import {
   type CreateKontaktanfrageInput,
   type Kontaktanfrage,
   type KontaktStatus,
+  type KontaktThreadEntry,
 } from "@/lib/admin/kontaktanfrage-types"
 
 const DATA_DIR = path.join(process.cwd(), "data", "admin")
@@ -115,6 +116,34 @@ export async function updateKontaktanfrageStatus(
   }
   return withCosmosFallback(
     "updateKontaktanfrageStatus",
+    () => cosmosSaveKontaktanfrage(next),
+    () => saveKontaktanfrageToFile(next)
+  )
+}
+
+/** Hängt eine Nachricht an den Verlauf an und setzt optional den Status. */
+export async function appendKontaktanfrageReply(
+  id: string,
+  entry: Omit<KontaktThreadEntry, "id" | "at"> & { at?: string },
+  status?: KontaktStatus
+): Promise<Kontaktanfrage | null> {
+  const current = await getKontaktanfrageById(id)
+  if (!current) return null
+  const threadEntry: KontaktThreadEntry = {
+    id: `msg-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+    role: entry.role,
+    subject: entry.subject,
+    body: entry.body,
+    at: entry.at ?? new Date().toISOString(),
+  }
+  const next: Kontaktanfrage = {
+    ...current,
+    thread: [...(current.thread ?? []), threadEntry],
+    status: status ? normalizeKontaktStatus(status) : current.status,
+    updatedAt: new Date().toISOString(),
+  }
+  return withCosmosFallback(
+    "appendKontaktanfrageReply",
     () => cosmosSaveKontaktanfrage(next),
     () => saveKontaktanfrageToFile(next)
   )

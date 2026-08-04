@@ -246,6 +246,8 @@ export type AdminSettings = {
   brandIconUrl?: string | null
   /** Haupt-/Branding-Logo (grosse Darstellung, Home/Hero) */
   brandLogoUrl?: string | null
+  /** Globale E-Mail-Signatur (z. B. für Antworten auf Kontaktanfragen) */
+  emailSignature?: string
   /** Bearbeitbare Texte für Bestell-Bestätigungsmails */
   orderEmailTemplates?: {
     receivedIntro: string
