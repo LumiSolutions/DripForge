@@ -64,25 +64,25 @@ const laserCaveat = Caveat({
   subsets: ["latin"],
 })
 
-/** Standard-Favicon (existiert unter public/), falls kein Marken-Icon gesetzt ist. */
-const DEFAULT_BRAND_ICON = "/icon.svg"
-
 /**
- * Favicon / Apple-Touch-Icon dynamisch aus den Admin-Einstellungen (Slot 1:
- * kleine Icon-Marke). So werden <link rel="icon"> und <link rel="apple-touch-icon">
- * beim Upload automatisch aktualisiert.
+ * Favicon / Apple-Touch-Icon aus den Admin-Einstellungen (Slot 1: kleine
+ * Icon-Marke). Die Icons zeigen auf eine stabile Route, die das Bild mit
+ * korrektem Content-Type ausliefert (zuverlässig in allen Browsern inkl.
+ * Safari) und beim Upload automatisch aktualisiert wird. Ein Version-Query
+ * (updatedAt) sorgt für Cache-Invalidierung nach einem neuen Upload.
  */
 export async function generateMetadata(): Promise<Metadata> {
-  let iconUrl = DEFAULT_BRAND_ICON
+  let version = "0"
   try {
     const { getSettings } = await import("@/lib/admin/db")
     const settings = await getSettings()
-    if (settings.brandIconUrl && settings.brandIconUrl.trim()) {
-      iconUrl = settings.brandIconUrl.trim()
-    }
+    // Version aus dem Icon-Wert ableiten (ändert sich bei jedem Upload).
+    version = String((settings.brandIconUrl ?? "").length || settings.updatedAt || "0")
   } catch {
-    /* Fallback auf Standard-Icon */
+    /* Standard-Icon */
   }
+
+  const iconUrl = `/api/settings/brand-icon?v=${encodeURIComponent(version)}`
 
   return {
     title: "DripForge | 3D-Druck & Lasergravur",
