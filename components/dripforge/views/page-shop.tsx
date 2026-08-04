@@ -210,7 +210,7 @@ function summarizeLaserDesignLabel(
   if (hasImage) return "Bild"
   if (design.selectedVariant?.trim()) return design.selectedVariant.trim()
   if (variantName?.trim()) return variantName.trim()
-  return "Gravur"
+  return "Konfiguration"
 }
 
 export function PageShop({
@@ -977,11 +977,13 @@ export function PageShop({
       !isMultiColorProduct(detailProduct) &&
       effectiveMultiColorMode === "custom"
     const extraVariantQty =
-      effectiveMultiColorMode === "standard"
-        ? 0
-        : showMultiColorPicker
-          ? extraMultiVariants.reduce((sum, e) => sum + e.quantity, 0)
-          : extraVariants.reduce((sum, e) => sum + e.quantity, 0)
+      detailProduct.type === "laser"
+        ? extraLaserVariants.reduce((sum, e) => sum + e.quantity, 0)
+        : effectiveMultiColorMode === "standard"
+          ? 0
+          : showMultiColorPicker
+            ? extraMultiVariants.reduce((sum, e) => sum + e.quantity, 0)
+            : extraVariants.reduce((sum, e) => sum + e.quantity, 0)
     const activeQtyForPricing =
       showSingleColorPicker &&
       activeVariantCommitted &&
@@ -1269,8 +1271,8 @@ export function PageShop({
                         >
                           <Plus className="h-4 w-4" />
                         </Button>
-                        <span className="ml-auto text-base font-semibold tabular-nums">
-                          CHF {(unitPrice * quantity).toFixed(2)}
+                        <span className="ml-auto text-sm tabular-nums text-muted-foreground">
+                          CHF {unitPrice.toFixed(2)} / Stk.
                         </span>
                       </div>
                       <div className="space-y-1.5">
@@ -1284,6 +1286,23 @@ export function PageShop({
                           placeholder="z. B. besondere Platzierung, Schriftart…"
                           className="min-h-20 resize-y bg-background/80"
                         />
+                      </div>
+                      <div className="rounded-xl border border-border/50 bg-muted/30 px-4 py-3">
+                        <div className="flex justify-between text-sm text-muted-foreground">
+                          <span>Variationen gesamt</span>
+                          <span>{pricingQty} Stk.</span>
+                        </div>
+                        <div className="mt-1 flex justify-between text-lg font-bold">
+                          <span>Total</span>
+                          <span className="text-primary">
+                            CHF {(unitPrice * pricingQty).toFixed(2)}
+                          </span>
+                        </div>
+                        {qtyDiscount.tier && (
+                          <p className="mt-1 text-xs text-emerald-600">
+                            inkl. Mengenrabatt −{qtyDiscount.discountPercent}%
+                          </p>
+                        )}
                       </div>
                       <Button
                         onClick={() => void handleAddToCart()}
@@ -1300,17 +1319,45 @@ export function PageShop({
                       </Button>
                       {(canAddToCart || laserDesignHasContent(laserDesign)) && (
                         <div className="space-y-3">
+                          {extraLaserVariants.length > 0 && (
+                            <ul className="space-y-2 rounded-xl border border-border/50 bg-muted/20 p-3">
+                              {extraLaserVariants.map((extra, index) => (
+                                <li
+                                  key={`${extra.label}-${index}`}
+                                  className="flex items-center gap-3 text-sm"
+                                >
+                                  <span className="min-w-0 flex-1">
+                                    CHF {unitPrice.toFixed(2)} · {extra.label || "Konfiguration"} ×
+                                    {extra.quantity}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    className="shrink-0 rounded p-1 text-muted-foreground hover:text-red-500"
+                                    aria-label="Variante entfernen"
+                                    onClick={() => {
+                                      setExtraLaserVariants((prev) =>
+                                        prev.filter((_, i) => i !== index)
+                                      )
+                                    }}
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </button>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
                           <Button
                             type="button"
                             variant="outline"
-                            className="w-full"
+                            className="w-full whitespace-normal h-auto min-h-10 py-2"
                             disabled={!laserDesignHasContent(laserDesign)}
                             onClick={() => {
                               if (!laserDesign || !shopLaserMaterial) return
-                              const label = summarizeLaserDesignLabel(
-                                laserDesign,
-                                activeShopVariant?.name
-                              )
+                              const label =
+                                summarizeLaserDesignLabel(
+                                  laserDesign,
+                                  activeShopVariant?.name
+                                ).trim() || "Konfiguration"
                               setExtraLaserVariants((prev) => [
                                 ...prev,
                                 {
@@ -1333,35 +1380,9 @@ export function PageShop({
                               })
                             }}
                           >
-                            <Plus className="mr-2 h-4 w-4" />
-                            Weitere Variante / Konfiguration hinzufügen
+                            <Plus className="mr-2 h-4 w-4 shrink-0" />
+                            Weitere Variante hinzufügen
                           </Button>
-                          {extraLaserVariants.length > 0 && (
-                            <ul className="space-y-2 rounded-xl border border-border/50 bg-muted/20 p-3">
-                              {extraLaserVariants.map((extra, index) => (
-                                <li
-                                  key={`${extra.label}-${index}`}
-                                  className="flex items-center gap-3 text-sm"
-                                >
-                                  <span className="min-w-0 flex-1 truncate">
-                                    {extra.label} ×{extra.quantity}
-                                  </span>
-                                  <button
-                                    type="button"
-                                    className="rounded p-1 text-muted-foreground hover:text-red-500"
-                                    aria-label="Variante entfernen"
-                                    onClick={() => {
-                                      setExtraLaserVariants((prev) =>
-                                        prev.filter((_, i) => i !== index)
-                                      )
-                                    }}
-                                  >
-                                    <X className="h-4 w-4" />
-                                  </button>
-                                </li>
-                              ))}
-                            </ul>
-                          )}
                         </div>
                       )}
                     </CardContent>
@@ -1596,10 +1617,49 @@ export function PageShop({
                           {multiColorSelection?.colors.length &&
                           multiColorSelection.colors.every((c) => c.inStock) ? (
                             <div className="space-y-3">
+                              {extraMultiVariants.length > 0 && (
+                                <ul className="space-y-2 rounded-xl border border-border/50 bg-muted/20 p-3">
+                                  {extraMultiVariants.map((extra, index) => (
+                                    <li
+                                      key={`multi-extra-${index}`}
+                                      className="flex items-center gap-3 text-sm"
+                                    >
+                                      <div className="flex shrink-0 gap-0.5">
+                                        {extra.colors.map((c) => (
+                                          <span
+                                            key={c.slot}
+                                            className="h-5 w-5 rounded-full border border-border/50"
+                                            style={{
+                                              backgroundColor: c.colorHex,
+                                            }}
+                                          />
+                                        ))}
+                                      </div>
+                                      <span className="min-w-0 flex-1">
+                                        CHF {unitPrice.toFixed(2)} · {extra.materialName} ·{" "}
+                                        {extra.colors.map((c) => c.colorName).join(", ")} ×
+                                        {extra.quantity}
+                                      </span>
+                                      <button
+                                        type="button"
+                                        className="shrink-0 rounded p-1 text-muted-foreground hover:text-red-500"
+                                        aria-label="Variante entfernen"
+                                        onClick={() => {
+                                          setExtraMultiVariants((prev) =>
+                                            prev.filter((_, i) => i !== index)
+                                          )
+                                        }}
+                                      >
+                                        <X className="h-4 w-4" />
+                                      </button>
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
                               <Button
                                 type="button"
                                 variant="outline"
-                                className="w-full"
+                                className="w-full whitespace-normal h-auto min-h-10 py-2"
                                 onClick={() => {
                                   if (!multiColorSelection) return
                                   setExtraMultiVariants((prev) => [
@@ -1616,50 +1676,9 @@ export function PageShop({
                                   setQuantity(1)
                                 }}
                               >
-                                <Plus className="mr-2 h-4 w-4" />
-                                Weitere Variante / Konfiguration hinzufügen
+                                <Plus className="mr-2 h-4 w-4 shrink-0" />
+                                Weitere Variante hinzufügen
                               </Button>
-                              {extraMultiVariants.length > 0 && (
-                                <ul className="space-y-2 rounded-xl border border-border/50 bg-muted/20 p-3">
-                                  {extraMultiVariants.map((extra, index) => (
-                                      <li
-                                        key={`multi-extra-${index}`}
-                                        className="flex items-center gap-3 text-sm"
-                                      >
-                                        <div className="flex shrink-0 gap-0.5">
-                                          {extra.colors.map((c) => (
-                                            <span
-                                              key={c.slot}
-                                              className="h-5 w-5 rounded-full border border-border/50"
-                                              style={{
-                                                backgroundColor: c.colorHex,
-                                              }}
-                                            />
-                                          ))}
-                                        </div>
-                                        <span className="min-w-0 flex-1 truncate">
-                                          {extra.materialName} ·{" "}
-                                          {extra.colors
-                                            .map((c) => c.colorName)
-                                            .join(", ")}{" "}
-                                          ×{extra.quantity}
-                                        </span>
-                                        <button
-                                          type="button"
-                                          className="rounded p-1 text-muted-foreground hover:text-red-500"
-                                          aria-label="Variante entfernen"
-                                          onClick={() => {
-                                            setExtraMultiVariants((prev) =>
-                                              prev.filter((_, i) => i !== index)
-                                            )
-                                          }}
-                                        >
-                                          <X className="h-4 w-4" />
-                                        </button>
-                                      </li>
-                                    ))}
-                                </ul>
-                              )}
                             </div>
                           ) : null}
                           </>
@@ -1681,10 +1700,44 @@ export function PageShop({
                             />
                             {effectiveFilamentSelection?.inStock && (
                               <div className="space-y-3">
+                                {extraVariants.length > 0 && (
+                                  <ul className="space-y-2 rounded-xl border border-border/50 bg-muted/20 p-3">
+                                    {extraVariants.map((extra, index) => (
+                                      <li
+                                        key={`${extra.colorName}-${index}`}
+                                        className="flex items-center gap-3 text-sm"
+                                      >
+                                        <span
+                                          className="h-5 w-5 shrink-0 rounded-full border border-border/50"
+                                          style={{
+                                            backgroundColor: extra.colorHex,
+                                          }}
+                                        />
+                                        <span className="min-w-0 flex-1">
+                                          CHF {unitPrice.toFixed(2)} · {extra.filament} ·{" "}
+                                          {extra.colorName} ×{extra.quantity}
+                                        </span>
+                                        <button
+                                          type="button"
+                                          className="shrink-0 rounded p-1 text-muted-foreground hover:text-red-500"
+                                          aria-label="Variante entfernen"
+                                          onClick={() => {
+                                            setExtraVariants((prev) =>
+                                              prev.filter((_, i) => i !== index)
+                                            )
+                                            setActiveVariantCommitted(false)
+                                          }}
+                                        >
+                                          <X className="h-4 w-4" />
+                                        </button>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                )}
                                 <Button
                                   type="button"
                                   variant="outline"
-                                  className="w-full"
+                                  className="w-full whitespace-normal h-auto min-h-10 py-2"
                                   onClick={() => {
                                     const sel = effectiveFilamentSelection
                                     if (!sel) return
@@ -1701,43 +1754,9 @@ export function PageShop({
                                     setActiveVariantCommitted(true)
                                   }}
                                 >
-                                  <Plus className="mr-2 h-4 w-4" />
-                                  Weitere Variante / Konfiguration hinzufügen
+                                  <Plus className="mr-2 h-4 w-4 shrink-0" />
+                                  Weitere Variante hinzufügen
                                 </Button>
-                                {extraVariants.length > 0 && (
-                                  <ul className="space-y-2 rounded-xl border border-border/50 bg-muted/20 p-3">
-                                    {extraVariants.map((extra, index) => (
-                                      <li
-                                        key={`${extra.colorName}-${index}`}
-                                        className="flex items-center gap-3 text-sm"
-                                      >
-                                        <span
-                                          className="h-5 w-5 shrink-0 rounded-full border border-border/50"
-                                          style={{
-                                            backgroundColor: extra.colorHex,
-                                          }}
-                                        />
-                                        <span className="min-w-0 flex-1 truncate">
-                                          {extra.filament} · {extra.colorName} ×
-                                          {extra.quantity}
-                                        </span>
-                                        <button
-                                          type="button"
-                                          className="rounded p-1 text-muted-foreground hover:text-red-500"
-                                          aria-label="Variante entfernen"
-                                          onClick={() => {
-                                            setExtraVariants((prev) =>
-                                              prev.filter((_, i) => i !== index)
-                                            )
-                                            setActiveVariantCommitted(false)
-                                          }}
-                                        >
-                                          <X className="h-4 w-4" />
-                                        </button>
-                                      </li>
-                                    ))}
-                                  </ul>
-                                )}
                               </div>
                             )}
                           </>
@@ -1867,6 +1886,9 @@ export function PageShop({
                                   >
                                     <Plus className="h-4 w-4" />
                                   </Button>
+                                  <span className="ml-auto text-sm tabular-nums text-muted-foreground">
+                                    CHF {unitPrice.toFixed(2)} / Stk.
+                                  </span>
                                 </div>
                               </div>
 
@@ -1893,6 +1915,24 @@ export function PageShop({
                               placeholder="z. B. besondere Anforderungen…"
                               className="min-h-20 resize-y bg-background/80"
                             />
+                          </div>
+
+                          <div className="rounded-xl border border-border/50 bg-muted/30 px-4 py-3">
+                            <div className="flex justify-between text-sm text-muted-foreground">
+                              <span>Variationen gesamt</span>
+                              <span>{pricingQty} Stk.</span>
+                            </div>
+                            <div className="mt-1 flex justify-between text-lg font-bold">
+                              <span>Total</span>
+                              <span className="text-primary">
+                                CHF {(unitPrice * pricingQty).toFixed(2)}
+                              </span>
+                            </div>
+                            {qtyDiscount.tier && (
+                              <p className="mt-1 text-xs text-emerald-600">
+                                inkl. Mengenrabatt −{qtyDiscount.discountPercent}%
+                              </p>
+                            )}
                           </div>
 
                           <Button

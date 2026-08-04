@@ -261,7 +261,13 @@ type DragSession = {
   maxScale: number
   resizeHandle?: ResizeHandle
   proportional?: boolean
+  /** Move: erst nach Threshold echte Verschiebung (Klick/Deselect ohne Sprung) */
+  hasMoved?: boolean
+  historyPushed?: boolean
 }
+
+/** Pixel-Schwelle bevor ein Move-Drag die Position verändert. */
+const MOVE_DRAG_THRESHOLD_PX = 5
 
 /** Sperrt Browser-Scroll/-Select/-Drag während Canvas-Gesten (Mobil + Desktop / iOS). */
 const CANVAS_TOUCH_LOCK_CLASS =
@@ -1591,6 +1597,7 @@ function LaserDesignerPreview({
   const [canvasMounted, setCanvasMounted] = useState(false)
   const layerInnerRefs = useRef<Map<string, HTMLElement>>(new Map())
   const dragSessionRef = useRef<DragSession | null>(null)
+  const pushHistorySnapshotRef = useRef<() => void>(() => {})
   const [dragMode, setDragMode] = useState<DragMode | null>(null)
   const [liveMmLabel, setLiveMmLabel] = useState<ElementMmSize | null>(null)
   const [layerMmMap, setLayerMmMap] = useState<Record<string, ElementMmSize>>({})
@@ -1884,6 +1891,21 @@ function LaserDesignerPreview({
       const { startLayout, mode, target } = session
 
       if (mode === "move") {
+        const distPx = Math.hypot(
+          clientX - session.startClientX,
+          clientY - session.startClientY
+        )
+        // Klick ohne Ziehen / Deselect: Position unverändert lassen
+        if (!session.hasMoved && distPx < MOVE_DRAG_THRESHOLD_PX) {
+          return
+        }
+        if (!session.hasMoved) {
+          session.hasMoved = true
+          if (!session.historyPushed) {
+            session.historyPushed = true
+            pushHistorySnapshotRef.current()
+          }
+        }
         const start = getCanvasPoint(
           canvas,
           session.startClientX,
@@ -1981,6 +2003,16 @@ function LaserDesignerPreview({
     }
 
     const onPointerUp = (e: PointerEvent) => {
+      // Letzten pending Move flushen, bevor die Session endet (kein Snap-Back).
+      if (rafId != null) {
+        cancelAnimationFrame(rafId)
+        rafId = null
+      }
+      const pending = pendingRef.current
+      pendingRef.current = null
+      if (pending) {
+        processDragMove(pending.clientX, pending.clientY, pending.pointerId)
+      }
       endDragSession(e.pointerId)
     }
 
@@ -2177,6 +2209,7 @@ function LaserDesignerPreview({
     ])
     setRedoStack([])
   }, [])
+  pushHistorySnapshotRef.current = pushHistorySnapshot
 
   const pushImageUndo = useCallback(
     (_layerId: string, _src: string) => {
@@ -2264,7 +2297,14 @@ function LaserDesignerPreview({
 
   const startDragSession = useCallback(
     (session: DragSession) => {
-      pushHistorySnapshot()
+      // Move: History erst nach Drag-Threshold — reiner Klick/Deselect verschiebt nichts.
+      if (session.mode !== "move") {
+        pushHistorySnapshot()
+        session.historyPushed = true
+      } else {
+        session.hasMoved = false
+        session.historyPushed = false
+      }
       dragSessionRef.current = session
       onStateChange({ activeLayerId: session.target })
       setDragMode(session.mode)

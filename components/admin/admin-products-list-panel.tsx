@@ -87,6 +87,7 @@ type AdminProductsListPanelProps = {
 
 type TypeFilter = "all" | "3d" | "laser"
 export type StatusFilter = "all" | "active" | "inactive" | "sale"
+type QuantityDiscountFilter = "all" | "with" | "without"
 
 type SortableProductColumn = Exclude<ProductColumnSort["column"], "created">
 
@@ -120,6 +121,8 @@ export function AdminProductsListPanel({
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all")
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all")
   const [tagFilter, setTagFilter] = useState<string>("all")
+  const [quantityDiscountFilter, setQuantityDiscountFilter] =
+    useState<QuantityDiscountFilter>("all")
   const [saleDialogOpen, setSaleDialogOpen] = useState(false)
   const [saleTargetIds, setSaleTargetIds] = useState<string[]>([])
   const [saleRabattTyp, setSaleRabattTyp] = useState<SaleRabattTyp>("percent")
@@ -141,6 +144,11 @@ export function AdminProductsListPanel({
       if (effectiveStatusFilter === "inactive" && shopStatus !== "inactive") return false
       if (effectiveStatusFilter === "sale" && shopStatus !== "sale") return false
       if (tagFilter !== "all" && !(product.tags ?? []).includes(tagFilter)) return false
+      const hasQtyDiscount =
+        Array.isArray(product.quantityDiscountTiers) &&
+        product.quantityDiscountTiers.length > 0
+      if (quantityDiscountFilter === "with" && !hasQtyDiscount) return false
+      if (quantityDiscountFilter === "without" && hasQtyDiscount) return false
       if (q) {
         const hay = [
           product.name,
@@ -156,7 +164,14 @@ export function AdminProductsListPanel({
       }
       return true
     })
-  }, [products, typeFilter, effectiveStatusFilter, tagFilter, searchQuery])
+  }, [
+    products,
+    typeFilter,
+    effectiveStatusFilter,
+    tagFilter,
+    quantityDiscountFilter,
+    searchQuery,
+  ])
 
   const sortedProducts = useMemo(() => {
     if (columnSort) {
@@ -364,6 +379,7 @@ export function AdminProductsListPanel({
     typeFilter !== "all" ||
     (!lockedStatusFilter && effectiveStatusFilter !== "all") ||
     tagFilter !== "all" ||
+    quantityDiscountFilter !== "all" ||
     searchQuery.trim().length > 0
 
   const busy = bulkBusy || statusBusyId != null
@@ -456,6 +472,21 @@ export function AdminProductsListPanel({
               ))}
             </SelectContent>
           </Select>
+          <Select
+            value={quantityDiscountFilter}
+            onValueChange={(v) =>
+              setQuantityDiscountFilter(v as QuantityDiscountFilter)
+            }
+          >
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Mengenrabatt" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Alle Produkte</SelectItem>
+              <SelectItem value="with">Mit Mengenrabatt</SelectItem>
+              <SelectItem value="without">Ohne Mengenrabatt</SelectItem>
+            </SelectContent>
+          </Select>
           {hasActiveFilters && (
             <Button
               type="button"
@@ -467,6 +498,7 @@ export function AdminProductsListPanel({
                 setTypeFilter("all")
                 if (!lockedStatusFilter) setStatusFilter("all")
                 setTagFilter("all")
+                setQuantityDiscountFilter("all")
               }}
             >
               Filter zurücksetzen
