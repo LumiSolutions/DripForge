@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import dynamic from "next/dynamic"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -249,6 +249,9 @@ export function PageShop({
   )
   /** Lightbox offen → 3D-Viewer unmounten, damit Zoom den Three.js-Tree nicht killt. */
   const [galleryLightboxOpen, setGalleryLightboxOpen] = useState(false)
+  const handleGalleryLightboxChange = useCallback((open: boolean) => {
+    setGalleryLightboxOpen((prev) => (prev === open ? prev : open))
+  }, [])
   const [selectedShopVariantId, setSelectedShopVariantId] = useState<string | null>(
     null
   )
@@ -1218,18 +1221,19 @@ export function PageShop({
             </div>
             </ProductDetailErrorBoundary>
           ) : (
-                <ProductDetailErrorBoundary onReset={closeProduct}>
+                <>
                   <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 md:gap-10">
                     {/*
                       Mobile: Galerie+Desc+Specs → Live-3D → Filament → Preis/Cart
                       Desktop: Spalte1 Galerie+Text+Specs+3D | Spalte2 Filament+Preis
+                      Galerie bewusst AUSSERHALB der 3D-ErrorBoundary (Lightbox darf nicht mitfallen).
                     */}
                     <div className="grid grid-cols-1 items-start gap-8 md:grid-cols-2 md:gap-10 lg:items-stretch lg:gap-12">
                       <div className="order-1 flex min-w-0 flex-col gap-6 md:order-1">
                         <ProductImageGallery
                           images={galleryImages}
                           alt={detailProduct.name}
-                          onLightboxChange={setGalleryLightboxOpen}
+                          onLightboxChange={handleGalleryLightboxChange}
                         />
                         <Card className="rounded-2xl border-border/50 bg-card/50 shadow-sm">
                           <CardContent className="p-4 sm:p-6">
@@ -1268,13 +1272,12 @@ export function PageShop({
                           }
                         />
 
-                        {/* Desktop: 3D unter Beschreibung/Spezifikationen.
-                            Bei Lightbox nur verstecken (nicht unmounten) — sonst WebGL-Context-Loss. */}
+                        {/* Desktop: 3D — bei Lightbox pausieren/ausblenden, Layout behalten */}
                         {productModelUrl && isMdUp ? (
                           <div
                             className={cn(
                               "min-w-0",
-                              galleryLightboxOpen && "pointer-events-none invisible absolute h-0 w-0 overflow-hidden opacity-0"
+                              galleryLightboxOpen && "pointer-events-none invisible"
                             )}
                             aria-hidden={galleryLightboxOpen}
                           >
@@ -1307,13 +1310,12 @@ export function PageShop({
                         ) : null}
                       </div>
 
-                      {/* Mobile: Live-3D nach Specs — bei Lightbox pausieren/verstecken, nicht unmounten */}
+                      {/* Mobile: Live-3D — bei Lightbox pausieren/ausblenden */}
                       {productModelUrl && !isMdUp ? (
                         <div
                           className={cn(
                             "order-2 min-w-0 md:hidden",
-                            galleryLightboxOpen &&
-                              "pointer-events-none invisible absolute h-0 w-0 overflow-hidden opacity-0"
+                            galleryLightboxOpen && "pointer-events-none invisible"
                           )}
                           aria-hidden={galleryLightboxOpen}
                         >
@@ -1671,7 +1673,7 @@ export function PageShop({
                       </div>
                     </div>
                   </div>
-                </ProductDetailErrorBoundary>
+                </>
           )}
         </div>
       </div>

@@ -57,6 +57,11 @@ function LightboxZoomImage({ src, alt }: { src: string; alt: string }) {
     reset()
   }, [src, reset])
 
+  useEffect(() => {
+    if (scale > 1) return
+    setOffset((prev) => (prev.x === 0 && prev.y === 0 ? prev : { x: 0, y: 0 }))
+  }, [scale])
+
   // Non-passive wheel listener — React onWheel is often passive and can't preventDefault.
   useEffect(() => {
     const el = containerRef.current
@@ -64,11 +69,7 @@ function LightboxZoomImage({ src, alt }: { src: string; alt: string }) {
     const onWheelNative = (event: WheelEvent) => {
       event.preventDefault()
       const delta = event.deltaY > 0 ? -0.15 : 0.15
-      setScale((prev) => {
-        const next = clamp(prev + delta, 1, 4)
-        if (next <= 1) setOffset({ x: 0, y: 0 })
-        return next
-      })
+      setScale((prev) => clamp(prev + delta, 1, 4))
     }
     el.addEventListener("wheel", onWheelNative, { passive: false })
     return () => el.removeEventListener("wheel", onWheelNative)
@@ -234,9 +235,16 @@ export function ProductImageGallery({
     setMounted(true)
   }, [])
 
+  // Parent nur bei echtem Open-Wechsel benachrichtigen (Callback per Ref,
+  // damit Parent-Re-Renders keinen Effect-Loop auslösen).
+  const onLightboxChangeRef = useRef(onLightboxChange)
+  onLightboxChangeRef.current = onLightboxChange
+  const lastNotifiedOpen = useRef<boolean | null>(null)
   useEffect(() => {
-    onLightboxChange?.(lightboxOpen)
-  }, [lightboxOpen, onLightboxChange])
+    if (lastNotifiedOpen.current === lightboxOpen) return
+    lastNotifiedOpen.current = lightboxOpen
+    onLightboxChangeRef.current?.(lightboxOpen)
+  }, [lightboxOpen])
 
   const onSelect = useCallback(() => {
     if (!emblaApi) return
