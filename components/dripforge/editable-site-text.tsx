@@ -3,6 +3,7 @@
 import Link, { type LinkProps } from "next/link"
 import {
   useEffect,
+  useRef,
   useState,
   type MouseEvent,
   type ReactNode,
@@ -17,6 +18,11 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { Textarea } from "@/components/ui/textarea"
+import {
+  CMS_CANCEL_EDITING_EVENT,
+  CMS_SAVE_ALL_EVENT,
+  reportCmsInlineEditing,
+} from "@/lib/admin/cms-edit-history"
 import {
   getSiteTextFieldMeta,
   type SiteTextKey,
@@ -85,6 +91,34 @@ export function SiteTextEditor({
       setSaving(false)
     }
   }
+
+  const handleSaveRef = useRef(handleSave)
+  handleSaveRef.current = handleSave
+  const handleCancelRef = useRef(handleCancel)
+  handleCancelRef.current = handleCancel
+
+  useEffect(() => {
+    reportCmsInlineEditing(open)
+    return () => {
+      if (open) reportCmsInlineEditing(false)
+    }
+  }, [open])
+
+  useEffect(() => {
+    if (!open) return
+    const onSaveAll = () => {
+      void handleSaveRef.current()
+    }
+    const onCancel = () => {
+      handleCancelRef.current()
+    }
+    window.addEventListener(CMS_SAVE_ALL_EVENT, onSaveAll)
+    window.addEventListener(CMS_CANCEL_EDITING_EVENT, onCancel)
+    return () => {
+      window.removeEventListener(CMS_SAVE_ALL_EVENT, onSaveAll)
+      window.removeEventListener(CMS_CANCEL_EDITING_EVENT, onCancel)
+    }
+  }, [open])
 
   return (
     <Popover open={open} onOpenChange={setOpen}>

@@ -2,6 +2,7 @@
 
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -40,6 +41,10 @@ export function CustomerCategoryProvider({ children }: { children: ReactNode }) 
   const [loaded, setLoaded] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
 
+  const refresh = useCallback(() => {
+    setReloadKey((k) => k + 1)
+  }, [])
+
   useEffect(() => {
     let cancelled = false
     void (async () => {
@@ -68,9 +73,9 @@ export function CustomerCategoryProvider({ children }: { children: ReactNode }) 
       loaded,
       applyDiscount: (price: number) =>
         applyCategoryDiscount(price, discountPercent),
-      refresh: () => setReloadKey((k) => k + 1),
+      refresh,
     }
-  }, [category, loaded])
+  }, [category, loaded, refresh])
 
   return (
     <CustomerCategoryContext.Provider value={value}>

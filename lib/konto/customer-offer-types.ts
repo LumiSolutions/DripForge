@@ -5,6 +5,13 @@ export const CUSTOMER_OFFER_DOC_TYPE = "customer_offer" as const
 
 export type CustomerOfferStatus = "active" | "accepted" | "expired" | "withdrawn"
 
+export type CustomerOfferAttachment = {
+  id: string
+  fileName: string
+  mimeType: string
+  url: string
+}
+
 /** Admin-vorbereitetes Angebot / Entwurf für einen Kundenaccount. */
 export type CustomerOffer = {
   id: string
@@ -21,9 +28,40 @@ export type CustomerOffer = {
   /** Fertiger Warenkorb-Eintrag, den der Kunde übernehmen kann */
   cartItem: CartItem
   status: CustomerOfferStatus
+  /** Optionale Dateianhänge (Vorschau / STL / PDF) */
+  attachments?: CustomerOfferAttachment[]
   createdAt: string
   updatedAt: string
   createdByAdmin?: string | null
+}
+
+function normalizeAttachments(
+  raw: unknown
+): CustomerOfferAttachment[] | undefined {
+  if (!Array.isArray(raw)) return undefined
+  const next = raw
+    .map((entry) => {
+      if (!entry || typeof entry !== "object") return null
+      const item = entry as Record<string, unknown>
+      const url = typeof item.url === "string" ? item.url.trim() : ""
+      const fileName =
+        typeof item.fileName === "string" ? item.fileName.trim() : ""
+      if (!url || !fileName) return null
+      return {
+        id:
+          typeof item.id === "string" && item.id.trim()
+            ? item.id.trim()
+            : randomUUID(),
+        fileName: fileName.slice(0, 240),
+        mimeType:
+          typeof item.mimeType === "string" && item.mimeType.trim()
+            ? item.mimeType.trim()
+            : "application/octet-stream",
+        url,
+      } satisfies CustomerOfferAttachment
+    })
+    .filter((entry): entry is CustomerOfferAttachment => Boolean(entry))
+  return next.length > 0 ? next : undefined
 }
 
 export function normalizeCustomerOffer(
@@ -69,6 +107,7 @@ export function normalizeCustomerOffer(
       price: Math.max(0, Number(cart.price) || 0),
     },
     status,
+    attachments: normalizeAttachments(raw.attachments),
     createdAt: raw.createdAt ?? now,
     updatedAt: raw.updatedAt ?? now,
     createdByAdmin: raw.createdByAdmin ?? null,

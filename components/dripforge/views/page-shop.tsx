@@ -243,10 +243,12 @@ export function PageShop({
    * nicht nochmals zur Mengenrabatt-Stückzahl zählen (Off-by-one).
    */
   const [activeVariantCommitted, setActiveVariantCommitted] = useState(false)
-  /** Mehrteilig: Detail-Farbauswahl erst bei «Andere Farben». */
+  /** 3D: Detail-Farbauswahl erst bei «Andere Farben» (Standard = Gemäss Bild). */
   const [multiColorMode, setMultiColorMode] = useState<"standard" | "custom">(
     "standard"
   )
+  /** Lightbox offen → 3D-Viewer unmounten, damit Zoom den Three.js-Tree nicht killt. */
+  const [galleryLightboxOpen, setGalleryLightboxOpen] = useState(false)
   const [selectedShopVariantId, setSelectedShopVariantId] = useState<string | null>(
     null
   )
@@ -494,10 +496,11 @@ export function PageShop({
       if (useMultiColor) {
         if (!multiColorSelection?.colors.length) return
         if (!multiColorSelection.colors.every((c) => c.inStock)) return
-      } else {
+      } else if (multiColorMode === "custom") {
         const selection = effectiveFilamentSelection
         if (!selection?.inStock) return
       }
+      // standard: keine Picker-Auswahl nötig — Default / erster Bestand / «Standard»
       const shopVariants = resolveProductShopVariants(selectedProduct)
       if (shopVariants.length > 0 && !selectedShopVariantId) return
       const activeShopVariant = shopVariants.find((v) => v.id === selectedShopVariantId)
@@ -573,6 +576,35 @@ export function PageShop({
               weightG,
               ...(remarksTrimmed ? { customerRemarks: remarksTrimmed } : {}),
               partColors,
+              ...fileFields,
+            },
+          })
+        } else if (multiColorMode === "standard") {
+          const preferred = pickDefaultFilamentSelection(filamentMaterials, {
+            colorId: selectedProduct.defaultFilamentColorId,
+            colorName: selectedProduct.defaultFilamentColorName,
+          })
+          const colorName =
+            selectedProduct.defaultFilamentColorName?.trim() ||
+            preferred?.colorName ||
+            "Standard"
+          const filamentName = preferred?.materialName || "PLA"
+          addToCart({
+            id: `${selectedProduct.id}-${Date.now()}`,
+            productId: selectedProduct.id,
+            name: selectedProduct.name,
+            price: baseUnitPrice,
+            quantity,
+            type: "3d",
+            leitbild,
+            ...tierFields,
+            customDetails: {
+              filament: filamentName,
+              color: colorName,
+              variant: activeShopVariant?.name,
+              dimensions: dimensionsText,
+              weightG,
+              ...(remarksTrimmed ? { customerRemarks: remarksTrimmed } : {}),
               ...fileFields,
             },
           })
@@ -747,12 +779,16 @@ export function PageShop({
     !cartCapturing &&
     Boolean(selectedProduct) &&
     (selectedProduct?.type === "3d"
-      ? !filamentsLoading &&
-        (isMultiColorProduct(selectedProduct) && multiColorMode === "custom"
-          ? Boolean(multiColorSelection?.colors.length) &&
-            Boolean(multiColorSelection?.colors.every((c) => c.inStock))
-          : Boolean(effectiveFilamentSelection?.inStock)) &&
-        (!productHasShopVariants(selectedProduct) || Boolean(selectedShopVariantId))
+      ? (multiColorMode === "standard"
+          ? !productHasShopVariants(selectedProduct) ||
+            Boolean(selectedShopVariantId)
+          : !filamentsLoading &&
+            (isMultiColorProduct(selectedProduct)
+              ? Boolean(multiColorSelection?.colors.length) &&
+                Boolean(multiColorSelection?.colors.every((c) => c.inStock))
+              : Boolean(effectiveFilamentSelection?.inStock)) &&
+            (!productHasShopVariants(selectedProduct) ||
+              Boolean(selectedShopVariantId)))
       : Boolean(
           selectedProduct &&
             laserDesign &&
@@ -777,11 +813,18 @@ export function PageShop({
     )
     const showMultiColorPicker =
       isMultiColorProduct(detailProduct) && multiColorMode === "custom"
-    const extraVariantQty = showMultiColorPicker
-      ? 0
-      : extraVariants.reduce((sum, e) => sum + e.quantity, 0)
+    const showSingleColorPicker =
+      detailProduct.type === "3d" &&
+      !isMultiColorProduct(detailProduct) &&
+      multiColorMode === "custom"
+    const extraVariantQty =
+      showMultiColorPicker || multiColorMode === "standard"
+        ? 0
+        : extraVariants.reduce((sum, e) => sum + e.quantity, 0)
     const activeQtyForPricing =
-      !showMultiColorPicker && activeVariantCommitted && extraVariants.length > 0
+      showSingleColorPicker &&
+      activeVariantCommitted &&
+      extraVariants.length > 0
         ? 0
         : quantity
     const pricingQty = activeQtyForPricing + extraVariantQty
@@ -860,7 +903,6 @@ export function PageShop({
 
     return (
       <>
-      <ProductDetailErrorBoundary onReset={closeProduct}>
       <div className="space-y-10 pb-12 md:pb-24">
         <Dialog open={cartAddedOpen} onOpenChange={setCartAddedOpen}>
           <DialogContent className="z-[200] max-w-md border-border/60 sm:rounded-2xl">
@@ -925,6 +967,7 @@ export function PageShop({
           </Button>
 
           {detailProduct.type === "laser" && shopLaserMaterial && laserDesign ? (
+            <ProductDetailErrorBoundary onReset={closeProduct}>
             <div className="space-y-6">
               <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-12 xl:gap-6">
                 {/* Spalte 1: Galerie / Text / Settings */}
@@ -1141,6 +1184,7 @@ export function PageShop({
                 </div>
               </div>
             </div>
+            </ProductDetailErrorBoundary>
           ) : (
                 <>
                   <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 md:gap-10">
@@ -1153,6 +1197,7 @@ export function PageShop({
                         <ProductImageGallery
                           images={galleryImages}
                           alt={detailProduct.name}
+                          onLightboxChange={setGalleryLightboxOpen}
                         />
                         <Card className="rounded-2xl border-border/50 bg-card/50 shadow-sm">
                           <CardContent className="p-4 sm:p-6">
@@ -1192,8 +1237,11 @@ export function PageShop({
                         />
 
                         {/* Desktop: 3D unter Beschreibung/Spezifikationen */}
-                        {productModelUrl && isMdUp ? (
+                        {productModelUrl && isMdUp && !galleryLightboxOpen ? (
                           <div className="min-w-0">
+                            <ProductDetailErrorBoundary
+                              fallbackTitle="3D-Vorschau konnte nicht geladen werden."
+                            >
                             <Product3DPreview
                               ref={product3dCanvasRef}
                               key={`${detailProduct.id}-${productModelUrl}-d`}
@@ -1214,13 +1262,17 @@ export function PageShop({
                               )}
                               initialRotationDeg={detailProduct.defaultRotationDeg}
                             />
+                            </ProductDetailErrorBoundary>
                           </div>
                         ) : null}
                       </div>
 
                       {/* Mobile: Live-3D nach Specs */}
-                      {productModelUrl && !isMdUp ? (
+                      {productModelUrl && !isMdUp && !galleryLightboxOpen ? (
                         <div className="order-2 min-w-0 md:hidden">
+                          <ProductDetailErrorBoundary
+                            fallbackTitle="3D-Vorschau konnte nicht geladen werden."
+                          >
                           <Product3DPreview
                             ref={product3dCanvasRef}
                             key={`${detailProduct.id}-${productModelUrl}-m`}
@@ -1241,12 +1293,13 @@ export function PageShop({
                             )}
                             initialRotationDeg={detailProduct.defaultRotationDeg}
                           />
+                          </ProductDetailErrorBoundary>
                         </div>
                       ) : null}
 
                       <div className="order-3 flex min-w-0 flex-col gap-6 md:order-2 lg:h-full">
                         {shopVariantPicker}
-                        {isMultiColorProduct(detailProduct) && (
+                        {detailProduct.type === "3d" && (
                           <div className="space-y-2">
                             <p className="text-sm font-medium">Farbauswahl</p>
                             <div className="inline-flex w-full rounded-xl bg-secondary p-1">
@@ -1275,16 +1328,18 @@ export function PageShop({
                                 Andere Farben
                               </button>
                             </div>
-                            {multiColorMode === "standard" &&
-                              detailProduct.defaultFilamentColorName && (
-                                <p className="text-xs text-muted-foreground">
-                                  Standardfarbe:{" "}
-                                  {detailProduct.defaultFilamentColorName}
-                                  {(detailProduct.partLabels?.length ?? 0) > 0
-                                    ? ` · Teile: ${(detailProduct.partLabels ?? []).join(", ")}`
-                                    : ""}
-                                </p>
-                              )}
+                            {multiColorMode === "standard" && (
+                              <p className="text-xs text-muted-foreground">
+                                Standardfarbe: Gemäss Bild
+                                {detailProduct.defaultFilamentColorName
+                                  ? ` · ${detailProduct.defaultFilamentColorName}`
+                                  : ""}
+                                {isMultiColorProduct(detailProduct) &&
+                                (detailProduct.partLabels?.length ?? 0) > 0
+                                  ? ` · Teile: ${(detailProduct.partLabels ?? []).join(", ")}`
+                                  : ""}
+                              </p>
+                            )}
                           </div>
                         )}
                         {showMultiColorPicker ? (
@@ -1299,7 +1354,7 @@ export function PageShop({
                             }
                             className="mt-0 border-0 pt-0"
                           />
-                        ) : (
+                        ) : showSingleColorPicker ? (
                           <>
                             <FilamentColorPicker
                               materials={filamentMaterials}
@@ -1377,7 +1432,7 @@ export function PageShop({
                               </div>
                             )}
                           </>
-                        )}
+                        ) : null}
 
                         <div className="flex flex-col gap-6 lg:mt-auto">
                           <Card className="rounded-xl border-red-500/35 bg-gradient-to-b from-red-500/10 via-red-500/5 to-transparent shadow-sm">
@@ -1571,7 +1626,6 @@ export function PageShop({
           )}
         </div>
       </div>
-      </ProductDetailErrorBoundary>
       <HomeTopProductsSection />
       </>
     )

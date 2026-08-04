@@ -1,6 +1,13 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type TouchEvent as ReactTouchEvent,
+} from "react"
+import { createPortal } from "react-dom"
 import useEmblaCarousel from "embla-carousel-react"
 import { ChevronLeft, ChevronRight, X, ZoomIn } from "lucide-react"
 import { SafeProductImage } from "@/components/dripforge/shared/safe-product-image"
@@ -9,12 +16,15 @@ import {
   DialogContent,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { ProductDetailErrorBoundary } from "@/components/dripforge/product-detail-error-boundary"
 import { cn } from "@/lib/utils"
 
 type ProductImageGalleryProps = {
   images: string[]
   alt: string
   className?: string
+  /** Notifies parent when the lightbox opens/closes (e.g. to pause Three.js). */
+  onLightboxChange?: (open: boolean) => void
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -43,7 +53,7 @@ function LightboxZoomImage({ src, alt }: { src: string; alt: string }) {
     reset()
   }, [src, reset])
 
-  const onTouchStart = (event: React.TouchEvent) => {
+  const onTouchStart = (event: ReactTouchEvent) => {
     if (event.touches.length === 2) {
       const [a, b] = [event.touches[0]!, event.touches[1]!]
       const distance = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY)
@@ -62,7 +72,7 @@ function LightboxZoomImage({ src, alt }: { src: string; alt: string }) {
     }
   }
 
-  const onTouchMove = (event: React.TouchEvent) => {
+  const onTouchMove = (event: ReactTouchEvent) => {
     if (event.touches.length === 2 && pinchRef.current) {
       event.preventDefault()
       const [a, b] = [event.touches[0]!, event.touches[1]!]
@@ -86,7 +96,7 @@ function LightboxZoomImage({ src, alt }: { src: string; alt: string }) {
     }
   }
 
-  const onTouchEnd = (event: React.TouchEvent) => {
+  const onTouchEnd = (event: ReactTouchEvent) => {
     if (event.touches.length < 2) pinchRef.current = null
     if (event.touches.length === 0) {
       dragRef.current = null
@@ -137,6 +147,7 @@ export function ProductImageGallery({
   images,
   alt,
   className,
+  onLightboxChange,
 }: ProductImageGalleryProps) {
   const safeImages = Array.isArray(images)
     ? images.filter(
@@ -159,6 +170,15 @@ export function ProductImageGallery({
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [lightboxOpen, setLightboxOpen] = useState(false)
   const [lightboxIndex, setLightboxIndex] = useState(0)
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  useEffect(() => {
+    onLightboxChange?.(lightboxOpen)
+  }, [lightboxOpen, onLightboxChange])
 
   const onSelect = useCallback(() => {
     if (!emblaApi) return
@@ -202,6 +222,74 @@ export function ProductImageGallery({
     setLightboxIndex(index)
     setLightboxOpen(true)
   }
+
+  const closeLightbox = useCallback(() => {
+    setLightboxOpen(false)
+  }, [])
+
+  const lightboxSrc =
+    galleryImages[lightboxIndex] ?? galleryImages[0] ?? "/placeholder.svg"
+
+  const lightboxDialog =
+    mounted && typeof document !== "undefined"
+      ? createPortal(
+          <Dialog open={lightboxOpen} onOpenChange={setLightboxOpen}>
+            <DialogContent
+              showCloseButton={false}
+              className="max-w-4xl border-none bg-black/95 p-2 text-white sm:p-4"
+            >
+              <DialogTitle className="sr-only">{alt} — Vollbild</DialogTitle>
+              <button
+                type="button"
+                onClick={closeLightbox}
+                className="absolute right-3 top-3 z-20 rounded-full bg-white/15 p-2 text-white hover:bg-white/25"
+                aria-label="Schliessen"
+              >
+                <X className="h-4 w-4" />
+              </button>
+              {showNavigation && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setLightboxIndex(
+                        (lightboxIndex - 1 + galleryImages.length) %
+                          galleryImages.length
+                      )
+                    }
+                    className="absolute left-2 top-1/2 z-20 -translate-y-1/2 rounded-full bg-white/15 p-2 text-white hover:bg-white/25"
+                    aria-label="Vorheriges Bild"
+                  >
+                    <ChevronLeft className="h-5 w-5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setLightboxIndex(
+                        (lightboxIndex + 1) % galleryImages.length
+                      )
+                    }
+                    className="absolute right-2 top-1/2 z-20 -translate-y-1/2 rounded-full bg-white/15 p-2 text-white hover:bg-white/25"
+                    aria-label="Nächstes Bild"
+                  >
+                    <ChevronRight className="h-5 w-5" />
+                  </button>
+                </>
+              )}
+              <ProductDetailErrorBoundary
+                onError={closeLightbox}
+                fallback={null}
+              >
+                <LightboxZoomImage
+                  src={lightboxSrc}
+                  alt={`${alt} — Ansicht ${lightboxIndex + 1}`}
+                />
+              </ProductDetailErrorBoundary>
+            </DialogContent>
+          </Dialog>,
+          document.body
+        )
+      : null
 
   return (
     <div className={cn("flex flex-col gap-3", className)}>
@@ -315,53 +403,7 @@ export function ProductImageGallery({
         </div>
       )}
 
-      <Dialog open={lightboxOpen} onOpenChange={setLightboxOpen}>
-        <DialogContent
-          showCloseButton={false}
-          className="max-w-4xl border-none bg-black/95 p-2 text-white sm:p-4"
-        >
-          <DialogTitle className="sr-only">{alt} — Vollbild</DialogTitle>
-          <button
-            type="button"
-            onClick={() => setLightboxOpen(false)}
-            className="absolute right-3 top-3 z-20 rounded-full bg-white/15 p-2 text-white hover:bg-white/25"
-            aria-label="Schliessen"
-          >
-            <X className="h-4 w-4" />
-          </button>
-          {showNavigation && (
-            <>
-              <button
-                type="button"
-                onClick={() =>
-                  setLightboxIndex(
-                    (lightboxIndex - 1 + galleryImages.length) %
-                      galleryImages.length
-                  )
-                }
-                className="absolute left-2 top-1/2 z-20 -translate-y-1/2 rounded-full bg-white/15 p-2 text-white hover:bg-white/25"
-                aria-label="Vorheriges Bild"
-              >
-                <ChevronLeft className="h-5 w-5" />
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  setLightboxIndex((lightboxIndex + 1) % galleryImages.length)
-                }
-                className="absolute right-2 top-1/2 z-20 -translate-y-1/2 rounded-full bg-white/15 p-2 text-white hover:bg-white/25"
-                aria-label="Nächstes Bild"
-              >
-                <ChevronRight className="h-5 w-5" />
-              </button>
-            </>
-          )}
-          <LightboxZoomImage
-            src={galleryImages[lightboxIndex] ?? galleryImages[0]!}
-            alt={`${alt} — Ansicht ${lightboxIndex + 1}`}
-          />
-        </DialogContent>
-      </Dialog>
+      {lightboxDialog}
     </div>
   )
 }

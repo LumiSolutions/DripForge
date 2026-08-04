@@ -7,6 +7,7 @@ import {
   cosmosListAllCustomerOffers,
   cosmosListOffersByEmail,
   cosmosUpsertCustomerOffer,
+  cosmosDeleteCustomerOffer,
 } from "@/lib/konto/cosmos-offers"
 import {
   normalizeCustomerOffer,
@@ -108,4 +109,26 @@ export async function saveCustomerOffer(
     }
   )
   return next
+}
+
+export async function deleteCustomerOffer(id: string): Promise<boolean> {
+  const trimmed = id.trim()
+  if (!trimmed) return false
+
+  return withCosmosFallback(
+    "deleteCustomerOffer",
+    async () => {
+      const existing = await cosmosGetCustomerOfferById(trimmed)
+      if (!existing) return false
+      await cosmosDeleteCustomerOffer(trimmed)
+      return true
+    },
+    async () => {
+      const all = await readOffersFile()
+      const next = all.filter((o) => o.id !== trimmed)
+      if (next.length === all.length) return false
+      await writeOffersFile(next)
+      return true
+    }
+  )
 }
