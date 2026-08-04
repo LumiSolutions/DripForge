@@ -28,7 +28,7 @@ export class ProductDetailErrorBoundary extends Component<Props, State> {
         <div className="rounded-xl border border-red-500/30 bg-red-500/5 p-6 text-center">
           <p className="font-medium text-red-600 dark:text-red-400">
             {this.props.fallbackTitle ??
-              "Dieses Produkt konnte gerade nicht vollstaendig angezeigt werden."}
+              "Dieses Produkt konnte gerade nicht vollständig angezeigt werden."}
           </p>
           <Button
             type="button"

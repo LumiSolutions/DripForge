@@ -65,6 +65,7 @@ import {
   type CheckoutRuntimeConfig,
 } from "@/lib/dripforge/checkout-config"
 import { useCustomerCategory } from "@/components/dripforge/customer-category-provider"
+import { SafeProductImage } from "@/components/dripforge/shared/safe-product-image"
 
 export function PageWarenkorb({ 
   setCurrentView, 
@@ -171,12 +172,13 @@ export function PageWarenkorb({
                         </div>
                         <h3 className="mb-2 font-bold text-foreground">{item.name}</h3>
                         {item.leitbild && (
-                          <div className="mb-3 max-w-xs overflow-hidden rounded-lg border border-border/50">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
+                          <div className="relative mb-3 aspect-video max-w-xs overflow-hidden rounded-lg border border-border/50">
+                            <SafeProductImage
                               src={item.leitbild}
                               alt="Leitbild der Live-Vorschau"
-                              className="aspect-video w-full object-contain bg-muted/30"
+                              fill
+                              sizes="320px"
+                              className="object-contain bg-muted/30"
                             />
                           </div>
                         )}

@@ -48,6 +48,14 @@ export type Product3DPreviewProps = {
   className?: string
 }
 
+function normalizeFilamentHex(color: string | undefined): string {
+  const trimmed = color?.trim() || "#1a1a1a"
+  if (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(trimmed)) {
+    return trimmed
+  }
+  return "#1a1a1a"
+}
+
 function SceneLoader() {
   const { active, progress } = useProgress()
   if (!active) return null
@@ -75,28 +83,44 @@ function usePreparedModel(
   const rotationKey = initialRotationDeg
     ? `${initialRotationDeg.x ?? 0}|${initialRotationDeg.y ?? 0}|${initialRotationDeg.z ?? 0}`
     : ""
-  const prepared = useMemo(
-    () =>
-      prepareGltfScene(scene, {
+  const prepared = useMemo(() => {
+    try {
+      return prepareGltfScene(scene, {
         autoAlignFlat: true,
         tipSteps,
         extraRotationDeg: initialRotationDeg,
-      }),
+      })
+    } catch (error) {
+      console.warn("3D-Vorschau: prepareGltfScene fehlgeschlagen.", error)
+      return null
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [scene, tipSteps, rotationKey]
-  )
+  }, [scene, tipSteps, rotationKey])
 
   useEffect(() => {
+    if (!prepared) return
     onOrbitCenter(prepared.orbitCenterY)
-  }, [prepared.orbitCenterY, onOrbitCenter])
+  }, [prepared, onOrbitCenter])
 
   useEffect(() => {
+    if (!prepared) return
     onPrepared(prepared.scene, prepared.sizeAt100)
   }, [prepared, onPrepared])
 
   useEffect(() => {
-    applyFilamentColorToScene(prepared.scene, color)
-  }, [prepared.scene, color])
+    if (!prepared) return
+    try {
+      applyFilamentColorToScene(prepared.scene, color)
+    } catch (error) {
+      console.warn("3D-Vorschau: Filamentfarbe konnte nicht angewendet werden.", error)
+    }
+  }, [prepared, color])
+
+  if (!prepared) {
+    // Fehler an die innere ProductDetailErrorBoundary weiterreichen —
+    // Galerie/Shop bleiben über die äussere Boundary nutzbar.
+    throw new Error("3D-Modell konnte nicht vorbereitet werden.")
+  }
 
   return prepared.scene
 }
@@ -315,11 +339,13 @@ export const Product3DPreview = forwardRef<
   const [tipSteps, setTipSteps] = useState(0)
   const resolvedUrl = modelUrl?.trim() ?? ""
   const modelFormat = getProduct3dModelFormat(resolvedUrl)
+  const safeColor = normalizeFilamentHex(color)
 
   useEffect(() => {
     setTipSteps(0)
   }, [resolvedUrl])
 
+  // Ohne gültige URL/Format keinen Canvas mounten — Galerie bleibt sichtbar.
   if (!resolvedUrl || !modelFormat) {
     return null
   }
@@ -381,7 +407,7 @@ export const Product3DPreview = forwardRef<
               key={resolvedUrl}
               modelUrl={resolvedUrl}
               modelFormat={modelFormat}
-              color={color}
+              color={safeColor}
               tipSteps={tipSteps}
               fixedDimensionsMm={fixedDimensionsMm}
               showDimensions={showDimensions}

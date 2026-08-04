@@ -372,17 +372,38 @@ export function FilamentMultiColorPicker({
 
       <div className="flex flex-col gap-4">
         <div className="rounded-2xl border border-border/50 bg-card/50 p-4">
-          <div className="relative mx-auto h-32 w-full max-w-[200px]">
-            {primaryColor ? (
-              <div
-                className="absolute inset-4 rounded-xl border border-border/40 shadow-inner"
-                style={{ backgroundColor: primaryColor.colorHex }}
-              />
-            ) : (
-              <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-                Keine Farbe gewaehlt
-              </div>
-            )}
+          <div className="relative mx-auto h-36 w-full max-w-[200px]">
+            {(() => {
+              const previewColor =
+                currentMaterial?.colors.find((c) => c.id === primaryColor?.colorId) ??
+                null
+              const previewSrc =
+                previewColor?.printedExample ?? previewColor?.image ?? null
+              if (previewSrc) {
+                return (
+                  <Image
+                    key={previewSrc}
+                    src={previewSrc}
+                    alt={`${primaryColor?.colorName ?? "Filament"} Vorschaubild`}
+                    fill
+                    className="object-contain drop-shadow-2xl transition-opacity duration-300"
+                  />
+                )
+              }
+              if (primaryColor) {
+                return (
+                  <div
+                    className="absolute inset-4 rounded-xl border border-border/40 shadow-inner"
+                    style={{ backgroundColor: primaryColor.colorHex || "#1a1a1a" }}
+                  />
+                )
+              }
+              return (
+                <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
+                  Keine Farbe gewaehlt
+                </div>
+              )
+            })()}
           </div>
           <p className="mt-3 text-center text-sm font-bold">
             {primaryColor?.colorName ?? "—"}
@@ -418,10 +439,10 @@ export function FilamentMultiColorPicker({
                     !color.inStock && "cursor-not-allowed opacity-40"
                   )}
                 >
-                  {color.image ? (
+                  {(color.printedExample ?? color.image) ? (
                     <div className="relative h-14 w-14 shrink-0 sm:h-16 sm:w-16">
                       <Image
-                        src={color.image}
+                        src={(color.printedExample ?? color.image)!}
                         alt={color.name}
                         fill
                         className="object-contain"

@@ -226,8 +226,10 @@ export function PageShop({
 
   useEffect(() => {
     if (filamentMaterials.length === 0) return
+    const firstId = filamentMaterials[0]?.id
+    if (!firstId) return
     setFilamentTab((prev) =>
-      filamentMaterials.some((m) => m.id === prev) ? prev : filamentMaterials[0]!.id
+      filamentMaterials.some((m) => m.id === prev) ? prev : firstId
     )
   }, [filamentMaterials])
   const [multiColorSelection, setMultiColorSelection] =
@@ -540,7 +542,8 @@ export function PageShop({
           const primary =
             multiColorSelection.colors.find(
               (c) => c.slot === multiColorSelection.primarySlot
-            ) ?? multiColorSelection.colors[0]!
+            ) ?? multiColorSelection.colors[0]
+          if (!primary) return
           const labels = selectedProduct.partLabels ?? []
           const partColors = multiColorSelection.colors
             .slice()
@@ -574,7 +577,8 @@ export function PageShop({
             },
           })
         } else {
-          const selection = effectiveFilamentSelection!
+          const selection = effectiveFilamentSelection
+          if (!selection) return
           // Aktive Farbe nur hinzufügen, wenn sie noch nicht als Variante committed ist
           if (!activeVariantCommitted || extraVariants.length === 0) {
             addToCart({
@@ -744,16 +748,17 @@ export function PageShop({
     Boolean(selectedProduct) &&
     (selectedProduct?.type === "3d"
       ? !filamentsLoading &&
-        (isMultiColorProduct(selectedProduct!) && multiColorMode === "custom"
+        (isMultiColorProduct(selectedProduct) && multiColorMode === "custom"
           ? Boolean(multiColorSelection?.colors.length) &&
             Boolean(multiColorSelection?.colors.every((c) => c.inStock))
           : Boolean(effectiveFilamentSelection?.inStock)) &&
-        (!productHasShopVariants(selectedProduct!) || Boolean(selectedShopVariantId))
+        (!productHasShopVariants(selectedProduct) || Boolean(selectedShopVariantId))
       : Boolean(
-          laserDesign &&
+          selectedProduct &&
+            laserDesign &&
             (selectedProductVarianten.length === 0 ||
               laserDesign.selectedVariant) &&
-            (!productHasShopVariants(selectedProduct!) ||
+            (!productHasShopVariants(selectedProduct) ||
               Boolean(selectedShopVariantId)) &&
             (laserDesign.engravingText.trim() ||
               laserDesign.imageLayout.src ||
@@ -804,13 +809,15 @@ export function PageShop({
       detailProduct.galerieBilder
     )
 
+    // Nur gültige GLB/GLTF/STL-URLs an den Viewer — sonst Galerie ohne Crash.
     const productModelUrl =
       resolveShopVariantModelUrl(detailProduct, selectedShopVariantId) ||
       resolveProductModelUrl(
         detailProduct.id,
         detailProduct.modelUrl,
         detailProduct.modellDateiUrl
-      )
+      ) ||
+      undefined
 
     const shopVariantPicker =
       detailShopVariants.length > 0 ? (
@@ -1274,7 +1281,7 @@ export function PageShop({
                                   Standardfarbe:{" "}
                                   {detailProduct.defaultFilamentColorName}
                                   {(detailProduct.partLabels?.length ?? 0) > 0
-                                    ? ` · Teile: ${detailProduct.partLabels!.join(", ")}`
+                                    ? ` · Teile: ${(detailProduct.partLabels ?? []).join(", ")}`
                                     : ""}
                                 </p>
                               )}
@@ -1796,7 +1803,7 @@ export function PageShop({
                 "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5"
             )}
           >
-            {visibleProducts.map((product) => {
+            {visibleProducts.map((product, index) => {
               const cardImages = resolveProductImages(
                 product.id,
                 product.images,
@@ -1814,6 +1821,7 @@ export function PageShop({
                   viewMode={viewMode}
                   surface={cardSurface}
                   canInlineEdit={canInlineEdit}
+                  priority={index < 4}
                   onOpen={() => openProduct(product)}
                 />
               )

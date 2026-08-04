@@ -3,7 +3,11 @@ import { getSettings } from "@/lib/admin/db"
 import type { AdminSettings } from "@/lib/admin/types"
 import {
   BELEG_TYPE_LABELS,
+  OFFERTE_STATUS_LABELS,
+  normalizeOfferteStatus,
   type Beleg,
+  type BelegEmailAttachment,
+  type OfferteStatus,
 } from "@/lib/documents/beleg-types"
 import {
   renderDripForgeEmailHtml,
@@ -16,14 +20,24 @@ import { resolveAdminNotifyEmail } from "@/lib/email/resolve-admin-notify-email"
 import { resolveSmtpFrom, sendSmtpMail } from "@/lib/email/smtp"
 import { formatChf, formatInvoiceDate } from "@/lib/invoices/invoice-format"
 import { resolveSiteOrigin } from "@/lib/site/site-origin"
+import type Mail from "nodemailer/lib/mailer"
 
 function buildAdminBelegDetailUrl(belegId: string): string {
   return `${resolveSiteOrigin()}${adminPortalPath("/belege")}?beleg=${encodeURIComponent(belegId)}`
 }
 
+function buildOfferteActionUrl(token: string): string {
+  return `${resolveSiteOrigin()}/offerte/${encodeURIComponent(token)}`
+}
+
 function customerNameFromBeleg(beleg: Beleg): string {
   const name = `${beleg.kunde.firstName} ${beleg.kunde.lastName}`.trim()
   return name || beleg.kunde.company?.trim() || "dort"
+}
+
+function offerteStatusLabel(status: string): string {
+  const normalized = normalizeOfferteStatus(status)
+  return OFFERTE_STATUS_LABELS[normalized as OfferteStatus] ?? status
 }
 
 function formatBelegPositionsPlain(beleg: Beleg): string {
@@ -41,6 +55,59 @@ function formatBelegPositionsPlain(beleg: Beleg): string {
   ]
     .filter(Boolean)
     .join("\n")
+}
+
+async function resolveAttachmentContent(
+  attachment: BelegEmailAttachment
+): Promise<Mail.Attachment | null> {
+  const url = attachment.url?.trim()
+  if (!url) return null
+
+  try {
+    if (url.startsWith("data:")) {
+      const match = /^data:([^;]+);base64,([\s\S]+)$/.exec(url)
+      if (!match) return null
+      return {
+        filename: attachment.fileName,
+        content: Buffer.from(match[2]!, "base64"),
+        contentType: match[1] || attachment.mimeType || "application/octet-stream",
+      }
+    }
+
+    const res = await fetch(url)
+    if (!res.ok) {
+      console.warn(
+        `Offerte-Anhang konnte nicht geladen werden (${attachment.fileName}): HTTP ${res.status}`
+      )
+      return null
+    }
+    const buffer = Buffer.from(await res.arrayBuffer())
+    const contentType =
+      res.headers.get("content-type") ||
+      attachment.mimeType ||
+      "application/octet-stream"
+    return {
+      filename: attachment.fileName,
+      content: buffer,
+      contentType,
+    }
+  } catch (error) {
+    console.warn(
+      `Offerte-Anhang fehlgeschlagen (${attachment.fileName}).`,
+      error
+    )
+    return null
+  }
+}
+
+async function buildSmtpAttachments(
+  attachments: BelegEmailAttachment[] | undefined
+): Promise<Mail.Attachment[]> {
+  if (!attachments?.length) return []
+  const resolved = await Promise.all(
+    attachments.map((att) => resolveAttachmentContent(att))
+  )
+  return resolved.filter((att): att is Mail.Attachment => Boolean(att))
 }
 
 /**
@@ -66,6 +133,10 @@ export async function notifyOfferteReceived(
     const customerName = customerNameFromBeleg(beleg)
     const label = BELEG_TYPE_LABELS.offerte
     const subject = `${label} ${beleg.id} — DripForge`
+    const actionUrl = beleg.actionToken
+      ? buildOfferteActionUrl(beleg.actionToken)
+      : null
+    const statusLabel = offerteStatusLabel(String(beleg.status))
 
     const plain = [
       `Guten Tag ${customerName},`,
@@ -74,16 +145,35 @@ export async function notifyOfferteReceived(
       "",
       `${label}-Nr.: ${beleg.id}`,
       `Datum: ${formatInvoiceDate(beleg.createdAt)}`,
-      `Status: ${beleg.status}`,
+      `Status: ${statusLabel}`,
       "",
       "Positionen:",
       formatBelegPositionsPlain(beleg),
       "",
+      actionUrl
+        ? [
+            "Sie können diese Offerte online annehmen oder ablehnen:",
+            actionUrl,
+            "",
+          ].join("\n")
+        : null,
       "Bei Fragen antworten Sie einfach auf diese E-Mail.",
       "",
       "Freundliche Grüsse",
       branding.companyName,
-    ].join("\n")
+    ]
+      .filter((line) => line != null)
+      .join("\n")
+
+    const ctaHtml = actionUrl
+      ? `<div style="margin:20px 0;">
+           ${renderEmailCtaButton(actionUrl + "?action=accept", "Offerte annehmen")}
+           ${renderEmailCtaButton(actionUrl + "?action=reject", "Offerte ablehnen")}
+           <p style="margin:8px 0 0;text-align:center;font-size:13px;color:#6b7280;">
+             <a href="${actionUrl}" style="color:#ea580c;">Oder Offerte im Browser öffnen</a>
+           </p>
+         </div>`
+      : ""
 
     const html = renderDripForgeEmailHtml({
       title: `${label} ${beleg.id}`,
@@ -96,6 +186,7 @@ export async function notifyOfferteReceived(
             "",
             `${label}-Nr.: ${beleg.id}`,
             `Datum: ${formatInvoiceDate(beleg.createdAt)}`,
+            `Status: ${statusLabel}`,
           ].join("\n")
         ) +
         renderOrderItemsTableHtml(
@@ -106,15 +197,17 @@ export async function notifyOfferteReceived(
           }))
         ) +
         textToHtmlParagraphs(
-          [
-            `Gesamtbetrag: ${formatChf(beleg.total)}`,
-            "",
-            "Bei Fragen antworten Sie einfach auf diese E-Mail.",
-          ].join("\n")
+          [`Gesamtbetrag: ${formatChf(beleg.total)}`].join("\n")
+        ) +
+        ctaHtml +
+        textToHtmlParagraphs(
+          "Bei Fragen antworten Sie einfach auf diese E-Mail."
         ),
       footerLines: branding.footerLines,
       logoUrl: branding.logoUrl ?? undefined,
     })
+
+    const attachments = await buildSmtpAttachments(beleg.emailAttachments)
 
     const sent = await sendSmtpMail({
       from: resolveSmtpFrom(branding.companyName, branding.contactEmail),
@@ -122,6 +215,7 @@ export async function notifyOfferteReceived(
       subject,
       text: plain,
       html,
+      attachments: attachments.length > 0 ? attachments : undefined,
     })
 
     if (sent) {
@@ -154,6 +248,7 @@ export async function notifyAdminNewOfferte(
     const dashboardUrl = buildAdminBelegDetailUrl(beleg.id)
     const customerName = customerNameFromBeleg(beleg)
     const subject = `🚨 Neue Offerte erstellt! #${beleg.id}`
+    const statusLabel = offerteStatusLabel(String(beleg.status))
 
     const plainBody = [
       "Es wurde eine neue Offerte erstellt bzw. freigegeben.",
@@ -161,7 +256,7 @@ export async function notifyAdminNewOfferte(
       `Kunde: ${customerName}`,
       `E-Mail: ${beleg.kunde.email || "—"}`,
       `Offerten-Nr.: ${beleg.id}`,
-      `Status: ${beleg.status}`,
+      `Status: ${statusLabel}`,
       `Datum: ${formatInvoiceDate(beleg.createdAt)}`,
       `Gesamtbetrag: ${formatChf(beleg.total)}`,
       "",
@@ -206,7 +301,8 @@ export async function notifyAdminNewOfferte(
 /**
  * True, wenn Offerten-Mails versendet werden sollen:
  * - Neu erstellt und nicht mehr «entwurf»
- * - Statuswechsel von «entwurf» → «offen» / «angenommen»
+ * - Statuswechsel von «entwurf» → anderer Status
+ * - Statuswechsel auf «gesendet»
  */
 export function shouldSendOfferteEmails(
   previous: Beleg | null,
@@ -223,6 +319,10 @@ export function shouldSendOfferteEmails(
     return true
   }
 
+  if (next.status === "gesendet" && previous.status !== "gesendet") {
+    return true
+  }
+
   return false
 }
 
@@ -235,6 +335,8 @@ export async function sendInboundOfferteEmailsSafe(
     belegId: beleg.id,
     customerEmail: beleg.kunde.email,
     status: beleg.status,
+    hasToken: Boolean(beleg.actionToken),
+    attachmentCount: beleg.emailAttachments?.length ?? 0,
   })
 
   try {

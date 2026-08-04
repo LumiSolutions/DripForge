@@ -37,19 +37,31 @@ export function FesteMasseCard({
           <div className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
             <dt className="text-muted-foreground">Länge</dt>
             <dd className="font-mono font-semibold tabular-nums">
-              {Number(dimensions.length).toFixed(1)} mm
+              {(Number.isFinite(Number(dimensions.length))
+                ? Number(dimensions.length)
+                : 0
+              ).toFixed(1)}{" "}
+              mm
             </dd>
           </div>
           <div className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
             <dt className="text-muted-foreground">Breite</dt>
             <dd className="font-mono font-semibold tabular-nums">
-              {Number(dimensions.width).toFixed(1)} mm
+              {(Number.isFinite(Number(dimensions.width))
+                ? Number(dimensions.width)
+                : 0
+              ).toFixed(1)}{" "}
+              mm
             </dd>
           </div>
           <div className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
             <dt className="text-muted-foreground">Höhe</dt>
             <dd className="font-mono font-semibold tabular-nums">
-              {Number(dimensions.height).toFixed(1)} mm
+              {(Number.isFinite(Number(dimensions.height))
+                ? Number(dimensions.height)
+                : 0
+              ).toFixed(1)}{" "}
+              mm
             </dd>
           </div>
           {volumeCm3 != null && Number.isFinite(Number(volumeCm3)) && (

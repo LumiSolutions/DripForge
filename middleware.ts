@@ -25,6 +25,7 @@ const LAUNCH_BYPASS_PREFIXES = [
   "/vorschau",
   "/staging",
   "/test",
+  "/offerte",
 ]
 
 type LaunchPayload = {

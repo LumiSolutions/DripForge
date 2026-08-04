@@ -10,8 +10,10 @@ import {
   ExternalLink,
   Loader2,
   Pencil,
+  Plus,
   RefreshCw,
   Search,
+  Star,
   Trash2,
   UserRound,
   X,
@@ -62,13 +64,18 @@ import type { CustomerAccountStatus } from "@/lib/konto/account-status"
 import { normalizeAccountStatus } from "@/lib/konto/account-status"
 import type { OrderAddress } from "@/lib/dripforge/submit-order"
 import type { LoyaltyPointTransaction } from "@/lib/konto/loyalty-points-config"
-import type { SavedCustomerDesign } from "@/lib/konto/account-types"
+import type { SavedCustomerDesign, SavedDeliveryAddress } from "@/lib/konto/account-types"
 import type { CustomerOffer } from "@/lib/konto/customer-offer-types"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
 import {
   normalizeCustomerCategories,
   type CustomerCategory,
 } from "@/lib/dripforge/customer-categories"
+import {
+  newDeliveryAddressId,
+  normalizeDeliveryAddresses,
+  setDefaultDeliveryAddressId,
+} from "@/lib/konto/delivery-addresses"
 import { cn } from "@/lib/utils"
 
 type CustomerLoyaltyInfo = {
@@ -443,6 +450,15 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
 
   const [editingSection, setEditingSection] = useState<AddressSection | null>(null)
   const [addressForm, setAddressForm] = useState<AddressFormState | null>(null)
+  const [deliveryDraft, setDeliveryDraft] = useState<{
+    id: string
+    label: string
+    street: string
+    zip: string
+    city: string
+  } | null>(null)
+  const [addingDelivery, setAddingDelivery] = useState(false)
+  const [editingDeliveryId, setEditingDeliveryId] = useState<string | null>(null)
   const [statusDraft, setStatusDraft] = useState<"aktiv" | "inaktiv">("aktiv")
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -524,6 +540,9 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
   const resetEditState = useCallback(() => {
     setEditingSection(null)
     setAddressForm(null)
+    setDeliveryDraft(null)
+    setAddingDelivery(false)
+    setEditingDeliveryId(null)
     setSaveError(null)
   }, [])
 
@@ -841,6 +860,9 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
     if (!detail) return
     setSaveError(null)
     setEditingSection(section)
+    setAddingDelivery(false)
+    setEditingDeliveryId(null)
+    setDeliveryDraft(null)
     if (section === "billing") {
       setAddressForm(addressToForm(detail.billing, detail.email))
     } else {
@@ -858,9 +880,26 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
     detailCacheRef.current.delete(kundennummer)
   }
 
+  const detailDeliveryAddresses = useMemo(() => {
+    if (!detail) return [] as SavedDeliveryAddress[]
+    return normalizeDeliveryAddresses(
+      detail.deliveryAddresses,
+      detail.delivery
+        ? {
+            deliveryStreet: detail.delivery.street,
+            deliveryZip: detail.delivery.zip,
+            deliveryCity: detail.delivery.city,
+            deliverySameAsBilling: false,
+          }
+        : undefined
+    )
+  }, [detail])
+
   const patchCustomer = async (payload: {
     billing?: OrderAddress
     delivery?: OrderAddress | null
+    deliveryAddresses?: SavedDeliveryAddress[]
+    defaultDeliveryAddressId?: string
     email?: string
     status?: "aktiv" | "inaktiv"
     customerCategoryId?: string | null
@@ -915,6 +954,109 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
 
     const ok = await patchCustomer({ delivery: address })
     if (ok) resetEditState()
+  }
+
+  const startAddDeliveryAddress = () => {
+    setSaveError(null)
+    setEditingSection(null)
+    setAddressForm(null)
+    setAddingDelivery(true)
+    setEditingDeliveryId(null)
+    setDeliveryDraft({
+      id: newDeliveryAddressId(),
+      label:
+        detailDeliveryAddresses.length === 0 ? "Hauptadresse" : "Lieferadresse",
+      street: "",
+      zip: "",
+      city: "",
+    })
+  }
+
+  const startEditDeliveryAddress = (address: SavedDeliveryAddress) => {
+    setSaveError(null)
+    setEditingSection(null)
+    setAddressForm(null)
+    setAddingDelivery(false)
+    setEditingDeliveryId(address.id)
+    setDeliveryDraft({
+      id: address.id,
+      label: address.label,
+      street: address.street,
+      zip: address.zip,
+      city: address.city,
+    })
+  }
+
+  const cancelDeliveryAddressEdit = () => {
+    setAddingDelivery(false)
+    setEditingDeliveryId(null)
+    setDeliveryDraft(null)
+    setSaveError(null)
+  }
+
+  const handleSaveDeliveryAddressList = async (
+    next: SavedDeliveryAddress[]
+  ) => {
+    const normalized = normalizeDeliveryAddresses(next)
+    const defaultId = normalized.find((a) => a.isDefault)?.id
+    const ok = await patchCustomer({
+      deliveryAddresses: normalized,
+      defaultDeliveryAddressId: defaultId,
+    })
+    if (ok) cancelDeliveryAddressEdit()
+  }
+
+  const handleSaveDeliveryDraft = async () => {
+    if (!deliveryDraft) return
+    const street = deliveryDraft.street.trim()
+    const zip = deliveryDraft.zip.trim()
+    const city = deliveryDraft.city.trim()
+    const label = deliveryDraft.label.trim() || "Lieferadresse"
+    if (!street || !zip || !city) {
+      setSaveError("Bitte Strasse, PLZ und Ort ausfüllen.")
+      return
+    }
+
+    let next: SavedDeliveryAddress[]
+    if (addingDelivery) {
+      const entry: SavedDeliveryAddress = {
+        id: deliveryDraft.id || newDeliveryAddressId(),
+        label,
+        street,
+        zip,
+        city,
+        isDefault: detailDeliveryAddresses.length === 0,
+      }
+      next = normalizeDeliveryAddresses(
+        [...detailDeliveryAddresses, entry],
+        undefined,
+        {
+          defaultId: entry.isDefault
+            ? entry.id
+            : detailDeliveryAddresses.find((a) => a.isDefault)?.id,
+        }
+      )
+    } else {
+      next = normalizeDeliveryAddresses(
+        detailDeliveryAddresses.map((a) =>
+          a.id === deliveryDraft.id
+            ? { ...a, label, street, zip, city }
+            : a
+        )
+      )
+    }
+    await handleSaveDeliveryAddressList(next)
+  }
+
+  const handleSetDefaultDelivery = async (id: string) => {
+    await handleSaveDeliveryAddressList(
+      setDefaultDeliveryAddressId(detailDeliveryAddresses, id)
+    )
+  }
+
+  const handleDeleteDeliveryAddress = async (id: string) => {
+    const remaining = detailDeliveryAddresses.filter((a) => a.id !== id)
+    await handleSaveDeliveryAddressList(remaining)
   }
 
   const handleSaveStatus = async (next: "aktiv" | "inaktiv") => {
@@ -1371,36 +1513,182 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
                 <div className={cn("space-y-3 rounded-xl border p-4", adminUi.section)}>
                   <div className="flex items-center justify-between gap-2">
                     <h4 className={cn("text-sm font-semibold", adminUi.accentTitle)}>
-                      Lieferadresse
+                      Lieferadressen
                     </h4>
-                    {canEditCustomer && editingSection !== "delivery" && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        className={adminUi.accentTitle}
-                        onClick={() => startEditAddress("delivery")}
-                        disabled={saving || editingSection === "billing"}
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                        <span className="sr-only">Bearbeiten</span>
-                      </Button>
-                    )}
+                    {canEditCustomer &&
+                      !addingDelivery &&
+                      editingDeliveryId == null &&
+                      editingSection !== "billing" && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className={adminUi.accentTitle}
+                          onClick={startAddDeliveryAddress}
+                          disabled={saving}
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                          <span className="sr-only">Neue Adresse hinzufügen</span>
+                        </Button>
+                      )}
                   </div>
-                  {editingSection === "delivery" && addressForm ? (
-                    <div className="space-y-3">
-                      <AddressFields
-                        form={addressForm}
-                        onChange={setAddressForm}
-                        disabled={saving}
-                      />
+
+                  {detailDeliveryAddresses.length === 0 &&
+                  !addingDelivery &&
+                  editingDeliveryId == null ? (
+                    <p className={cn("text-sm", adminUi.muted)}>
+                      Entspricht der Rechnungsadresse — noch keine Lieferadressen
+                      hinterlegt.
+                    </p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {detailDeliveryAddresses.map((address) => (
+                        <li
+                          key={address.id}
+                          className={cn(
+                            "flex flex-wrap items-start justify-between gap-2 rounded-lg border px-3 py-2",
+                            adminUi.section
+                          )}
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className={cn("text-sm font-medium", adminUi.heading)}>
+                                {address.label}
+                              </span>
+                              {address.isDefault ? (
+                                <span
+                                  className={cn(
+                                    "inline-flex items-center gap-1 text-xs",
+                                    adminUi.accentTitle
+                                  )}
+                                >
+                                  <Star className="h-3 w-3" />
+                                  Hauptadresse
+                                </span>
+                              ) : null}
+                            </div>
+                            <p className={cn("mt-0.5 text-sm", adminUi.muted)}>
+                              {address.street}, {address.zip} {address.city}
+                            </p>
+                          </div>
+                          {canEditCustomer &&
+                            !addingDelivery &&
+                            editingDeliveryId == null &&
+                            editingSection !== "billing" && (
+                              <div className="flex flex-wrap gap-1">
+                                {!address.isDefault && (
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="ghost"
+                                    disabled={saving}
+                                    onClick={() =>
+                                      void handleSetDefaultDelivery(address.id)
+                                    }
+                                    title="Als Hauptadresse setzen"
+                                  >
+                                    <Star className="h-3.5 w-3.5" />
+                                    <span className="sr-only">Hauptadresse</span>
+                                  </Button>
+                                )}
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  disabled={saving}
+                                  onClick={() => startEditDeliveryAddress(address)}
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                  <span className="sr-only">Bearbeiten</span>
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  disabled={saving}
+                                  onClick={() =>
+                                    void handleDeleteDeliveryAddress(address.id)
+                                  }
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                  <span className="sr-only">Löschen</span>
+                                </Button>
+                              </div>
+                            )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
+                  {(addingDelivery || editingDeliveryId != null) && deliveryDraft ? (
+                    <div className="space-y-3 rounded-lg border border-dashed p-3">
+                      <p className={cn("text-sm font-medium", adminUi.heading)}>
+                        {addingDelivery
+                          ? "Neue Adresse hinzufügen"
+                          : "Lieferadresse bearbeiten"}
+                      </p>
+                      <div className="space-y-1.5">
+                        <Label className={adminUi.label}>Bezeichnung</Label>
+                        <Input
+                          value={deliveryDraft.label}
+                          onChange={(e) =>
+                            setDeliveryDraft((d) =>
+                              d ? { ...d, label: e.target.value } : d
+                            )
+                          }
+                          disabled={saving}
+                          className={adminUi.input}
+                          placeholder="z. B. Büro"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className={adminUi.label}>Strasse</Label>
+                        <Input
+                          value={deliveryDraft.street}
+                          onChange={(e) =>
+                            setDeliveryDraft((d) =>
+                              d ? { ...d, street: e.target.value } : d
+                            )
+                          }
+                          disabled={saving}
+                          className={adminUi.input}
+                        />
+                      </div>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="space-y-1.5">
+                          <Label className={adminUi.label}>PLZ</Label>
+                          <Input
+                            value={deliveryDraft.zip}
+                            onChange={(e) =>
+                              setDeliveryDraft((d) =>
+                                d ? { ...d, zip: e.target.value } : d
+                              )
+                            }
+                            disabled={saving}
+                            className={adminUi.input}
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className={adminUi.label}>Ort</Label>
+                          <Input
+                            value={deliveryDraft.city}
+                            onChange={(e) =>
+                              setDeliveryDraft((d) =>
+                                d ? { ...d, city: e.target.value } : d
+                              )
+                            }
+                            disabled={saving}
+                            className={adminUi.input}
+                          />
+                        </div>
+                      </div>
                       <div className="flex flex-wrap gap-2">
                         <Button
                           type="button"
                           size="sm"
                           className={adminUi.primaryBtn}
                           disabled={saving}
-                          onClick={() => void handleSaveAddress()}
+                          onClick={() => void handleSaveDeliveryDraft()}
                         >
                           {saving ? (
                             <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
@@ -1415,21 +1703,33 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
                           variant="outline"
                           className={adminUi.outlineBtn}
                           disabled={saving}
-                          onClick={cancelEditAddress}
+                          onClick={cancelDeliveryAddressEdit}
                         >
                           <X className="mr-1.5 h-3.5 w-3.5" />
                           Abbrechen
                         </Button>
                       </div>
                     </div>
-                  ) : detail.delivery ? (
-                    <AddressReadOnly address={detail.delivery} />
-                  ) : (
-                    <p className={cn("text-sm", adminUi.muted)}>
-                      Entspricht der Rechnungsadresse
-                    </p>
-                  )}
+                  ) : null}
+
+                  {canEditCustomer &&
+                    !addingDelivery &&
+                    editingDeliveryId == null &&
+                    detailDeliveryAddresses.length > 0 && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className={adminUi.outlineBtn}
+                        disabled={saving || editingSection === "billing"}
+                        onClick={startAddDeliveryAddress}
+                      >
+                        <Plus className="mr-1.5 h-3.5 w-3.5" />
+                        Neue Adresse hinzufügen
+                      </Button>
+                    )}
                 </div>
+
               </div>
 
               <div className={cn("space-y-4 rounded-xl border p-4", adminUi.section)}>

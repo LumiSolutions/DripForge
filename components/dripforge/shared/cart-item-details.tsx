@@ -2,6 +2,7 @@ import { Printer, Zap } from "lucide-react"
 import { LASER_FONT_OPTIONS } from "@/lib/dripforge/laser-design"
 import type { CartItem } from "@/lib/dripforge/types"
 import { cn } from "@/lib/utils"
+import { SafeProductImage } from "@/components/dripforge/shared/safe-product-image"
 
 type CartItemDetailsProps = {
   item: CartItem
@@ -23,12 +24,15 @@ export function CartItemDetails({
     <div className={cn("space-y-2", className)}>
       {showLeitbild && item.leitbild && (
         <div className="overflow-hidden rounded-lg border border-border/50 bg-muted/30">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={item.leitbild}
-            alt="Kunden-Wunsch-Ansicht (Leitbild)"
-            className="aspect-video w-full object-contain bg-white/80 dark:bg-black/20"
-          />
+          <div className="relative aspect-video">
+            <SafeProductImage
+              src={item.leitbild}
+              alt="Kunden-Wunsch-Ansicht (Leitbild)"
+              fill
+              sizes="(max-width: 640px) 90vw, 320px"
+              className="object-contain bg-white/80 dark:bg-black/20"
+            />
+          </div>
           <p className="px-2 py-1 text-[10px] text-muted-foreground">
             Leitbild — Live-Vorschau beim Hinzufuegen
           </p>
