@@ -208,3 +208,14 @@ export async function cosmosFindBelegBySourceOrderId(
   const list = await cosmosFindBelegeBySourceOrderId(orderId)
   return list.find((b) => b.type === "rechnung") ?? list[0] ?? null
 }
+
+export async function cosmosFindBelegByActionToken(
+  token: string
+): Promise<Beleg | null> {
+  const trimmed = token.trim()
+  if (!trimmed) return null
+  const list = await cosmosListBelege({ type: "offerte", limit: 500 })
+  return (
+    list.find((b) => b.actionToken?.trim() === trimmed) ?? null
+  )
+}
