@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import type { PrintPriceBreakdown } from "@/lib/dripforge/calculate-3d-print-price"
 import { createDruckanfrage } from "@/lib/admin/druckanfragen-db"
+import { allocateReferenceNumber } from "@/lib/admin/reference-number"
 import {
   DRUCKANFRAGE_CONTACT_METHODS,
   isValidContactEmail,
