@@ -25,12 +25,13 @@ export function LegalSubpageLayout({ children }: { children: ReactNode }) {
     <div className="min-h-screen bg-background text-foreground">
       <header
         className={cn(
-          "fixed inset-x-0 top-0 z-[100]",
+          "fixed inset-x-0 z-[100]",
+          "top-[var(--df-banner-h,0px)]",
           "border-b border-border/60 bg-background/95 shadow-sm backdrop-blur-md",
           "supports-[backdrop-filter]:bg-background/90"
         )}
       >
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4">
+        <div className="mx-auto flex h-[var(--header-height,4rem)] max-w-7xl items-center justify-between px-4">
           <SafeLink href="/" className="flex items-center gap-2">
             <SiteImage
               imageKey="brand_logo"
@@ -54,7 +55,12 @@ export function LegalSubpageLayout({ children }: { children: ReactNode }) {
           </SafeLink>
         </div>
       </header>
-      <div className="h-16 shrink-0" aria-hidden="true" />
+      {/* Platzhalter: Banner-Höhe + Header-Höhe, damit der Inhalt (und die
+          Navigationsleiste) nicht unter dem fixen Banner/Header verschwindet. */}
+      <div
+        className="h-[calc(var(--header-height,4rem)+var(--df-banner-h,0px))] shrink-0"
+        aria-hidden="true"
+      />
 
       <main className="mx-auto max-w-7xl">{children}</main>
     </div>
