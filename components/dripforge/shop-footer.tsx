@@ -119,6 +119,11 @@ export function ShopFooter() {
                   AGB
                 </SafeLink>
               </li>
+              <li>
+                <SafeLink href="/datenschutz" className="hover:text-primary">
+                  Datenschutzerklärung
+                </SafeLink>
+              </li>
             </ul>
           </div>
           <div>

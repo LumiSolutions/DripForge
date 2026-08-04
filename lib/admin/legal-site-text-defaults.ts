@@ -88,7 +88,7 @@ export const LEGAL_SITE_TEXT_DEFAULTS = {
 
   datenschutz_section_1_title: "1. Allgemeine Informationen",
   datenschutz_section_1_body:
-    "Verantwortliche Stelle für die Datenverarbeitung auf dieser Website im Sinne des Schweizerischen Datenschutzgesetzes (DSG) ist {firmenname}, {firmenAdresse} (E-Mail: {kontaktEmail}). Wir nehmen den Schutz deiner persönlichen Daten sehr ernst und behandeln deine personenbezogenen Daten vertraulich und entsprechend der gesetzlichen Vorschriften.",
+    "Verantwortliche Stelle für die Datenverarbeitung auf dieser Website im Sinne des Schweizerischen Datenschutzgesetzes (DSG) ist {firmenname}, Robin Schulz, Mattenstrasse 7, 8330 Pfäffikon ZH, Schweiz (E-Mail: {kontaktEmail}). Wir nehmen den Schutz deiner persönlichen Daten sehr ernst und behandeln deine personenbezogenen Daten vertraulich und entsprechend der gesetzlichen Vorschriften.",
 
   datenschutz_section_2_title: "2. Erfassung und Verarbeitung von Personendaten",
   datenschutz_section_2_body:
