@@ -14,10 +14,10 @@
     "telefonnummer": ""
   },
   "launch": {
-    "shopLive": false
+    "shopLive": true
   },
   "services": {
-    "druck3d": false,
+    "druck3d": true,
     "lasergravur": true,
     "laserschnitt": false,
     "markierungAetzung": false

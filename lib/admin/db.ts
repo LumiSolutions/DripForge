@@ -69,6 +69,7 @@ import { normalizeAnnouncementBanner } from "@/lib/dripforge/announcement-banner
 import { normalizeCustomerCategories } from "@/lib/dripforge/customer-categories"
 import { normalizeBrandUrl } from "@/lib/admin/branding-settings"
 import { normalizeEmailSignature } from "@/lib/admin/email-signature"
+import { normalizeBelegNumbering } from "@/lib/documents/beleg-numbering-settings"
 import { normalizeShippingTiers } from "@/lib/dripforge/shipping-tiers"
 import { normalizeThanksPageSettings } from "@/lib/dripforge/thanks-page-settings"
 import {
@@ -630,6 +631,7 @@ async function getSettingsFromFile(): Promise<AdminSettings> {
       brandIconUrl: normalizeBrandUrl(stored.brandIconUrl),
       brandLogoUrl: normalizeBrandUrl(stored.brandLogoUrl),
       emailSignature: normalizeEmailSignature(stored.emailSignature),
+      belegNumbering: normalizeBelegNumbering(stored.belegNumbering),
       orderEmailTemplates: normalizeOrderEmailTemplates(
         stored.orderEmailTemplates
       ),
@@ -718,6 +720,7 @@ export async function saveSettings(input: {
   brandIconUrl?: string | null
   brandLogoUrl?: string | null
   emailSignature?: string
+  belegNumbering?: AdminSettings["belegNumbering"]
   orderEmailTemplates?: {
     receivedIntro?: string
     receivedFooter?: string
@@ -852,6 +855,10 @@ export async function saveSettings(input: {
       input.emailSignature !== undefined
         ? normalizeEmailSignature(input.emailSignature)
         : normalizeEmailSignature(current.emailSignature),
+    belegNumbering:
+      input.belegNumbering !== undefined
+        ? normalizeBelegNumbering(input.belegNumbering)
+        : normalizeBelegNumbering(current.belegNumbering),
     orderEmailTemplates:
       input.orderEmailTemplates !== undefined
         ? normalizeOrderEmailTemplates({

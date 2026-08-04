@@ -205,12 +205,23 @@ export const DEFAULT_SHOP_CONFIGURATORS: ShopConfiguratorSettings = {
   customLaser: true,
 }
 
+/** Optionale Präfixe für Belegnummern (Defaults: OFF / INV / LS). */
+export type BelegNumberingSettings = {
+  offertePrefix?: string
+  rechnungPrefix?: string
+  lieferscheinPrefix?: string
+  /** Wenn true (Default): Format PREFIX-YYYY-#### */
+  yearFormat?: boolean
+}
+
 export type AdminSettings = {
   checkout: CheckoutRuntimeConfig
   company: CompanySettings
   launch: LaunchSettings
   services: ServiceVisibilitySettings
   shopConfigurators: ShopConfiguratorSettings
+  /** Belegnummern-Präfixe (Offerte/Rechnung/Lieferschein) */
+  belegNumbering?: BelegNumberingSettings
   /** Dynamischer Katalog: Dienstleistungen & Konfigurator-Kacheln (System + Custom) */
   managedCatalog?: ManagedCatalogItem[]
   /** Support-Kampagne auf der normalen Website (Header, Mobile, /support) */

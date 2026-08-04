@@ -45,6 +45,8 @@ export type Product3DPreviewProps = {
   fixedDimensionsMm?: DimensionsMm | null
   /** Produktdefinierte Standard-Orientierung (Grad) für die Initialansicht */
   initialRotationDeg?: { x?: number; y?: number; z?: number } | null
+  /** Pausiert den Render-Loop (z. B. während Bild-Lightbox), ohne Canvas zu unmounten. */
+  paused?: boolean
   className?: string
 }
 
@@ -331,6 +333,7 @@ export const Product3DPreview = forwardRef<
     color = "#1a1a1a",
     fixedDimensionsMm = null,
     initialRotationDeg = null,
+    paused = false,
     className,
   },
   ref
@@ -393,12 +396,20 @@ export const Product3DPreview = forwardRef<
         <Canvas
           ref={ref}
           shadows
+          frameloop={paused ? "never" : "always"}
           camera={{ position: [90, 70, 90], fov: 42, near: 0.1, far: 2000 }}
           gl={{ antialias: true, alpha: true, preserveDrawingBuffer: true }}
           className="h-full w-full touch-none"
           style={{ background: "transparent", touchAction: "none" }}
           onCreated={({ gl }) => {
             gl.domElement.style.touchAction = "none"
+            const canvas = gl.domElement
+            const onContextLost = (event: Event) => {
+              // Verhindert, dass Context-Loss als unhandled Error die Seite killt.
+              event.preventDefault()
+              console.warn("3D-Vorschau: WebGL-Context verloren — Canvas bleibt gemountet.")
+            }
+            canvas.addEventListener("webglcontextlost", onContextLost, false)
           }}
           {...{ [LEITBILD_3D_CANVAS_ATTR]: "true" }}
         >

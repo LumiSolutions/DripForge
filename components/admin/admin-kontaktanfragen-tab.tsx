@@ -79,22 +79,53 @@ function ThreadMessage({
   return (
     <div
       className={cn(
-        "rounded-lg border p-2.5 text-xs",
-        isAdmin
-          ? "border-primary/30 bg-primary/5 ml-6"
-          : "border-border/60 bg-background mr-6"
+        "flex w-full",
+        isAdmin ? "justify-end" : "justify-start"
       )}
     >
-      <div className="mb-1 flex items-center justify-between gap-2">
-        <span className="font-semibold text-foreground/80">
-          {isAdmin ? "Antwort" : "Kunde"} · {author}
-        </span>
-        <span className="text-muted-foreground">{formatDate(at)}</span>
+      <div
+        className={cn(
+          "max-w-[92%] rounded-2xl border px-3 py-2.5 text-xs shadow-sm",
+          isAdmin
+            ? "rounded-br-md border-primary/30 bg-primary/10"
+            : "rounded-bl-md border-border/60 bg-background"
+        )}
+      >
+        <div className="mb-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5">
+          <span className="font-semibold text-foreground/80">
+            {isAdmin ? "Admin" : "Kunde"} · {author}
+          </span>
+          <span className="text-[11px] text-muted-foreground">{formatDate(at)}</span>
+        </div>
+        {subject ? (
+          <p className="text-[11px] font-medium text-muted-foreground">{subject}</p>
+        ) : null}
+        <p className="mt-1 whitespace-pre-wrap text-foreground/85">{body}</p>
       </div>
-      {subject ? (
-        <p className="text-[11px] font-medium text-muted-foreground">{subject}</p>
-      ) : null}
-      <p className="mt-1 whitespace-pre-wrap text-muted-foreground">{body}</p>
+    </div>
+  )
+}
+
+function KontaktThreadStack({ item }: { item: Kontaktanfrage }) {
+  return (
+    <div className="max-h-72 space-y-2.5 overflow-y-auto p-3">
+      <ThreadMessage
+        role="customer"
+        author={item.name}
+        subject={item.subject}
+        body={item.message}
+        at={item.createdAt}
+      />
+      {(item.thread ?? []).map((entry) => (
+        <ThreadMessage
+          key={entry.id}
+          role={entry.role}
+          author={entry.role === "admin" ? "DripForge" : item.name}
+          subject={entry.subject}
+          body={entry.body}
+          at={entry.at}
+        />
+      ))}
     </div>
   )
 }
@@ -168,9 +199,18 @@ export function AdminKontaktanfragenTab() {
         setItems((prev) =>
           prev.map((item) => (item.id === data.anfrage!.id ? data.anfrage! : item))
         )
+        // Dialog offen lassen und Verlauf aktualisieren
+        setReplyTarget(data.anfrage)
+        const greeting = `Guten Tag ${data.anfrage.name},\n\n`
+        setReplySubject(
+          `Re: ${data.anfrage.subject || "Deine Anfrage"} (#${data.anfrage.id})`
+        )
+        setReplyMessage(
+          emailSignature.trim() ? `${greeting}\n\n${emailSignature}` : greeting
+        )
       }
       setReplyNotice("Antwort gesendet — Anfrage als «beantwortet» markiert.")
-      setReplyTarget(null)
+      setShowThread(true)
     } catch (err) {
       setReplyError(
         err instanceof Error ? err.message : "E-Mail konnte nicht gesendet werden."
@@ -284,12 +324,15 @@ export function AdminKontaktanfragenTab() {
                     <TableHead>Telefon</TableHead>
                     <TableHead>Typ</TableHead>
                     <TableHead>Nachricht</TableHead>
+                    <TableHead>Verlauf</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Aktionen</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {items.map((item) => (
+                  {items.map((item) => {
+                    const messageCount = 1 + (item.thread?.length ?? 0)
+                    return (
                     <TableRow key={item.id}>
                       <TableCell className="whitespace-nowrap text-sm">
                         {formatDate(item.createdAt)}
@@ -319,6 +362,14 @@ export function AdminKontaktanfragenTab() {
                         <p className="mt-1 line-clamp-3 whitespace-pre-wrap text-xs text-muted-foreground">
                           {item.message}
                         </p>
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant="secondary"
+                          className="w-fit whitespace-nowrap border-0 text-[11px]"
+                        >
+                          {messageCount} Nachricht{messageCount === 1 ? "" : "en"}
+                        </Badge>
                       </TableCell>
                       <TableCell>
                         <div className="flex min-w-[9rem] flex-col gap-2">
@@ -362,7 +413,8 @@ export function AdminKontaktanfragenTab() {
                         </Button>
                       </TableCell>
                     </TableRow>
-                  ))}
+                    )
+                  })}
                 </TableBody>
               </Table>
             </div>
@@ -387,6 +439,11 @@ export function AdminKontaktanfragenTab() {
           </DialogHeader>
           {replyTarget && (
             <div className="space-y-4">
+              {replyNotice && (
+                <p className="text-sm text-emerald-600 dark:text-emerald-400">
+                  {replyNotice}
+                </p>
+              )}
               <div className="rounded-lg border border-border/60 bg-muted/40">
                 <button
                   type="button"
@@ -394,7 +451,8 @@ export function AdminKontaktanfragenTab() {
                   className="flex w-full items-center justify-between gap-2 p-3 text-left"
                 >
                   <span className="text-xs font-semibold text-foreground/70">
-                    Verlauf ({1 + (replyTarget.thread?.length ?? 0)} Nachricht
+                    Chat-Verlauf (
+                    {1 + (replyTarget.thread?.length ?? 0)} Nachricht
                     {1 + (replyTarget.thread?.length ?? 0) === 1 ? "" : "en"})
                   </span>
                   <ChevronDown
@@ -405,26 +463,8 @@ export function AdminKontaktanfragenTab() {
                   />
                 </button>
                 {showThread && (
-                  <div className="max-h-64 space-y-2 overflow-y-auto border-t border-border/60 p-3">
-                    <ThreadMessage
-                      role="customer"
-                      author={replyTarget.name}
-                      subject={replyTarget.subject}
-                      body={replyTarget.message}
-                      at={replyTarget.createdAt}
-                    />
-                    {(replyTarget.thread ?? []).map((entry) => (
-                      <ThreadMessage
-                        key={entry.id}
-                        role={entry.role}
-                        author={
-                          entry.role === "admin" ? "DripForge" : replyTarget.name
-                        }
-                        subject={entry.subject}
-                        body={entry.body}
-                        at={entry.at}
-                      />
-                    ))}
+                  <div className="border-t border-border/60">
+                    <KontaktThreadStack item={replyTarget} />
                   </div>
                 )}
               </div>

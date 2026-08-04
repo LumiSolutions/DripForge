@@ -219,9 +219,11 @@ export function LegalPageHero({
 
   return (
     <div className="mx-auto max-w-4xl px-4 text-center">
-      <Badge variant="secondary" className="mb-4">
-        <SiteText k={badgeKey} />
-      </Badge>
+      <div className="mb-4 flex justify-center">
+        <Badge variant="secondary" className="whitespace-normal text-center">
+          <SiteText k={badgeKey} />
+        </Badge>
+      </div>
 
       {editing ? (
         <div className="space-y-3">

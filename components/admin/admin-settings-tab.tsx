@@ -2166,6 +2166,24 @@ export function AdminSettingsTab({
         {show("accounting") && (
           <Card className={adminUi.card}>
             <CardContent className="space-y-6 p-6">
+              <div
+                className={cn(
+                  "rounded-xl border px-4 py-3 text-sm",
+                  adminUi.section
+                )}
+              >
+                <p className={cn("font-medium", adminUi.heading)}>
+                  Belegnummern-Präfixe
+                </p>
+                <p className={cn("mt-1", adminUi.muted)}>
+                  Offerten: <span className="font-mono">OFF-</span> · Rechnungen:{" "}
+                  <span className="font-mono">INV-</span> · Lieferscheine:{" "}
+                  <span className="font-mono">LS-</span>. Format{" "}
+                  <span className="font-mono">PREFIX-JJJJ-####</span> (laufende
+                  Sequenz, monoton). Legacy «OF-» wird als «OFF-» angezeigt.
+                </p>
+              </div>
+
               <div>
                 <h3 className={cn("text-base font-semibold", adminUi.accentTitle)}>
                   Checkout & MwSt.

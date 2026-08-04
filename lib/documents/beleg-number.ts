@@ -1,6 +1,7 @@
 import { BELEG_PREFIX, type BelegType } from "@/lib/documents/beleg-types"
+import type { BelegNumberingSettings } from "@/lib/admin/types"
 
-// Aktuelle + Legacy-Präfixe (INV/OFF neu, RE/OF/AN/LI alt) für Parsing/Anzeige.
+// Aktuelle + Legacy-Präfixe (INV/OFF/LS neu, RE/OF/AN/LI alt) für Parsing/Anzeige.
 const BELEG_ID_PREFIXES = [
   "INV",
   "OFF",
@@ -12,6 +13,38 @@ const BELEG_ID_PREFIXES = [
 ] as const
 
 const BELEG_PREFIX_PATTERN = "INV|OFF|RE|OF|LS|AN|LI"
+
+const DEFAULT_PREFIX: Record<BelegType, string> = {
+  offerte: "OFF",
+  rechnung: "INV",
+  lieferschein: "LS",
+}
+
+function sanitizePrefix(raw: string | undefined | null, fallback: string): string {
+  const cleaned = String(raw ?? "")
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "")
+    .slice(0, 8)
+  if (!cleaned) return fallback
+  // Legacy «OF» nie als neues Präfix — immer OFF
+  if (cleaned === "OF") return "OFF"
+  return cleaned
+}
+
+/** Löst das Präfix für einen Belegtyp auf (Settings oder Defaults OFF/INV/LS). */
+export function resolveBelegPrefix(
+  type: BelegType,
+  numbering?: BelegNumberingSettings | null
+): string {
+  if (type === "offerte") {
+    return sanitizePrefix(numbering?.offertePrefix, DEFAULT_PREFIX.offerte)
+  }
+  if (type === "rechnung") {
+    return sanitizePrefix(numbering?.rechnungPrefix, DEFAULT_PREFIX.rechnung)
+  }
+  return sanitizePrefix(numbering?.lieferscheinPrefix, DEFAULT_PREFIX.lieferschein)
+}
 
 /** Extrahiert die laufende Nummer aus INV-2026-0089, RE-0018 oder RE-2026-0018. */
 export function parseBelegSequence(id: string): number | null {
@@ -44,24 +77,34 @@ export function isBelegStyleNumber(id: string): boolean {
 /**
  * Neues Format inkl. Jahr: INV-2026-0089 / OFF-2026-0105.
  * Das Jahr wird bei der Vergabe fest in die gespeicherte Nummer geschrieben.
+ * Optional: yearFormat:false → PREFIX-#### (ohne Jahr).
  */
 export function formatBelegNummer(
   typeOrPrefix: BelegType | string,
   sequence: number,
-  year: number = new Date().getFullYear()
+  year: number = new Date().getFullYear(),
+  numbering?: BelegNumberingSettings | null
 ): string {
-  const prefix =
-    typeOrPrefix in BELEG_PREFIX
-      ? BELEG_PREFIX[typeOrPrefix as BelegType]
-      : String(typeOrPrefix).toUpperCase()
+  let prefix: string
+  if (typeOrPrefix === "offerte" || typeOrPrefix === "rechnung" || typeOrPrefix === "lieferschein") {
+    prefix = resolveBelegPrefix(typeOrPrefix, numbering)
+  } else if (typeOrPrefix in BELEG_PREFIX) {
+    prefix = resolveBelegPrefix(typeOrPrefix as BelegType, numbering)
+  } else {
+    prefix = sanitizePrefix(String(typeOrPrefix), "OFF")
+  }
   const seq = Math.max(1, Math.floor(sequence))
-  return `${prefix}-${year}-${String(seq).padStart(4, "0")}`
+  const useYear = numbering?.yearFormat !== false
+  if (useYear) {
+    return `${prefix}-${year}-${String(seq).padStart(4, "0")}`
+  }
+  return `${prefix}-${String(seq).padStart(4, "0")}`
 }
 
 /**
  * Anzeigeformat für Admin/PDF/E-Mail. Die gespeicherte Belegnummer ist bereits
  * kanonisch (z. B. INV-2026-0089). Legacy-Nummern (RE-0018) bleiben unverändert,
- * lediglich das Präfix wird gross geschrieben.
+ * lediglich das Präfix wird gross geschrieben. Legacy «OF-…» wird als «OFF-…» angezeigt.
  */
 export function formatBelegDisplayId(id: string): string {
   const trimmed = String(id ?? "").trim()
@@ -71,12 +114,16 @@ export function formatBelegDisplayId(id: string): string {
   const prefixMatch = trimmed.match(
     new RegExp(`^(${BELEG_PREFIX_PATTERN})`, "i")
   )
-  const prefix = prefixMatch?.[1]?.toUpperCase()
+  let prefix = prefixMatch?.[1]?.toUpperCase()
   if (!prefix || !(BELEG_ID_PREFIXES as readonly string[]).includes(prefix)) {
     return trimmed
   }
-  // Präfix normalisieren (Grossschreibung), Rest der Nummer beibehalten.
-  return `${prefix}${trimmed.slice(prefix.length)}`
+  // Legacy OF → OFF für Anzeige (einheitliches Offerten-Präfix)
+  const rest = trimmed.slice(prefix.length)
+  if (prefix === "OF") {
+    prefix = "OFF"
+  }
+  return `${prefix}${rest}`
 }
 
 /** Shop-Bestell-ID (df-…) vs. Belegnummer. */

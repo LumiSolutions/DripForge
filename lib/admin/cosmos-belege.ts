@@ -5,6 +5,7 @@ import {
   formatBelegNummer,
   parseBelegSequence,
 } from "@/lib/documents/beleg-number"
+import type { BelegNumberingSettings } from "@/lib/admin/types"
 import {
   BELEG_DOC_TYPE,
   fromBelegCosmosDoc,
@@ -84,10 +85,22 @@ async function resolveSeedSequence(
   return seed
 }
 
+async function loadBelegNumbering(): Promise<BelegNumberingSettings | undefined> {
+  try {
+    // Dynamischer Import vermeidet Zyklen mit db → cosmos-store.
+    const { getSettings } = await import("@/lib/admin/db")
+    const settings = await getSettings()
+    return settings.belegNumbering
+  } catch {
+    return undefined
+  }
+}
+
 export async function cosmosAllocateBelegNummer(type: BelegType): Promise<string> {
   const container = await getSettingsContainer()
   const id = counterDocId(type)
   const maxAttempts = 10
+  const numbering = await loadBelegNumbering()
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
@@ -115,7 +128,7 @@ export async function cosmosAllocateBelegNummer(type: BelegType): Promise<string
         updatedAt: new Date().toISOString(),
       }
       await container.items.upsert(nextDoc)
-      return formatBelegNummer(type, nextSequence)
+      return formatBelegNummer(type, nextSequence, new Date().getFullYear(), numbering)
     } catch (error) {
       const code = cosmosErrorCode(error)
       if (code === 409 || code === 412 || code === 449) continue

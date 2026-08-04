@@ -60,6 +60,9 @@ export function SiteTextEditor({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const dirty =
+    draft !== value || (hrefEditable && draftHref !== currentHref)
+
   useEffect(() => {
     if (open) {
       setDraft(value)
@@ -68,7 +71,7 @@ export function SiteTextEditor({
     }
   }, [open, value, currentHref])
 
-  const handleCancel = () => {
+  const handleDiscard = () => {
     setDraft(value)
     setDraftHref(currentHref)
     setError(null)
@@ -92,10 +95,33 @@ export function SiteTextEditor({
     }
   }
 
+  const confirmCloseWhileDirty = () => {
+    const shouldSave = window.confirm(
+      "Ungespeicherte Änderungen. OK = Speichern & Schliessen, Abbrechen = weiter bearbeiten"
+    )
+    if (shouldSave) void handleSave()
+  }
+
+  const handleOpenChange = (next: boolean) => {
+    if (!next && dirty) {
+      confirmCloseWhileDirty()
+      return
+    }
+    setOpen(next)
+  }
+
+  const handleEscape = () => {
+    if (dirty) {
+      confirmCloseWhileDirty()
+      return
+    }
+    setOpen(false)
+  }
+
   const handleSaveRef = useRef(handleSave)
   handleSaveRef.current = handleSave
-  const handleCancelRef = useRef(handleCancel)
-  handleCancelRef.current = handleCancel
+  const handleDiscardRef = useRef(handleDiscard)
+  handleDiscardRef.current = handleDiscard
 
   useEffect(() => {
     reportCmsInlineEditing(open)
@@ -110,7 +136,7 @@ export function SiteTextEditor({
       void handleSaveRef.current()
     }
     const onCancel = () => {
-      handleCancelRef.current()
+      handleDiscardRef.current()
     }
     window.addEventListener(CMS_SAVE_ALL_EVENT, onSaveAll)
     window.addEventListener(CMS_CANCEL_EDITING_EVENT, onCancel)
@@ -121,7 +147,7 @@ export function SiteTextEditor({
   }, [open])
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <button
           type="button"
@@ -153,6 +179,18 @@ export function SiteTextEditor({
         onOpenAutoFocus={(event) => event.preventDefault()}
         onPointerDown={(event) => event.stopPropagation()}
         onClick={(event) => event.stopPropagation()}
+        onInteractOutside={(event) => {
+          if (dirty) {
+            event.preventDefault()
+            confirmCloseWhileDirty()
+          }
+        }}
+        onEscapeKeyDown={(event) => {
+          if (dirty) {
+            event.preventDefault()
+            confirmCloseWhileDirty()
+          }
+        }}
       >
         <div className="space-y-1">
           <Label htmlFor={`site-text-${textKey}`}>{label}</Label>
@@ -165,7 +203,10 @@ export function SiteTextEditor({
           autoFocus
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={(event) => {
-            if (event.key === "Escape") handleCancel()
+            if (event.key === "Escape") {
+              event.preventDefault()
+              handleEscape()
+            }
           }}
         />
         {hrefEditable && (
@@ -177,7 +218,10 @@ export function SiteTextEditor({
               placeholder={defaultHref || "/…"}
               onChange={(event) => setDraftHref(event.target.value)}
               onKeyDown={(event) => {
-                if (event.key === "Escape") handleCancel()
+                if (event.key === "Escape") {
+                  event.preventDefault()
+                  handleEscape()
+                }
               }}
             />
           </div>
@@ -187,10 +231,20 @@ export function SiteTextEditor({
           <Button
             type="button"
             size="sm"
+            variant="ghost"
+            className="flex-1"
+            disabled={saving}
+            onClick={handleDiscard}
+          >
+            Verwerfen
+          </Button>
+          <Button
+            type="button"
+            size="sm"
             variant="outline"
             className="flex-1"
             disabled={saving}
-            onClick={handleCancel}
+            onClick={() => handleOpenChange(false)}
           >
             Abbrechen
           </Button>

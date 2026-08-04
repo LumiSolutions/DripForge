@@ -247,8 +247,6 @@ export function PageShop({
   const [multiColorMode, setMultiColorMode] = useState<"standard" | "custom">(
     "standard"
   )
-  /** Lightbox offen → 3D-Viewer unmounten, damit Zoom den Three.js-Tree nicht killt. */
-  const [galleryLightboxOpen, setGalleryLightboxOpen] = useState(false)
   const [selectedShopVariantId, setSelectedShopVariantId] = useState<string | null>(
     null
   )
@@ -413,7 +411,14 @@ export function PageShop({
     setCustomerRemarks("")
     setExtraVariants([])
     setActiveVariantCommitted(false)
-    setMultiColorMode("standard")
+    const productHasStandardColor = Boolean(
+      normalized.defaultFilamentColorId?.trim() ||
+        normalized.defaultFilamentColorName?.trim()
+    )
+    // Standard-Tab nur sinnvoll mit Defaultfarbe; sonst immer «Andere Farben»
+    setMultiColorMode(
+      normalized.type === "3d" && productHasStandardColor ? "standard" : "custom"
+    )
     setMultiColorSelection(null)
     const preferred = pickDefaultFilamentSelection(filamentMaterials, {
       colorId: normalized.defaultFilamentColorId,
@@ -491,12 +496,18 @@ export function PageShop({
     const remarksTrimmed = customerRemarks.trim()
 
     if (selectedProduct.type === "3d") {
+      const productHasStandardColor = Boolean(
+        selectedProduct.defaultFilamentColorId?.trim() ||
+          selectedProduct.defaultFilamentColorName?.trim()
+      )
+      const colorMode =
+        productHasStandardColor ? multiColorMode : "custom"
       const useMultiColor =
-        isMultiColorProduct(selectedProduct) && multiColorMode === "custom"
+        isMultiColorProduct(selectedProduct) && colorMode === "custom"
       if (useMultiColor) {
         if (!multiColorSelection?.colors.length) return
         if (!multiColorSelection.colors.every((c) => c.inStock)) return
-      } else if (multiColorMode === "custom") {
+      } else if (colorMode === "custom") {
         const selection = effectiveFilamentSelection
         if (!selection?.inStock) return
       }
@@ -579,7 +590,7 @@ export function PageShop({
               ...fileFields,
             },
           })
-        } else if (multiColorMode === "standard") {
+        } else if (colorMode === "standard") {
           const preferred = pickDefaultFilamentSelection(filamentMaterials, {
             colorId: selectedProduct.defaultFilamentColorId,
             colorName: selectedProduct.defaultFilamentColorName,
@@ -775,11 +786,20 @@ export function PageShop({
       ? resolveProductVarianten(selectedProduct)
       : []
 
+  const selectedHasStandardColor = Boolean(
+    selectedProduct?.defaultFilamentColorId?.trim() ||
+      selectedProduct?.defaultFilamentColorName?.trim()
+  )
+  const cartMultiColorMode =
+    selectedProduct?.type === "3d" && !selectedHasStandardColor
+      ? "custom"
+      : multiColorMode
+
   const canAddToCart =
     !cartCapturing &&
     Boolean(selectedProduct) &&
     (selectedProduct?.type === "3d"
-      ? (multiColorMode === "standard"
+      ? (cartMultiColorMode === "standard"
           ? !productHasShopVariants(selectedProduct) ||
             Boolean(selectedShopVariantId)
           : !filamentsLoading &&
@@ -811,14 +831,24 @@ export function PageShop({
     const quantityDiscountTiers = normalizeQuantityDiscountTiers(
       detailProduct.quantityDiscountTiers
     )
+    const hasStandardColor = Boolean(
+      detailProduct.defaultFilamentColorId?.trim() ||
+        detailProduct.defaultFilamentColorName?.trim()
+    )
+    const showColorModeToggle =
+      detailProduct.type === "3d" && hasStandardColor
+    const effectiveMultiColorMode =
+      detailProduct.type === "3d" && !hasStandardColor
+        ? "custom"
+        : multiColorMode
     const showMultiColorPicker =
-      isMultiColorProduct(detailProduct) && multiColorMode === "custom"
+      isMultiColorProduct(detailProduct) && effectiveMultiColorMode === "custom"
     const showSingleColorPicker =
       detailProduct.type === "3d" &&
       !isMultiColorProduct(detailProduct) &&
-      multiColorMode === "custom"
+      effectiveMultiColorMode === "custom"
     const extraVariantQty =
-      showMultiColorPicker || multiColorMode === "standard"
+      showMultiColorPicker || effectiveMultiColorMode === "standard"
         ? 0
         : extraVariants.reduce((sum, e) => sum + e.quantity, 0)
     const activeQtyForPricing =
@@ -1191,13 +1221,13 @@ export function PageShop({
                     {/*
                       Mobile: Galerie+Desc+Specs → Live-3D → Filament → Preis/Cart
                       Desktop: Spalte1 Galerie+Text+Specs+3D | Spalte2 Filament+Preis
+                      Galerie bewusst AUSSERHALB der 3D-ErrorBoundary (Lightbox darf nicht mitfallen).
                     */}
                     <div className="grid grid-cols-1 items-start gap-8 md:grid-cols-2 md:gap-10 lg:items-stretch lg:gap-12">
                       <div className="order-1 flex min-w-0 flex-col gap-6 md:order-1">
                         <ProductImageGallery
                           images={galleryImages}
                           alt={detailProduct.name}
-                          onLightboxChange={setGalleryLightboxOpen}
                         />
                         <Card className="rounded-2xl border-border/50 bg-card/50 shadow-sm">
                           <CardContent className="p-4 sm:p-6">
@@ -1236,8 +1266,8 @@ export function PageShop({
                           }
                         />
 
-                        {/* Desktop: 3D unter Beschreibung/Spezifikationen */}
-                        {productModelUrl && isMdUp && !galleryLightboxOpen ? (
+                        {/* Desktop: 3D — Lightbox ist portaliert und entkoppelt (kein Parent-State). */}
+                        {productModelUrl && isMdUp ? (
                           <div className="min-w-0">
                             <ProductDetailErrorBoundary
                               fallbackTitle="3D-Vorschau konnte nicht geladen werden."
@@ -1267,8 +1297,8 @@ export function PageShop({
                         ) : null}
                       </div>
 
-                      {/* Mobile: Live-3D nach Specs */}
-                      {productModelUrl && !isMdUp && !galleryLightboxOpen ? (
+                      {/* Mobile: Live-3D */}
+                      {productModelUrl && !isMdUp ? (
                         <div className="order-2 min-w-0 md:hidden">
                           <ProductDetailErrorBoundary
                             fallbackTitle="3D-Vorschau konnte nicht geladen werden."
@@ -1299,7 +1329,7 @@ export function PageShop({
 
                       <div className="order-3 flex min-w-0 flex-col gap-6 md:order-2 lg:h-full">
                         {shopVariantPicker}
-                        {detailProduct.type === "3d" && (
+                        {showColorModeToggle && (
                           <div className="space-y-2">
                             <p className="text-sm font-medium">Farbauswahl</p>
                             <div className="inline-flex w-full rounded-xl bg-secondary p-1">
@@ -1307,7 +1337,7 @@ export function PageShop({
                                 type="button"
                                 className={cn(
                                   "flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-all",
-                                  multiColorMode === "standard"
+                                  effectiveMultiColorMode === "standard"
                                     ? "bg-primary text-primary-foreground shadow"
                                     : "text-muted-foreground hover:text-foreground"
                                 )}
@@ -1319,7 +1349,7 @@ export function PageShop({
                                 type="button"
                                 className={cn(
                                   "flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-all",
-                                  multiColorMode === "custom"
+                                  effectiveMultiColorMode === "custom"
                                     ? "bg-primary text-primary-foreground shadow"
                                     : "text-muted-foreground hover:text-foreground"
                                 )}
@@ -1328,7 +1358,7 @@ export function PageShop({
                                 Andere Farben
                               </button>
                             </div>
-                            {multiColorMode === "standard" && (
+                            {effectiveMultiColorMode === "standard" && (
                               <p className="text-xs text-muted-foreground">
                                 Standardfarbe: Gemäss Bild
                                 {detailProduct.defaultFilamentColorName
@@ -1434,7 +1464,8 @@ export function PageShop({
                           </>
                         ) : null}
 
-                        <div className="flex flex-col gap-6 lg:mt-auto">
+                        {/* Standard: Preis direkt unter Hinweis (kein lg:mt-auto-Gap). Custom: Picker → Preis. */}
+                        <div className="flex flex-col gap-6">
                           <Card className="rounded-xl border-red-500/35 bg-gradient-to-b from-red-500/10 via-red-500/5 to-transparent shadow-sm">
                             <CardContent className="space-y-5 p-6">
                               <h3 className="font-bold">Preisberechnung</h3>

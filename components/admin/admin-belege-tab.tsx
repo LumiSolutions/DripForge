@@ -11,6 +11,8 @@ import {
   type TextareaHTMLAttributes,
 } from "react"
 import {
+  ChevronDown,
+  ChevronUp,
   Download,
   FilePlus2,
   FileText,
@@ -157,6 +159,47 @@ type EditorState = {
   customerResponseRemark?: string | null
   customerRespondedAt?: string | null
   actionToken?: string | null
+  /** Kunden-Angebot, das nach erfolgreichem Speichern auf «withdrawn» gesetzt wird */
+  sourceOfferId?: string | null
+}
+
+type BelegSortColumn = "nummer" | "kunde" | "status" | "betrag" | "datum"
+type SortDirection = "asc" | "desc"
+
+function BelegSortableHead({
+  label,
+  active,
+  direction,
+  onClick,
+}: {
+  label: string
+  active: boolean
+  direction: SortDirection
+  onClick: () => void
+}) {
+  return (
+    <TableHead>
+      <button
+        type="button"
+        onClick={onClick}
+        className={cn(
+          "inline-flex items-center gap-0.5 font-medium hover:text-foreground",
+          active ? "text-foreground" : "text-muted-foreground"
+        )}
+      >
+        {label}
+        {active ? (
+          direction === "asc" ? (
+            <ChevronUp className="h-3.5 w-3.5" aria-hidden />
+          ) : (
+            <ChevronDown className="h-3.5 w-3.5" aria-hidden />
+          )
+        ) : (
+          <ChevronDown className="h-3.5 w-3.5 opacity-30" aria-hidden />
+        )}
+      </button>
+    </TableHead>
+  )
 }
 
 const MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024
@@ -228,6 +271,7 @@ function emptyEditor(type: BelegType = "offerte"): EditorState {
     customerResponseRemark: null,
     customerRespondedAt: null,
     actionToken: null,
+    sourceOfferId: null,
   }
 }
 
@@ -243,6 +287,8 @@ export function AdminBelegeTab() {
   const [dateTo, setDateTo] = useState("")
   const [amountFrom, setAmountFrom] = useState("")
   const [amountTo, setAmountTo] = useState("")
+  const [sortColumn, setSortColumn] = useState<BelegSortColumn>("datum")
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc")
   const [editorOpen, setEditorOpen] = useState(false)
   const [editor, setEditor] = useState<EditorState>(emptyEditor("offerte"))
   const [revenueAccounts, setRevenueAccounts] = useState<Account[]>([])
@@ -358,7 +404,7 @@ export function AdminBelegeTab() {
     const fromTs = dateFrom ? new Date(`${dateFrom}T00:00:00`).getTime() : null
     const toTs = dateTo ? new Date(`${dateTo}T23:59:59.999`).getTime() : null
 
-    return belege
+    const list = belege
       .filter((b) => b.type === activeType)
       .filter((b) => (statusFilter === "all" ? true : b.status === statusFilter))
       .filter((b) => {
@@ -396,6 +442,38 @@ export function AdminBelegeTab() {
           .toLowerCase()
         return hay.includes(q)
       })
+
+    const sorted = [...list]
+    sorted.sort((a, b) => {
+      let cmp = 0
+      switch (sortColumn) {
+        case "nummer":
+          cmp = formatBelegDisplayId(a.id).localeCompare(
+            formatBelegDisplayId(b.id),
+            "de-CH",
+            { numeric: true, sensitivity: "base" }
+          )
+          break
+        case "kunde": {
+          const nameA = `${a.kunde.lastName} ${a.kunde.firstName} ${a.kunde.email}`
+          const nameB = `${b.kunde.lastName} ${b.kunde.firstName} ${b.kunde.email}`
+          cmp = nameA.localeCompare(nameB, "de-CH", { sensitivity: "base" })
+          break
+        }
+        case "status":
+          cmp = String(a.status).localeCompare(String(b.status), "de-CH")
+          break
+        case "betrag":
+          cmp = (a.total ?? 0) - (b.total ?? 0)
+          break
+        case "datum":
+        default:
+          cmp = String(a.createdAt).localeCompare(String(b.createdAt))
+          break
+      }
+      return sortDirection === "asc" ? cmp : -cmp
+    })
+    return sorted
   }, [
     activeType,
     amountFrom,
@@ -404,8 +482,24 @@ export function AdminBelegeTab() {
     dateFrom,
     dateTo,
     query,
+    sortColumn,
+    sortDirection,
     statusFilter,
   ])
+
+  const preparedOffers = useMemo(
+    () => customerOffers.filter((offer) => offer.status === "active"),
+    [customerOffers]
+  )
+
+  const handleBelegSort = (column: BelegSortColumn) => {
+    if (sortColumn === column) {
+      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"))
+      return
+    }
+    setSortColumn(column)
+    setSortDirection(column === "betrag" || column === "datum" ? "desc" : "asc")
+  }
 
   const openCreate = () => {
     setEditor(emptyEditor(activeType === "lieferschein" ? "offerte" : activeType))
@@ -437,6 +531,7 @@ export function AdminBelegeTab() {
       type: "offerte",
       status: "entwurf",
       customerId: offer.customerId ?? null,
+      sourceOfferId: offer.id,
       kunde: {
         ...emptyBelegAddress(),
         email: offer.customerEmail,
@@ -470,6 +565,29 @@ export function AdminBelegeTab() {
       })),
     })
     setEditorOpen(true)
+  }
+
+  const markSourceOfferWithdrawn = async (offerId: string) => {
+    try {
+      const res = await fetch(
+        `/api/admin/customer-offers/${encodeURIComponent(offerId)}`,
+        {
+          method: "PATCH",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "withdrawn" }),
+        }
+      )
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        console.warn(
+          "Kunden-Angebot konnte nicht zurückgezogen werden.",
+          data.error ?? res.status
+        )
+      }
+    } catch (err) {
+      console.warn("Kunden-Angebot zurückziehen fehlgeschlagen.", err)
+    }
   }
 
   const saveCustomerOfferEditor = async () => {
@@ -609,6 +727,7 @@ export function AdminBelegeTab() {
       customerResponseRemark: beleg.customerResponseRemark ?? null,
       customerRespondedAt: beleg.customerRespondedAt ?? null,
       actionToken: beleg.actionToken ?? null,
+      sourceOfferId: null,
     })
     setEditorOpen(true)
   }
@@ -766,6 +885,10 @@ export function AdminBelegeTab() {
         })
         const data = await res.json()
         if (!res.ok) throw new Error(data.error ?? "Speichern fehlgeschlagen")
+        if (editor.sourceOfferId) {
+          await markSourceOfferWithdrawn(editor.sourceOfferId)
+          await loadCustomerOffers()
+        }
       } else if (editor.id) {
         const res = await fetch(`/api/admin/belege/${encodeURIComponent(editor.id)}`, {
           method: "PUT",
@@ -852,6 +975,11 @@ export function AdminBelegeTab() {
           <h1 className="text-2xl font-bold tracking-tight">Belegverwaltung</h1>
           <p className="text-sm text-muted-foreground">
             Offerten, Rechnungen und Lieferscheine inkl. Umwandlung und PDF.
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Nummernpräfixe: Offerten <span className="font-mono">OFF-</span>,
+            Rechnungen <span className="font-mono">INV-</span>, Lieferscheine{" "}
+            <span className="font-mono">LS-</span> (Format: PREFIX-JJJJ-####).
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -993,11 +1121,36 @@ export function AdminBelegeTab() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Nummer</TableHead>
-                        <TableHead>Kunde</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Betrag</TableHead>
-                        <TableHead>Datum</TableHead>
+                        <BelegSortableHead
+                          label="Nummer"
+                          active={sortColumn === "nummer"}
+                          direction={sortDirection}
+                          onClick={() => handleBelegSort("nummer")}
+                        />
+                        <BelegSortableHead
+                          label="Kunde"
+                          active={sortColumn === "kunde"}
+                          direction={sortDirection}
+                          onClick={() => handleBelegSort("kunde")}
+                        />
+                        <BelegSortableHead
+                          label="Status"
+                          active={sortColumn === "status"}
+                          direction={sortDirection}
+                          onClick={() => handleBelegSort("status")}
+                        />
+                        <BelegSortableHead
+                          label="Betrag"
+                          active={sortColumn === "betrag"}
+                          direction={sortDirection}
+                          onClick={() => handleBelegSort("betrag")}
+                        />
+                        <BelegSortableHead
+                          label="Datum"
+                          active={sortColumn === "datum"}
+                          direction={sortDirection}
+                          onClick={() => handleBelegSort("datum")}
+                        />
                         <TableHead className="text-right">Aktionen</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -1115,7 +1268,7 @@ export function AdminBelegeTab() {
                       <Loader2 className="h-4 w-4 animate-spin" />
                       Laden…
                     </div>
-                  ) : customerOffers.length === 0 ? (
+                  ) : preparedOffers.length === 0 ? (
                     <p className="py-4 text-sm text-muted-foreground">
                       Keine vorbereiteten Kunden-Angebote vorhanden.
                     </p>
@@ -1132,7 +1285,7 @@ export function AdminBelegeTab() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {customerOffers.map((offer) => (
+                        {preparedOffers.map((offer) => (
                           <TableRow key={offer.id}>
                             <TableCell className="font-medium">
                               <div>{offer.title}</div>
