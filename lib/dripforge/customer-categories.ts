@@ -20,7 +20,7 @@ export type CustomerCategory = {
 }
 
 const SHIPPING_METHOD_IDS: ShippingMethodId[] = ["apost", "bpost", "pickup", "brief"]
-const PAYMENT_METHOD_IDS: PaymentMethodId[] = ["card", "twint", "invoice"]
+const PAYMENT_METHOD_IDS: PaymentMethodId[] = ["card", "twint", "invoice", "cash"]
 
 function makeCategoryId(): string {
   try {

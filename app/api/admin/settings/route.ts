@@ -129,6 +129,7 @@ export async function PUT(request: Request) {
       paymentCardAktiv: body.checkout.paymentCardAktiv,
       paymentTwintAktiv: body.checkout.paymentTwintAktiv,
       paymentInvoiceAktiv: body.checkout.paymentInvoiceAktiv,
+      paymentCashAktiv: body.checkout.paymentCashAktiv,
     })
 
     const company: CompanySettings = {

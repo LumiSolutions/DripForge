@@ -2265,6 +2265,11 @@ export function AdminSettingsTab({
                       label: "Kauf auf Rechnung / Vorkasse",
                       hint: "Banküberweisung gemäss Firmendaten unten",
                     },
+                    {
+                      key: "paymentCashAktiv" as const,
+                      label: "Barzahlung bei Abholung",
+                      hint: "Zahlung in bar vor Ort bei der Abholung",
+                    },
                   ] as const
                 ).map((row) => (
                   <div
@@ -2289,7 +2294,8 @@ export function AdminSettingsTab({
 
                 {!checkout.paymentCardAktiv &&
                   !checkout.paymentTwintAktiv &&
-                  !checkout.paymentInvoiceAktiv && (
+                  !checkout.paymentInvoiceAktiv &&
+                  !checkout.paymentCashAktiv && (
                     <p className="text-sm font-medium text-amber-700 dark:text-amber-300">
                       Achtung: Alle Zahlungsarten sind deaktiviert — Kunden können
                       nicht bestellen.
