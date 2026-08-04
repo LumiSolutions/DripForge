@@ -61,10 +61,11 @@ const DOCUMENT_PLACEHOLDERS = [
   "{bestellnummer}",
 ]
 
+const PREVIEW_YEAR = new Date().getFullYear()
 const PREVIEW_NUMBERS: Record<DocumentTemplateType, string> = {
-  invoice: "RE-0018",
-  quote: "OF-0001",
-  deliveryNote: "LS-0001",
+  invoice: `INV-${PREVIEW_YEAR}-0089`,
+  quote: `OFF-${PREVIEW_YEAR}-0105`,
+  deliveryNote: `LS-${PREVIEW_YEAR}-0001`,
 }
 
 const LOGO_ALIGNMENT_LABELS: Record<DocumentLogoAlignment, string> = {
@@ -142,10 +143,14 @@ function DocumentLivePreview({
     belegnummer: documentNumber,
     dokumentnummer: documentNumber,
     dokumenttyp: documentText.label,
-    rechnungsnummer: documentType === "invoice" ? documentNumber : "RE-0018",
-    angebotsnummer: documentType === "quote" ? documentNumber : "OF-0001",
+    rechnungsnummer:
+      documentType === "invoice" ? documentNumber : PREVIEW_NUMBERS.invoice,
+    angebotsnummer:
+      documentType === "quote" ? documentNumber : PREVIEW_NUMBERS.quote,
     lieferscheinnummer:
-      documentType === "deliveryNote" ? documentNumber : "LS-0001",
+      documentType === "deliveryNote"
+        ? documentNumber
+        : PREVIEW_NUMBERS.deliveryNote,
     bestellnummer: "df-1785123456-abc123",
     datum: formattedDate,
   })

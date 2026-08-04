@@ -254,6 +254,9 @@ export function AdminKontaktanfragenTab() {
                         {KONTAKT_INQUIRY_LABELS[item.inquiryType] ?? item.inquiryType}
                       </TableCell>
                       <TableCell className="max-w-xs">
+                        <p className="font-mono text-[10px] text-muted-foreground">
+                          {item.id}
+                        </p>
                         <p className="text-xs font-medium text-foreground/80">
                           {item.subject}
                         </p>

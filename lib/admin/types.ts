@@ -78,7 +78,7 @@ export type StoredOrder = {
   rechnungPdfUrl?: string
   /** Lokaler Dateiname unter data/admin/invoices/ */
   rechnungPdfPath?: string
-  /** Kurze Rechnungsnummer (z. B. RE-0018), getrennt von der Shop-Bestell-ID */
+  /** Kurze Rechnungsnummer (z. B. INV-2026-0089), getrennt von der Shop-Bestell-ID */
   invoiceNumber?: string | null
   /** Stripe Checkout Session (Shop) */
   stripeSessionId?: string | null

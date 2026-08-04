@@ -30,7 +30,7 @@ type BelegCounterDoc = {
   updatedAt: string
 }
 
-/** Globaler Counter ohne Jahresanteil → RE-0018 */
+/** Globaler Counter (Sequenz); das Jahr wird beim Formatieren gesetzt → INV-2026-0089 */
 function counterDocId(type: BelegType): string {
   return `beleg-counter:${type}`
 }

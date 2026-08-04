@@ -92,8 +92,8 @@ export const BELEG_TYPE_LABELS: Record<BelegType, string> = {
 }
 
 export const BELEG_PREFIX: Record<BelegType, string> = {
-  offerte: "OF",
-  rechnung: "RE",
+  offerte: "OFF",
+  rechnung: "INV",
   lieferschein: "LS",
 }
 
