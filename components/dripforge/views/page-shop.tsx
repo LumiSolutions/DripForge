@@ -67,8 +67,10 @@ import {
 } from "@/lib/dripforge/types"
 import {
   applyQuantityDiscountToUnitPrice,
+  cartQuantityByProductId,
   normalizeQuantityDiscountTiers,
 } from "@/lib/dripforge/quantity-discount-tiers"
+import { useCart } from "@/components/dripforge/cart-provider"
 import { resolveProductModelUrl } from "@/lib/dripforge/product-model-defaults"
 import { resolveProductPrintFile } from "@/lib/dripforge/product-print-file"
 import {
@@ -188,6 +190,29 @@ const SHOP_INITIAL_VISIBLE = 12
 /** Anzahl weiterer Produkte pro «Mehr laden»-Klick. */
 const SHOP_LOAD_MORE_STEP = 12
 
+function summarizeLaserDesignLabel(
+  design: LaserDesignerState,
+  variantName?: string
+): string {
+  const layerText = ensureLaserLayers(design)
+    .filter((l) => l.kind === "text")
+    .map((l) => (l.text ?? "").trim())
+    .filter(Boolean)
+    .join(" ")
+  const text = design.engravingText.trim() || layerText
+  if (text) {
+    return text.length > 40 ? `${text.slice(0, 40)}…` : text
+  }
+  const hasImage =
+    ensureLaserLayers(design).some(
+      (l) => l.kind === "image" && Boolean(l.src?.trim())
+    ) || Boolean(design.imageLayout.src?.trim())
+  if (hasImage) return "Bild"
+  if (design.selectedVariant?.trim()) return design.selectedVariant.trim()
+  if (variantName?.trim()) return variantName.trim()
+  return "Gravur"
+}
+
 export function PageShop({
   setCurrentView,
   selectedProduct,
@@ -200,6 +225,7 @@ export function PageShop({
   productCatalog,
 }: PageShopProps) {
   const router = useRouter()
+  const { cart } = useCart()
   const { canInlineEdit } = useSiteTexts()
   // Lazy-Load: Filamentfarben nur auf der Produktdetailseite abrufen, nicht auf
   // der Shop-Übersicht (Performance beim Initial-Load).
@@ -237,6 +263,17 @@ export function PageShop({
   const [customerRemarks, setCustomerRemarks] = useState("")
   const [extraVariants, setExtraVariants] = useState<
     Array<{ colorName: string; colorHex: string; filament: string; quantity: number }>
+  >([])
+  const [extraMultiVariants, setExtraMultiVariants] = useState<
+    Array<{
+      quantity: number
+      materialName: string
+      colors: FilamentMultiColorSelection["colors"]
+      primarySlot: number
+    }>
+  >([])
+  const [extraLaserVariants, setExtraLaserVariants] = useState<
+    Array<{ quantity: number; label: string; snapshot: LaserDesignerState }>
   >([])
   /**
    * Nach «Variante hinzufügen» ist die aktuelle Farbe bereits in der Liste —
@@ -410,6 +447,8 @@ export function PageShop({
     setQuantity(1)
     setCustomerRemarks("")
     setExtraVariants([])
+    setExtraMultiVariants([])
+    setExtraLaserVariants([])
     setActiveVariantCommitted(false)
     const productHasStandardColor = Boolean(
       normalized.defaultFilamentColorId?.trim() ||
@@ -590,6 +629,44 @@ export function PageShop({
               ...fileFields,
             },
           })
+
+          for (const extra of extraMultiVariants) {
+            const extraPrimary =
+              extra.colors.find((c) => c.slot === extra.primarySlot) ??
+              extra.colors[0]
+            if (!extraPrimary) continue
+            const extraPartColors = extra.colors
+              .slice()
+              .sort((a, b) => a.slot - b.slot)
+              .map((slot, index) => ({
+                partId: `part-${slot.slot}`,
+                partName: labels[index] ?? `Teil ${slot.slot}`,
+                colorName: slot.colorName,
+                colorHex: slot.colorHex,
+                filament: extra.materialName,
+              }))
+            addToCart({
+              id: `${selectedProduct.id}-${Date.now()}-${extraPrimary.colorName}-${extra.primarySlot}`,
+              productId: selectedProduct.id,
+              name: selectedProduct.name,
+              price: baseUnitPrice,
+              quantity: Math.max(1, extra.quantity),
+              type: "3d",
+              leitbild,
+              ...tierFields,
+              customDetails: {
+                filament: extra.materialName,
+                color: extraPrimary.colorName,
+                variant: activeShopVariant?.name,
+                dimensions: dimensionsText,
+                weightG,
+                ...(remarksTrimmed ? { customerRemarks: remarksTrimmed } : {}),
+                partColors: extraPartColors,
+                ...fileFields,
+              },
+            })
+          }
+          setExtraMultiVariants([])
         } else if (colorMode === "standard") {
           const preferred = pickDefaultFilamentSelection(filamentMaterials, {
             colorId: selectedProduct.defaultFilamentColorId,
@@ -775,6 +852,55 @@ export function PageShop({
       }
 
       addToCart(newItem)
+
+      const productBgUrl =
+        selectedProduct.individualisierungsBild?.trim() ||
+        resolveProductImages(
+          selectedProduct.id,
+          selectedProduct.images,
+          selectedProduct.galerieBilder
+        )[0] ||
+        null
+
+      for (const extra of extraLaserVariants) {
+        const extraLayers = ensureLaserLayers(extra.snapshot)
+        let extraPreviewMockup: string | undefined
+        try {
+          extraPreviewMockup = await buildLaserCombinedMockup({
+            layers: extraLayers,
+            backgroundUrl: productBgUrl,
+          })
+        } catch {
+          console.warn(
+            "Mockup: Shop-Laser-Extra-Snapshot konnte nicht erstellt werden."
+          )
+        }
+        addToCart({
+          id: `${selectedProduct.id}-${Date.now()}-extra-${extra.label.slice(0, 12)}`,
+          productId: selectedProduct.id,
+          name: selectedProduct.name,
+          price: laserUnitPrice,
+          baseUnitPrice: laserUnitPrice,
+          ...(laserTiers.length > 0 ? { quantityDiscountTiers: laserTiers } : {}),
+          quantity: Math.max(1, extra.quantity),
+          type: "laser",
+          leitbild: extraPreviewMockup,
+          previewMockup: extraPreviewMockup,
+          customDetails: {
+            ...buildLaserCartCustomDetails(extra.snapshot, {
+              material: selectedProduct.name,
+              variant:
+                activeShopVariant?.name || extra.snapshot.selectedVariant,
+              productBackgroundUrl: productBgUrl,
+            }),
+            dimensions: dimensionsText,
+            weightG,
+            ...(remarksTrimmed ? { customerRemarks: remarksTrimmed } : {}),
+          },
+        })
+      }
+      setExtraLaserVariants([])
+
       setCartAddedOpen(true)
     } finally {
       setCartCapturing(false)
@@ -824,6 +950,9 @@ export function PageShop({
   if (selectedProduct) {
     const detailProduct = normalizeShopProduct(selectedProduct)
     const detailShopVariants = resolveProductShopVariants(detailProduct)
+    const activeShopVariant = detailShopVariants.find(
+      (v) => v.id === selectedShopVariantId
+    )
     const baseUnitPrice = resolveShopVariantUnitPrice(
       detailProduct,
       selectedShopVariantId
@@ -848,16 +977,21 @@ export function PageShop({
       !isMultiColorProduct(detailProduct) &&
       effectiveMultiColorMode === "custom"
     const extraVariantQty =
-      showMultiColorPicker || effectiveMultiColorMode === "standard"
+      effectiveMultiColorMode === "standard"
         ? 0
-        : extraVariants.reduce((sum, e) => sum + e.quantity, 0)
+        : showMultiColorPicker
+          ? extraMultiVariants.reduce((sum, e) => sum + e.quantity, 0)
+          : extraVariants.reduce((sum, e) => sum + e.quantity, 0)
     const activeQtyForPricing =
       showSingleColorPicker &&
       activeVariantCommitted &&
       extraVariants.length > 0
         ? 0
         : quantity
-    const pricingQty = activeQtyForPricing + extraVariantQty
+    const cartQtyForProduct =
+      cartQuantityByProductId(cart).get(detailProduct.id) ?? 0
+    const pricingQty =
+      activeQtyForPricing + extraVariantQty + cartQtyForProduct
     const qtyDiscount = applyQuantityDiscountToUnitPrice(
       baseUnitPrice,
       quantityDiscountTiers,
@@ -1001,11 +1135,13 @@ export function PageShop({
             <div className="space-y-6">
               <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-12 xl:gap-6">
                 {/* Spalte 1: Galerie / Text / Settings */}
-                <div className="order-1 flex min-w-0 max-w-full flex-col gap-4 xl:col-span-3">
-                  <ProductImageGallery
-                    images={galleryImages}
-                    alt={detailProduct.name}
-                  />
+                <div className="order-1 flex min-w-0 max-w-full flex-col gap-4 xl:col-span-4">
+                  <div className="w-full max-w-none">
+                    <ProductImageGallery
+                      images={galleryImages}
+                      alt={detailProduct.name}
+                    />
+                  </div>
                   <Card className="rounded-2xl border-border/50 bg-card/50 shadow-sm">
                     <CardContent className="p-4 sm:p-5">
                       <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -1042,7 +1178,7 @@ export function PageShop({
                 </div>
 
                 {/* Spalte 2: Desktop Variante → Preis/Warenkorb; mobil unter Vorschau */}
-                <div className="order-3 flex min-w-0 max-w-full flex-col gap-4 xl:order-2 xl:col-span-4 xl:sticky xl:top-[calc(var(--header-height,4rem)+1rem)]">
+                <div className="order-3 flex min-w-0 max-w-full flex-col gap-4 xl:order-2 xl:col-span-3 xl:sticky xl:top-[calc(var(--header-height,4rem)+1rem)]">
                   {/* Desktop: Variante direkt über Preis */}
                   {shopProductVarianten.length > 0 && (
                     <div className="hidden xl:block">
@@ -1073,7 +1209,7 @@ export function PageShop({
                           height: 0,
                         }
                       }
-                      volumeCm3={detailProduct.volumen ?? null}
+                      volumeCm3={null}
                       weightG={detailProduct.gewicht ?? null}
                     />
                   )}
@@ -1104,6 +1240,12 @@ export function PageShop({
                               .join(", ")}
                           </p>
                         ) : null}
+                        {cartQtyForProduct > 0 && (
+                          <p className="text-xs text-muted-foreground">
+                            Im Warenkorb bereits {cartQtyForProduct} Stk. — zählen
+                            für den Mengenrabatt.
+                          </p>
+                        )}
                       </div>
                       <div className="flex items-center gap-3">
                         <Button
@@ -1156,6 +1298,72 @@ export function PageShop({
                         )}
                         {cartCapturing ? "Design wird gespeichert…" : "In den Warenkorb"}
                       </Button>
+                      {(canAddToCart || laserDesignHasContent(laserDesign)) && (
+                        <div className="space-y-3">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="w-full"
+                            disabled={!laserDesignHasContent(laserDesign)}
+                            onClick={() => {
+                              if (!laserDesign || !shopLaserMaterial) return
+                              const label = summarizeLaserDesignLabel(
+                                laserDesign,
+                                activeShopVariant?.name
+                              )
+                              setExtraLaserVariants((prev) => [
+                                ...prev,
+                                {
+                                  quantity: Math.max(1, quantity),
+                                  label,
+                                  snapshot: structuredClone(laserDesign),
+                                },
+                              ])
+                              setQuantity(1)
+                              setLaserDesign((prev) => {
+                                if (!prev) return prev
+                                const fresh = createDefaultLaserDesignerState(
+                                  shopLaserMaterial,
+                                  shopProductVarianten
+                                )
+                                return {
+                                  ...fresh,
+                                  selectedVariant: prev.selectedVariant,
+                                }
+                              })
+                            }}
+                          >
+                            <Plus className="mr-2 h-4 w-4" />
+                            Weitere Variante / Konfiguration hinzufügen
+                          </Button>
+                          {extraLaserVariants.length > 0 && (
+                            <ul className="space-y-2 rounded-xl border border-border/50 bg-muted/20 p-3">
+                              {extraLaserVariants.map((extra, index) => (
+                                <li
+                                  key={`${extra.label}-${index}`}
+                                  className="flex items-center gap-3 text-sm"
+                                >
+                                  <span className="min-w-0 flex-1 truncate">
+                                    {extra.label} ×{extra.quantity}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    className="rounded p-1 text-muted-foreground hover:text-red-500"
+                                    aria-label="Variante entfernen"
+                                    onClick={() => {
+                                      setExtraLaserVariants((prev) =>
+                                        prev.filter((_, i) => i !== index)
+                                      )
+                                    }}
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </button>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 </div>
@@ -1373,6 +1581,7 @@ export function PageShop({
                           </div>
                         )}
                         {showMultiColorPicker ? (
+                          <>
                           <FilamentMultiColorPicker
                             materials={filamentMaterials}
                             activeTab={filamentTab}
@@ -1384,6 +1593,76 @@ export function PageShop({
                             }
                             className="mt-0 border-0 pt-0"
                           />
+                          {multiColorSelection?.colors.length &&
+                          multiColorSelection.colors.every((c) => c.inStock) ? (
+                            <div className="space-y-3">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                className="w-full"
+                                onClick={() => {
+                                  if (!multiColorSelection) return
+                                  setExtraMultiVariants((prev) => [
+                                    ...prev,
+                                    {
+                                      quantity: Math.max(1, quantity),
+                                      materialName: multiColorSelection.materialName,
+                                      colors: multiColorSelection.colors.map(
+                                        (c) => ({ ...c })
+                                      ),
+                                      primarySlot: multiColorSelection.primarySlot,
+                                    },
+                                  ])
+                                  setQuantity(1)
+                                }}
+                              >
+                                <Plus className="mr-2 h-4 w-4" />
+                                Weitere Variante / Konfiguration hinzufügen
+                              </Button>
+                              {extraMultiVariants.length > 0 && (
+                                <ul className="space-y-2 rounded-xl border border-border/50 bg-muted/20 p-3">
+                                  {extraMultiVariants.map((extra, index) => (
+                                      <li
+                                        key={`multi-extra-${index}`}
+                                        className="flex items-center gap-3 text-sm"
+                                      >
+                                        <div className="flex shrink-0 gap-0.5">
+                                          {extra.colors.map((c) => (
+                                            <span
+                                              key={c.slot}
+                                              className="h-5 w-5 rounded-full border border-border/50"
+                                              style={{
+                                                backgroundColor: c.colorHex,
+                                              }}
+                                            />
+                                          ))}
+                                        </div>
+                                        <span className="min-w-0 flex-1 truncate">
+                                          {extra.materialName} ·{" "}
+                                          {extra.colors
+                                            .map((c) => c.colorName)
+                                            .join(", ")}{" "}
+                                          ×{extra.quantity}
+                                        </span>
+                                        <button
+                                          type="button"
+                                          className="rounded p-1 text-muted-foreground hover:text-red-500"
+                                          aria-label="Variante entfernen"
+                                          onClick={() => {
+                                            setExtraMultiVariants((prev) =>
+                                              prev.filter((_, i) => i !== index)
+                                            )
+                                          }}
+                                        >
+                                          <X className="h-4 w-4" />
+                                        </button>
+                                      </li>
+                                    ))}
+                                </ul>
+                              )}
+                            </div>
+                          ) : null}
+                          </>
                         ) : showSingleColorPicker ? (
                           <>
                             <FilamentColorPicker
@@ -1423,7 +1702,7 @@ export function PageShop({
                                   }}
                                 >
                                   <Plus className="mr-2 h-4 w-4" />
-                                  Weitere Variante / Farbe hinzufügen
+                                  Weitere Variante / Konfiguration hinzufügen
                                 </Button>
                                 {extraVariants.length > 0 && (
                                   <ul className="space-y-2 rounded-xl border border-border/50 bg-muted/20 p-3">
@@ -1503,6 +1782,12 @@ export function PageShop({
                                         .join(", ")}
                                     </p>
                                   )}
+                                {cartQtyForProduct > 0 && (
+                                  <p className="text-xs text-muted-foreground">
+                                    Im Warenkorb bereits {cartQtyForProduct} Stk. —
+                                    zählen für den Mengenrabatt.
+                                  </p>
+                                )}
                                 {detailShopVariants.length > 0 && (
                                   <div className="flex justify-between gap-3">
                                     <span className="text-muted-foreground">
