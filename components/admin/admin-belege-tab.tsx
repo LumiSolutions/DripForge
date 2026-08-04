@@ -16,6 +16,7 @@ import {
   FileText,
   Loader2,
   Paperclip,
+  Pencil,
   Plus,
   RefreshCw,
   Search,
@@ -74,7 +75,11 @@ import {
   type BelegType,
   type OfferteStatus,
 } from "@/lib/documents/beleg-types"
-import type { CustomerOffer } from "@/lib/konto/customer-offer-types"
+import type {
+  CustomerOffer,
+  CustomerOfferAttachment,
+  CustomerOfferStatus,
+} from "@/lib/konto/customer-offer-types"
 import { formatBelegDisplayId } from "@/lib/documents/beleg-number"
 import {
   defaultBelegRevenueAccountCode,
@@ -243,6 +248,20 @@ export function AdminBelegeTab() {
   const [revenueAccounts, setRevenueAccounts] = useState<Account[]>([])
   const [customerOffers, setCustomerOffers] = useState<CustomerOffer[]>([])
   const [customerOffersLoading, setCustomerOffersLoading] = useState(false)
+  const [offerEditorOpen, setOfferEditorOpen] = useState(false)
+  const [offerEditorSaving, setOfferEditorSaving] = useState(false)
+  const [offerEditor, setOfferEditor] = useState<{
+    id: string
+    title: string
+    description: string
+    priceChf: string
+    status: CustomerOfferStatus
+    previewUrl: string
+    attachments: CustomerOfferAttachment[]
+    customerEmail: string
+  } | null>(null)
+  const [offerAttachmentUploading, setOfferAttachmentUploading] = useState(false)
+  const offerAttachmentInputRef = useRef<HTMLInputElement>(null)
   const [attachmentUploading, setAttachmentUploading] = useState(false)
   const attachmentInputRef = useRef<HTMLInputElement>(null)
 
@@ -391,6 +410,185 @@ export function AdminBelegeTab() {
   const openCreate = () => {
     setEditor(emptyEditor(activeType === "lieferschein" ? "offerte" : activeType))
     setEditorOpen(true)
+  }
+
+  const openCustomerOfferEditor = (offer: CustomerOffer) => {
+    setOfferEditor({
+      id: offer.id,
+      title: offer.title,
+      description: offer.description ?? "",
+      priceChf:
+        offer.priceChf != null && Number.isFinite(Number(offer.priceChf))
+          ? String(offer.priceChf)
+          : String(offer.cartItem.price ?? ""),
+      status: offer.status,
+      previewUrl: offer.previewUrl ?? "",
+      attachments: Array.isArray(offer.attachments) ? [...offer.attachments] : [],
+      customerEmail: offer.customerEmail,
+    })
+    setOfferEditorOpen(true)
+  }
+
+  const adoptOfferAsBeleg = (offer: CustomerOffer) => {
+    const price = Number(offer.priceChf ?? offer.cartItem.price ?? 0)
+    setEditor({
+      ...emptyEditor("offerte"),
+      mode: "create",
+      type: "offerte",
+      status: "entwurf",
+      customerId: offer.customerId ?? null,
+      kunde: {
+        ...emptyBelegAddress(),
+        email: offer.customerEmail,
+      },
+      positionen: [
+        normalizeBelegPosition(
+          {
+            name: offer.title,
+            quantity: Math.max(1, Number(offer.cartItem.quantity) || 1),
+            unit: DEFAULT_BELEG_UNIT,
+            unitPrice: Number.isFinite(price) ? price : 0,
+            accountCode: defaultBelegRevenueAccountCode(),
+            discountPercent: 0,
+            taxCode: DEFAULT_BELEG_VAT.taxCode,
+            taxRate: DEFAULT_BELEG_VAT.taxRate,
+            taxRatePercent: DEFAULT_BELEG_VAT.taxRatePercent,
+            details: offer.description ?? "",
+          },
+          0
+        ),
+      ],
+      notes: offer.description
+        ? `Übernommen aus Kunden-Angebot: ${offer.title}\n${offer.description}`
+        : `Übernommen aus Kunden-Angebot: ${offer.title}`,
+      emailAttachments: (offer.attachments ?? []).map((att) => ({
+        id: att.id,
+        fileName: att.fileName,
+        mimeType: att.mimeType,
+        url: att.url,
+        sizeBytes: 0,
+      })),
+    })
+    setEditorOpen(true)
+  }
+
+  const saveCustomerOfferEditor = async () => {
+    if (!offerEditor) return
+    setOfferEditorSaving(true)
+    setError(null)
+    try {
+      const priceRaw = offerEditor.priceChf.trim()
+      const priceChf =
+        priceRaw === "" ? null : Number(priceRaw.replace(",", "."))
+      if (priceRaw !== "" && !Number.isFinite(priceChf)) {
+        throw new Error("Preis ist ungültig.")
+      }
+      const res = await fetch(
+        `/api/admin/customer-offers/${encodeURIComponent(offerEditor.id)}`,
+        {
+          method: "PATCH",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: offerEditor.title.trim(),
+            description: offerEditor.description,
+            priceChf,
+            status: offerEditor.status,
+            previewUrl: offerEditor.previewUrl.trim() || null,
+            attachments: offerEditor.attachments,
+          }),
+        }
+      )
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(data.error ?? "Speichern fehlgeschlagen")
+      }
+      setOfferEditorOpen(false)
+      setOfferEditor(null)
+      await loadCustomerOffers()
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Angebot konnte nicht gespeichert werden."
+      )
+    } finally {
+      setOfferEditorSaving(false)
+    }
+  }
+
+  const addOfferAttachments = async (files: FileList | null) => {
+    if (!files?.length || !offerEditor) return
+    setOfferAttachmentUploading(true)
+    setError(null)
+    try {
+      const next: CustomerOfferAttachment[] = []
+      for (const file of Array.from(files)) {
+        if (file.size > MAX_ATTACHMENT_BYTES) {
+          throw new Error(
+            `"${file.name}" ist zu gross (max. ${Math.round(MAX_ATTACHMENT_BYTES / 1024 / 1024)} MB).`
+          )
+        }
+        let url: string | null = null
+        try {
+          const formData = new FormData()
+          formData.append("file", file)
+          formData.append("productId", "customer-offer-attachments")
+          const ext = file.name.includes(".")
+            ? file.name.slice(file.name.lastIndexOf(".")).toLowerCase()
+            : ""
+          formData.append(
+            "category",
+            [".stl", ".obj", ".glb", ".gltf", ".3mf"].includes(ext)
+              ? "model"
+              : "gallery"
+          )
+          const res = await fetch("/api/admin/upload", {
+            method: "POST",
+            credentials: "include",
+            body: formData,
+          })
+          const data = await res.json().catch(() => ({}))
+          if (res.ok && typeof data.url === "string" && data.url) {
+            url = data.url
+          }
+        } catch {
+          // fall through
+        }
+        if (!url) {
+          url = await readFileAsDataUrl(file)
+        }
+        next.push({
+          id: `att-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          fileName: file.name,
+          mimeType: file.type || "application/octet-stream",
+          url,
+        })
+      }
+      setOfferEditor((prev) => {
+        if (!prev) return prev
+        const attachments = [...prev.attachments, ...next]
+        const firstImage = next.find((a) => a.mimeType.startsWith("image/"))
+        return {
+          ...prev,
+          attachments,
+          previewUrl:
+            prev.previewUrl.trim() ||
+            firstImage?.url ||
+            next[0]?.url ||
+            prev.previewUrl,
+        }
+      })
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Anhang konnte nicht hinzugefügt werden."
+      )
+    } finally {
+      setOfferAttachmentUploading(false)
+      if (offerAttachmentInputRef.current) {
+        offerAttachmentInputRef.current.value = ""
+      }
+    }
   }
 
   const openEdit = (beleg: Beleg) => {
@@ -930,6 +1128,7 @@ export function AdminBelegeTab() {
                           <TableHead>Status</TableHead>
                           <TableHead>Preis</TableHead>
                           <TableHead>Aktualisiert</TableHead>
+                          <TableHead className="text-right">Aktionen</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -960,6 +1159,26 @@ export function AdminBelegeTab() {
                                 : "—"}
                             </TableCell>
                             <TableCell>{formatDate(offer.updatedAt)}</TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex flex-wrap justify-end gap-1">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => openCustomerOfferEditor(offer)}
+                                >
+                                  <Pencil className="mr-1 h-3.5 w-3.5" />
+                                  Bearbeiten
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  onClick={() => adoptOfferAsBeleg(offer)}
+                                >
+                                  <FilePlus2 className="mr-1 h-3.5 w-3.5" />
+                                  Als Offerte übernehmen
+                                </Button>
+                              </div>
+                            </TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -1459,6 +1678,207 @@ export function AdminBelegeTab() {
               Speichern
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={offerEditorOpen}
+        onOpenChange={(open) => {
+          setOfferEditorOpen(open)
+          if (!open) setOfferEditor(null)
+        }}
+      >
+        <DialogContent className="max-h-[90vh] w-[min(100vw-1.5rem,36rem)] overflow-y-auto sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Kunden-Angebot bearbeiten</DialogTitle>
+          </DialogHeader>
+          {offerEditor ? (
+            <div className="space-y-4">
+              <p className={cn("text-xs", adminUi.muted)}>
+                Kunde: {offerEditor.customerEmail}
+              </p>
+              <div className="space-y-2">
+                <Label htmlFor="offer-title">Titel</Label>
+                <Input
+                  id="offer-title"
+                  value={offerEditor.title}
+                  onChange={(e) =>
+                    setOfferEditor((prev) =>
+                      prev ? { ...prev, title: e.target.value } : prev
+                    )
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="offer-description">Beschreibung</Label>
+                <Textarea
+                  id="offer-description"
+                  rows={3}
+                  value={offerEditor.description}
+                  onChange={(e) =>
+                    setOfferEditor((prev) =>
+                      prev ? { ...prev, description: e.target.value } : prev
+                    )
+                  }
+                />
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="offer-price">Preis (CHF)</Label>
+                  <Input
+                    id="offer-price"
+                    inputMode="decimal"
+                    value={offerEditor.priceChf}
+                    onChange={(e) =>
+                      setOfferEditor((prev) =>
+                        prev ? { ...prev, priceChf: e.target.value } : prev
+                      )
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="offer-status">Status</Label>
+                  <select
+                    id="offer-status"
+                    value={offerEditor.status}
+                    onChange={(e) =>
+                      setOfferEditor((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              status: e.target.value as CustomerOfferStatus,
+                            }
+                          : prev
+                      )
+                    }
+                    className={cn(
+                      "h-10 w-full rounded-md border px-3 text-sm",
+                      adminUi.select
+                    )}
+                  >
+                    <option value="active">Entwurf / Angebot</option>
+                    <option value="accepted">Angenommen</option>
+                    <option value="expired">Abgelaufen</option>
+                    <option value="withdrawn">Zurückgezogen</option>
+                  </select>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="offer-preview">Vorschau-URL</Label>
+                <Input
+                  id="offer-preview"
+                  value={offerEditor.previewUrl}
+                  placeholder="https://… oder data:…"
+                  onChange={(e) =>
+                    setOfferEditor((prev) =>
+                      prev ? { ...prev, previewUrl: e.target.value } : prev
+                    )
+                  }
+                />
+                {offerEditor.previewUrl ? (
+                  <div className="relative mt-1 h-28 w-full overflow-hidden rounded-lg border bg-secondary/40">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={offerEditor.previewUrl}
+                      alt=""
+                      className="h-full w-full object-contain p-2"
+                    />
+                  </div>
+                ) : null}
+              </div>
+              <div className="space-y-2">
+                <Label>Anhänge</Label>
+                <input
+                  ref={offerAttachmentInputRef}
+                  type="file"
+                  multiple
+                  accept={ATTACHMENT_ACCEPT}
+                  className="hidden"
+                  onChange={(e) => void addOfferAttachments(e.target.files)}
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={offerAttachmentUploading}
+                  onClick={() => offerAttachmentInputRef.current?.click()}
+                >
+                  {offerAttachmentUploading ? (
+                    <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Upload className="mr-1 h-3.5 w-3.5" />
+                  )}
+                  Datei hochladen
+                </Button>
+                {offerEditor.attachments.length > 0 ? (
+                  <ul className="space-y-1.5 text-sm">
+                    {offerEditor.attachments.map((att) => (
+                      <li
+                        key={att.id}
+                        className="flex items-center justify-between gap-2 rounded-md border px-2 py-1.5"
+                      >
+                        <a
+                          href={att.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="min-w-0 truncate text-primary hover:underline"
+                        >
+                          <Paperclip className="mr-1 inline h-3.5 w-3.5" />
+                          {att.fileName}
+                        </a>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 w-7 shrink-0 px-0"
+                          onClick={() =>
+                            setOfferEditor((prev) =>
+                              prev
+                                ? {
+                                    ...prev,
+                                    attachments: prev.attachments.filter(
+                                      (a) => a.id !== att.id
+                                    ),
+                                  }
+                                : prev
+                            )
+                          }
+                        >
+                          <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className={cn("text-xs", adminUi.muted)}>
+                    Keine Anhänge.
+                  </p>
+                )}
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setOfferEditorOpen(false)
+                    setOfferEditor(null)
+                  }}
+                >
+                  Abbrechen
+                </Button>
+                <Button
+                  type="button"
+                  disabled={offerEditorSaving}
+                  onClick={() => void saveCustomerOfferEditor()}
+                >
+                  {offerEditorSaving ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : null}
+                  Speichern
+                </Button>
+              </div>
+            </div>
+          ) : null}
         </DialogContent>
       </Dialog>
     </div>

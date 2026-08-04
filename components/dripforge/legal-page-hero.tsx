@@ -5,15 +5,16 @@ import { Bold, Highlighter, Loader2, Pencil } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { SiteText } from "@/components/dripforge/editable-site-text"
-import { SiteTextPhrase } from "@/components/dripforge/site-text-phrase"
 import { useSiteTexts } from "@/components/dripforge/site-texts-provider"
 import { DF_HIGHLIGHT_CLASS, looksLikeHtml } from "@/lib/dripforge/product-description-html"
 import { legalToDisplayHtml, sanitizeLegalHtml } from "@/lib/dripforge/legal-html"
 import type { SiteTextKey } from "@/lib/admin/site-texts"
+import {
+  CMS_CANCEL_EDITING_EVENT,
+  CMS_SAVE_ALL_EVENT,
+  reportCmsInlineEditing,
+} from "@/lib/admin/cms-edit-history"
 import { cn } from "@/lib/utils"
-
-const HIGHLIGHT_CLASS =
-  "bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent"
 
 type LegalPageHeroProps = {
   badgeKey: SiteTextKey
@@ -22,25 +23,51 @@ type LegalPageHeroProps = {
   titleSuffixKey: SiteTextKey
 }
 
-function composePlainTitle(prefix: string, highlight: string, suffix: string): string {
-  return `${prefix}${highlight}${suffix}`
-}
-
-function composeDefaultHtml(prefix: string, highlight: string, suffix: string): string {
-  const parts: string[] = []
-  if (prefix) parts.push(escapeText(prefix))
-  if (highlight) {
-    parts.push(`<span class="${DF_HIGHLIGHT_CLASS}">${escapeText(highlight)}</span>`)
-  }
-  if (suffix) parts.push(escapeText(suffix))
-  return parts.join("") || "<br>"
-}
-
 function escapeText(value: string): string {
   return value
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
+}
+
+function stripHtmlToPlain(value: string): string {
+  if (!value) return ""
+  if (typeof document !== "undefined") {
+    const el = document.createElement("div")
+    el.innerHTML = value
+    return (el.textContent || el.innerText || "").trim()
+  }
+  return value
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
+/** Plain-Text-Titel aus den drei Legacy-Keys (ohne sichtbare HTML-Tags). */
+function composePlainTitle(prefix: string, highlight: string, suffix: string): string {
+  const mid = looksLikeHtml(highlight) ? stripHtmlToPlain(highlight) : highlight
+  return `${prefix}${mid}${suffix}`.replace(/\s+/g, " ").trim()
+}
+
+/**
+ * Anzeige-HTML: Legacy-Prefix/Suffix + Highlight (falls HTML bereits gespeichert)
+ * oder Plain-Text. Standard = schwarze Schrift; Highlight-Spans nur wenn explizit gesetzt.
+ */
+function resolveTitleDisplayHtml(
+  prefix: string,
+  highlight: string,
+  suffix: string
+): string {
+  if (looksLikeHtml(highlight) && !prefix.trim() && !suffix.trim()) {
+    return legalToDisplayHtml(highlight)
+  }
+  // Legacy-Split: alles als Plain-Text zusammensetzen — kein Auto-Highlight mehr.
+  const plain = composePlainTitle(prefix, highlight, suffix)
+  return escapeText(plain) || "<br>"
 }
 
 function closestHighlight(node: Node | null): HTMLElement | null {
@@ -64,9 +91,16 @@ function unwrapElement(el: HTMLElement) {
   parent.removeChild(el)
 }
 
+const TITLE_HTML_CLASS = cn(
+  "text-4xl font-bold tracking-tight text-foreground md:text-5xl",
+  "[&_p]:m-0 [&_br]:leading-none",
+  `[&_.${DF_HIGHLIGHT_CLASS}]:bg-gradient-to-r [&_.${DF_HIGHLIGHT_CLASS}]:from-primary [&_.${DF_HIGHLIGHT_CLASS}]:to-cyan-400 [&_.${DF_HIGHLIGHT_CLASS}]:bg-clip-text [&_.${DF_HIGHLIGHT_CLASS}]:text-transparent`,
+  `[&_strong]:font-bold [&_b]:font-bold`
+)
+
 /**
- * Seitentitel im Theme-Stil (H1) — im In-Context-Editor inline mit Fett/Hervorhebung
- * und optionalen Absätzen bearbeitbar.
+ * Seitentitel im Theme-Stil (H1).
+ * Standard: einheitliche schwarze Schrift. Highlights nur nach expliziter Markierung.
  */
 export function LegalPageHero({
   badgeKey,
@@ -79,10 +113,7 @@ export function LegalPageHero({
   const highlight = t(titleHighlightKey)
   const suffix = t(titleSuffixKey)
 
-  const richStored =
-    !prefix.trim() &&
-    !suffix.trim() &&
-    looksLikeHtml(highlight)
+  const displayHtml = resolveTitleDisplayHtml(prefix, highlight, suffix)
 
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -91,12 +122,16 @@ export function LegalPageHero({
 
   useEffect(() => {
     if (!editing || !editorRef.current) return
-    const initial = richStored
-      ? legalToDisplayHtml(highlight)
-      : composeDefaultHtml(prefix, highlight, suffix)
-    editorRef.current.innerHTML = initial
+    editorRef.current.innerHTML = displayHtml
     editorRef.current.focus()
-  }, [editing, richStored, highlight, prefix, suffix])
+  }, [editing, displayHtml])
+
+  useEffect(() => {
+    reportCmsInlineEditing(editing)
+    return () => {
+      if (editing) reportCmsInlineEditing(false)
+    }
+  }, [editing])
 
   const startEdit = () => {
     if (!canInlineEdit) return
@@ -112,7 +147,8 @@ export function LegalPageHero({
   const saveEdit = async () => {
     const raw = editorRef.current?.innerHTML ?? ""
     const cleaned = sanitizeLegalHtml(raw)
-    if (!cleaned.trim() || cleaned === "<br>") {
+    const plain = stripHtmlToPlain(cleaned)
+    if (!plain) {
       setError("Titel darf nicht leer sein.")
       return
     }
@@ -130,6 +166,27 @@ export function LegalPageHero({
       setSaving(false)
     }
   }
+
+  const saveEditRef = useRef(saveEdit)
+  saveEditRef.current = saveEdit
+  const cancelEditRef = useRef(cancelEdit)
+  cancelEditRef.current = cancelEdit
+
+  useEffect(() => {
+    if (!editing) return
+    const onSaveAll = () => {
+      void saveEditRef.current()
+    }
+    const onCancel = () => {
+      cancelEditRef.current()
+    }
+    window.addEventListener(CMS_SAVE_ALL_EVENT, onSaveAll)
+    window.addEventListener(CMS_CANCEL_EDITING_EVENT, onCancel)
+    return () => {
+      window.removeEventListener(CMS_SAVE_ALL_EVENT, onSaveAll)
+      window.removeEventListener(CMS_CANCEL_EDITING_EVENT, onCancel)
+    }
+  }, [editing])
 
   const exec = (command: string) => {
     document.execCommand(command, false)
@@ -190,7 +247,7 @@ export function LegalPageHero({
               onClick={toggleHighlight}
             >
               <Highlighter className="h-4 w-4" />
-              Farbe
+              Highlight
             </Button>
           </div>
           <div
@@ -201,9 +258,7 @@ export function LegalPageHero({
             aria-label="Seitentitel bearbeiten"
             className={cn(
               "mx-auto min-h-[1.2em] max-w-3xl rounded-md px-2 py-1 outline outline-1 outline-amber-500/60",
-              "text-4xl font-bold tracking-tight md:text-5xl",
-              "[&_p]:m-0 [&_br]:leading-none",
-              `[&_.${DF_HIGHLIGHT_CLASS}]:bg-gradient-to-r [&_.${DF_HIGHLIGHT_CLASS}]:from-primary [&_.${DF_HIGHLIGHT_CLASS}]:to-cyan-400 [&_.${DF_HIGHLIGHT_CLASS}]:bg-clip-text [&_.${DF_HIGHLIGHT_CLASS}]:text-transparent`
+              TITLE_HTML_CLASS
             )}
             onKeyDown={(e) => {
               if (e.key === "Escape") {
@@ -249,35 +304,8 @@ export function LegalPageHero({
             if (canInlineEdit) startEdit()
           }}
         >
-          <h1
-            className={cn(
-              "text-4xl font-bold tracking-tight md:text-5xl",
-              richStored &&
-                `[&_p]:m-0 [&_.${DF_HIGHLIGHT_CLASS}]:bg-gradient-to-r [&_.${DF_HIGHLIGHT_CLASS}]:from-primary [&_.${DF_HIGHLIGHT_CLASS}]:to-cyan-400 [&_.${DF_HIGHLIGHT_CLASS}]:bg-clip-text [&_.${DF_HIGHLIGHT_CLASS}]:text-transparent`
-            )}
-          >
-            {richStored ? (
-              <span
-                dangerouslySetInnerHTML={{
-                  __html: legalToDisplayHtml(highlight),
-                }}
-              />
-            ) : canInlineEdit ? (
-              <>
-                <span className="text-foreground">{prefix}</span>
-                <span className={HIGHLIGHT_CLASS}>{highlight}</span>
-                <span className="text-foreground">{suffix}</span>
-              </>
-            ) : (
-              <SiteTextPhrase
-                spaced={false}
-                parts={[
-                  { key: titlePrefixKey, className: "text-foreground" },
-                  { key: titleHighlightKey, className: HIGHLIGHT_CLASS },
-                  { key: titleSuffixKey, className: "text-foreground" },
-                ]}
-              />
-            )}
+          <h1 className={TITLE_HTML_CLASS}>
+            <span dangerouslySetInnerHTML={{ __html: displayHtml }} />
           </h1>
           {canInlineEdit && (
             <Button
@@ -293,11 +321,6 @@ export function LegalPageHero({
               <Pencil className="h-3.5 w-3.5" />
               Titel
             </Button>
-          )}
-          {!canInlineEdit && !richStored && (
-            <span className="sr-only">
-              {composePlainTitle(prefix, highlight, suffix)}
-            </span>
           )}
         </div>
       )}

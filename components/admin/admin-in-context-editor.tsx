@@ -12,6 +12,14 @@ import {
   Undo2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
 import { adminPortalPath } from "@/lib/admin/admin-portal-path"
 import { cmsPreviewHref } from "@/lib/admin/cms-preview-pages"
@@ -38,7 +46,13 @@ export function AdminInContextEditor() {
   const [iframeKey, setIframeKey] = useState(0)
   const [canUndo, setCanUndo] = useState(false)
   const [canRedo, setCanRedo] = useState(false)
+  const [dirty, setDirty] = useState(false)
+  const [guardOpen, setGuardOpen] = useState(false)
+  const [pendingPath, setPendingPath] = useState<string | null>(null)
+  const [guardBusy, setGuardBusy] = useState(false)
   const iframeRef = useRef<HTMLIFrameElement>(null)
+  const dirtyRef = useRef(dirty)
+  dirtyRef.current = dirty
 
   const editorPages = useMemo(() => resolveCmsEditorPages(pages), [pages])
 
@@ -83,6 +97,7 @@ export function AdminInContextEditor() {
       if (!isCmsHistoryIframeEvent(event.data)) return
       setCanUndo(event.data.canUndo)
       setCanRedo(event.data.canRedo)
+      setDirty(event.data.dirty)
     }
     window.addEventListener("message", onMessage)
     return () => window.removeEventListener("message", onMessage)
@@ -105,12 +120,69 @@ export function AdminInContextEditor() {
     return () => window.removeEventListener("keydown", onKeyDown)
   }, [postToIframe])
 
+  useEffect(() => {
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!dirtyRef.current) return
+      event.preventDefault()
+      event.returnValue = ""
+    }
+    window.addEventListener("beforeunload", onBeforeUnload)
+    return () => window.removeEventListener("beforeunload", onBeforeUnload)
+  }, [])
+
   const selectPage = (path: string) => {
     setSelectedPath(path)
     setMessage(null)
     setError(null)
     setCanUndo(false)
     setCanRedo(false)
+    setDirty(false)
+  }
+
+  const requestSelectPage = (path: string) => {
+    if (path === selectedPath) return
+    if (dirty || canUndo) {
+      setPendingPath(path)
+      setGuardOpen(true)
+      return
+    }
+    selectPage(path)
+  }
+
+  const closeGuard = () => {
+    setGuardOpen(false)
+    setPendingPath(null)
+    setGuardBusy(false)
+  }
+
+  const saveAndSwitch = async () => {
+    if (!pendingPath) return
+    setGuardBusy(true)
+    postToIframe("save-all")
+    await new Promise((resolve) => window.setTimeout(resolve, 450))
+    setDirty(false)
+    setCanUndo(false)
+    setCanRedo(false)
+    const next = pendingPath
+    setGuardOpen(false)
+    setPendingPath(null)
+    setGuardBusy(false)
+    selectPage(next)
+  }
+
+  const discardAndSwitch = async () => {
+    if (!pendingPath) return
+    setGuardBusy(true)
+    postToIframe("discard")
+    await new Promise((resolve) => window.setTimeout(resolve, 450))
+    setDirty(false)
+    setCanUndo(false)
+    setCanRedo(false)
+    const next = pendingPath
+    setGuardOpen(false)
+    setPendingPath(null)
+    setGuardBusy(false)
+    selectPage(next)
   }
 
   const publishLive = async () => {
@@ -145,6 +217,10 @@ export function AdminInContextEditor() {
     setMessage(
       "Inline-Edits speichern automatisch in Staging. Vorschau wird aktualisiert…"
     )
+    postToIframe("mark-saved")
+    setDirty(false)
+    setCanUndo(false)
+    setCanRedo(false)
     setIframeKey((k) => k + 1)
     window.setTimeout(() => {
       setSaving(false)
@@ -178,7 +254,7 @@ export function AdminInContextEditor() {
           <select
             className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
             value={selectedPath}
-            onChange={(e) => selectPage(e.target.value)}
+            onChange={(e) => requestSelectPage(e.target.value)}
           >
             {editorPages.map((page) => (
               <option key={page.id} value={page.path}>
@@ -193,7 +269,7 @@ export function AdminInContextEditor() {
             <button
               key={page.id}
               type="button"
-              onClick={() => selectPage(page.path)}
+              onClick={() => requestSelectPage(page.path)}
               className={cn(
                 "hidden rounded-md px-2 py-1 text-xs font-medium transition lg:inline-flex",
                 selectedPath === page.path
@@ -296,6 +372,50 @@ export function AdminInContextEditor() {
           onLoad={() => postToIframe("ping")}
         />
       </div>
+
+      <AlertDialog
+        open={guardOpen}
+        onOpenChange={(open) => {
+          if (!open && !guardBusy) closeGuard()
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Ungespeicherte Änderungen</AlertDialogTitle>
+            <AlertDialogDescription>
+              Ungespeicherte Änderungen. Möchtest du vor dem Wechseln speichern?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col gap-2 sm:flex-row sm:justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={guardBusy}
+              onClick={closeGuard}
+            >
+              Abbrechen
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={guardBusy}
+              onClick={() => void discardAndSwitch()}
+            >
+              Verwerfen
+            </Button>
+            <Button
+              type="button"
+              disabled={guardBusy}
+              onClick={() => void saveAndSwitch()}
+            >
+              {guardBusy ? (
+                <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+              ) : null}
+              Speichern & Wechseln
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
