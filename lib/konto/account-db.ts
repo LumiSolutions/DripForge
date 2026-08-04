@@ -68,12 +68,33 @@ export async function getAccountByEmail(
 }
 
 function normalizeAccount(account: CustomerAccount): CustomerAccount {
+  const deliveryAddresses = normalizeDeliveryAddresses(
+    account.deliveryAddresses,
+    {
+      deliveryStreet: account.deliveryStreet,
+      deliveryZip: account.deliveryZip,
+      deliveryCity: account.deliveryCity,
+      deliverySameAsBilling: account.deliverySameAsBilling,
+    }
+  )
+  const defaultDelivery = getDefaultDeliveryAddress(deliveryAddresses)
   return {
     ...account,
     status: normalizeAccountStatus(account.status ?? DEFAULT_CUSTOMER_ACCOUNT_STATUS),
     loyaltyPoints: normalizeLoyaltyPoints(account.loyaltyPoints),
     loyaltyPointGrants: account.loyaltyPointGrants ?? {},
     loyaltyPointTransactions: account.loyaltyPointTransactions ?? [],
+    deliveryAddresses,
+    deliveryStreet:
+      defaultDelivery?.street ?? account.deliveryStreet ?? account.street ?? "",
+    deliveryZip:
+      defaultDelivery?.zip ?? account.deliveryZip ?? account.zip ?? "",
+    deliveryCity:
+      defaultDelivery?.city ?? account.deliveryCity ?? account.city ?? "",
+    deliverySameAsBilling:
+      deliveryAddresses.length === 0
+        ? account.deliverySameAsBilling !== false
+        : false,
   }
 }
 
@@ -159,7 +180,10 @@ export function toPublicAccount(
       defaultDelivery?.zip ?? account.deliveryZip ?? account.zip ?? "",
     deliveryCity:
       defaultDelivery?.city ?? account.deliveryCity ?? account.city ?? "",
-    deliverySameAsBilling: account.deliverySameAsBilling ?? true,
+    deliverySameAsBilling:
+      deliveryAddresses.length === 0
+        ? account.deliverySameAsBilling !== false
+        : false,
     deliveryAddresses,
     kundennummer: account.kundennummer,
     loyaltyPoints,

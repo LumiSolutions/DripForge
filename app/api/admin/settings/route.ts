@@ -36,6 +36,7 @@ import {
 import type { AnnouncementBannerSettings } from "@/lib/dripforge/announcement-banner-settings"
 import type { ShippingTiersSettings } from "@/lib/dripforge/shipping-tiers"
 import type { ThanksPageSettings } from "@/lib/dripforge/thanks-page-settings"
+import { normalizeBelegNumbering } from "@/lib/documents/beleg-numbering-settings"
 
 export async function GET(request: Request) {
   const auth = requireAdminSession(request)
@@ -83,6 +84,7 @@ export async function PUT(request: Request) {
       customerCategories?: unknown
       shippingTiers?: Partial<ShippingTiersSettings> | null
       thanksPage?: Partial<ThanksPageSettings> | null
+      belegNumbering?: unknown
       emailSignature?: string
       orderEmailTemplates?: {
         receivedIntro?: string
@@ -210,6 +212,10 @@ export async function PUT(request: Request) {
         body.shippingTiers !== undefined ? body.shippingTiers : undefined,
       thanksPage:
         body.thanksPage !== undefined ? body.thanksPage : undefined,
+      belegNumbering:
+        body.belegNumbering !== undefined
+          ? normalizeBelegNumbering(body.belegNumbering)
+          : undefined,
       emailSignature: body.emailSignature,
       orderEmailTemplates: body.orderEmailTemplates,
       orderEmailLayout: body.orderEmailLayout,

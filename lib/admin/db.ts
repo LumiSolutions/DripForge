@@ -77,6 +77,10 @@ import {
   withCosmosFallback,
   withCosmosRequired,
 } from "@/lib/admin/storage-bridge"
+import {
+  getCustomerByNumberFromFile,
+  getCustomersFromFile,
+} from "@/lib/admin/customers-file"
 import { resetCosmosCaches } from "@/lib/cosmos/client"
 import { resetOrdersContainerCache } from "@/lib/cosmos/orders-container"
 import { logCosmosError } from "@/lib/cosmos/log-error"
@@ -375,14 +379,20 @@ export async function upsertCustomerFromOrder(
 
 export async function getCustomers(): Promise<StoredCustomer[]> {
   await reconcilePortalAccounts()
-  return withCosmosRequired("getCustomers", cosmosGetCustomers)
+  return withCosmosFallback(
+    "getCustomers",
+    cosmosGetCustomers,
+    getCustomersFromFile
+  )
 }
 
 export async function getCustomerByNumber(
   kundennummer: string
 ): Promise<StoredCustomer | null> {
-  return withCosmosRequired("getCustomerByNumber", () =>
-    cosmosGetCustomerByNumber(kundennummer)
+  return withCosmosFallback(
+    "getCustomerByNumber",
+    () => cosmosGetCustomerByNumber(kundennummer),
+    () => getCustomerByNumberFromFile(kundennummer)
   )
 }
 

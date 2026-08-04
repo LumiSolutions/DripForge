@@ -42,6 +42,8 @@ export function CustomerCategoryProvider({ children }: { children: ReactNode }) 
   const [reloadKey, setReloadKey] = useState(0)
 
   const refresh = useCallback(() => {
+    // Checkout muss auf die frische Kategorie warten (kein Flash der Standard-Optionen).
+    setLoaded(false)
     setReloadKey((k) => k + 1)
   }, [])
 
