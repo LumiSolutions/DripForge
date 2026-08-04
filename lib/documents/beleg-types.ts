@@ -6,10 +6,28 @@ export const BELEG_DOC_TYPE = "business-beleg" as const
 
 export type BelegType = "offerte" | "rechnung" | "lieferschein"
 
-export type OfferteStatus = "entwurf" | "offen" | "angenommen" | "abgelehnt"
+export type OfferteStatus =
+  | "entwurf"
+  | "verbucht"
+  | "gesendet"
+  | "angenommen"
+  | "storniert"
+  | "abgelehnt"
+/** @deprecated Legacy Offerte-Status — wird beim Lesen zu «gesendet» normalisiert. */
+export type LegacyOfferteStatus = "offen"
 export type RechnungStatus = "offen" | "bezahlt" | "storniert" | "gemahnt"
 export type LieferscheinStatus = "entwurf" | "bereit" | "versendet"
 export type BelegStatus = OfferteStatus | RechnungStatus | LieferscheinStatus
+
+/** E-Mail-Anhänge (nicht auf dem PDF) — Bilder, STL, PDF. */
+export type BelegEmailAttachment = {
+  id: string
+  fileName: string
+  mimeType: string
+  /** data URL oder blob/https URL */
+  url: string
+  sizeBytes?: number
+}
 
 export type BelegAddress = {
   firstName: string
@@ -77,6 +95,13 @@ export type Beleg = {
   sourceOrderId?: string | null
   pdfUrl?: string | null
   notes?: string
+  /** Anhänge nur für E-Mail-Versand (nicht PDF). */
+  emailAttachments?: BelegEmailAttachment[]
+  /** Kundenbemerkung bei Annehmen/Ablehnen. */
+  customerResponseRemark?: string | null
+  customerRespondedAt?: string | null
+  /** Öffentlicher Token für 1-Klick Annehmen/Ablehnen. */
+  actionToken?: string | null
   createdAt: string
   updatedAt: string
 }
@@ -99,10 +124,22 @@ export const BELEG_PREFIX: Record<BelegType, string> = {
 
 export const OFFERTE_STATUSES: OfferteStatus[] = [
   "entwurf",
-  "offen",
+  "verbucht",
+  "gesendet",
   "angenommen",
+  "storniert",
   "abgelehnt",
 ]
+
+export const OFFERTE_STATUS_LABELS: Record<OfferteStatus, string> = {
+  entwurf: "Entwurf",
+  verbucht: "Verbucht",
+  gesendet: "Gesendet",
+  angenommen: "Angenommen",
+  storniert: "Storniert",
+  abgelehnt: "Abgelehnt",
+}
+
 export const RECHNUNG_STATUSES: RechnungStatus[] = [
   "offen",
   "bezahlt",
@@ -114,6 +151,36 @@ export const LIEFERSCHEIN_STATUSES: LieferscheinStatus[] = [
   "bereit",
   "versendet",
 ]
+
+/** Offerte-Status, aus denen eine Rechnung erstellt werden darf. */
+export const OFFERTE_CONVERTIBLE_STATUSES: OfferteStatus[] = [
+  "angenommen",
+  "gesendet",
+  "verbucht",
+]
+
+export function normalizeOfferteStatus(raw: string): OfferteStatus {
+  const value = String(raw ?? "").trim().toLowerCase()
+  // Legacy: «offen» → «gesendet»
+  if (value === "offen") return "gesendet"
+  if ((OFFERTE_STATUSES as string[]).includes(value)) {
+    return value as OfferteStatus
+  }
+  return "entwurf"
+}
+
+export function belegStatusLabel(type: BelegType, status: BelegStatus): string {
+  if (type === "offerte") {
+    const normalized = normalizeOfferteStatus(String(status))
+    return OFFERTE_STATUS_LABELS[normalized] ?? String(status)
+  }
+  return String(status)
+}
+
+export function canConvertOfferteToRechnung(status: BelegStatus): boolean {
+  const normalized = normalizeOfferteStatus(String(status))
+  return OFFERTE_CONVERTIBLE_STATUSES.includes(normalized)
+}
 
 export function belegCosmosId(id: string): string {
   return `${BELEG_DOC_TYPE}:${id}`
@@ -297,6 +364,27 @@ export function isValidBelegStatus(type: BelegType, status: string): boolean {
   return statusesForType(type).includes(status as BelegStatus)
 }
 
+export function normalizeBelegEmailAttachment(
+  raw: Partial<BelegEmailAttachment> | null | undefined,
+  index: number
+): BelegEmailAttachment | null {
+  if (!raw || typeof raw !== "object") return null
+  const url = String(raw.url ?? "").trim()
+  const fileName = String(raw.fileName ?? "").trim()
+  if (!url || !fileName) return null
+  return {
+    id: String(raw.id ?? `att-${index + 1}`).trim() || `att-${index + 1}`,
+    fileName,
+    mimeType:
+      String(raw.mimeType ?? "").trim() || "application/octet-stream",
+    url,
+    sizeBytes:
+      raw.sizeBytes != null && Number.isFinite(Number(raw.sizeBytes))
+        ? Math.max(0, Math.floor(Number(raw.sizeBytes)))
+        : undefined,
+  }
+}
+
 export function normalizeBeleg(
   raw: Partial<Beleg> & { id: string; type: BelegType },
   existing?: Beleg | null
@@ -307,10 +395,38 @@ export function normalizeBeleg(
     : existing?.positionen ?? []
   const totals = computeBelegTotals(positionen)
   const statusRaw = String(raw.status ?? existing?.status ?? defaultStatusForType(type))
-  const status = isValidBelegStatus(type, statusRaw)
-    ? (statusRaw as BelegStatus)
-    : defaultStatusForType(type)
+  let status: BelegStatus
+  if (type === "offerte") {
+    status = normalizeOfferteStatus(statusRaw)
+  } else if (isValidBelegStatus(type, statusRaw)) {
+    status = statusRaw as BelegStatus
+  } else {
+    status = defaultStatusForType(type)
+  }
   const now = new Date().toISOString()
+
+  const emailAttachmentsRaw =
+    raw.emailAttachments !== undefined
+      ? raw.emailAttachments
+      : existing?.emailAttachments
+  const emailAttachments = Array.isArray(emailAttachmentsRaw)
+    ? emailAttachmentsRaw
+        .map((att, i) => normalizeBelegEmailAttachment(att, i))
+        .filter((att): att is BelegEmailAttachment => Boolean(att))
+    : undefined
+
+  const customerResponseRemark =
+    raw.customerResponseRemark !== undefined
+      ? String(raw.customerResponseRemark ?? "").trim() || null
+      : existing?.customerResponseRemark ?? null
+  const customerRespondedAt =
+    raw.customerRespondedAt !== undefined
+      ? String(raw.customerRespondedAt ?? "").trim() || null
+      : existing?.customerRespondedAt ?? null
+  const actionToken =
+    raw.actionToken !== undefined
+      ? String(raw.actionToken ?? "").trim() || null
+      : existing?.actionToken ?? null
 
   return {
     id: String(raw.id).trim(),
@@ -338,6 +454,13 @@ export function normalizeBeleg(
       raw.notes !== undefined
         ? String(raw.notes ?? "").trim() || undefined
         : existing?.notes,
+    emailAttachments:
+      emailAttachments && emailAttachments.length > 0
+        ? emailAttachments
+        : undefined,
+    customerResponseRemark,
+    customerRespondedAt,
+    actionToken,
     createdAt: existing?.createdAt ?? raw.createdAt ?? now,
     updatedAt: now,
   }

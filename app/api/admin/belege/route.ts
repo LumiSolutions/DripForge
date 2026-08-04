@@ -2,11 +2,15 @@ import { NextResponse } from "next/server"
 import { requireAdminSession } from "@/lib/admin/require-admin-session"
 import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
 import { formatCosmosError } from "@/lib/cosmos/log-error"
-import { cosmosListBelege } from "@/lib/admin/cosmos-belege"
+import { cosmosListBelege, cosmosUpsertBeleg } from "@/lib/admin/cosmos-belege"
 import { recordBelegPaymentJournalEntry } from "@/lib/accounting/beleg-journal"
-import { createBelegDraft } from "@/lib/documents/beleg-service"
+import {
+  createBelegDraft,
+  ensureOfferteActionToken,
+} from "@/lib/documents/beleg-service"
 import {
   emptyBelegAddress,
+  type BelegEmailAttachment,
   type BelegType,
 } from "@/lib/documents/beleg-types"
 import {
@@ -52,6 +56,7 @@ export async function POST(request: Request) {
       positionen?: Array<Record<string, unknown>>
       notes?: string
       customerId?: string | null
+      emailAttachments?: BelegEmailAttachment[]
     }
 
     const type = body.type
@@ -59,7 +64,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Ungültiger Belegtyp." }, { status: 400 })
     }
 
-    const beleg = await createBelegDraft({
+    let beleg = await createBelegDraft({
       type,
       status: body.status as never,
       kunde: { ...emptyBelegAddress(), ...(body.kunde ?? {}) },
@@ -69,7 +74,15 @@ export async function POST(request: Request) {
       positionen: Array.isArray(body.positionen) ? body.positionen : [],
       notes: body.notes,
       customerId: body.customerId ?? null,
+      emailAttachments: Array.isArray(body.emailAttachments)
+        ? body.emailAttachments
+        : undefined,
     })
+
+    const withToken = ensureOfferteActionToken(beleg)
+    if (withToken.actionToken !== beleg.actionToken) {
+      beleg = await cosmosUpsertBeleg(withToken)
+    }
 
     try {
       await recordBelegPaymentJournalEntry(beleg)
@@ -81,7 +94,6 @@ export async function POST(request: Request) {
     }
 
     if (shouldSendOfferteEmails(null, beleg)) {
-      // Fire-and-forget: Speichern darf nicht an SMTP hängen
       void sendInboundOfferteEmailsSafe(beleg)
     }
 

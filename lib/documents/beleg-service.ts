@@ -7,12 +7,14 @@ import {
 } from "@/lib/admin/cosmos-belege"
 import { getAccountingAccountConfig } from "@/lib/accounting/account-config"
 import {
+  canConvertOfferteToRechnung,
   computeBelegTotals,
   defaultStatusForType,
   normalizeBeleg,
   normalizeBelegPosition,
   stripPricesForDeliveryNote,
   type Beleg,
+  type BelegEmailAttachment,
   type BelegPosition,
   type BelegStatus,
   type BelegType,
@@ -20,6 +22,25 @@ import {
 import { resolveBelegVatFields } from "@/lib/documents/beleg-vat"
 import { formatInvoiceItemDetails } from "@/lib/invoices/invoice-item-details"
 import { upsertCustomerFromBelegAddress } from "@/lib/admin/upsert-customer-from-beleg"
+import { randomBytes } from "crypto"
+
+export function generateOfferteActionToken(): string {
+  return randomBytes(24).toString("hex")
+}
+
+/**
+ * Stellt sicher, dass eine Offerte einen actionToken hat,
+ * sobald sie den Entwurf verlässt.
+ */
+export function ensureOfferteActionToken(beleg: Beleg): Beleg {
+  if (beleg.type !== "offerte") return beleg
+  if (beleg.status === "entwurf") return beleg
+  if (beleg.actionToken?.trim()) return beleg
+  return {
+    ...beleg,
+    actionToken: generateOfferteActionToken(),
+  }
+}
 
 export async function createBelegDraft(input: {
   type: BelegType
@@ -31,6 +52,8 @@ export async function createBelegDraft(input: {
   linkedTo?: string | null
   sourceOrderId?: string | null
   customerId?: string | null
+  emailAttachments?: BelegEmailAttachment[]
+  actionToken?: string | null
 }): Promise<Beleg> {
   const id = await cosmosAllocateBelegNummer(input.type)
   const positionen = (input.positionen ?? []).map((p, i) =>
@@ -48,7 +71,7 @@ export async function createBelegDraft(input: {
     )
   }
 
-  const beleg = normalizeBeleg({
+  let beleg = normalizeBeleg({
     id,
     type: input.type,
     status: input.status ?? defaultStatusForType(input.type),
@@ -62,7 +85,10 @@ export async function createBelegDraft(input: {
     notes: input.notes,
     linkedTo: input.linkedTo ?? null,
     sourceOrderId: input.sourceOrderId ?? null,
+    emailAttachments: input.emailAttachments,
+    actionToken: input.actionToken ?? null,
   })
+  beleg = ensureOfferteActionToken(beleg)
   return cosmosUpsertBeleg(beleg)
 }
 
@@ -74,9 +100,9 @@ export async function convertBeleg(
   if (!source) throw new Error("Quellbeleg nicht gefunden.")
 
   if (source.type === "offerte" && targetType === "rechnung") {
-    if (source.status !== "angenommen" && source.status !== "offen") {
+    if (!canConvertOfferteToRechnung(source.status)) {
       throw new Error(
-        "Rechnung kann nur aus einer offenen oder angenommenen Offerte erstellt werden."
+        "Rechnung kann nur aus einer verbuchten, gesendeten oder angenommenen Offerte erstellt werden."
       )
     }
     return createBelegDraft({

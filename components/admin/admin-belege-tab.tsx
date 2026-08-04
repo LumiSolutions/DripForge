@@ -15,10 +15,12 @@ import {
   FilePlus2,
   FileText,
   Loader2,
+  Paperclip,
   Plus,
   RefreshCw,
   Search,
   Trash2,
+  Upload,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -53,6 +55,9 @@ import {
   BELEG_TYPE_LABELS,
   BELEG_UNIT_OPTIONS,
   DEFAULT_BELEG_UNIT,
+  OFFERTE_STATUS_LABELS,
+  belegStatusLabel,
+  canConvertOfferteToRechnung,
   clampDiscountPercent,
   computeBelegTotals,
   computePositionDiscountAmount,
@@ -63,10 +68,13 @@ import {
   statusesForType,
   type Beleg,
   type BelegAddress,
+  type BelegEmailAttachment,
   type BelegPosition,
   type BelegStatus,
   type BelegType,
+  type OfferteStatus,
 } from "@/lib/documents/beleg-types"
+import type { CustomerOffer } from "@/lib/konto/customer-offer-types"
 import { formatBelegDisplayId } from "@/lib/documents/beleg-number"
 import {
   defaultBelegRevenueAccountCode,
@@ -140,6 +148,35 @@ type EditorState = {
   customerId?: string | null
   positionen: BelegPosition[]
   notes: string
+  emailAttachments: BelegEmailAttachment[]
+  customerResponseRemark?: string | null
+  customerRespondedAt?: string | null
+  actionToken?: string | null
+}
+
+const MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024
+const ATTACHMENT_ACCEPT =
+  "image/*,.stl,.pdf,application/pdf,model/stl,application/sla"
+
+function statusOptionLabel(type: BelegType, status: BelegStatus): string {
+  return belegStatusLabel(type, status)
+}
+
+function customerOfferStatusLabel(status: CustomerOffer["status"]): string {
+  if (status === "active") return "Entwurf / Angebot"
+  if (status === "accepted") return "Angenommen"
+  if (status === "expired") return "Abgelaufen"
+  if (status === "withdrawn") return "Zurückgezogen"
+  return status
+}
+
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result ?? ""))
+    reader.onerror = () => reject(new Error("Datei konnte nicht gelesen werden."))
+    reader.readAsDataURL(file)
+  })
 }
 
 function formatChf(value: number): string {
@@ -182,6 +219,10 @@ function emptyEditor(type: BelegType = "offerte"): EditorState {
       ),
     ],
     notes: "",
+    emailAttachments: [],
+    customerResponseRemark: null,
+    customerRespondedAt: null,
+    actionToken: null,
   }
 }
 
@@ -200,6 +241,10 @@ export function AdminBelegeTab() {
   const [editorOpen, setEditorOpen] = useState(false)
   const [editor, setEditor] = useState<EditorState>(emptyEditor("offerte"))
   const [revenueAccounts, setRevenueAccounts] = useState<Account[]>([])
+  const [customerOffers, setCustomerOffers] = useState<CustomerOffer[]>([])
+  const [customerOffersLoading, setCustomerOffersLoading] = useState(false)
+  const [attachmentUploading, setAttachmentUploading] = useState(false)
+  const attachmentInputRef = useRef<HTMLInputElement>(null)
 
   const loadBelege = useCallback(async () => {
     setLoading(true)
@@ -219,9 +264,32 @@ export function AdminBelegeTab() {
     }
   }, [])
 
+  const loadCustomerOffers = useCallback(async () => {
+    setCustomerOffersLoading(true)
+    try {
+      const res = await fetch("/api/admin/customer-offers", {
+        credentials: "include",
+        cache: "no-store",
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? "Angebote fehlgeschlagen")
+      setCustomerOffers(Array.isArray(data.offers) ? data.offers : [])
+    } catch {
+      setCustomerOffers([])
+    } finally {
+      setCustomerOffersLoading(false)
+    }
+  }, [])
+
   useEffect(() => {
     void loadBelege()
   }, [loadBelege])
+
+  useEffect(() => {
+    if (activeType === "offerte") {
+      void loadCustomerOffers()
+    }
+  }, [activeType, loadCustomerOffers])
 
   useEffect(() => {
     if (!editorOpen) return
@@ -337,6 +405,12 @@ export function AdminBelegeTab() {
         ? beleg.positionen.map((pos, i) => normalizeBelegPosition(pos, i))
         : emptyEditor().positionen,
       notes: beleg.notes ?? "",
+      emailAttachments: Array.isArray(beleg.emailAttachments)
+        ? beleg.emailAttachments
+        : [],
+      customerResponseRemark: beleg.customerResponseRemark ?? null,
+      customerRespondedAt: beleg.customerRespondedAt ?? null,
+      actionToken: beleg.actionToken ?? null,
     })
     setEditorOpen(true)
   }
@@ -403,6 +477,70 @@ export function AdminBelegeTab() {
 
   const editorTotals = computeBelegTotals(editor.positionen)
 
+  const addEmailAttachments = async (files: FileList | null) => {
+    if (!files?.length) return
+    setAttachmentUploading(true)
+    setError(null)
+    try {
+      const next: BelegEmailAttachment[] = []
+      for (const file of Array.from(files)) {
+        if (file.size > MAX_ATTACHMENT_BYTES) {
+          throw new Error(
+            `"${file.name}" ist zu gross (max. ${Math.round(MAX_ATTACHMENT_BYTES / 1024 / 1024)} MB).`
+          )
+        }
+        let url: string | null = null
+        // Prefer Azure / admin upload; fall back to data URL for local/dev.
+        try {
+          const formData = new FormData()
+          formData.append("file", file)
+          formData.append("productId", "offerte-attachments")
+          const ext = file.name.includes(".")
+            ? file.name.slice(file.name.lastIndexOf(".")).toLowerCase()
+            : ""
+          formData.append(
+            "category",
+            [".stl", ".obj", ".glb", ".gltf", ".3mf"].includes(ext)
+              ? "model"
+              : "gallery"
+          )
+          const res = await fetch("/api/admin/upload", {
+            method: "POST",
+            credentials: "include",
+            body: formData,
+          })
+          const data = await res.json().catch(() => ({}))
+          if (res.ok && typeof data.url === "string" && data.url) {
+            url = data.url
+          }
+        } catch {
+          // fall through to data URL
+        }
+        if (!url) {
+          url = await readFileAsDataUrl(file)
+        }
+        next.push({
+          id: `att-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          fileName: file.name,
+          mimeType: file.type || "application/octet-stream",
+          url,
+          sizeBytes: file.size,
+        })
+      }
+      setEditor((prev) => ({
+        ...prev,
+        emailAttachments: [...prev.emailAttachments, ...next],
+      }))
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Anhang konnte nicht hinzugefügt werden."
+      )
+    } finally {
+      setAttachmentUploading(false)
+      if (attachmentInputRef.current) attachmentInputRef.current.value = ""
+    }
+  }
+
   const saveEditor = async () => {
     setSaving(true)
     setError(null)
@@ -410,6 +548,14 @@ export function AdminBelegeTab() {
       const positionen = editor.positionen.map((pos, i) =>
         normalizeBelegPosition(pos, i)
       )
+      const payload = {
+        status: editor.status,
+        kunde: editor.kunde,
+        customerId: editor.customerId ?? null,
+        positionen,
+        notes: editor.notes,
+        emailAttachments: editor.emailAttachments,
+      }
       if (editor.mode === "create") {
         const res = await fetch("/api/admin/belege", {
           method: "POST",
@@ -417,11 +563,7 @@ export function AdminBelegeTab() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             type: editor.type,
-            status: editor.status,
-            kunde: editor.kunde,
-            customerId: editor.customerId ?? null,
-            positionen,
-            notes: editor.notes,
+            ...payload,
           }),
         })
         const data = await res.json()
@@ -431,13 +573,7 @@ export function AdminBelegeTab() {
           method: "PUT",
           credentials: "include",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            status: editor.status,
-            kunde: editor.kunde,
-            customerId: editor.customerId ?? null,
-            positionen,
-            notes: editor.notes,
-          }),
+          body: JSON.stringify(payload),
         })
         const data = await res.json()
         if (!res.ok) throw new Error(data.error ?? "Speichern fehlgeschlagen")
@@ -578,7 +714,7 @@ export function AdminBelegeTab() {
                       <option value="all">Alle</option>
                       {statusesForType(type).map((status) => (
                         <option key={status} value={status}>
-                          {status}
+                          {statusOptionLabel(type, status)}
                         </option>
                       ))}
                     </select>
@@ -692,8 +828,8 @@ export function AdminBelegeTab() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            <span className="rounded-full bg-secondary px-2 py-0.5 text-xs capitalize">
-                              {beleg.status}
+                            <span className="rounded-full bg-secondary px-2 py-0.5 text-xs">
+                              {belegStatusLabel(beleg.type, beleg.status)}
                             </span>
                           </TableCell>
                           <TableCell>
@@ -724,7 +860,15 @@ export function AdminBelegeTab() {
                                 <Button
                                   size="sm"
                                   onClick={() => void convert(beleg, "rechnung")}
-                                  disabled={saving}
+                                  disabled={
+                                    saving ||
+                                    !canConvertOfferteToRechnung(beleg.status)
+                                  }
+                                  title={
+                                    canConvertOfferteToRechnung(beleg.status)
+                                      ? undefined
+                                      : "Nur bei Verbucht / Gesendet / Angenommen"
+                                  }
                                 >
                                   <FilePlus2 className="mr-1 h-3.5 w-3.5" />
                                   → Rechnung
@@ -756,6 +900,74 @@ export function AdminBelegeTab() {
                 )}
               </CardContent>
             </Card>
+
+            {type === "offerte" ? (
+              <Card className={adminUi.section}>
+                <CardContent className="space-y-3 p-4">
+                  <div>
+                    <h2 className="text-base font-semibold">
+                      Vorbereitete Angebote / Entwürfe
+                    </h2>
+                    <p className={cn("text-sm", adminUi.muted)}>
+                      Kunden-Angebote aus der Kundenverwaltung (Warenkorb-Entwürfe).
+                    </p>
+                  </div>
+                  {customerOffersLoading ? (
+                    <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Laden…
+                    </div>
+                  ) : customerOffers.length === 0 ? (
+                    <p className="py-4 text-sm text-muted-foreground">
+                      Keine vorbereiteten Kunden-Angebote vorhanden.
+                    </p>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Titel</TableHead>
+                          <TableHead>Kunde</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Preis</TableHead>
+                          <TableHead>Aktualisiert</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {customerOffers.map((offer) => (
+                          <TableRow key={offer.id}>
+                            <TableCell className="font-medium">
+                              <div>{offer.title}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {offer.cartItem.type}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="text-sm">{offer.customerEmail}</div>
+                              {offer.customerId ? (
+                                <div className="text-xs text-muted-foreground">
+                                  {offer.customerId}
+                                </div>
+                              ) : null}
+                            </TableCell>
+                            <TableCell>
+                              <span className="rounded-full bg-secondary px-2 py-0.5 text-xs">
+                                {customerOfferStatusLabel(offer.status)}
+                              </span>
+                            </TableCell>
+                            <TableCell>
+                              {offer.priceChf != null
+                                ? formatChf(Number(offer.priceChf))
+                                : "—"}
+                            </TableCell>
+                            <TableCell>{formatDate(offer.updatedAt)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </CardContent>
+              </Card>
+            ) : null}
           </TabsContent>
         ))}
       </Tabs>
@@ -805,7 +1017,7 @@ export function AdminBelegeTab() {
               >
                 {statusesForType(editor.type).map((status) => (
                   <option key={status} value={status}>
-                    {status}
+                    {statusOptionLabel(editor.type, status)}
                   </option>
                 ))}
               </select>
@@ -1135,6 +1347,108 @@ export function AdminBelegeTab() {
               onChange={(e) => setEditor((prev) => ({ ...prev, notes: e.target.value }))}
             />
           </div>
+
+          {editor.type === "offerte" ? (
+            <div className="space-y-3 rounded-xl border border-border/60 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <Label className="flex items-center gap-1.5">
+                    <Paperclip className="h-3.5 w-3.5" />
+                    E-Mail-Anhänge
+                  </Label>
+                  <p className={cn("mt-1 text-xs", adminUi.muted)}>
+                    Bilder, STL oder PDF — nur als E-Mail-Anhang, nicht auf dem PDF.
+                  </p>
+                </div>
+                <div>
+                  <input
+                    ref={attachmentInputRef}
+                    type="file"
+                    accept={ATTACHMENT_ACCEPT}
+                    multiple
+                    className="hidden"
+                    onChange={(e) => void addEmailAttachments(e.target.files)}
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={attachmentUploading}
+                    onClick={() => attachmentInputRef.current?.click()}
+                  >
+                    {attachmentUploading ? (
+                      <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Upload className="mr-1 h-3.5 w-3.5" />
+                    )}
+                    Datei hinzufügen
+                  </Button>
+                </div>
+              </div>
+              {editor.emailAttachments.length === 0 ? (
+                <p className={cn("text-sm", adminUi.muted)}>Keine Anhänge.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {editor.emailAttachments.map((att) => (
+                    <li
+                      key={att.id}
+                      className="flex items-center justify-between gap-3 rounded-lg border border-border/50 px-3 py-2 text-sm"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate font-medium">{att.fileName}</p>
+                        <p className={cn("text-xs", adminUi.muted)}>
+                          {att.mimeType}
+                          {att.sizeBytes != null
+                            ? ` · ${(att.sizeBytes / 1024).toFixed(0)} KB`
+                            : ""}
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 w-8 p-0"
+                        onClick={() =>
+                          setEditor((prev) => ({
+                            ...prev,
+                            emailAttachments: prev.emailAttachments.filter(
+                              (a) => a.id !== att.id
+                            ),
+                          }))
+                        }
+                      >
+                        <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                        <span className="sr-only">Entfernen</span>
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ) : null}
+
+          {editor.type === "offerte" &&
+          (editor.status === "angenommen" || editor.status === "abgelehnt") &&
+          (editor.customerResponseRemark || editor.customerRespondedAt) ? (
+            <div className="space-y-2 rounded-xl border border-orange-200/70 bg-orange-50/50 p-3">
+              <Label>
+                Kundenantwort (
+                {OFFERTE_STATUS_LABELS[editor.status as OfferteStatus] ??
+                  editor.status}
+                )
+              </Label>
+              {editor.customerRespondedAt ? (
+                <p className={cn("text-xs", adminUi.muted)}>
+                  {formatDate(editor.customerRespondedAt)}
+                </p>
+              ) : null}
+              <p className="whitespace-pre-wrap text-sm">
+                {editor.customerResponseRemark?.trim()
+                  ? editor.customerResponseRemark
+                  : "Keine Bemerkung hinterlassen."}
+              </p>
+            </div>
+          ) : null}
 
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setEditorOpen(false)}>

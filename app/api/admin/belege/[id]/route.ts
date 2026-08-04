@@ -9,6 +9,7 @@ import {
 } from "@/lib/admin/cosmos-belege"
 import { recordBelegPaymentJournalEntry } from "@/lib/accounting/beleg-journal"
 import { normalizeBeleg, normalizeBelegAddress } from "@/lib/documents/beleg-types"
+import { ensureOfferteActionToken } from "@/lib/documents/beleg-service"
 import { upsertCustomerFromBelegAddress } from "@/lib/admin/upsert-customer-from-beleg"
 import {
   sendInboundOfferteEmailsSafe,
@@ -69,7 +70,7 @@ export async function PUT(request: Request, context: Ctx) {
       )
     }
 
-    const beleg = normalizeBeleg(
+    let beleg = normalizeBeleg(
       {
         ...existing,
         ...body,
@@ -80,6 +81,7 @@ export async function PUT(request: Request, context: Ctx) {
       },
       existing
     )
+    beleg = ensureOfferteActionToken(beleg)
     const saved = await cosmosUpsertBeleg(beleg)
     try {
       await recordBelegPaymentJournalEntry(saved)
