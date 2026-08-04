@@ -24,7 +24,7 @@ export async function GET(request: Request) {
   }
 
   // Data-URL: dekodieren und mit passendem MIME-Type ausliefern.
-  const dataMatch = iconUrl.match(/^data:([^;,]+)(;base64)?,(.*)$/s)
+  const dataMatch = iconUrl.match(/^data:([^;,]+)(;base64)?,([\s\S]*)$/)
   if (dataMatch) {
     const mime = dataMatch[1] || "image/png"
     const isBase64 = Boolean(dataMatch[2])
