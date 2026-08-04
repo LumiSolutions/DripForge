@@ -67,6 +67,172 @@ import {
 import { useCustomerCategory } from "@/components/dripforge/customer-category-provider"
 import { SafeProductImage } from "@/components/dripforge/shared/safe-product-image"
 
+function variantLabel(item: CartItem): string {
+  const d = item.customDetails
+  if (!d) return "Konfiguration"
+
+  const parts: string[] = []
+  if (d.color) parts.push(d.color)
+  if (d.filament) parts.push(d.filament)
+  const variant = d.variant ?? d.materialVariant
+  if (variant) parts.push(variant)
+  const gravur = d.userText ?? d.engravingText
+  if (gravur) parts.push(`Gravur: ${gravur}`)
+
+  return parts.length > 0 ? parts.join(" · ") : "Konfiguration"
+}
+
+function groupCartByProduct(cart: CartItem[]): { key: string; items: CartItem[] }[] {
+  const groups = new Map<string, CartItem[]>()
+  for (const item of cart) {
+    const key = item.productId ?? item.id
+    const existing = groups.get(key)
+    if (existing) {
+      existing.push(item)
+    } else {
+      groups.set(key, [item])
+    }
+  }
+  return Array.from(groups.entries()).map(([key, items]) => ({ key, items }))
+}
+
+function TypeBadge({ type }: { type: "3d" | "laser" }) {
+  if (type === "3d") {
+    return (
+      <Badge variant="outline" className="border-primary/30 text-primary">
+        <Printer className="mr-1 h-3 w-3" />
+        3D-Druck
+      </Badge>
+    )
+  }
+  return (
+    <Badge variant="outline" className="border-cyan-500/30 text-cyan-600 dark:text-cyan-400">
+      <Zap className="mr-1 h-3 w-3" />
+      Laser
+    </Badge>
+  )
+}
+
+function CartUnitPrice({
+  item,
+  categoryDiscountPercent,
+  applyCategoryDiscount,
+  className,
+}: {
+  item: CartItem
+  categoryDiscountPercent: number
+  applyCategoryDiscount: (price: number) => number
+  className?: string
+}) {
+  const hasTierDiscount =
+    item.baseUnitPrice != null && item.baseUnitPrice > item.price
+  const hasCategoryDiscount = categoryDiscountPercent > 0
+  const displayPrice = hasCategoryDiscount
+    ? applyCategoryDiscount(item.price)
+    : item.price
+
+  return (
+    <p className={cn("font-bold", className ?? "text-lg")}>
+      CHF {displayPrice.toFixed(2)}
+      {hasCategoryDiscount && (
+        <span className="ml-2 text-sm font-normal text-muted-foreground line-through">
+          CHF {item.price.toFixed(2)}
+        </span>
+      )}
+      {hasTierDiscount && (
+        <span className="ml-2 text-sm font-normal text-muted-foreground line-through">
+          CHF {item.baseUnitPrice!.toFixed(2)}
+        </span>
+      )}
+    </p>
+  )
+}
+
+function SingleCartItemDetails({ item }: { item: CartItem }) {
+  return (
+    <>
+      {item.leitbild && (
+        <div className="relative mb-3 aspect-video max-w-xs overflow-hidden rounded-lg border border-border/50">
+          <SafeProductImage
+            src={item.leitbild}
+            alt="Leitbild der Live-Vorschau"
+            fill
+            sizes="320px"
+            className="object-contain bg-muted/30"
+          />
+        </div>
+      )}
+      {item.customDetails && (
+        <div className="text-sm text-muted-foreground space-y-1">
+          {item.customDetails.filament && (
+            <p>Filament: {item.customDetails.filament}</p>
+          )}
+          {item.customDetails.color && (
+            <p>Farbe: {item.customDetails.color}</p>
+          )}
+          {item.customDetails.dimensions && (
+            <p>Abmessungen: {item.customDetails.dimensions}</p>
+          )}
+          {item.customDetails.material && (
+            <p>Material: {item.customDetails.material}</p>
+          )}
+          {(item.customDetails.variant ||
+            item.customDetails.materialVariant) && (
+            <p>
+              Variante:{" "}
+              {item.customDetails.variant ??
+                item.customDetails.materialVariant}
+            </p>
+          )}
+          {item.customDetails.userFont && (
+            <p>
+              Schrift:{" "}
+              {LASER_FONT_OPTIONS.find(
+                (f) => f.id === item.customDetails?.userFont
+              )?.label ?? item.customDetails.userFont}
+            </p>
+          )}
+          {item.customDetails.size && (
+            <p>Grösse: {item.customDetails.size}</p>
+          )}
+          {(item.customDetails.userText ||
+            item.customDetails.engravingText) && (
+            <p>
+              Gravur:{" "}
+              {item.customDetails.userText ??
+                item.customDetails.engravingText}
+            </p>
+          )}
+          {item.customDetails.uploadedImage && (
+            <p>Logo: hochgeladen</p>
+          )}
+          {item.customDetails.layoutCoordinates?.textPosition && (
+            <p className="text-xs opacity-80">
+              Text: {Math.round(item.customDetails.layoutCoordinates.textPosition.x)}% /{" "}
+              {Math.round(item.customDetails.layoutCoordinates.textPosition.y)}%
+              {item.customDetails.layoutCoordinates.textPosition.scale != null &&
+                ` · ${item.customDetails.layoutCoordinates.textPosition.scale.toFixed(1)}x`}
+              {item.customDetails.layoutCoordinates.textPosition.rotation != null &&
+                ` · ${Math.round(item.customDetails.layoutCoordinates.textPosition.rotation)}°`}
+            </p>
+          )}
+          {item.customDetails.layoutCoordinates?.imagePosition &&
+            item.customDetails.uploadedImage && (
+            <p className="text-xs opacity-80">
+              Bild: {Math.round(item.customDetails.layoutCoordinates.imagePosition.x)}% /{" "}
+              {Math.round(item.customDetails.layoutCoordinates.imagePosition.y)}%
+              {item.customDetails.layoutCoordinates.imagePosition.scale != null &&
+                ` · ${item.customDetails.layoutCoordinates.imagePosition.scale.toFixed(1)}x`}
+              {item.customDetails.layoutCoordinates.imagePosition.rotation != null &&
+                ` · ${Math.round(item.customDetails.layoutCoordinates.imagePosition.rotation)}°`}
+            </p>
+          )}
+        </div>
+      )}
+    </>
+  )
+}
+
 export function PageWarenkorb({ 
   setCurrentView, 
   cart, 
@@ -152,145 +318,138 @@ export function PageWarenkorb({
           <div className="grid gap-8 lg:grid-cols-3">
             {/* Cart Items */}
             <div className="lg:col-span-2 space-y-4">
-              {cart.map((item) => (
-                <Card key={item.id} className="border-border/50 bg-card/50">
-                  <CardContent className="p-6">
-                    <div className="flex items-start justify-between gap-4 md:flex-row">
-                      <div className="flex-1">
-                        <div className="mb-2 flex items-center gap-2">
-                          {item.type === "3d" ? (
-                            <>
-                              <Printer className="h-4 w-4 text-primary" />
-                              <span className="text-xs text-primary">3D-Druck</span>
-                            </>
-                          ) : (
-                            <>
-                              <Zap className="h-4 w-4 text-cyan-400" />
-                              <span className="text-xs text-cyan-400">Laser</span>
-                            </>
-                          )}
+              {groupCartByProduct(cart).map((group) => {
+                const isMultiVariant = group.items.length >= 2
+
+                if (isMultiVariant) {
+                  const first = group.items[0]
+                  return (
+                    <Card key={group.key} className="border-border/50 bg-card/50">
+                      <CardContent className="p-6">
+                        <div className="mb-4 flex flex-wrap items-center gap-2">
+                          <TypeBadge type={first.type} />
+                          <Badge variant="secondary" className="gap-1">
+                            <Layers className="h-3 w-3" />
+                            Mehrere Variationen
+                          </Badge>
                         </div>
-                        <h3 className="mb-2 font-bold text-foreground">{item.name}</h3>
-                        {item.leitbild && (
-                          <div className="relative mb-3 aspect-video max-w-xs overflow-hidden rounded-lg border border-border/50">
-                            <SafeProductImage
-                              src={item.leitbild}
-                              alt="Leitbild der Live-Vorschau"
-                              fill
-                              sizes="320px"
-                              className="object-contain bg-muted/30"
-                            />
+                        <h3 className="mb-4 font-bold text-foreground">{first.name}</h3>
+                        <div className="space-y-3">
+                          {group.items.map((item) => (
+                            <div
+                              key={item.id}
+                              className="flex flex-col gap-3 rounded-lg border border-border/50 bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between"
+                            >
+                              <div className="flex min-w-0 flex-1 items-start gap-3">
+                                {item.leitbild && (
+                                  <div className="relative h-16 w-24 shrink-0 overflow-hidden rounded-md border border-border/50 bg-muted/30">
+                                    <SafeProductImage
+                                      src={item.leitbild}
+                                      alt="Leitbild der Variante"
+                                      fill
+                                      sizes="96px"
+                                      className="object-contain"
+                                    />
+                                  </div>
+                                )}
+                                <p className="text-sm text-muted-foreground">
+                                  {variantLabel(item)}
+                                </p>
+                              </div>
+                              <div className="flex shrink-0 items-center gap-4 sm:gap-6">
+                                <div className="flex items-center gap-2">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                                    aria-label="Menge verringern"
+                                  >
+                                    <Minus className="h-4 w-4" />
+                                  </Button>
+                                  <span className="w-8 text-center font-bold">{item.quantity}</span>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                                    aria-label="Menge erhöhen"
+                                  >
+                                    <Plus className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                                <CartUnitPrice
+                                  item={item}
+                                  categoryDiscountPercent={categoryDiscountPercent}
+                                  applyCategoryDiscount={applyCategoryDiscount}
+                                  className="min-w-[7rem] text-right text-base"
+                                />
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => removeFromCart(item.id)}
+                                  className="h-8 w-8 shrink-0 p-0 text-destructive hover:text-destructive/80"
+                                  aria-label="Variante entfernen"
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )
+                }
+
+                const item = group.items[0]
+                return (
+                  <Card key={item.id} className="border-border/50 bg-card/50">
+                    <CardContent className="p-6">
+                      <div className="flex items-start justify-between gap-4 md:flex-row">
+                        <div className="flex-1">
+                          <div className="mb-2">
+                            <TypeBadge type={item.type} />
                           </div>
-                        )}
-                        {item.customDetails && (
-                          <div className="text-sm text-muted-foreground space-y-1">
-                            {item.customDetails.filament && (
-                              <p>Filament: {item.customDetails.filament}</p>
-                            )}
-                            {item.customDetails.color && (
-                              <p>Farbe: {item.customDetails.color}</p>
-                            )}
-                            {item.customDetails.dimensions && (
-                              <p>Abmessungen: {item.customDetails.dimensions}</p>
-                            )}
-                            {item.customDetails.material && (
-                              <p>Material: {item.customDetails.material}</p>
-                            )}
-                            {(item.customDetails.variant ||
-                              item.customDetails.materialVariant) && (
-                              <p>
-                                Variante:{" "}
-                                {item.customDetails.variant ??
-                                  item.customDetails.materialVariant}
-                              </p>
-                            )}
-                            {item.customDetails.userFont && (
-                              <p>
-                                Schrift:{" "}
-                                {LASER_FONT_OPTIONS.find(
-                                  (f) => f.id === item.customDetails?.userFont
-                                )?.label ?? item.customDetails.userFont}
-                              </p>
-                            )}
-                            {item.customDetails.size && (
-                              <p>Grösse: {item.customDetails.size}</p>
-                            )}
-                            {(item.customDetails.userText ||
-                              item.customDetails.engravingText) && (
-                              <p>
-                                Gravur:{" "}
-                                {item.customDetails.userText ??
-                                  item.customDetails.engravingText}
-                              </p>
-                            )}
-                            {item.customDetails.uploadedImage && (
-                              <p>Logo: hochgeladen</p>
-                            )}
-                            {item.customDetails.layoutCoordinates?.textPosition && (
-                              <p className="text-xs opacity-80">
-                                Text: {Math.round(item.customDetails.layoutCoordinates.textPosition.x)}% /{" "}
-                                {Math.round(item.customDetails.layoutCoordinates.textPosition.y)}%
-                                {item.customDetails.layoutCoordinates.textPosition.scale != null &&
-                                  ` · ${item.customDetails.layoutCoordinates.textPosition.scale.toFixed(1)}x`}
-                                {item.customDetails.layoutCoordinates.textPosition.rotation != null &&
-                                  ` · ${Math.round(item.customDetails.layoutCoordinates.textPosition.rotation)}°`}
-                              </p>
-                            )}
-                            {item.customDetails.layoutCoordinates?.imagePosition &&
-                              item.customDetails.uploadedImage && (
-                              <p className="text-xs opacity-80">
-                                Bild: {Math.round(item.customDetails.layoutCoordinates.imagePosition.x)}% /{" "}
-                                {Math.round(item.customDetails.layoutCoordinates.imagePosition.y)}%
-                                {item.customDetails.layoutCoordinates.imagePosition.scale != null &&
-                                  ` · ${item.customDetails.layoutCoordinates.imagePosition.scale.toFixed(1)}x`}
-                                {item.customDetails.layoutCoordinates.imagePosition.rotation != null &&
-                                  ` · ${Math.round(item.customDetails.layoutCoordinates.imagePosition.rotation)}°`}
-                              </p>
-                            )}
+                          <h3 className="mb-2 font-bold text-foreground">{item.name}</h3>
+                          <SingleCartItemDetails item={item} />
+                        </div>
+                        <div className="text-right">
+                          <CartUnitPrice
+                            item={item}
+                            categoryDiscountPercent={categoryDiscountPercent}
+                            applyCategoryDiscount={applyCategoryDiscount}
+                            className="mb-4 text-lg"
+                          />
+                          <div className="flex items-center gap-3 justify-end mb-4">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                            >
+                              <Minus className="h-4 w-4" />
+                            </Button>
+                            <span className="w-8 text-center font-bold">{item.quantity}</span>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                            >
+                              <Plus className="h-4 w-4" />
+                            </Button>
                           </div>
-                        )}
-                      </div>
-                      <div className="text-right">
-                        {categoryDiscountPercent > 0 ? (
-                          <p className="mb-4 text-lg font-bold">
-                            CHF {applyCategoryDiscount(item.price).toFixed(2)}
-                            <span className="ml-2 text-sm font-normal text-muted-foreground line-through">
-                              CHF {item.price.toFixed(2)}
-                            </span>
-                          </p>
-                        ) : (
-                          <p className="mb-4 text-lg font-bold">CHF {item.price.toFixed(2)}</p>
-                        )}
-                        <div className="flex items-center gap-3 justify-end mb-4">
                           <Button
                             size="sm"
-                            variant="outline"
-                            onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                            variant="ghost"
+                            onClick={() => removeFromCart(item.id)}
+                            className="text-destructive hover:text-destructive/80 w-full"
                           >
-                            <Minus className="h-4 w-4" />
-                          </Button>
-                          <span className="w-8 text-center font-bold">{item.quantity}</span>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                          >
-                            <Plus className="h-4 w-4" />
+                            Entfernen
                           </Button>
                         </div>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => removeFromCart(item.id)}
-                          className="text-destructive hover:text-destructive/80 w-full"
-                        >
-                          Entfernen
-                        </Button>
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                    </CardContent>
+                  </Card>
+                )
+              })}
             </div>
 
             {/* Order Summary */}
