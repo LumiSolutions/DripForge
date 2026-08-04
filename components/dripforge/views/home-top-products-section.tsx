@@ -132,7 +132,7 @@ export function HomeTopProductsSection() {
 
           <div className="overflow-hidden px-4 md:px-10" ref={emblaRef}>
             <div className="-ml-4 flex items-stretch touch-pan-y md:-ml-6">
-              {slides.map(({ key, product }) => {
+              {slides.map(({ key, product }, index) => {
                 const images = resolveProductImages(
                   product.id,
                   product.images,
@@ -158,6 +158,7 @@ export function HomeTopProductsSection() {
                         viewMode="grid3"
                         surface="brand"
                         canInlineEdit={canInlineEdit}
+                        priority={index === 0}
                         onOpen={() => {
                           if (canInlineEdit) return
                           safeNavigate(

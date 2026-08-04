@@ -148,12 +148,25 @@ export function resolveShopVariantModelUrl(
   product: Pick<Product, "modellDateiUrl" | "modelUrl" | "shopVariants">,
   variantId?: string | null
 ): string | undefined {
+  const looksLike3dModel = (url: string) => {
+    const path = url.split("?")[0]?.toLowerCase() ?? ""
+    return (
+      path.endsWith(".stl") ||
+      path.endsWith(".glb") ||
+      path.endsWith(".gltf")
+    )
+  }
+
   if (variantId && product.shopVariants?.length) {
     const variant = product.shopVariants.find((v) => v.id === variantId)
     const override = variant?.modellDateiUrl?.trim()
-    if (override) return override
+    // Ungültige Varianten-URLs nicht als Treffer werten — sonst blockiert
+    // der Fallback auf das Produktmodell.
+    if (override && looksLike3dModel(override)) return override
   }
-  return product.modellDateiUrl?.trim() || product.modelUrl?.trim() || undefined
+  const fallback =
+    product.modellDateiUrl?.trim() || product.modelUrl?.trim() || undefined
+  return fallback && looksLike3dModel(fallback) ? fallback : undefined
 }
 
 export function normalizeProductImageShape(

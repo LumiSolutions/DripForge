@@ -6,15 +6,25 @@ import { cn } from "@/lib/utils"
 
 const FALLBACK_IMAGE_SRC = "/placeholder.svg"
 
+/** Winzige neutrale Blur-Placeholder-Data-URL (1×1 grau PNG). */
+const DEFAULT_BLUR_DATA_URL =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+
 type SafeProductImageProps = {
   src: string
   alt: string
   className?: string
   fill?: boolean
+  width?: number
+  height?: number
   sizes?: string
+  /** Next.js 16: weiterhin unterstützt (mappt intern auf preload). */
   priority?: boolean
   /** Next/Image Kompressionsqualität (Standard 75). Für Thumbnails/Karten niedriger. */
   quality?: number
+  /** Optionaler Blur-Placeholder während des Ladens. */
+  placeholder?: "blur" | "empty"
+  blurDataURL?: string
 }
 
 function isOptimizableImageSrc(src: string): boolean {
@@ -28,9 +38,13 @@ export function SafeProductImage({
   alt,
   className,
   fill,
+  width,
+  height,
   sizes,
   priority,
   quality,
+  placeholder,
+  blurDataURL,
 }: SafeProductImageProps) {
   const requestedSrc = src?.trim() || FALLBACK_IMAGE_SRC
   // Merkt sich den zuletzt fehlgeschlagenen Pfad. Ändert sich `src`, unterscheidet
@@ -43,6 +57,13 @@ export function SafeProductImage({
     if (requestedSrc !== FALLBACK_IMAGE_SRC) setFailedSrc(requestedSrc)
   }
 
+  const resolvedSizes =
+    sizes ?? (fill ? "(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" : undefined)
+  const useBlur = placeholder === "blur"
+  const resolvedBlurDataURL = useBlur
+    ? blurDataURL?.trim() || DEFAULT_BLUR_DATA_URL
+    : undefined
+
   if (!isOptimizableImageSrc(currentSrc)) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
@@ -51,6 +72,8 @@ export function SafeProductImage({
         alt={alt}
         onError={handleError}
         className={cn(fill ? "absolute inset-0 h-full w-full object-cover" : className)}
+        width={fill ? undefined : width}
+        height={fill ? undefined : height}
       />
     )
   }
@@ -60,9 +83,13 @@ export function SafeProductImage({
       src={currentSrc}
       alt={alt}
       fill={fill}
-      sizes={sizes}
+      width={fill ? undefined : width}
+      height={fill ? undefined : height}
+      sizes={resolvedSizes}
       priority={priority}
       quality={quality}
+      placeholder={useBlur ? "blur" : undefined}
+      blurDataURL={resolvedBlurDataURL}
       onError={handleError}
       className={className}
     />

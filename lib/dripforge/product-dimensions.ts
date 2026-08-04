@@ -28,14 +28,16 @@ export function formatProductWeight(gewicht: number | null | undefined): string 
 }
 
 /** Für 3D-Bemaßung: X = Länge, Y = Höhe, Z = Breite */
-export function productDimensionsToViewerMm(dims: ProductDimensionsMm): {
+export function productDimensionsToViewerMm(
+  dims: ProductDimensionsMm | null | undefined
+): {
   x: number
   y: number
   z: number
 } {
   return {
-    x: dims.length,
-    y: dims.height,
-    z: dims.width,
+    x: safeAxis(dims?.length, 100),
+    y: safeAxis(dims?.height, 100),
+    z: safeAxis(dims?.width, 100),
   }
 }

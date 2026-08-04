@@ -23,6 +23,8 @@ type ShopProductCardProps = {
   surface?: ShopCardSurface
   onOpen: () => void
   canInlineEdit?: boolean
+  /** Erste Karten above-the-fold priorisieren. */
+  priority?: boolean
 }
 
 function normalizeShapeAspect(
@@ -47,6 +49,7 @@ export function ShopProductCard({
   surface = "brand",
   onOpen,
   canInlineEdit = false,
+  priority = false,
 }: ShopProductCardProps) {
   const salePercent = getSaleBadgePercent(product)
   const isList = viewMode === "list"
@@ -137,6 +140,8 @@ export function ShopProductCard({
                 fill
                 sizes="200px"
                 quality={55}
+                priority={priority}
+                placeholder="blur"
                 className="object-contain p-1.5"
               />
             </div>
@@ -218,8 +223,10 @@ export function ShopProductCard({
             src={coverSrc}
             alt={product.name}
             fill
-            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 200px"
             quality={60}
+            priority={priority}
+            placeholder="blur"
             className="object-contain p-2 transition-transform duration-300 group-hover:scale-[1.02] sm:p-3"
           />
         </div>
