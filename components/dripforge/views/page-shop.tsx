@@ -1205,6 +1205,7 @@ export function PageShop({
                               fixedDimensionsMm={productDimensionsToViewerMm(
                                 productDimensions
                               )}
+                              initialRotationDeg={detailProduct.defaultRotationDeg}
                             />
                           </div>
                         ) : null}
@@ -1231,6 +1232,7 @@ export function PageShop({
                             fixedDimensionsMm={productDimensionsToViewerMm(
                               productDimensions
                             )}
+                            initialRotationDeg={detailProduct.defaultRotationDeg}
                           />
                         </div>
                       ) : null}

@@ -19,6 +19,8 @@ export type PrepareGltfSceneOptions = {
   autoAlignFlat?: boolean
   /** Zusätzliche X-Kippung in 90°-Schritten (0–3) */
   tipSteps?: number
+  /** Produktdefinierte Standard-Orientierung (Grad) für die Initialansicht */
+  extraRotationDeg?: { x?: number; y?: number; z?: number } | null
 }
 
 /** Zentrieren, optional flach ausrichten, auf Viewport-Grösse skalieren, Unterkante auf Y = 0 */
@@ -31,6 +33,16 @@ export function prepareGltfScene(
 
   if (options?.autoAlignFlat !== false) {
     alignObjectFlatOnBed(scene)
+  }
+
+  // Produktdefinierte Standard-Orientierung (Grad → Radiant) vor Kippen/Skalieren.
+  const extra = options?.extraRotationDeg
+  if (extra && (extra.x || extra.y || extra.z)) {
+    const deg2rad = Math.PI / 180
+    scene.rotation.x += (Number(extra.x) || 0) * deg2rad
+    scene.rotation.y += (Number(extra.y) || 0) * deg2rad
+    scene.rotation.z += (Number(extra.z) || 0) * deg2rad
+    scene.updateMatrixWorld(true)
   }
 
   const tipSteps = Math.max(0, Math.round(options?.tipSteps ?? 0)) % 4

@@ -4,7 +4,7 @@
  * 3D Live-Vorschau mit @react-three/fiber und @react-three/drei.
  */
 
-import { forwardRef, Suspense, useMemo, useState } from "react"
+import { forwardRef, Suspense, useMemo, useState, type ReactNode } from "react"
 import { Canvas } from "@react-three/fiber"
 import { LEITBILD_3D_CANVAS_ATTR } from "@/lib/dripforge/capture-leitbild"
 import { ContactShadows, OrbitControls } from "@react-three/drei"
@@ -21,7 +21,7 @@ import {
   ModelDimensionLines,
   type DimensionsMm,
 } from "@/components/dripforge/shared/model-dimension-lines"
-import { Box, Eye, EyeOff, Loader2 } from "lucide-react"
+import { Box, Eye, EyeOff, Loader2, RotateCcw } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 export type ColoredMeshPart = {
@@ -113,6 +113,27 @@ function PreviewMeshes({
   )
 }
 
+/** Kippt die Kinder in 90°-Schritten (X) um einen Mittelpunkt-Pivot. */
+function TiltPivot({
+  tipSteps,
+  center,
+  children,
+}: {
+  tipSteps: number
+  center: [number, number, number]
+  children: ReactNode
+}) {
+  const angle = ((Math.round(tipSteps) % 4) + 4) % 4 * (Math.PI / 2)
+  if (angle === 0) return <>{children}</>
+  return (
+    <group position={center}>
+      <group rotation={[angle, 0, 0]}>
+        <group position={[-center[0], -center[1], -center[2]]}>{children}</group>
+      </group>
+    </group>
+  )
+}
+
 function PreviewScene({
   geometry,
   meshParts,
@@ -123,6 +144,7 @@ function PreviewScene({
   dimensionsMm,
   showDimensions,
   isOversized,
+  tipSteps,
 }: {
   geometry: BufferGeometry | null
   meshParts: ColoredMeshPart[] | null
@@ -133,6 +155,7 @@ function PreviewScene({
   dimensionsMm: DimensionsMm | null
   showDimensions: boolean
   isOversized: boolean
+  tipSteps: number
 }) {
   const useNativeScene = Boolean(
     preserveEmbeddedColors && nativeScene
@@ -199,18 +222,28 @@ function PreviewScene({
       </mesh>
 
       <group scale={[scaleFactor, scaleFactor, scaleFactor]}>
-        {useNativeScene && nativeScene ? (
-          <primitive object={nativeScene} />
-        ) : (
-          <PreviewMeshes parts={resolvedParts} fallbackColor={color} />
-        )}
-        {showDimensions && dimensionsMm && dimensionGeometry && (
-          <ModelDimensionLines
-            geometry={dimensionGeometry}
-            dimensionsMm={dimensionsMm}
-            isOversized={isOversized}
-          />
-        )}
+        {/* «Kippen»: Modell in 90°-Schritten um seine Mitte kippen (X-Achse). */}
+        <TiltPivot
+          tipSteps={tipSteps}
+          center={[
+            orbitTarget[0] / scaleFactor,
+            orbitTarget[1] / scaleFactor,
+            orbitTarget[2] / scaleFactor,
+          ]}
+        >
+          {useNativeScene && nativeScene ? (
+            <primitive object={nativeScene} />
+          ) : (
+            <PreviewMeshes parts={resolvedParts} fallbackColor={color} />
+          )}
+          {showDimensions && dimensionsMm && dimensionGeometry && (
+            <ModelDimensionLines
+              geometry={dimensionGeometry}
+              dimensionsMm={dimensionsMm}
+              isOversized={isOversized}
+            />
+          )}
+        </TiltPivot>
       </group>
 
       <ContactShadows
@@ -308,6 +341,7 @@ export const Model3DPreview = forwardRef<
   ref
 ) {
   const [showDimensions, setShowDimensions] = useState(true)
+  const [tipSteps, setTipSteps] = useState(0)
 
   const hasModel =
     Boolean(geometry) ||
@@ -330,23 +364,36 @@ export const Model3DPreview = forwardRef<
         className
       )}
     >
-      <button
-        type="button"
-        onClick={() => setShowDimensions((v) => !v)}
-        className={cn(
-          "absolute right-3 top-3 z-10 flex items-center gap-1.5 rounded-lg border border-border/60 bg-white/90 px-2.5 py-1.5 text-[10px] font-medium text-zinc-700 shadow-sm backdrop-blur-sm transition-colors hover:border-primary/40 hover:text-primary dark:bg-card/90 dark:text-foreground"
-        )}
-        title={showDimensions ? "Masse ausblenden" : "Masse einblenden"}
-      >
-        {showDimensions ? (
-          <Eye className="h-3.5 w-3.5" />
-        ) : (
-          <EyeOff className="h-3.5 w-3.5" />
-        )}
-        <span className="hidden sm:inline">
-          {showDimensions ? "Masse aus" : "Masse ein"}
-        </span>
-      </button>
+      <div className="absolute right-3 top-3 z-10 flex flex-col gap-1.5">
+        <button
+          type="button"
+          onClick={() => setShowDimensions((v) => !v)}
+          className={cn(
+            "flex items-center gap-1.5 rounded-lg border border-border/60 bg-white/90 px-2.5 py-1.5 text-[10px] font-medium text-zinc-700 shadow-sm backdrop-blur-sm transition-colors hover:border-primary/40 hover:text-primary dark:bg-card/90 dark:text-foreground"
+          )}
+          title={showDimensions ? "Masse ausblenden" : "Masse einblenden"}
+        >
+          {showDimensions ? (
+            <Eye className="h-3.5 w-3.5" />
+          ) : (
+            <EyeOff className="h-3.5 w-3.5" />
+          )}
+          <span className="hidden sm:inline">
+            {showDimensions ? "Masse aus" : "Masse ein"}
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setTipSteps((n) => (n + 1) % 4)}
+          className={cn(
+            "flex items-center gap-1.5 rounded-lg border border-border/60 bg-white/90 px-2.5 py-1.5 text-[10px] font-medium text-zinc-700 shadow-sm backdrop-blur-sm transition-colors hover:border-primary/40 hover:text-primary dark:bg-card/90 dark:text-foreground"
+          )}
+          title="Modell kippen / ausrichten"
+        >
+          <RotateCcw className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">Kippen</span>
+        </button>
+      </div>
 
       <Canvas
         ref={ref}
@@ -368,6 +415,7 @@ export const Model3DPreview = forwardRef<
             dimensionsMm={dimensionsMm}
             showDimensions={showDimensions}
             isOversized={isOversized}
+            tipSteps={tipSteps}
           />
         </Suspense>
       </Canvas>

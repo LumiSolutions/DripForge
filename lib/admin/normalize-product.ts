@@ -141,6 +141,7 @@ export function normalizeAdminProductInput(
     images: galerieBilder,
     modelUrl: modellDateiUrl,
     dimensionsMm: input.dimensionsMm ?? existing?.dimensionsMm,
+    defaultRotationDeg: input.defaultRotationDeg ?? existing?.defaultRotationDeg,
     volumen:
       input.volumen != null
         ? Number(input.volumen)
