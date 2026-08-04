@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react"
@@ -63,6 +64,11 @@ import {
   isSiteConfigReadonlyEnabled,
   SITE_CONFIG_PREVIEW_PARAM,
 } from "@/lib/admin/site-config"
+import {
+  CMS_HISTORY_MESSAGE_SOURCE,
+  isCmsHistoryParentCommand,
+  type CmsHistoryIframeEvent,
+} from "@/lib/admin/cms-edit-history"
 
 type SiteTextsContextValue = {
   texts: SiteTexts
@@ -80,6 +86,10 @@ type SiteTextsContextValue = {
   preview: boolean
   readonly: boolean
   canInlineEdit: boolean
+  canUndo: boolean
+  canRedo: boolean
+  undo: () => Promise<void>
+  redo: () => Promise<void>
   t: (key: SiteTextKey) => string
   image: (key: SiteImageKey) => SiteImageEntry
   linkHref: (key: string, fallback?: string | null) => string
@@ -98,6 +108,8 @@ type SiteTextsContextValue = {
   saveContactFormFields: (items: CmsContactField[]) => Promise<void>
   updateNavItemLabel: (id: string, label: string) => Promise<void>
 }
+
+const HISTORY_LIMIT = 40
 
 const SiteTextsContext = createContext<SiteTextsContextValue | null>(null)
 
@@ -188,6 +200,78 @@ export function SiteTextsProvider({ children }: { children: ReactNode }) {
   const [preview, setPreview] = useState(false)
   const [readonly, setReadonly] = useState(false)
   const [staffRole, setStaffRole] = useState<"admin" | "tester" | null>(null)
+  const [undoStack, setUndoStack] = useState<SiteTexts[]>([])
+  const [redoStack, setRedoStack] = useState<SiteTexts[]>([])
+  const textsRef = useRef(texts)
+  textsRef.current = texts
+
+  const pushTextHistory = useCallback((snapshot: SiteTexts) => {
+    setUndoStack((prev) => [...prev.slice(-(HISTORY_LIMIT - 1)), snapshot])
+    setRedoStack([])
+  }, [])
+
+  const persistFullTexts = useCallback(
+    async (next: SiteTexts) => {
+      const res = await fetch("/api/admin/site-config", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ texts: next }),
+      })
+      const data = (await res.json().catch(() => null)) as BundlePayload | null
+      if (!res.ok) {
+        throw new Error(data?.error ?? "Textverlauf konnte nicht gespeichert werden.")
+      }
+      applyBundle(data, {
+        setTexts,
+        setImages,
+        setLinks,
+        setNavItems,
+        setPages,
+        setFaqItems,
+        setProcessSteps3d,
+        setProcessStepsLaser,
+        setExpectItems3d,
+        setExpectItemsLaser,
+        setContactFormFields,
+      })
+    },
+    []
+  )
+
+  const undo = useCallback(async () => {
+    const previous = undoStack[undoStack.length - 1]
+    if (!previous) return
+    const current = textsRef.current
+    setUndoStack((s) => s.slice(0, -1))
+    setRedoStack((s) => [...s, current])
+    setTexts(previous)
+    try {
+      await persistFullTexts(previous)
+    } catch (err) {
+      setUndoStack((s) => [...s, previous])
+      setRedoStack((s) => s.slice(0, -1))
+      setTexts(current)
+      throw err
+    }
+  }, [undoStack, persistFullTexts])
+
+  const redo = useCallback(async () => {
+    const next = redoStack[redoStack.length - 1]
+    if (!next) return
+    const current = textsRef.current
+    setRedoStack((s) => s.slice(0, -1))
+    setUndoStack((s) => [...s, current])
+    setTexts(next)
+    try {
+      await persistFullTexts(next)
+    } catch (err) {
+      setRedoStack((s) => [...s, next])
+      setUndoStack((s) => s.slice(0, -1))
+      setTexts(current)
+      throw err
+    }
+  }, [redoStack, persistFullTexts])
 
   const refresh = useCallback(async () => {
     const previewNow = readPreviewFromBrowser(pathname)
@@ -306,6 +390,9 @@ export function SiteTextsProvider({ children }: { children: ReactNode }) {
       previousTexts = prev
       return sanitizeSiteTextsInput({ ...prev, [key]: value })
     })
+    if (previousTexts && previousTexts[key] !== value) {
+      pushTextHistory(previousTexts)
+    }
 
     const res = await fetch("/api/admin/site-config", {
       method: "PUT",
@@ -319,7 +406,7 @@ export function SiteTextsProvider({ children }: { children: ReactNode }) {
       throw new Error(data?.error ?? "Text konnte nicht gespeichert werden.")
     }
     applyBundle(data, bundleSetters)
-  }, [bundleSetters])
+  }, [bundleSetters, pushTextHistory])
 
   const saveImage = useCallback(async (key: SiteImageKey, entry: SiteImageEntry) => {
     let previousImages: SiteImages | null = null
@@ -566,7 +653,68 @@ export function SiteTextsProvider({ children }: { children: ReactNode }) {
   )
 
   const canInlineEdit = preview && !readonly && staffRole === "admin"
+  const canUndo = undoStack.length > 0
+  const canRedo = redoStack.length > 0
   const mediaLibrary = useMemo(() => collectSiteImageLibrary(images), [images])
+
+  // Keyboard-Shortcuts + Parent-Iframe-Kommunikation für Undo/Redo
+  useEffect(() => {
+    if (!canInlineEdit) return
+
+    const publishState = () => {
+      if (typeof window === "undefined" || window.parent === window) return
+      const payload: CmsHistoryIframeEvent = {
+        source: CMS_HISTORY_MESSAGE_SOURCE,
+        type: "state",
+        canUndo: undoStack.length > 0,
+        canRedo: redoStack.length > 0,
+      }
+      window.parent.postMessage(payload, "*")
+    }
+    publishState()
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null
+      const tag = target?.tagName?.toLowerCase()
+      const isEditable =
+        target?.isContentEditable ||
+        tag === "input" ||
+        tag === "textarea" ||
+        tag === "select"
+      // Während Tippen: natives Undo; Seitenverlauf über Toolbar / nach Speichern
+      if (isEditable) return
+
+      const mod = event.metaKey || event.ctrlKey
+      if (!mod) return
+      const key = event.key.toLowerCase()
+      if (key === "z" && !event.shiftKey) {
+        if (undoStack.length === 0) return
+        event.preventDefault()
+        void undo()
+      } else if (key === "y" || (key === "z" && event.shiftKey)) {
+        if (redoStack.length === 0) return
+        event.preventDefault()
+        void redo()
+      }
+    }
+
+    const onMessage = (event: MessageEvent) => {
+      if (!isCmsHistoryParentCommand(event.data)) return
+      if (event.data.type === "ping") {
+        publishState()
+        return
+      }
+      if (event.data.type === "undo") void undo()
+      if (event.data.type === "redo") void redo()
+    }
+
+    window.addEventListener("keydown", onKeyDown)
+    window.addEventListener("message", onMessage)
+    return () => {
+      window.removeEventListener("keydown", onKeyDown)
+      window.removeEventListener("message", onMessage)
+    }
+  }, [canInlineEdit, undo, redo, undoStack.length, redoStack.length])
 
   const value = useMemo<SiteTextsContextValue>(
     () => ({
@@ -585,6 +733,10 @@ export function SiteTextsProvider({ children }: { children: ReactNode }) {
       preview,
       readonly,
       canInlineEdit,
+      canUndo,
+      canRedo,
+      undo,
+      redo,
       t: (key) => texts[key] ?? DEFAULT_SITE_TEXTS[key],
       image: (key) => images[key] ?? DEFAULT_SITE_IMAGES[key],
       linkHref: (key, fallback) => resolveSiteLinkHref(links, key, fallback),
@@ -619,6 +771,10 @@ export function SiteTextsProvider({ children }: { children: ReactNode }) {
       preview,
       readonly,
       canInlineEdit,
+      canUndo,
+      canRedo,
+      undo,
+      redo,
       mediaLibrary,
       refresh,
       saveText,
@@ -661,6 +817,10 @@ export function useSiteTexts(): SiteTextsContextValue {
       preview: false,
       readonly: false,
       canInlineEdit: false,
+      canUndo: false,
+      canRedo: false,
+      undo: async () => {},
+      redo: async () => {},
       t: (key) => DEFAULT_SITE_TEXTS[key],
       image: (key) => DEFAULT_SITE_IMAGES[key],
       linkHref: (key, fallback) => resolveSiteLinkHref(null, key, fallback),

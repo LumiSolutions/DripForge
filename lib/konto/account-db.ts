@@ -16,6 +16,10 @@ import {
   isAccountActive,
   normalizeAccountStatus,
 } from "@/lib/konto/account-status"
+import {
+  getDefaultDeliveryAddress,
+  normalizeDeliveryAddresses,
+} from "@/lib/konto/delivery-addresses"
 
 const DATA_DIR = path.join(process.cwd(), "data", "admin")
 const ACCOUNTS_FILE = "customer-accounts.json"
@@ -127,6 +131,17 @@ export function toPublicAccount(
   options?: { pointValueChf?: number }
 ) {
   const loyaltyPoints = getEffectiveLoyaltyPoints(account)
+  const deliveryAddresses = normalizeDeliveryAddresses(
+    account.deliveryAddresses,
+    {
+      deliveryStreet: account.deliveryStreet,
+      deliveryZip: account.deliveryZip,
+      deliveryCity: account.deliveryCity,
+      deliverySameAsBilling: account.deliverySameAsBilling,
+    }
+  )
+  const defaultDelivery = getDefaultDeliveryAddress(deliveryAddresses)
+
   return {
     email: account.email,
     firstName: account.firstName,
@@ -135,10 +150,17 @@ export function toPublicAccount(
     zip: account.zip ?? "",
     city: account.city ?? "",
     phone: account.phone ?? "",
-    deliveryStreet: account.deliveryStreet ?? account.street ?? "",
-    deliveryZip: account.deliveryZip ?? account.zip ?? "",
-    deliveryCity: account.deliveryCity ?? account.city ?? "",
+    deliveryStreet:
+      defaultDelivery?.street ??
+      account.deliveryStreet ??
+      account.street ??
+      "",
+    deliveryZip:
+      defaultDelivery?.zip ?? account.deliveryZip ?? account.zip ?? "",
+    deliveryCity:
+      defaultDelivery?.city ?? account.deliveryCity ?? account.city ?? "",
     deliverySameAsBilling: account.deliverySameAsBilling ?? true,
+    deliveryAddresses,
     kundennummer: account.kundennummer,
     loyaltyPoints,
     loyaltyBalanceChf: loyaltyPointsToChf(

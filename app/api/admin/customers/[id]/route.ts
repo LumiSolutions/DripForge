@@ -11,6 +11,7 @@ import {
 } from "@/lib/admin/require-admin-session"
 import type { StoredCustomer } from "@/lib/admin/types"
 import type { OrderAddress } from "@/lib/dripforge/submit-order"
+import type { SavedDeliveryAddress } from "@/lib/konto/account-types"
 import { listAllAccounts, saveAccount } from "@/lib/konto/account-db"
 import {
   normalizeAccountStatus,
@@ -23,6 +24,12 @@ import {
 } from "@/lib/konto/loyalty-points"
 import type { LoyaltyPointTransaction } from "@/lib/konto/loyalty-points-config"
 import { getDesignsForCustomer } from "@/lib/konto/designs-db"
+import {
+  getDefaultDeliveryAddress,
+  legacyFieldsFromDeliveryAddresses,
+  normalizeDeliveryAddresses,
+  parseSavedDeliveryAddresses,
+} from "@/lib/konto/delivery-addresses"
 
 type RouteContext = { params: Promise<{ id: string }> }
 
@@ -33,6 +40,22 @@ function mergeCustomerStatus(
   const crm = normalizeAccountStatus(customerStatus)
   if (crm === "gelöscht" || crm === "inaktiv") return crm
   return normalizeAccountStatus(portalStatus ?? customerStatus)
+}
+
+/** Expose deliveryAddresses with legacy `delivery` synthesized when needed. */
+function withNormalizedDeliveryAddresses(customer: StoredCustomer): StoredCustomer {
+  const deliveryAddresses = normalizeDeliveryAddresses(
+    customer.deliveryAddresses,
+    customer.delivery
+      ? {
+          deliveryStreet: customer.delivery.street,
+          deliveryZip: customer.delivery.zip,
+          deliveryCity: customer.delivery.city,
+          deliverySameAsBilling: false,
+        }
+      : undefined
+  )
+  return { ...customer, deliveryAddresses }
 }
 
 function parseOrderAddress(
@@ -132,7 +155,7 @@ export async function GET(request: Request, context: RouteContext) {
 
     return NextResponse.json({
       customer: {
-        ...customer,
+        ...withNormalizedDeliveryAddresses(customer),
         name: customerDisplayName(customer.billing),
         status,
       },
@@ -181,6 +204,8 @@ export async function PATCH(request: Request, context: RouteContext) {
     const body = (await request.json()) as {
       billing?: unknown
       delivery?: unknown | null
+      deliveryAddresses?: unknown
+      defaultDeliveryAddressId?: unknown
       email?: unknown
       status?: unknown
       customerCategoryId?: unknown
@@ -189,15 +214,77 @@ export async function PATCH(request: Request, context: RouteContext) {
     const nextBilling =
       parseOrderAddress(body.billing, customer.billing) ?? customer.billing
 
+    let nextDeliveryAddresses = normalizeDeliveryAddresses(
+      customer.deliveryAddresses,
+      customer.delivery
+        ? {
+            deliveryStreet: customer.delivery.street,
+            deliveryZip: customer.delivery.zip,
+            deliveryCity: customer.delivery.city,
+            deliverySameAsBilling: false,
+          }
+        : undefined
+    )
+
+    if (body.deliveryAddresses !== undefined) {
+      const parsed = parseSavedDeliveryAddresses(body.deliveryAddresses)
+      const defaultId =
+        typeof body.defaultDeliveryAddressId === "string"
+          ? body.defaultDeliveryAddressId.trim()
+          : undefined
+      nextDeliveryAddresses = normalizeDeliveryAddresses(parsed, undefined, {
+        defaultId,
+      })
+    }
+
     let nextDelivery = customer.delivery
-    if (body.delivery === null) {
+    if (body.deliveryAddresses !== undefined) {
+      const def = getDefaultDeliveryAddress(nextDeliveryAddresses)
+      if (!def) {
+        nextDelivery = undefined
+      } else {
+        const base = customer.delivery ?? customer.billing
+        nextDelivery = {
+          firstName: base.firstName,
+          lastName: base.lastName,
+          street: def.street,
+          zip: def.zip,
+          city: def.city,
+          country: base.country || "CH",
+          email: nextBilling.email || base.email,
+          phone: base.phone,
+        }
+      }
+    } else if (body.delivery === null) {
       nextDelivery = undefined
     } else if (body.delivery !== undefined) {
       const parsed = parseOrderAddress(
         body.delivery,
         customer.delivery ?? customer.billing
       )
-      if (parsed) nextDelivery = parsed
+      if (parsed) {
+        nextDelivery = parsed
+        const existingDefault =
+          nextDeliveryAddresses.find((a) => a.isDefault) ??
+          nextDeliveryAddresses[0]
+        const upserted: SavedDeliveryAddress = {
+          id: existingDefault?.id ?? `crm-${Date.now()}`,
+          label: existingDefault?.label ?? "Lieferadresse",
+          street: parsed.street,
+          zip: parsed.zip,
+          city: parsed.city,
+          isDefault: true,
+        }
+        nextDeliveryAddresses = normalizeDeliveryAddresses(
+          nextDeliveryAddresses.length === 0
+            ? [upserted]
+            : nextDeliveryAddresses.map((a) =>
+                a.id === upserted.id ? upserted : { ...a, isDefault: false }
+              ),
+          undefined,
+          { defaultId: upserted.id }
+        )
+      }
     }
 
     let nextEmail = customer.email
@@ -207,7 +294,6 @@ export async function PATCH(request: Request, context: RouteContext) {
       nextEmail = normalizeCustomerEmail(nextBilling.email || customer.email)
     }
 
-    // Keep billing.email aligned with top-level email
     nextBilling.email = nextEmail
 
     let nextStatus = normalizeAccountStatus(customer.status)
@@ -243,6 +329,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       email: nextEmail,
       billing: nextBilling,
       delivery: nextDelivery,
+      deliveryAddresses: nextDeliveryAddresses,
       status: nextStatus,
       customerCategoryId: nextCategoryId,
     }
@@ -251,6 +338,11 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     const portalAccount = await findLinkedPortalAccount(customer)
     if (portalAccount) {
+      const legacy = legacyFieldsFromDeliveryAddresses(nextDeliveryAddresses, {
+        street: nextBilling.street,
+        zip: nextBilling.zip,
+        city: nextBilling.city,
+      })
       await saveAccount({
         ...portalAccount,
         email: nextEmail,
@@ -260,15 +352,19 @@ export async function PATCH(request: Request, context: RouteContext) {
         street: nextBilling.street || portalAccount.street,
         zip: nextBilling.zip || portalAccount.zip,
         city: nextBilling.city || portalAccount.city,
+        deliveryStreet: legacy.deliveryStreet,
+        deliveryZip: legacy.deliveryZip,
+        deliveryCity: legacy.deliveryCity,
+        deliverySameAsBilling: legacy.deliverySameAsBilling,
+        deliveryAddresses: nextDeliveryAddresses,
         status: nextStatus,
-        // Kategorie mit dem Portal-Konto synchronisieren (Shop-Preislogik nutzt das Konto).
         customerCategoryId: nextCategoryId,
       })
     }
 
     return NextResponse.json({
       customer: {
-        ...saved,
+        ...withNormalizedDeliveryAddresses(saved),
         name: customerDisplayName(saved.billing),
         status: nextStatus,
       },

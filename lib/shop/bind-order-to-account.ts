@@ -13,6 +13,11 @@ import { saveCustomer } from "@/lib/admin/customer-store"
 import type { StoredCustomer, StoredOrder } from "@/lib/admin/types"
 import { getAccountByEmail, saveAccount } from "@/lib/konto/account-db"
 import { ensureAccountHasCustomerNumber, syncAccountToCrm } from "@/lib/konto/crm-sync"
+import type { SavedDeliveryAddress } from "@/lib/konto/account-types"
+import {
+  newDeliveryAddressId,
+  normalizeDeliveryAddresses,
+} from "@/lib/konto/delivery-addresses"
 
 export function resolveLoyaltyAccountEmail(
   sessionEmail: string | null | undefined,
@@ -160,6 +165,54 @@ export async function bindOrderToCustomer(
             try {
               const deliverySame = addressesMatch(order.billing, order.delivery)
               const delivery = order.delivery
+              const existingAddresses = normalizeDeliveryAddresses(
+                account.deliveryAddresses,
+                {
+                  deliveryStreet: account.deliveryStreet,
+                  deliveryZip: account.deliveryZip,
+                  deliveryCity: account.deliveryCity,
+                  deliverySameAsBilling: account.deliverySameAsBilling,
+                }
+              )
+
+              let nextAddresses = existingAddresses
+              if (!deliverySame && delivery) {
+                const street = delivery.street.trim()
+                const zip = delivery.zip.trim()
+                const city = delivery.city.trim()
+                const match = existingAddresses.find(
+                  (a) =>
+                    a.street === street && a.zip === zip && a.city === city
+                )
+                if (match) {
+                  nextAddresses = normalizeDeliveryAddresses(
+                    existingAddresses,
+                    undefined,
+                    { defaultId: match.id }
+                  )
+                } else {
+                  const entry: SavedDeliveryAddress = {
+                    id: newDeliveryAddressId(),
+                    label: "Lieferadresse",
+                    street,
+                    zip,
+                    city,
+                    isDefault: true,
+                  }
+                  nextAddresses = normalizeDeliveryAddresses(
+                    [
+                      ...existingAddresses.map((a) => ({
+                        ...a,
+                        isDefault: false,
+                      })),
+                      entry,
+                    ],
+                    undefined,
+                    { defaultId: entry.id }
+                  )
+                }
+              }
+
               const saved = await saveAccount({
                 ...account,
                 firstName: order.billing.firstName.trim(),
@@ -178,6 +231,7 @@ export async function bindOrderToCustomer(
                 deliveryCity: deliverySame
                   ? order.billing.city.trim()
                   : (delivery?.city ?? "").trim(),
+                deliveryAddresses: nextAddresses,
               })
               await syncAccountToCrm(saved)
             } catch (addressError) {

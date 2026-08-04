@@ -1,3 +1,12 @@
+export type SavedDeliveryAddress = {
+  id: string
+  label: string
+  street: string
+  zip: string
+  city: string
+  isDefault?: boolean
+}
+
 export type CustomerAccount = {
   /** Normalisierte E-Mail (Cosmos-ID) */
   id: string
@@ -13,6 +22,8 @@ export type CustomerAccount = {
   deliveryZip?: string
   deliveryCity?: string
   deliverySameAsBilling?: boolean
+  /** Mehrere Lieferadressen (Primäradresse via isDefault) */
+  deliveryAddresses?: SavedDeliveryAddress[]
   /** Verknüpfung zum CRM (falls bereits Bestellungen) */
   kundennummer?: string
   /** Zugeordnete Kundenkategorie (Rabatt/Versand); Konfig in AdminSettings. */

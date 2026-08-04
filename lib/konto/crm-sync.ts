@@ -14,6 +14,10 @@ import type { StoredCustomer } from "@/lib/admin/types"
 import { getAccountByEmail, listAllAccounts, saveAccount } from "@/lib/konto/account-db"
 import type { CustomerAccount } from "@/lib/konto/account-types"
 import { isAccountDeleted } from "@/lib/konto/account-status"
+import {
+  getDefaultDeliveryAddress,
+  normalizeDeliveryAddresses,
+} from "@/lib/konto/delivery-addresses"
 
 function accountToBilling(account: CustomerAccount): OrderAddress {
   return {
@@ -74,17 +78,48 @@ export async function syncAccountToCrm(
   const now = new Date().toISOString()
   const billing = accountToBilling(account)
 
+  const deliveryAddresses = normalizeDeliveryAddresses(
+    account.deliveryAddresses,
+    {
+      deliveryStreet: account.deliveryStreet,
+      deliveryZip: account.deliveryZip,
+      deliveryCity: account.deliveryCity,
+      deliverySameAsBilling: account.deliverySameAsBilling,
+    }
+  )
+  const defaultDelivery = getDefaultDeliveryAddress(deliveryAddresses)
+
+  let delivery: StoredCustomer["delivery"] = existingCustomer?.delivery
+  if (account.deliverySameAsBilling !== false && deliveryAddresses.length === 0) {
+    delivery = undefined
+  } else if (defaultDelivery) {
+    delivery = {
+      firstName: billing.firstName,
+      lastName: billing.lastName,
+      street: defaultDelivery.street,
+      zip: defaultDelivery.zip,
+      city: defaultDelivery.city,
+      country: billing.country || "Schweiz",
+      email: billing.email,
+      phone: billing.phone,
+    }
+  }
+
   const customer: StoredCustomer = existingCustomer
     ? {
         ...existingCustomer,
         kundennummer,
         billing,
+        delivery,
+        deliveryAddresses,
         updatedAt: now,
       }
     : {
         kundennummer,
         email,
         billing,
+        delivery,
+        deliveryAddresses,
         orderIds: [],
         createdAt: account.createdAt,
         updatedAt: now,

@@ -1,18 +1,25 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import {
   ArrowLeft,
   ExternalLink,
   Loader2,
+  Redo2,
   Rocket,
   Save,
+  Undo2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
 import { adminPortalPath } from "@/lib/admin/admin-portal-path"
 import { cmsPreviewHref } from "@/lib/admin/cms-preview-pages"
+import {
+  CMS_HISTORY_MESSAGE_SOURCE,
+  isCmsHistoryIframeEvent,
+  type CmsHistoryParentCommand,
+} from "@/lib/admin/cms-edit-history"
 import {
   mergeCmsPages,
   resolveCmsEditorPages,
@@ -29,10 +36,23 @@ export function AdminInContextEditor() {
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [iframeKey, setIframeKey] = useState(0)
+  const [canUndo, setCanUndo] = useState(false)
+  const [canRedo, setCanRedo] = useState(false)
+  const iframeRef = useRef<HTMLIFrameElement>(null)
 
   const editorPages = useMemo(() => resolveCmsEditorPages(pages), [pages])
 
   const iframeSrc = useMemo(() => cmsPreviewHref(selectedPath), [selectedPath])
+
+  const postToIframe = useCallback((command: CmsHistoryParentCommand["type"]) => {
+    const win = iframeRef.current?.contentWindow
+    if (!win) return
+    const payload: CmsHistoryParentCommand = {
+      source: CMS_HISTORY_MESSAGE_SOURCE,
+      type: command,
+    }
+    win.postMessage(payload, "*")
+  }, [])
 
   const loadPages = useCallback(async () => {
     setLoading(true)
@@ -58,10 +78,39 @@ export function AdminInContextEditor() {
     void loadPages()
   }, [loadPages])
 
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      if (!isCmsHistoryIframeEvent(event.data)) return
+      setCanUndo(event.data.canUndo)
+      setCanRedo(event.data.canRedo)
+    }
+    window.addEventListener("message", onMessage)
+    return () => window.removeEventListener("message", onMessage)
+  }, [])
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const mod = event.metaKey || event.ctrlKey
+      if (!mod) return
+      const key = event.key.toLowerCase()
+      if (key === "z" && !event.shiftKey) {
+        event.preventDefault()
+        postToIframe("undo")
+      } else if (key === "y" || (key === "z" && event.shiftKey)) {
+        event.preventDefault()
+        postToIframe("redo")
+      }
+    }
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [postToIframe])
+
   const selectPage = (path: string) => {
     setSelectedPath(path)
     setMessage(null)
     setError(null)
+    setCanUndo(false)
+    setCanRedo(false)
   }
 
   const publishLive = async () => {
@@ -158,6 +207,32 @@ export function AdminInContextEditor() {
         </div>
 
         <div className="ml-auto flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-0.5 rounded-md border border-border/60 bg-background p-0.5">
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="h-8 w-8 px-0"
+              disabled={!canUndo || saving || publishing}
+              title="Rückgängig (Ctrl+Z)"
+              aria-label="Rückgängig"
+              onClick={() => postToIframe("undo")}
+            >
+              <Undo2 className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="h-8 w-8 px-0"
+              disabled={!canRedo || saving || publishing}
+              title="Wiederholen (Ctrl+Y)"
+              aria-label="Wiederholen"
+              onClick={() => postToIframe("redo")}
+            >
+              <Redo2 className="h-4 w-4" />
+            </Button>
+          </div>
           <Button
             type="button"
             size="sm"
@@ -213,10 +288,12 @@ export function AdminInContextEditor() {
 
       <div className="relative min-h-0 flex-1 overflow-hidden rounded-xl border border-border/60 bg-background shadow-inner">
         <iframe
+          ref={iframeRef}
           key={`${iframeKey}:${iframeSrc}`}
           title="In-Context Storefront Preview"
           src={iframeSrc}
           className="h-full w-full border-0 bg-background"
+          onLoad={() => postToIframe("ping")}
         />
       </div>
     </div>

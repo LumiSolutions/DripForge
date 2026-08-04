@@ -48,6 +48,12 @@ import {
   type ShippingTiersSettings,
 } from "@/lib/dripforge/shipping-tiers"
 import { Textarea } from "@/components/ui/textarea"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import type { SavedDeliveryAddress } from "@/lib/konto/account-types"
+import {
+  getDefaultDeliveryAddress,
+  normalizeDeliveryAddresses,
+} from "@/lib/konto/delivery-addresses"
 import {
   calculateCheckoutTotalsWithCoupon,
   calculateCheckoutTotalsWithDiscounts,
@@ -206,6 +212,11 @@ export function PageCheckout({
   const [form, setForm] = useState<CheckoutForm>(EMPTY_FORM)
   const [sameAsBilling, setSameAsBilling] = useState(true)
   const [saveAddressToAccount, setSaveAddressToAccount] = useState(true)
+  const [savedDeliveryAddresses, setSavedDeliveryAddresses] = useState<
+    SavedDeliveryAddress[]
+  >([])
+  /** "billing" | saved address id | "new" */
+  const [selectedDeliveryId, setSelectedDeliveryId] = useState<string>("billing")
   const profilePrefillDone = useRef(false)
 
   const [shippingMethod, setShippingMethod] =
@@ -397,13 +408,37 @@ export function PageCheckout({
             deliveryZip?: string
             deliveryCity?: string
             deliverySameAsBilling?: boolean
+            deliveryAddresses?: SavedDeliveryAddress[]
           }
         } | null) => {
           if (!data?.profile) return
           profilePrefillDone.current = true
           const a = data.profile
-          const deliverySame = a.deliverySameAsBilling !== false
-          setSameAsBilling(deliverySame)
+          const addresses = normalizeDeliveryAddresses(a.deliveryAddresses, {
+            deliveryStreet: a.deliveryStreet,
+            deliveryZip: a.deliveryZip,
+            deliveryCity: a.deliveryCity,
+            deliverySameAsBilling: a.deliverySameAsBilling,
+          })
+          setSavedDeliveryAddresses(addresses)
+
+          const deliverySame =
+            a.deliverySameAsBilling !== false && addresses.length === 0
+          const defaultAddr = getDefaultDeliveryAddress(addresses)
+
+          if (deliverySame) {
+            setSameAsBilling(true)
+            setSelectedDeliveryId("billing")
+          } else if (defaultAddr) {
+            setSameAsBilling(false)
+            setSelectedDeliveryId(defaultAddr.id)
+          } else {
+            setSameAsBilling(a.deliverySameAsBilling !== false)
+            setSelectedDeliveryId(
+              a.deliverySameAsBilling !== false ? "billing" : "new"
+            )
+          }
+
           setForm((prev) => ({
             ...prev,
             firstName: a.firstName || prev.firstName || "",
@@ -416,13 +451,17 @@ export function PageCheckout({
             deliveryFirstName: a.firstName || prev.deliveryFirstName || "",
             deliveryLastName: a.lastName || prev.deliveryLastName || "",
             deliveryStreet:
-              (deliverySame ? a.street : a.deliveryStreet) ||
+              (deliverySame
+                ? a.street
+                : defaultAddr?.street ?? a.deliveryStreet) ||
               prev.deliveryStreet ||
               "",
             deliveryZip:
-              (deliverySame ? a.zip : a.deliveryZip) || prev.deliveryZip || "",
+              (deliverySame ? a.zip : defaultAddr?.zip ?? a.deliveryZip) ||
+              prev.deliveryZip ||
+              "",
             deliveryCity:
-              (deliverySame ? a.city : a.deliveryCity) ||
+              (deliverySame ? a.city : defaultAddr?.city ?? a.deliveryCity) ||
               prev.deliveryCity ||
               "",
           }))
@@ -432,6 +471,40 @@ export function PageCheckout({
         /* Gast-Checkout ohne Konto */
       })
   }, [loggedIn, loyaltyLoading])
+
+  const applyDeliverySelection = (
+    selectionId: string,
+    addresses: SavedDeliveryAddress[],
+    billing: Pick<CheckoutForm, "firstName" | "lastName" | "street" | "zip" | "city">
+  ) => {
+    setSelectedDeliveryId(selectionId)
+    if (selectionId === "billing") {
+      setSameAsBilling(true)
+      setForm((prev) => ({
+        ...prev,
+        deliveryFirstName: billing.firstName || prev.firstName,
+        deliveryLastName: billing.lastName || prev.lastName,
+        deliveryStreet: billing.street || prev.street,
+        deliveryZip: billing.zip || prev.zip,
+        deliveryCity: billing.city || prev.city,
+      }))
+      return
+    }
+    setSameAsBilling(false)
+    if (selectionId === "new") {
+      return
+    }
+    const chosen = addresses.find((a) => a.id === selectionId)
+    if (!chosen) return
+    setForm((prev) => ({
+      ...prev,
+      deliveryFirstName: billing.firstName || prev.firstName,
+      deliveryLastName: billing.lastName || prev.lastName,
+      deliveryStreet: chosen.street,
+      deliveryZip: chosen.zip,
+      deliveryCity: chosen.city,
+    }))
+  }
 
   const enabledPaymentOptions = useMemo(() => {
     const base = getEnabledPaymentOptions(checkoutConfig)
@@ -656,10 +729,34 @@ export function PageCheckout({
     deliveryZip?: string
     deliveryCity?: string
     deliverySameAsBilling?: boolean
+    deliveryAddresses?: SavedDeliveryAddress[]
   }) => {
     profilePrefillDone.current = true
-    const deliverySame = account.deliverySameAsBilling !== false
-    setSameAsBilling(deliverySame)
+    const addresses = normalizeDeliveryAddresses(account.deliveryAddresses, {
+      deliveryStreet: account.deliveryStreet,
+      deliveryZip: account.deliveryZip,
+      deliveryCity: account.deliveryCity,
+      deliverySameAsBilling: account.deliverySameAsBilling,
+    })
+    setSavedDeliveryAddresses(addresses)
+
+    const deliverySame =
+      account.deliverySameAsBilling !== false && addresses.length === 0
+    const defaultAddr = getDefaultDeliveryAddress(addresses)
+
+    if (deliverySame) {
+      setSameAsBilling(true)
+      setSelectedDeliveryId("billing")
+    } else if (defaultAddr) {
+      setSameAsBilling(false)
+      setSelectedDeliveryId(defaultAddr.id)
+    } else {
+      setSameAsBilling(account.deliverySameAsBilling !== false)
+      setSelectedDeliveryId(
+        account.deliverySameAsBilling !== false ? "billing" : "new"
+      )
+    }
+
     setForm((prev) => ({
       ...prev,
       firstName: account.firstName || prev.firstName || "",
@@ -672,15 +769,21 @@ export function PageCheckout({
       deliveryFirstName: account.firstName || prev.deliveryFirstName || "",
       deliveryLastName: account.lastName || prev.deliveryLastName || "",
       deliveryStreet:
-        (deliverySame ? account.street : account.deliveryStreet) ||
+        (deliverySame
+          ? account.street
+          : defaultAddr?.street ?? account.deliveryStreet) ||
         prev.deliveryStreet ||
         "",
       deliveryZip:
-        (deliverySame ? account.zip : account.deliveryZip) ||
+        (deliverySame
+          ? account.zip
+          : defaultAddr?.zip ?? account.deliveryZip) ||
         prev.deliveryZip ||
         "",
       deliveryCity:
-        (deliverySame ? account.city : account.deliveryCity) ||
+        (deliverySame
+          ? account.city
+          : defaultAddr?.city ?? account.deliveryCity) ||
         prev.deliveryCity ||
         "",
     }))
@@ -702,6 +805,7 @@ export function PageCheckout({
       deliveryZip?: string
       deliveryCity?: string
       deliverySameAsBilling?: boolean
+      deliveryAddresses?: SavedDeliveryAddress[]
     }
     cart: CartItem[]
   }) => {
@@ -1238,9 +1342,32 @@ export function PageCheckout({
                   <Checkbox
                     id="same-address"
                     checked={sameAsBilling}
-                    onCheckedChange={(checked) =>
-                      setSameAsBilling(checked === true)
-                    }
+                    onCheckedChange={(checked) => {
+                      const next = checked === true
+                      setSameAsBilling(next)
+                      if (next) {
+                        setSelectedDeliveryId("billing")
+                        setForm((prev) => ({
+                          ...prev,
+                          deliveryFirstName: prev.firstName,
+                          deliveryLastName: prev.lastName,
+                          deliveryStreet: prev.street,
+                          deliveryZip: prev.zip,
+                          deliveryCity: prev.city,
+                          deliveryCountry: prev.country,
+                        }))
+                      } else if (
+                        loggedIn &&
+                        savedDeliveryAddresses.length > 0
+                      ) {
+                        const def =
+                          getDefaultDeliveryAddress(savedDeliveryAddresses) ??
+                          savedDeliveryAddresses[0]
+                        applyDeliverySelection(def.id, savedDeliveryAddresses, form)
+                      } else {
+                        setSelectedDeliveryId("new")
+                      }
+                    }}
                   />
                   <Label
                     htmlFor="same-address"
@@ -1249,6 +1376,63 @@ export function PageCheckout({
                     Lieferadresse entspricht der Rechnungsadresse
                   </Label>
                 </div>
+
+                {loggedIn &&
+                  !sameAsBilling &&
+                  savedDeliveryAddresses.length > 0 && (
+                    <div className="space-y-3 rounded-xl border border-border/50 p-4">
+                      <Label className="text-sm font-medium">
+                        Gespeicherte Lieferadresse wählen
+                      </Label>
+                      <RadioGroup
+                        value={
+                          selectedDeliveryId === "billing"
+                            ? "new"
+                            : selectedDeliveryId
+                        }
+                        onValueChange={(value) =>
+                          applyDeliverySelection(
+                            value,
+                            savedDeliveryAddresses,
+                            form
+                          )
+                        }
+                        className="gap-2"
+                      >
+                        {savedDeliveryAddresses.map((address) => (
+                          <label
+                            key={address.id}
+                            className="flex cursor-pointer items-start gap-3 rounded-lg border border-border/40 px-3 py-2 text-sm"
+                          >
+                            <RadioGroupItem
+                              value={address.id}
+                              id={`delivery-opt-${address.id}`}
+                              className="mt-0.5"
+                            />
+                            <span>
+                              <span className="font-medium">{address.label}</span>
+                              {address.isDefault ? (
+                                <span className="ml-1 text-xs text-muted-foreground">
+                                  (Hauptadresse)
+                                </span>
+                              ) : null}
+                              <span className="mt-0.5 block text-muted-foreground">
+                                {address.street}, {address.zip} {address.city}
+                              </span>
+                            </span>
+                          </label>
+                        ))}
+                        <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border/40 px-3 py-2 text-sm">
+                          <RadioGroupItem
+                            value="new"
+                            id="delivery-opt-new"
+                            className="mt-0.5"
+                          />
+                          <span className="font-medium">Neue Adresse</span>
+                        </label>
+                      </RadioGroup>
+                    </div>
+                  )}
 
                 {loggedIn && (
                   <div className="flex items-start gap-3 rounded-xl border border-border/50 bg-muted/20 p-4">
@@ -1268,7 +1452,10 @@ export function PageCheckout({
                   </div>
                 )}
 
-                {!sameAsBilling && (
+                {!sameAsBilling &&
+                  (selectedDeliveryId === "new" ||
+                    savedDeliveryAddresses.length === 0 ||
+                    !loggedIn) && (
                   <div className="space-y-4 border-t border-border/50 pt-4">
                     <h3 className="text-sm font-semibold">Lieferadresse</h3>
                     <div className="grid gap-4 sm:grid-cols-2">
@@ -1319,6 +1506,19 @@ export function PageCheckout({
                       onChange={(v) => updateField("deliveryCountry", v)}
                       error={errors.deliveryCountry}
                     />
+                  </div>
+                )}
+
+                {!sameAsBilling &&
+                  loggedIn &&
+                  selectedDeliveryId !== "new" &&
+                  savedDeliveryAddresses.length > 0 && (
+                  <div className="rounded-xl border border-border/40 bg-muted/10 px-4 py-3 text-sm text-muted-foreground">
+                    Lieferung an:{" "}
+                    <span className="font-medium text-foreground">
+                      {form.deliveryStreet}, {form.deliveryZip}{" "}
+                      {form.deliveryCity}
+                    </span>
                   </div>
                 )}
 

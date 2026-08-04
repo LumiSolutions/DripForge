@@ -10,6 +10,7 @@ import type {
   SupportFeatureItem,
   SupportMilestoneConfig,
 } from "@/lib/dripforge/support-page-settings"
+import type { SavedDeliveryAddress } from "@/lib/konto/account-types"
 
 export type OrderStatus =
   | "ausstehend"
@@ -141,6 +142,8 @@ export type StoredCustomer = {
   email: string
   billing: OrderAddress
   delivery?: OrderAddress
+  /** Mehrere Lieferadressen (Primäradresse via isDefault) */
+  deliveryAddresses?: SavedDeliveryAddress[]
   orderIds: string[]
   /** Zugeordnete Kundenkategorie (Rabatt/Versand); Konfiguration in AdminSettings. */
   customerCategoryId?: string | null
