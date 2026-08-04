@@ -8,7 +8,10 @@ import {
   useState,
   type ReactNode,
 } from "react"
-import type { ShippingMethodId } from "@/lib/dripforge/checkout-config"
+import type {
+  PaymentMethodId,
+  ShippingMethodId,
+} from "@/lib/dripforge/checkout-config"
 import { applyCategoryDiscount } from "@/lib/dripforge/customer-categories"
 
 export type ResolvedCustomerCategory = {
@@ -16,6 +19,7 @@ export type ResolvedCustomerCategory = {
   name: string
   discountPercent: number
   allowedShippingMethodIds: ShippingMethodId[]
+  allowedPaymentMethodIds: PaymentMethodId[]
 }
 
 type CustomerCategoryContextValue = {
