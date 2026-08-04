@@ -69,6 +69,7 @@ import {
   type ProductShopStatus,
 } from "@/lib/admin/product-status"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
+import { resolveProductImages } from "@/lib/dripforge/product-images-defaults"
 import { cn } from "@/lib/utils"
 
 type AdminProductsListPanelProps = {
@@ -672,6 +673,7 @@ export function AdminProductsListPanel({
                   aria-label="Alle sichtbaren Produkte auswählen"
                 />
               </TableHead>
+              <TableHead className="w-14">Bild</TableHead>
               <TableHead>
                 <button
                   type="button"
@@ -747,7 +749,7 @@ export function AdminProductsListPanel({
           <TableBody>
             {sortedProducts.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className={cn("py-10 text-center text-sm", adminUi.muted)}>
+                <TableCell colSpan={8} className={cn("py-10 text-center text-sm", adminUi.muted)}>
                   {emptyMessage ??
                     (products.length === 0
                       ? "Noch keine Produkte vorhanden."
@@ -760,6 +762,12 @@ export function AdminProductsListPanel({
                 const productTagIds = product.tags ?? []
                 const shopStatus = getProductShopStatus(product)
                 const rowBusy = statusBusyId === product.id
+                const thumbSrc =
+                  resolveProductImages(
+                    product.id,
+                    product.images,
+                    product.galerieBilder
+                  )[0] ?? "/placeholder.svg"
                 return (
                   <TableRow
                     key={product.id}
@@ -775,6 +783,20 @@ export function AdminProductsListPanel({
                         onCheckedChange={(value) => toggleOne(product.id, value === true)}
                         aria-label={`${product.name} auswählen`}
                       />
+                    </TableCell>
+                    <TableCell className="w-14 p-2">
+                      <div className="h-10 w-10 overflow-hidden rounded-md border bg-muted">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={thumbSrc}
+                          alt=""
+                          className="h-full w-full object-cover"
+                          onError={(e) => {
+                            e.currentTarget.onerror = null
+                            e.currentTarget.src = "/placeholder.svg"
+                          }}
+                        />
+                      </div>
                     </TableCell>
                     <TableCell>
                       <button

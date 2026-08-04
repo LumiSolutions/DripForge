@@ -1,18 +1,8 @@
 import { BELEG_PREFIX, type BelegType } from "@/lib/documents/beleg-types"
 import type { BelegNumberingSettings } from "@/lib/admin/types"
 
-// Aktuelle + Legacy-Präfixe (INV/OFF/LS neu, RE/OF/AN/LI alt) für Parsing/Anzeige.
-const BELEG_ID_PREFIXES = [
-  "INV",
-  "OFF",
-  "RE",
-  "OF",
-  "LS",
-  "AN",
-  "LI",
-] as const
-
-const BELEG_PREFIX_PATTERN = "INV|OFF|RE|OF|LS|AN|LI"
+/** Beliebiges A–Z/0–9-Präfix (1–8) — unterstützt Admin-Custom-Präfixe. */
+const BELEG_PREFIX_PATTERN = "[A-Z0-9]{1,8}"
 
 const DEFAULT_PREFIX: Record<BelegType, string> = {
   offerte: "OFF",
@@ -27,7 +17,7 @@ function sanitizePrefix(raw: string | undefined | null, fallback: string): strin
     .replace(/[^A-Z0-9]/g, "")
     .slice(0, 8)
   if (!cleaned) return fallback
-  // Legacy «OF» nie als neues Präfix — immer OFF
+  // Legacy «OF» nie als neues Präfix — immer OFF (einheitliche Offerten)
   if (cleaned === "OF") return "OFF"
   return cleaned
 }
@@ -112,12 +102,10 @@ export function formatBelegDisplayId(id: string): string {
   if (parseBelegSequence(trimmed) == null) return trimmed
 
   const prefixMatch = trimmed.match(
-    new RegExp(`^(${BELEG_PREFIX_PATTERN})`, "i")
+    new RegExp(`^(${BELEG_PREFIX_PATTERN})(-|$)`, "i")
   )
   let prefix = prefixMatch?.[1]?.toUpperCase()
-  if (!prefix || !(BELEG_ID_PREFIXES as readonly string[]).includes(prefix)) {
-    return trimmed
-  }
+  if (!prefix) return trimmed
   // Legacy OF → OFF für Anzeige (einheitliches Offerten-Präfix)
   const rest = trimmed.slice(prefix.length)
   if (prefix === "OF") {

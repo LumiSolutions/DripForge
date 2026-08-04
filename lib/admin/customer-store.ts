@@ -1,8 +1,5 @@
 import { normalizeCustomerEmail } from "@/lib/admin/customers"
-import {
-  withCosmosFallback,
-  withCosmosRequired,
-} from "@/lib/admin/storage-bridge"
+import { withCosmosFallback } from "@/lib/admin/storage-bridge"
 import type { StoredCustomer } from "@/lib/admin/types"
 import {
   cosmosGetCustomers,
@@ -10,16 +7,22 @@ import {
   cosmosSaveCustomer,
   cosmosDeleteCustomer,
 } from "@/lib/admin/cosmos-store"
+import {
+  deleteCustomerFromFile,
+  getCustomersFromFile,
+  replaceCustomerInFile,
+  saveCustomerToFile,
+} from "@/lib/admin/customers-file"
 
 /**
  * CRM-Kunden ohne Reconciliation (für Nummernvergabe / Sync).
- * Fallback [] — darf Checkout/Bestellung nie mit «Datenbank nicht erreichbar» abbrechen.
+ * Ohne Cosmos: lokaler JSON-Fallback (`data/admin/customers.json`).
  */
 export async function getCustomersSnapshot(): Promise<StoredCustomer[]> {
   return withCosmosFallback(
     "getCustomersSnapshot",
     cosmosGetCustomers,
-    async () => []
+    getCustomersFromFile
   )
 }
 
@@ -29,7 +32,11 @@ export async function saveCustomer(customer: StoredCustomer): Promise<StoredCust
     updatedAt: new Date().toISOString(),
   }
 
-  return withCosmosRequired("saveCustomer", () => cosmosSaveCustomer(next))
+  return withCosmosFallback(
+    "saveCustomer",
+    () => cosmosSaveCustomer(next),
+    () => saveCustomerToFile(next)
+  )
 }
 
 /** Ersetzt CRM-Stammdaten inkl. Kundennummern-Wechsel (Legacy → YY-#####). */
@@ -44,8 +51,10 @@ export async function replaceCustomerForEmail(
     updatedAt: new Date().toISOString(),
   }
 
-  return withCosmosRequired("replaceCustomerForEmail", () =>
-    cosmosReplaceCustomerRecord(next, previousKundennummer)
+  return withCosmosFallback(
+    "replaceCustomerForEmail",
+    () => cosmosReplaceCustomerRecord(next, previousKundennummer),
+    () => replaceCustomerInFile(next, previousKundennummer)
   )
 }
 
@@ -53,7 +62,9 @@ export async function deleteCustomerByNumber(kundennummer: string): Promise<bool
   const trimmed = kundennummer.trim()
   if (!trimmed) return false
 
-  return withCosmosRequired("deleteCustomerByNumber", () =>
-    cosmosDeleteCustomer(trimmed)
+  return withCosmosFallback(
+    "deleteCustomerByNumber",
+    () => cosmosDeleteCustomer(trimmed),
+    () => deleteCustomerFromFile(trimmed)
   )
 }

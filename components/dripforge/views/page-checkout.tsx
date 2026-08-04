@@ -232,15 +232,11 @@ export function PageCheckout({
   const [shippingMethod, setShippingMethod] =
     useState<ShippingMethodId>("bpost")
   const [selectedShippingId, setSelectedShippingId] = useState<string>("bpost")
+  /** Leer bis Kategorie + Tiers geladen — verhindert Flash der Standard-Optionen. */
   const [shippingOptions, setShippingOptions] = useState<ResolvedShippingOption[]>(
-    () =>
-      SHIPPING_OPTIONS.map((o) => ({
-        id: o.id,
-        methodId: o.id,
-        label: o.label,
-        price: o.price,
-      }))
+    []
   )
+  const [shippingOptionsReady, setShippingOptionsReady] = useState(false)
   const [customerNote, setCustomerNote] = useState("")
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodId>("card")
   const [errors, setErrors] = useState<Partial<Record<FieldKey, string>>>({})
@@ -573,15 +569,41 @@ export function PageCheckout({
 
   useEffect(() => {
     // Warten bis Kategorie geladen — sonst kurz ungefilterte Optionen (Flash).
-    if (!categoryLoaded) return
+    if (!categoryLoaded) {
+      setShippingOptionsReady(false)
+      setShippingOptions([])
+      return
+    }
 
     let cancelled = false
+    setShippingOptionsReady(false)
     const fallback: ResolvedShippingOption[] = SHIPPING_OPTIONS.map((o) => ({
       id: o.id,
       methodId: o.id,
       label: o.label,
       price: o.price,
     }))
+
+    const applyFiltered = (resolved: ResolvedShippingOption[]) => {
+      if (cancelled) return
+      const allowed = customerCategory?.allowedShippingMethodIds ?? []
+      const options =
+        allowed.length > 0
+          ? resolved.filter((o) =>
+              allowed.includes(o.methodId as (typeof allowed)[number])
+            )
+          : resolved
+      setShippingOptions(options)
+      setSelectedShippingId((prev) => {
+        if (options.some((o) => o.id === prev)) return prev
+        const first = options[0]
+        if (first) {
+          setShippingMethod(first.methodId as ShippingMethodId)
+        }
+        return first?.id ?? prev
+      })
+      setShippingOptionsReady(true)
+    }
 
     void fetch("/api/settings/shipping-tiers", { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : null))
@@ -596,35 +618,11 @@ export function PageCheckout({
           metrics,
           fallback
         )
-        // Kundenkategorie: nur erlaubte Versandarten anzeigen (leer = alle).
-        // Kein Soft-Fallback auf ungefilterte Liste — sonst greifen Restriktionen nicht.
-        const allowed = customerCategory?.allowedShippingMethodIds ?? []
-        const options =
-          allowed.length > 0
-            ? resolved.filter((o) =>
-                allowed.includes(o.methodId as (typeof allowed)[number])
-              )
-            : resolved
-        setShippingOptions(options)
-        setSelectedShippingId((prev) => {
-          if (options.some((o) => o.id === prev)) return prev
-          const first = options[0]
-          if (first) {
-            setShippingMethod(first.methodId as ShippingMethodId)
-          }
-          return first?.id ?? prev
-        })
+        // Kundenkategorie: nur erlaubte Versandarten (leer = alle aus Finanz-Setup).
+        applyFiltered(resolved)
       })
       .catch(() => {
-        if (cancelled) return
-        const allowed = customerCategory?.allowedShippingMethodIds ?? []
-        const options =
-          allowed.length > 0
-            ? fallback.filter((o) =>
-                allowed.includes(o.methodId as (typeof allowed)[number])
-              )
-            : fallback
-        setShippingOptions(options)
+        applyFiltered(fallback)
       })
 
     return () => {
@@ -1583,11 +1581,19 @@ export function PageCheckout({
                   <h2 className="font-bold">Versandart</h2>
                 </div>
                 <div className="space-y-3">
-                  {!categoryLoaded ? (
+                  {!categoryLoaded || !shippingOptionsReady ? (
                     <div className="flex items-center gap-2 rounded-xl border border-border/60 px-4 py-6 text-sm text-muted-foreground">
                       <Loader2 className="h-4 w-4 animate-spin" />
                       Versandoptionen werden geladen …
                     </div>
+                  ) : shippingOptions.length === 0 ? (
+                    <p
+                      role="alert"
+                      className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-3 text-sm text-amber-900 dark:text-amber-100"
+                    >
+                      Für deine Kundenkategorie ist derzeit keine Versandart
+                      freigeschaltet. Bitte Support kontaktieren.
+                    </p>
                   ) : (
                     shippingOptions.map((option) => {
                       const selected = selectedShippingId === option.id

@@ -1,4 +1,8 @@
 import type { CartItem } from "@/lib/dripforge/types"
+import {
+  applyQuantityDiscountsToCartItems,
+  normalizeQuantityDiscountTiers,
+} from "@/lib/dripforge/quantity-discount-tiers"
 
 const MAX_CART_ITEMS = 50
 const MAX_ITEM_QUANTITY = 99
@@ -43,6 +47,18 @@ export function normalizeCartItem(raw: unknown): CartItem | null {
     price,
     quantity,
     type,
+  }
+
+  if (typeof raw.productId === "string" && raw.productId.trim()) {
+    item.productId = raw.productId.trim()
+  }
+  const baseUnitPrice = Number(raw.baseUnitPrice)
+  if (Number.isFinite(baseUnitPrice) && baseUnitPrice >= 0) {
+    item.baseUnitPrice = baseUnitPrice
+  }
+  const tiers = normalizeQuantityDiscountTiers(raw.quantityDiscountTiers)
+  if (tiers.length > 0) {
+    item.quantityDiscountTiers = tiers
   }
 
   if (typeof raw.leitbild === "string" && raw.leitbild.length > 0) {
@@ -108,7 +124,7 @@ export function mergeCartItems(
     }
   }
 
-  return merged.slice(0, MAX_CART_ITEMS)
+  return applyQuantityDiscountsToCartItems(merged.slice(0, MAX_CART_ITEMS))
 }
 
 /** Entfernt grosse Base64-Felder vor der Cosmos-Persistenz. */
@@ -120,6 +136,12 @@ export function stripCartForPersistence(items: CartItem[]): CartItem[] {
       price: item.price,
       quantity: item.quantity,
       type: item.type,
+    }
+
+    if (item.productId) next.productId = item.productId
+    if (item.baseUnitPrice != null) next.baseUnitPrice = item.baseUnitPrice
+    if (item.quantityDiscountTiers?.length) {
+      next.quantityDiscountTiers = item.quantityDiscountTiers
     }
 
     if (item.customDetails) {

@@ -334,8 +334,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       customerCategoryId: nextCategoryId,
     }
 
-    const saved = await saveCustomer(updated)
-
+    // Portal-Konto zuerst spiegeln — Lieferadressen dürfen nie an CRM-Fehlern scheitern.
     const portalAccount = await findLinkedPortalAccount(customer)
     if (portalAccount) {
       const legacy = legacyFieldsFromDeliveryAddresses(nextDeliveryAddresses, {
@@ -352,14 +351,27 @@ export async function PATCH(request: Request, context: RouteContext) {
         street: nextBilling.street || portalAccount.street,
         zip: nextBilling.zip || portalAccount.zip,
         city: nextBilling.city || portalAccount.city,
-        deliveryStreet: legacy.deliveryStreet,
-        deliveryZip: legacy.deliveryZip,
-        deliveryCity: legacy.deliveryCity,
-        deliverySameAsBilling: legacy.deliverySameAsBilling,
+        deliveryStreet: legacy.deliveryStreet ?? "",
+        deliveryZip: legacy.deliveryZip ?? "",
+        deliveryCity: legacy.deliveryCity ?? "",
+        deliverySameAsBilling:
+          nextDeliveryAddresses.length === 0
+            ? true
+            : Boolean(legacy.deliverySameAsBilling),
         deliveryAddresses: nextDeliveryAddresses,
         status: nextStatus,
         customerCategoryId: nextCategoryId,
       })
+    }
+
+    let saved = updated
+    try {
+      saved = await saveCustomer(updated)
+    } catch (error) {
+      console.warn(
+        "Admin-API: CRM-Kunde konnte nicht gespeichert werden — Portal-Spiegelung bleibt erhalten.",
+        error
+      )
     }
 
     return NextResponse.json({

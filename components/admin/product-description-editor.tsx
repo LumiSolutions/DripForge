@@ -335,10 +335,10 @@ export function ProductDescriptionEditor({
           editorClassName
         )}
         onKeyDown={(event) => {
-          if (event.key !== "Enter" || event.shiftKey) return
-          if (!enableBlockFormats) return
+          if (event.key !== "Enter") return
+          // Immer kompakter Zeilenumbruch (<br>) statt neuer Absatz mit grossem Abstand.
+          // Shift+Enter und Enter verhalten sich gleich (Adress-/Fliesstext-Stil).
           event.preventDefault()
-          // Zeilenumbruch statt neuer Absatz (Adress-/Rechtstext-Stil)
           const inserted = document.execCommand("insertLineBreak")
           if (!inserted) {
             document.execCommand("insertHTML", false, "<br>")

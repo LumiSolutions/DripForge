@@ -113,6 +113,8 @@ import {
   normalizeThanksPageSettings,
   type ThanksPageSettings,
 } from "@/lib/dripforge/thanks-page-settings"
+import type { BelegNumberingSettings } from "@/lib/admin/types"
+import { normalizeBelegNumbering } from "@/lib/documents/beleg-numbering-settings"
 
 export type AdminSettingsSection =
   | "shop"
@@ -258,6 +260,17 @@ export function AdminSettingsTab({
   const [thanksPage, setThanksPage] = useState<ThanksPageSettings>({
     ...DEFAULT_THANKS_PAGE_SETTINGS,
   })
+  const [belegNumbering, setBelegNumbering] = useState<{
+    offertePrefix: string
+    rechnungPrefix: string
+    lieferscheinPrefix: string
+    yearFormat: boolean
+  }>({
+    offertePrefix: "OFF",
+    rechnungPrefix: "INV",
+    lieferscheinPrefix: "LS",
+    yearFormat: true,
+  })
   const [goingLive, setGoingLive] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -337,6 +350,15 @@ export function AdminSettingsTab({
       )
       setShippingTiers(normalizeShippingTiers(data.shippingTiers))
       setThanksPage(normalizeThanksPageSettings(data.thanksPage))
+      {
+        const numbering = normalizeBelegNumbering(data.belegNumbering) ?? {}
+        setBelegNumbering({
+          offertePrefix: numbering.offertePrefix ?? "OFF",
+          rechnungPrefix: numbering.rechnungPrefix ?? "INV",
+          lieferscheinPrefix: numbering.lieferscheinPrefix ?? "LS",
+          yearFormat: numbering.yearFormat !== false,
+        })
+      }
       setManagedCatalog(
         normalizeManagedCatalog(
           data.managedCatalog,
@@ -418,6 +440,12 @@ export function AdminSettingsTab({
           announcementBanner,
           shippingTiers,
           thanksPage,
+          belegNumbering: {
+            offertePrefix: belegNumbering.offertePrefix,
+            rechnungPrefix: belegNumbering.rechnungPrefix,
+            lieferscheinPrefix: belegNumbering.lieferscheinPrefix,
+            yearFormat: belegNumbering.yearFormat,
+          } satisfies BelegNumberingSettings,
         }),
       })
       const data = await res.json()
@@ -493,6 +521,15 @@ export function AdminSettingsTab({
       )
       setShippingTiers(normalizeShippingTiers(data.shippingTiers))
       setThanksPage(normalizeThanksPageSettings(data.thanksPage))
+      {
+        const numbering = normalizeBelegNumbering(data.belegNumbering) ?? {}
+        setBelegNumbering({
+          offertePrefix: numbering.offertePrefix ?? "OFF",
+          rechnungPrefix: numbering.rechnungPrefix ?? "INV",
+          lieferscheinPrefix: numbering.lieferscheinPrefix ?? "LS",
+          yearFormat: numbering.yearFormat !== false,
+        })
+      }
       setManagedCatalog(
         normalizeManagedCatalog(
           data.managedCatalog,
@@ -2176,12 +2213,93 @@ export function AdminSettingsTab({
                   Belegnummern-Präfixe
                 </p>
                 <p className={cn("mt-1", adminUi.muted)}>
-                  Offerten: <span className="font-mono">OFF-</span> · Rechnungen:{" "}
-                  <span className="font-mono">INV-</span> · Lieferscheine:{" "}
-                  <span className="font-mono">LS-</span>. Format{" "}
-                  <span className="font-mono">PREFIX-JJJJ-####</span> (laufende
-                  Sequenz, monoton). Legacy «OF-» wird als «OFF-» angezeigt.
+                  Präfixe sind frei anpassbar (A–Z, 0–9, max. 8 Zeichen). Die
+                  laufende Sequenz bleibt strikt chronologisch. Format{" "}
+                  <span className="font-mono">
+                    {belegNumbering.yearFormat
+                      ? "PREFIX-JJJJ-####"
+                      : "PREFIX-####"}
+                  </span>
+                  . Legacy «OF-» wird als «OFF-» angezeigt.
                 </p>
+                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                  <div className="space-y-1.5">
+                    <Label className={adminUi.label}>Offerten</Label>
+                    <Input
+                      value={belegNumbering.offertePrefix}
+                      onChange={(e) =>
+                        setBelegNumbering((prev) => ({
+                          ...prev,
+                          offertePrefix: e.target.value
+                            .toUpperCase()
+                            .replace(/[^A-Z0-9]/g, "")
+                            .slice(0, 8),
+                        }))
+                      }
+                      placeholder="OFF"
+                      className={cn(adminUi.input, "font-mono uppercase")}
+                      maxLength={8}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className={adminUi.label}>Rechnungen</Label>
+                    <Input
+                      value={belegNumbering.rechnungPrefix}
+                      onChange={(e) =>
+                        setBelegNumbering((prev) => ({
+                          ...prev,
+                          rechnungPrefix: e.target.value
+                            .toUpperCase()
+                            .replace(/[^A-Z0-9]/g, "")
+                            .slice(0, 8),
+                        }))
+                      }
+                      placeholder="INV"
+                      className={cn(adminUi.input, "font-mono uppercase")}
+                      maxLength={8}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className={adminUi.label}>Lieferscheine</Label>
+                    <Input
+                      value={belegNumbering.lieferscheinPrefix}
+                      onChange={(e) =>
+                        setBelegNumbering((prev) => ({
+                          ...prev,
+                          lieferscheinPrefix: e.target.value
+                            .toUpperCase()
+                            .replace(/[^A-Z0-9]/g, "")
+                            .slice(0, 8),
+                        }))
+                      }
+                      placeholder="LS"
+                      className={cn(adminUi.input, "font-mono uppercase")}
+                      maxLength={8}
+                    />
+                  </div>
+                </div>
+                <div className="mt-3 flex items-center justify-between gap-4 rounded-lg border border-border/50 px-3 py-2">
+                  <div>
+                    <p className={cn("text-sm font-medium", adminUi.heading)}>
+                      Jahreszahl im Format
+                    </p>
+                    <p className={cn("text-xs", adminUi.muted)}>
+                      z.&nbsp;B.{" "}
+                      <span className="font-mono">
+                        {belegNumbering.offertePrefix || "OFF"}-2026-0001
+                      </span>
+                    </p>
+                  </div>
+                  <Switch
+                    checked={belegNumbering.yearFormat}
+                    onCheckedChange={(checked) =>
+                      setBelegNumbering((prev) => ({
+                        ...prev,
+                        yearFormat: checked,
+                      }))
+                    }
+                  />
+                </div>
               </div>
 
               <div>

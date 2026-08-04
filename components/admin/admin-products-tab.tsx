@@ -98,6 +98,11 @@ import {
   productFieldsFromShopStatus,
   type ProductShopStatus,
 } from "@/lib/admin/product-status"
+import {
+  formatOptionalNumber,
+  parseOptionalInt,
+  parseOptionalNumber,
+} from "@/lib/admin/optional-number"
 
 type ProductFormState = Partial<AdminProduct> & {
   variantenText?: string
@@ -1125,9 +1130,12 @@ export function AdminProductsTab() {
                         type="number"
                         step={form.saleRabattTyp === "fixed" ? "0.01" : "1"}
                         min="0"
-                        value={form.saleRabattWert ?? 0}
+                        value={formatOptionalNumber(form.saleRabattWert)}
                         onChange={(e) =>
-                          updateField("saleRabattWert", Number(e.target.value))
+                          updateField(
+                            "saleRabattWert",
+                            parseOptionalNumber(e.target.value) ?? undefined
+                          )
                         }
                         placeholder={
                           form.saleRabattTyp === "fixed" ? "5.00" : "10"
@@ -1171,14 +1179,17 @@ export function AdminProductsTab() {
                           type="number"
                           min={2}
                           step={1}
-                          value={tier.minQty}
+                          value={formatOptionalNumber(tier.minQty)}
                           onChange={(e) => {
+                            const n = parseOptionalInt(e.target.value)
                             const next = [
                               ...(form.quantityDiscountTiers ?? []),
                             ] as QuantityDiscountTier[]
                             next[index] = {
                               ...next[index],
-                              minQty: Math.max(2, Math.round(Number(e.target.value) || 2)),
+                              minQty:
+                                n ??
+                                (undefined as unknown as QuantityDiscountTier["minQty"]),
                             }
                             updateField("quantityDiscountTiers", next)
                           }}
@@ -1194,17 +1205,17 @@ export function AdminProductsTab() {
                           min={0.1}
                           max={90}
                           step={0.5}
-                          value={tier.discountPercent}
+                          value={formatOptionalNumber(tier.discountPercent)}
                           onChange={(e) => {
+                            const n = parseOptionalNumber(e.target.value)
                             const next = [
                               ...(form.quantityDiscountTiers ?? []),
                             ] as QuantityDiscountTier[]
                             next[index] = {
                               ...next[index],
-                              discountPercent: Math.min(
-                                90,
-                                Math.max(0.1, Number(e.target.value) || 0)
-                              ),
+                              discountPercent:
+                                n ??
+                                (undefined as unknown as QuantityDiscountTier["discountPercent"]),
                             }
                             updateField("quantityDiscountTiers", next)
                           }}
@@ -1287,13 +1298,18 @@ export function AdminProductsTab() {
                         <Input
                           type="number"
                           step="0.1"
-                          value={form.dimensionsMm?.[axis] ?? 0}
-                          onChange={(e) =>
+                          value={formatOptionalNumber(form.dimensionsMm?.[axis])}
+                          onChange={(e) => {
+                            const n = parseOptionalNumber(e.target.value)
                             updateField("dimensionsMm", {
-                              ...form.dimensionsMm!,
-                              [axis]: Number(e.target.value),
+                              length: form.dimensionsMm?.length ?? 0,
+                              width: form.dimensionsMm?.width ?? 0,
+                              height: form.dimensionsMm?.height ?? 0,
+                              [axis]:
+                                n ??
+                                (undefined as unknown as number),
                             })
-                          }
+                          }}
                           className={adminUi.input}
                         />
                       </div>
@@ -1313,15 +1329,18 @@ export function AdminProductsTab() {
                             <Input
                               type="number"
                               step="15"
-                              value={form.defaultRotationDeg?.[axis] ?? 0}
-                              onChange={(e) =>
+                              value={formatOptionalNumber(form.defaultRotationDeg?.[axis])}
+                              onChange={(e) => {
+                                const n = parseOptionalNumber(e.target.value)
                                 updateField("defaultRotationDeg", {
                                   x: form.defaultRotationDeg?.x ?? 0,
                                   y: form.defaultRotationDeg?.y ?? 0,
                                   z: form.defaultRotationDeg?.z ?? 0,
-                                  [axis]: Number(e.target.value),
+                                  [axis]:
+                                    n ??
+                                    (undefined as unknown as number),
                                 })
-                              }
+                              }}
                               className={adminUi.input}
                             />
                           </div>
@@ -1338,9 +1357,12 @@ export function AdminProductsTab() {
                       <Label className={cn("text-xs", adminUi.labelMuted)}>Gewicht (g)</Label>
                       <Input
                         type="number"
-                        value={form.gewicht ?? 0}
+                        value={formatOptionalNumber(form.gewicht)}
                         onChange={(e) =>
-                          updateField("gewicht", Number(e.target.value))
+                          updateField(
+                            "gewicht",
+                            parseOptionalNumber(e.target.value) ?? undefined
+                          )
                         }
                         className={adminUi.input}
                       />
@@ -1351,9 +1373,12 @@ export function AdminProductsTab() {
                         <Input
                           type="number"
                           step="0.1"
-                          value={form.volumen ?? 0}
+                          value={formatOptionalNumber(form.volumen)}
                           onChange={(e) =>
-                            updateField("volumen", Number(e.target.value))
+                            updateField(
+                              "volumen",
+                              parseOptionalNumber(e.target.value) ?? undefined
+                            )
                           }
                           className={adminUi.input}
                         />
@@ -1381,10 +1406,27 @@ export function AdminProductsTab() {
                             type="number"
                             min={0}
                             step={1}
-                            value={Math.floor((form.printTimeMinutes ?? 0) / 60)}
+                            value={
+                              form.printTimeMinutes == null
+                                ? ""
+                                : formatOptionalNumber(
+                                    Math.floor(form.printTimeMinutes / 60)
+                                  )
+                            }
                             onChange={(e) => {
-                              const hours = Math.max(0, Math.round(Number(e.target.value) || 0))
-                              const minutes = (form.printTimeMinutes ?? 0) % 60
+                              const parsed = parseOptionalInt(e.target.value)
+                              const minutes =
+                                form.printTimeMinutes != null
+                                  ? form.printTimeMinutes % 60
+                                  : 0
+                              if (parsed === null) {
+                                updateField(
+                                  "printTimeMinutes",
+                                  minutes > 0 ? minutes : undefined
+                                )
+                                return
+                              }
+                              const hours = Math.max(0, parsed)
                               const total = hours * 60 + minutes
                               updateField(
                                 "printTimeMinutes",
@@ -1403,13 +1445,25 @@ export function AdminProductsTab() {
                             min={0}
                             max={59}
                             step={1}
-                            value={(form.printTimeMinutes ?? 0) % 60}
+                            value={
+                              form.printTimeMinutes == null
+                                ? ""
+                                : formatOptionalNumber(form.printTimeMinutes % 60)
+                            }
                             onChange={(e) => {
-                              const minutes = Math.min(
-                                59,
-                                Math.max(0, Math.round(Number(e.target.value) || 0))
-                              )
-                              const hours = Math.floor((form.printTimeMinutes ?? 0) / 60)
+                              const parsed = parseOptionalInt(e.target.value)
+                              const hours =
+                                form.printTimeMinutes != null
+                                  ? Math.floor(form.printTimeMinutes / 60)
+                                  : 0
+                              if (parsed === null) {
+                                updateField(
+                                  "printTimeMinutes",
+                                  hours > 0 ? hours * 60 : undefined
+                                )
+                                return
+                              }
+                              const minutes = Math.min(59, Math.max(0, parsed))
                               const total = hours * 60 + minutes
                               updateField(
                                 "printTimeMinutes",
@@ -1737,13 +1791,16 @@ export function AdminProductsTab() {
                                 <Input
                                   type="number"
                                   step="0.05"
-                                  value={variant.priceDelta ?? 0}
+                                  value={formatOptionalNumber(variant.priceDelta)}
                                   className={adminUi.input}
                                   onChange={(e) => {
+                                    const n = parseOptionalNumber(e.target.value)
                                     const next = [...(form.shopVariants ?? [])]
                                     next[index] = {
                                       ...variant,
-                                      priceDelta: Number(e.target.value) || 0,
+                                      priceDelta:
+                                        n ??
+                                        (undefined as unknown as number),
                                     }
                                     updateField("shopVariants", next)
                                   }}
@@ -2052,9 +2109,12 @@ export function AdminProductsTab() {
                         type="number"
                         step="0.01"
                         min="0"
-                        value={form.additionalBaseCostChf ?? 0}
+                        value={formatOptionalNumber(form.additionalBaseCostChf)}
                         onChange={(e) =>
-                          updateField("additionalBaseCostChf", Number(e.target.value))
+                          updateField(
+                            "additionalBaseCostChf",
+                            parseOptionalNumber(e.target.value) ?? undefined
+                          )
                         }
                         placeholder="Strom, Verschleiss, Verpackung…"
                         className={adminUi.input}
@@ -2088,9 +2148,12 @@ export function AdminProductsTab() {
                         type="number"
                         step="0.01"
                         min="0"
-                        value={form.basisPreis ?? 0}
+                        value={formatOptionalNumber(form.basisPreis)}
                         onChange={(e) =>
-                          updateField("basisPreis", Number(e.target.value))
+                          updateField(
+                            "basisPreis",
+                            parseOptionalNumber(e.target.value) ?? undefined
+                          )
                         }
                         className={adminUi.input}
                       />
