@@ -116,6 +116,8 @@ export async function startStripeCheckout(
         stripeCode: data.stripeCode,
         stripeType: data.stripeType,
         payment_method_types: data.payment_method_types,
+        orderId: data.orderId ?? null,
+        success: data.success,
       })
       const detail = [data.error, data.stripeCode ? `(${data.stripeCode})` : null]
         .filter(Boolean)

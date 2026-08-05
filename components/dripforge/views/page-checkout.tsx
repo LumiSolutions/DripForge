@@ -34,6 +34,7 @@ import {
   getPaymentOptionsForCategory,
   getShippingCost,
   getTwintPaymentDescription,
+  isPaymentMethodAllowedForCheckout,
   isPaymentMethodEnabled,
   normalizeCheckoutRuntimeConfig,
   SHIPPING_OPTIONS,
@@ -1017,7 +1018,27 @@ export function PageCheckout({
     const activePaymentMethod = methodOverride ?? paymentMethod
     if (methodOverride) setPaymentMethod(methodOverride)
 
-    if (!isPaymentMethodEnabled(activePaymentMethod, checkoutConfig)) {
+    // Muss mit den gerenderten Radio-Optionen übereinstimmen (global ODER Kategorie-Allowlist).
+    // isPaymentMethodEnabled prüft nur Finanz-Setup und blockiert z. B. Stripe für «Personal».
+    if (!categoryLoaded) {
+      setSubmitError("Zahlungsoptionen werden noch geladen. Bitte kurz warten.")
+      return
+    }
+    const methodAllowed =
+      enabledPaymentOptions.some((o) => o.id === activePaymentMethod) ||
+      isPaymentMethodAllowedForCheckout(
+        activePaymentMethod,
+        checkoutConfig,
+        customerCategory?.allowedPaymentMethodIds
+      )
+    if (!methodAllowed) {
+      console.warn("[Checkout] Zahlungsart abgelehnt — nicht in freigegebenen Optionen.", {
+        activePaymentMethod,
+        enabled: enabledPaymentOptions.map((o) => o.id),
+        categoryId: customerCategory?.id ?? null,
+        allowed: customerCategory?.allowedPaymentMethodIds ?? [],
+        globalCard: checkoutConfig.paymentCardAktiv,
+      })
       setSubmitError(
         "Diese Zahlungsart ist derzeit deaktiviert. Bitte eine andere wählen."
       )
@@ -1134,9 +1155,16 @@ export function PageCheckout({
 
     try {
       if (activePaymentMethod === "card" && stripeConfigured) {
+        console.info("[Checkout] Starte Stripe Checkout Session…", {
+          paymentMethod: activePaymentMethod,
+          itemCount: orderPayload.items.length,
+          total: orderPayload.totals.total,
+          stripeConfigured,
+        })
         const stripeResult = await startStripeCheckout(orderPayload)
         if (!stripeResult.ok) {
           console.error("Stripe Checkout Error:", stripeResult.error)
+          console.error("[Checkout] Stripe-Session fehlgeschlagen — Details siehe Server-Log /api/checkout.")
           setIsSubmitting(false)
           setSubmitError(stripeResult.error)
           return
