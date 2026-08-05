@@ -1,6 +1,7 @@
 import type { AdminProduct, StoredOrder } from "@/lib/admin/types"
 import { isProductVisibleInShop } from "@/lib/admin/product-status"
 import type { ServiceVisibilitySettings } from "@/lib/admin/types"
+import { NEUTRAL_PRODUCT_PLACEHOLDER } from "@/lib/dripforge/neutral-placeholder"
 import { normalizeTopProductsCount } from "@/lib/dripforge/top-products-settings"
 
 function isCancelledOrder(status: string): boolean {
@@ -24,6 +25,26 @@ function isVisibleForServices(
   return true
 }
 
+/** Echte Galerie-/Listenbilder — keine Platzhalter und keine alten Filament-Demo-Pfade. */
+export function hasUsableProductImage(
+  product: Pick<AdminProduct, "images" | "galerieBilder">
+): boolean {
+  const candidates = [
+    ...(Array.isArray(product.galerieBilder) ? product.galerieBilder : []),
+    ...(Array.isArray(product.images) ? product.images : []),
+  ]
+  return candidates.some((raw) => {
+    if (typeof raw !== "string") return false
+    const src = raw.trim()
+    if (!src) return false
+    if (src.startsWith("/filaments/")) return false
+    if (src === NEUTRAL_PRODUCT_PLACEHOLDER) return false
+    if (/placeholder\.(svg|png|jpg|jpeg|webp)$/i.test(src)) return false
+    if (/\/placeholder(\.|$)/i.test(src)) return false
+    return true
+  })
+}
+
 /**
  * Zählt verkaufte Einheiten aus nicht-stornierten Bestellungen (productId → Menge).
  * CartItem.id entspricht der Produkt-ID im Katalog.
@@ -44,9 +65,27 @@ export function countSoldUnitsByProductId(orders: StoredOrder[]): Map<string, nu
   return sales
 }
 
+function pushUnique(
+  result: AdminProduct[],
+  picked: Set<string>,
+  product: AdminProduct,
+  limit: number
+): boolean {
+  if (result.length >= limit) return false
+  if (picked.has(product.id)) return false
+  picked.add(product.id)
+  result.push(product)
+  return result.length < limit
+}
+
 /**
- * Top-Produkte nach Verkaufsrang (meistverkauft zuerst).
- * Fallback: manuell markierte Top-Produkte, danach neueste Produkte.
+ * Top-Produkte für die Startseite.
+ * 1. Manuell markierte Top-Produkte (`isTopProduct` / Featured)
+ * 2. Bestseller nach verkauften Einheiten (nur mit nutzbarem Bild)
+ * 3. Neueste aktive Produkte (nur mit nutzbarem Bild)
+ *
+ * Produkte ohne echte Bilder werden nicht als Filler genutzt — so bleiben
+ * Seed-/Demo-Einträge ohne Galerie von der Homepage fern.
  */
 export function resolveTopProducts(options: {
   products: AdminProduct[]
@@ -65,6 +104,21 @@ export function resolveTopProducts(options: {
   const picked = new Set<string>()
   const result: AdminProduct[] = []
 
+  // 1) Featured zuerst (auch ohne Bild — Admin hat sie bewusst markiert)
+  const featured = eligible
+    .filter((p) => p.isTopProduct)
+    .sort((a, b) => {
+      const timeDiff = productCreatedAtMs(b) - productCreatedAtMs(a)
+      if (timeDiff !== 0) return timeDiff
+      return a.name.localeCompare(b.name, "de-CH")
+    })
+
+  for (const product of featured) {
+    if (!pushUnique(result, picked, product, limit)) break
+  }
+  if (result.length >= limit) return result
+
+  // 2) Bestseller mit echtem Bild
   const bestsellers = [...sales.entries()]
     .filter(([id, qty]) => qty > 0 && byId.has(id))
     .sort((a, b) => {
@@ -76,39 +130,23 @@ export function resolveTopProducts(options: {
     })
 
   for (const [id] of bestsellers) {
-    if (result.length >= limit) break
     const product = byId.get(id)
-    if (!product || picked.has(id)) continue
-    picked.add(id)
-    result.push(product)
+    if (!product || !hasUsableProductImage(product)) continue
+    if (!pushUnique(result, picked, product, limit)) break
   }
+  if (result.length >= limit) return result
 
-  if (result.length < limit) {
-    const manualTop = eligible
-      .filter((p) => p.isTopProduct && !picked.has(p.id))
-      .sort((a, b) => a.name.localeCompare(b.name, "de-CH"))
+  // 3) Neueste mit echtem Bild (kein Seed-/Platzhalter-Filler)
+  const newest = eligible
+    .filter((p) => !picked.has(p.id) && hasUsableProductImage(p))
+    .sort((a, b) => {
+      const timeDiff = productCreatedAtMs(b) - productCreatedAtMs(a)
+      if (timeDiff !== 0) return timeDiff
+      return a.name.localeCompare(b.name, "de-CH")
+    })
 
-    for (const product of manualTop) {
-      if (result.length >= limit) break
-      picked.add(product.id)
-      result.push(product)
-    }
-  }
-
-  if (result.length < limit) {
-    const newest = eligible
-      .filter((p) => !picked.has(p.id))
-      .sort((a, b) => {
-        const timeDiff = productCreatedAtMs(b) - productCreatedAtMs(a)
-        if (timeDiff !== 0) return timeDiff
-        return a.name.localeCompare(b.name, "de-CH")
-      })
-
-    for (const product of newest) {
-      if (result.length >= limit) break
-      picked.add(product.id)
-      result.push(product)
-    }
+  for (const product of newest) {
+    if (!pushUnique(result, picked, product, limit)) break
   }
 
   return result

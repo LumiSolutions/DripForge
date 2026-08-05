@@ -10,6 +10,7 @@ import { SiteTextPhrase } from "@/components/dripforge/site-text-phrase"
 import { ShopProductCard } from "@/components/dripforge/shared/shop-product-card"
 import { useSiteTexts } from "@/components/dripforge/site-texts-provider"
 import { resolveProductImages } from "@/lib/dripforge/product-images-defaults"
+import { NEUTRAL_PRODUCT_PLACEHOLDER } from "@/lib/dripforge/neutral-placeholder"
 import { productHref } from "@/lib/dripforge/product-slug"
 import type { Product } from "@/lib/dripforge/types"
 import { cn } from "@/lib/utils"
@@ -161,7 +162,15 @@ export function HomeTopProductsSection() {
                   product.images,
                   product.galerieBilder
                 )
-                const coverSrc = images[0] ?? "/placeholder.svg"
+                const coverSrc =
+                  images.find(
+                    (src) =>
+                      src &&
+                      src !== NEUTRAL_PRODUCT_PLACEHOLDER &&
+                      !/placeholder\.(svg|png|jpe?g|webp)$/i.test(src)
+                  ) ??
+                  images[0] ??
+                  NEUTRAL_PRODUCT_PLACEHOLDER
 
                 return (
                   <div
