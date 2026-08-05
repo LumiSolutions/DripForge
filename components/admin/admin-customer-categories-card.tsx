@@ -18,6 +18,7 @@ import {
   type ShippingMethodId,
 } from "@/lib/dripforge/checkout-config"
 import {
+  ADMIN_CUSTOMER_CATEGORIES_CHANGED,
   clampDiscountPercent,
   createEmptyCustomerCategory,
   normalizeCustomerCategories,
@@ -111,8 +112,16 @@ export function AdminCustomerCategoriesCard() {
       })
       const data = await res.json().catch(() => null)
       if (!res.ok) throw new Error(data?.error ?? "Speichern fehlgeschlagen")
-      setCategories(normalizeCustomerCategories(data?.customerCategories))
+      const next = normalizeCustomerCategories(data?.customerCategories)
+      setCategories(next)
       setNotice("Kundenkategorien gespeichert.")
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent(ADMIN_CUSTOMER_CATEGORIES_CHANGED, {
+            detail: { customerCategories: next },
+          })
+        )
+      }
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Speichern fehlgeschlagen."

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { deleteCoupon, getCouponByCode, upsertCoupon } from "@/lib/admin/coupon-db"
+import { deleteCoupon, getCouponByCode, upsertCoupon, archiveCoupon, restoreCoupon } from "@/lib/admin/coupon-db"
 import { normalizeCouponCode } from "@/lib/admin/coupon-types"
 import {
   isAuthError,
@@ -21,6 +21,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       expiresAt: string | null
       maxRedemptions: number | null
       aktiv: boolean
+      archiviert: boolean
     }>
 
     const current = await getCouponByCode(id)
@@ -29,6 +30,16 @@ export async function PATCH(request: Request, context: RouteContext) {
         { error: "Gutschein nicht gefunden." },
         { status: 404 }
       )
+    }
+
+    // Soft-Delete / Wiederherstellen über PATCH
+    if (body.archiviert === true && !current.archiviert) {
+      const archived = await archiveCoupon(id)
+      return NextResponse.json({ coupon: archived })
+    }
+    if (body.archiviert === false && current.archiviert) {
+      const restored = await restoreCoupon(id)
+      return NextResponse.json({ coupon: restored })
     }
 
     const next: StoredCoupon = {
@@ -54,6 +65,8 @@ export async function PATCH(request: Request, context: RouteContext) {
             ? body.maxRedemptions
             : current.maxRedemptions,
       aktiv: typeof body.aktiv === "boolean" ? body.aktiv : current.aktiv,
+      archiviert: current.archiviert === true,
+      archivedAt: current.archivedAt ?? null,
     }
 
     const saved = await upsertCoupon(next)
@@ -64,12 +77,31 @@ export async function PATCH(request: Request, context: RouteContext) {
   }
 }
 
+/**
+ * Hartes Löschen nur für bereits archivierte Gutscheine (manuell).
+ * Standard-Aktion im UI ist Soft-Delete (archivieren).
+ */
 export async function DELETE(request: Request, context: RouteContext) {
   const auth = requireAdminSession(request)
   if (isAuthError(auth)) return auth
 
   try {
     const { id } = await context.params
+    const current = await getCouponByCode(id)
+    if (!current) {
+      return NextResponse.json(
+        { error: "Gutschein nicht gefunden." },
+        { status: 404 }
+      )
+    }
+    if (current.archiviert !== true) {
+      const archived = await archiveCoupon(id)
+      return NextResponse.json({
+        success: true,
+        softDeleted: true,
+        coupon: archived,
+      })
+    }
     const ok = await deleteCoupon(normalizeCouponCode(id))
     if (!ok) {
       return NextResponse.json(
@@ -77,7 +109,7 @@ export async function DELETE(request: Request, context: RouteContext) {
         { status: 404 }
       )
     }
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ success: true, softDeleted: false })
   } catch (error) {
     console.error("Admin-API: Gutschein-Löschen fehlgeschlagen.", error)
     return NextResponse.json({ error: "Löschen fehlgeschlagen." }, { status: 500 })

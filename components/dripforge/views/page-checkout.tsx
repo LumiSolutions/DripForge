@@ -31,7 +31,7 @@ import { CheckoutAuthDialog } from "@/components/konto/checkout-auth-dialog"
 import {
   DEFAULT_CHECKOUT_RUNTIME_CONFIG,
   getDefaultPaymentMethod,
-  getEnabledPaymentOptions,
+  getPaymentOptionsForCategory,
   getShippingCost,
   getTwintPaymentDescription,
   isPaymentMethodEnabled,
@@ -546,12 +546,12 @@ export function PageCheckout({
 
   const enabledPaymentOptions = useMemo(() => {
     if (!categoryLoaded) return []
-    const base = getEnabledPaymentOptions(checkoutConfig)
-    // Kundenkategorie: nur erlaubte Zahlungsarten (leer = alle erlaubt).
-    // Kein Soft-Fallback auf «alle», sonst greifen Restriktionen (z. B. Personal) nicht.
-    const allowed = customerCategory?.allowedPaymentMethodIds ?? []
-    if (allowed.length === 0) return base
-    return base.filter((o) => allowed.includes(o.id))
+    // Kundenkategorie mit Allowlist: exklusiv diese Methoden (inkl. z. B. Barzahlung).
+    // Ohne Kategorie / leere Allowlist: global aktivierte Checkout-Methoden.
+    return getPaymentOptionsForCategory(
+      checkoutConfig,
+      customerCategory?.allowedPaymentMethodIds
+    )
   }, [checkoutConfig, customerCategory, categoryLoaded])
 
   // Falls die aktuelle Zahlungsart durch die Kategorie ausgeschlossen wird,
@@ -667,12 +667,15 @@ export function PageCheckout({
     }
 
     const allowed = customerCategory?.allowedShippingMethodIds ?? []
-    const filterAllowed = (list: ResolvedShippingOption[]) =>
-      allowed.length > 0
-        ? list.filter((o) =>
-            allowed.includes(o.methodId as (typeof allowed)[number])
-          )
-        : list
+    const filterAllowed = (list: ResolvedShippingOption[]) => {
+      if (!customerCategory) return list
+      // Kategorie zugewiesen + Allowlist gesetzt → strikt filtern.
+      // Leere Allowlist = alle Basis-Optionen (Admin: «keine Auswahl = alle»).
+      if (allowed.length === 0) return list
+      return list.filter((o) =>
+        allowed.includes(o.methodId as (typeof allowed)[number])
+      )
+    }
 
     let options: ResolvedShippingOption[]
     if (internationalStatus.blocked) {

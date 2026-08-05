@@ -22,6 +22,8 @@ export async function cosmosGetCoupons(): Promise<StoredCoupon[]> {
     maxRedemptions: doc.maxRedemptions ?? null,
     redemptionCount: doc.redemptionCount ?? 0,
     aktiv: doc.aktiv !== false,
+    archiviert: doc.archiviert === true,
+    archivedAt: doc.archivedAt ?? null,
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
   }))
@@ -48,6 +50,8 @@ export async function cosmosGetCouponByCode(
       maxRedemptions: doc.maxRedemptions ?? null,
       redemptionCount: doc.redemptionCount ?? 0,
       aktiv: doc.aktiv !== false,
+      archiviert: doc.archiviert === true,
+      archivedAt: doc.archivedAt ?? null,
       createdAt: doc.createdAt,
       updatedAt: doc.updatedAt,
     }

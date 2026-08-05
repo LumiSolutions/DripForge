@@ -149,6 +149,28 @@ export function getEnabledPaymentOptions(
   )
 }
 
+/**
+ * Checkout-Zahlungsarten unter Berücksichtigung der Kundenkategorie.
+ * - Keine Kategorie / leere Allowlist → global aktivierte Methoden.
+ * - Nicht-leere Allowlist → exklusiv diese Methoden (auch wenn global deaktiviert),
+ *   damit z. B. «Personal» Barzahlung nutzen kann.
+ */
+export function getPaymentOptionsForCategory(
+  config: Pick<
+    CheckoutRuntimeConfig,
+    "paymentCardAktiv" | "paymentTwintAktiv" | "paymentInvoiceAktiv" | "paymentCashAktiv"
+  >,
+  allowedPaymentMethodIds?: PaymentMethodId[] | null
+): typeof PAYMENT_OPTIONS {
+  const allowed = Array.isArray(allowedPaymentMethodIds)
+    ? allowedPaymentMethodIds.filter((id): id is PaymentMethodId =>
+        PAYMENT_OPTIONS.some((o) => o.id === id)
+      )
+    : []
+  if (allowed.length === 0) return getEnabledPaymentOptions(config)
+  return PAYMENT_OPTIONS.filter((option) => allowed.includes(option.id))
+}
+
 export function getDefaultPaymentMethod(
   config: Pick<
     CheckoutRuntimeConfig,

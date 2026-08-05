@@ -14,6 +14,7 @@ import type {
   ShippingMethodId,
 } from "@/lib/dripforge/checkout-config"
 import { applyCategoryDiscount } from "@/lib/dripforge/customer-categories"
+import { normalizeResolvedAllowlists } from "@/lib/dripforge/customer-categories"
 
 export type ResolvedCustomerCategory = {
   id: string
@@ -64,7 +65,19 @@ export function CustomerCategoryProvider({ children }: { children: ReactNode }) 
         if (cancelled) return
         if (res.ok) {
           if (data && Object.prototype.hasOwnProperty.call(data, "category")) {
-            setCategory(data.category ?? null)
+            const raw = data.category
+            if (!raw) {
+              setCategory(null)
+            } else {
+              const allowlists = normalizeResolvedAllowlists(raw)
+              setCategory({
+                id: String(raw.id ?? ""),
+                name: String(raw.name ?? ""),
+                discountPercent: Number(raw.discountPercent) || 0,
+                allowedShippingMethodIds: allowlists.allowedShippingMethodIds,
+                allowedPaymentMethodIds: allowlists.allowedPaymentMethodIds,
+              })
+            }
           }
         } else if (res.status === 401 || res.status === 403) {
           setCategory(null)

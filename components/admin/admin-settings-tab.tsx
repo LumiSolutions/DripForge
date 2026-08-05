@@ -2394,7 +2394,9 @@ export function AdminSettingsTab({
                     <p className={cn("text-xs", adminUi.muted)}>
                       z.&nbsp;B.{" "}
                       <span className="font-mono">
-                        {belegNumbering.offertePrefix || "OFF"}-2026-0001
+                        {belegNumbering.yearFormat
+                          ? `${belegNumbering.offertePrefix || "OFF"}-2026-0001`
+                          : `${belegNumbering.offertePrefix || "OFF"}-0001`}
                       </span>
                     </p>
                   </div>

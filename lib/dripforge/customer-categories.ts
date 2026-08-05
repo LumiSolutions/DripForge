@@ -3,6 +3,10 @@ import type {
   ShippingMethodId,
 } from "@/lib/dripforge/checkout-config"
 
+/** Admin: nach Speichern der Kategorien-UI → Kundenliste neu laden. */
+export const ADMIN_CUSTOMER_CATEGORIES_CHANGED =
+  "dripforge:admin-customer-categories-changed"
+
 /**
  * Kundenkategorie / -gruppe (z. B. "Friends & Family", "B2B").
  * Konfiguration liegt global in den Admin-Einstellungen; die Zuordnung erfolgt
@@ -121,6 +125,24 @@ export function isShippingMethodAllowedForCategory(
   const allowed = category?.allowedShippingMethodIds ?? []
   if (allowed.length === 0) return true
   return allowed.includes(methodId)
+}
+
+/**
+ * Normalisiert Allowlists aus API-Responses (fehlende Felder → []).
+ */
+export function normalizeResolvedAllowlists(input: {
+  allowedShippingMethodIds?: unknown
+  allowedPaymentMethodIds?: unknown
+}): {
+  allowedShippingMethodIds: ShippingMethodId[]
+  allowedPaymentMethodIds: PaymentMethodId[]
+} {
+  return {
+    allowedShippingMethodIds: normalizeShippingIds(
+      input.allowedShippingMethodIds
+    ),
+    allowedPaymentMethodIds: normalizePaymentIds(input.allowedPaymentMethodIds),
+  }
 }
 
 /** Wendet den Kategorierabatt auf einen Preis an (nie negativ). */

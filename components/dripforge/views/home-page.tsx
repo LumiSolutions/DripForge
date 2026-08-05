@@ -62,7 +62,11 @@ import {
   SiteText,
 } from "@/components/dripforge/editable-site-text"
 import { SiteImage } from "@/components/dripforge/editable-site-image"
+import { SafeProductImage } from "@/components/dripforge/shared/safe-product-image"
 import { useBranding } from "@/hooks/use-branding"
+
+const HERO_IMAGE_SIZES = "(max-width: 1024px) 100vw, 50vw"
+const EXPERTISE_IMAGE_SIZES = "160px"
 
 /**
  * Hero-Bild: Haupt-/Branding-Logo (Slot 2) falls hochgeladen, sonst das
@@ -72,11 +76,14 @@ function HomeHeroBrandImage() {
   const { brandLogoUrl } = useBranding()
   if (brandLogoUrl) {
     return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
+      <SafeProductImage
         src={brandLogoUrl}
         alt="DripForge"
-        className="animate-float absolute inset-0 h-full w-full object-contain"
+        fill
+        priority
+        quality={75}
+        sizes={HERO_IMAGE_SIZES}
+        className="animate-float object-contain"
       />
     )
   }
@@ -86,6 +93,7 @@ function HomeHeroBrandImage() {
       fill
       imageClassName="animate-float object-contain"
       priority
+      sizes={HERO_IMAGE_SIZES}
     />
   )
 }
@@ -224,6 +232,7 @@ export function HomePage({
                     <SiteImage
                       imageKey="landingpage_expertise_3d_image"
                       fill
+                      sizes={EXPERTISE_IMAGE_SIZES}
                       imageClassName="object-contain"
                     />
                   </div>
@@ -257,6 +266,7 @@ export function HomePage({
                     <SiteImage
                       imageKey="landingpage_expertise_laser_image"
                       fill
+                      sizes={EXPERTISE_IMAGE_SIZES}
                       imageClassName="object-contain"
                     />
                   </div>

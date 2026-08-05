@@ -68,6 +68,7 @@ import type { SavedCustomerDesign, SavedDeliveryAddress } from "@/lib/konto/acco
 import type { CustomerOffer } from "@/lib/konto/customer-offer-types"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
 import {
+  ADMIN_CUSTOMER_CATEGORIES_CHANGED,
   normalizeCustomerCategories,
   type CustomerCategory,
 } from "@/lib/dripforge/customer-categories"
@@ -607,18 +608,39 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
 
   useEffect(() => {
     let cancelled = false
-    void fetch("/api/admin/settings", { cache: "no-store" })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (!cancelled) {
-          setCustomerCategories(
-            normalizeCustomerCategories(data?.customerCategories)
-          )
-        }
-      })
-      .catch(() => {})
+
+    const applyCategories = (raw: unknown) => {
+      if (!cancelled) {
+        setCustomerCategories(normalizeCustomerCategories(raw))
+      }
+    }
+
+    const loadCategories = () => {
+      void fetch("/api/admin/customer-categories", { cache: "no-store" })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => applyCategories(data?.customerCategories))
+        .catch(() => {})
+    }
+
+    loadCategories()
+
+    const onCategoriesChanged = (event: Event) => {
+      const detail = (event as CustomEvent<{ customerCategories?: unknown }>)
+        .detail
+      if (detail?.customerCategories !== undefined) {
+        applyCategories(detail.customerCategories)
+        return
+      }
+      loadCategories()
+    }
+
+    window.addEventListener(ADMIN_CUSTOMER_CATEGORIES_CHANGED, onCategoriesChanged)
     return () => {
       cancelled = true
+      window.removeEventListener(
+        ADMIN_CUSTOMER_CATEGORIES_CHANGED,
+        onCategoriesChanged
+      )
     }
   }, [])
 
