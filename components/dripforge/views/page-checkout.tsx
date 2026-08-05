@@ -607,6 +607,10 @@ export function PageCheckout({
         ? internationalStatus.priceChf
         : (selectedShippingOption?.price ?? 0)
 
+  const categoryWantsPickup = Boolean(
+    customerCategory?.allowedShippingMethodIds?.includes("pickup")
+  )
+
   useEffect(() => {
     // Warten bis Kategorie geladen — sonst kurz ungefilterte Optionen (Flash).
     if (!categoryLoaded) {
@@ -641,7 +645,8 @@ export function PageCheckout({
         const resolved = resolveShippingOptionsForCart(
           settings,
           metrics,
-          fallback
+          fallback,
+          { includePickup: categoryWantsPickup }
         )
         setBaseShippingOptions(resolved)
         setBaseShippingReady(true)
@@ -649,14 +654,17 @@ export function PageCheckout({
       .catch(() => {
         if (cancelled) return
         setInternationalShipping(DEFAULT_INTERNATIONAL_SHIPPING)
-        setBaseShippingOptions(fallback)
+        const resolved = categoryWantsPickup
+          ? fallback
+          : fallback.filter((o) => o.methodId !== "pickup")
+        setBaseShippingOptions(resolved)
         setBaseShippingReady(true)
       })
 
     return () => {
       cancelled = true
     }
-  }, [cart, categoryLoaded])
+  }, [cart, categoryLoaded, categoryWantsPickup])
 
   // Kategorie-Filter + Auslandsversand auf geladene Basis-Optionen anwenden.
   useEffect(() => {

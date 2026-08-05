@@ -174,6 +174,9 @@ function fitsDimensions(
 /**
  * Wählt passende Versandoptionen anhand Gesamtgewicht und Maximalmassen.
  * Gibt mindestens die kleinste passende Staffel + ggf. Abholung zurück.
+ *
+ * @param opts.includePickup — Abholung erzwingen (z. B. Kundenkategorie-Allowlist),
+ *   auch wenn global «Abholung anbieten» ausgeschaltet ist.
  */
 export function resolveShippingOptionsForCart(
   settings: ShippingTiersSettings,
@@ -183,9 +186,16 @@ export function resolveShippingOptionsForCart(
     maxWidthMm?: number
     maxHeightMm?: number
   },
-  fallback: ResolvedShippingOption[]
+  fallback: ResolvedShippingOption[],
+  opts?: { includePickup?: boolean }
 ): ResolvedShippingOption[] {
-  if (!settings.enabled) return fallback
+  if (!settings.enabled) {
+    // Klassischer Fallback: Abholung nur wenn global an ODER Kategorie sie verlangt.
+    if (settings.pickupEnabled || opts?.includePickup) {
+      return fallback
+    }
+    return fallback.filter((o) => o.methodId !== "pickup")
+  }
 
   const weight = Math.max(0, Number(input.totalWeightG) || 0)
   const dims = {
@@ -230,7 +240,8 @@ export function resolveShippingOptionsForCart(
     ]
   }
 
-  if (settings.pickupEnabled) {
+  const wantPickup = settings.pickupEnabled || opts?.includePickup === true
+  if (wantPickup && !options.some((o) => o.methodId === "pickup")) {
     options.push({
       id: "pickup",
       methodId: "pickup",

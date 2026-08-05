@@ -44,7 +44,6 @@ import {
   LaserDesignerStudio,
   type LaserDesignerState,
 } from "@/components/dripforge/shared/laser-designer-studio"
-import { products as staticProducts } from "@/lib/dripforge/data"
 import { useFilamentCatalog } from "@/hooks/use-filament-materials"
 import { useAiPublicSettings } from "@/hooks/use-ai-public-settings"
 import { getLaserMaterialForProduct } from "@/lib/dripforge/laser"
@@ -301,7 +300,7 @@ export function PageShop({
     mq.addEventListener("change", sync)
     return () => mq.removeEventListener("change", sync)
   }, [])
-  const [shopProducts, setShopProducts] = useState<Product[]>(staticProducts)
+  const [shopProducts, setShopProducts] = useState<Product[]>([])
   const [productTags, setProductTags] = useState<ProductTag[]>([])
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([])
   const [categoryFilter, setCategoryFilter] = useState<ShopFilterId>("all")

@@ -54,8 +54,7 @@ import { FilamentColorPicker } from "@/components/dripforge/shared/filament-colo
 import { ProcessStepItem } from "@/components/dripforge/shared/process-step-item"
 import { LaserProcessStep } from "@/components/dripforge/shared/laser-process-step"
 import { IndividualProcessBar } from "@/components/dripforge/shared/individual-process-bar"
-import { materials3D, laserMaterials, processSteps, products } from "@/lib/dripforge/data"
-import type { CartItem } from "@/lib/dripforge/types"
+import { materials3D, laserMaterials, processSteps } from "@/lib/dripforge/data"
 import type { ServiceVisibilitySettings } from "@/lib/admin/types"
 import {
   SiteEditableLink,
