@@ -11,7 +11,7 @@ import {
   calculateLoyaltyEarnBaseChf,
 } from "@/lib/konto/loyalty-points"
 import {
-  isPaymentMethodEnabled,
+  isPaymentMethodAllowedForCheckout,
   type PaymentMethodId,
 } from "@/lib/dripforge/checkout-config"
 import type { OrderPayload } from "@/lib/dripforge/submit-order"
@@ -22,6 +22,7 @@ import { bindOrderToCustomer } from "@/lib/shop/bind-order-to-account"
 import { applyInventoryReservationForOrder } from "@/lib/admin/order-inventory-hook"
 import { buildRewardPointsPublicSettings } from "@/lib/dripforge/reward-points-settings"
 import { getSessionEmailFromRequest } from "@/lib/konto/api-auth"
+import { resolveCustomerCategoryForEmail } from "@/lib/konto/resolve-customer-category"
 import { CosmosDatabaseError } from "@/lib/admin/storage-bridge"
 import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
 
@@ -42,16 +43,25 @@ export async function POST(request: Request) {
     const sessionEmail = await getSessionEmailFromRequest()
 
     const checkoutSettings = await getSettings()
+    const category = sessionEmail
+      ? await resolveCustomerCategoryForEmail(sessionEmail)
+      : null
     if (
-      !isPaymentMethodEnabled(
+      !isPaymentMethodAllowedForCheckout(
         payload.paymentMethod as PaymentMethodId,
-        checkoutSettings.checkout
+        checkoutSettings.checkout,
+        category?.allowedPaymentMethodIds
       )
     ) {
+      console.warn("[Bestell-API] Zahlungsart blockiert.", {
+        method: payload.paymentMethod,
+        sessionEmail: sessionEmail ?? null,
+        categoryId: category?.id ?? null,
+      })
       return NextResponse.json(
         {
           error:
-            "Diese Zahlungsart ist im Admin deaktiviert und kann nicht verwendet werden.",
+            "Diese Zahlungsart ist nicht verfügbar (Admin deaktiviert oder nicht für deine Kundenkategorie freigegeben).",
         },
         { status: 403 }
       )

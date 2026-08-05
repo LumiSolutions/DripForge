@@ -2,11 +2,12 @@ import { NextResponse } from "next/server"
 import { normalizeCustomerEmail } from "@/lib/admin/customers"
 import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
 import {
-  isPaymentMethodEnabled,
+  isPaymentMethodAllowedForCheckout,
   type PaymentMethodId,
 } from "@/lib/dripforge/checkout-config"
 import type { OrderPayload } from "@/lib/dripforge/submit-order"
 import { getSessionEmailFromRequest } from "@/lib/konto/api-auth"
+import { resolveCustomerCategoryForEmail } from "@/lib/konto/resolve-customer-category"
 import {
   allocateFriendlyOrderId,
   fulfillPaidShopOrder,
@@ -48,11 +49,19 @@ export async function GET() {
 
 export async function POST(request: Request) {
   if (!isStripeConfigured()) {
+    const diag = getStripeEnvDiagnostics()
+    console.error("[Stripe Checkout] STRIPE_SECRET_KEY fehlt oder ungültig.", {
+      secretKeyPresent: diag.secretKeyPresent,
+      secretKeyMode: diag.secretKeyMode,
+      publishableKeyPresent: diag.publishableKeyPresent,
+      webhookSecretPresent: diag.webhookSecretPresent,
+    })
     return NextResponse.json(
       {
         error:
           "Stripe ist noch nicht konfiguriert. Bitte STRIPE_SECRET_KEY in der Umgebung hinterlegen.",
         configured: false,
+        diagnostics: diag,
       },
       { status: 503 }
     )
@@ -113,23 +122,34 @@ export async function POST(request: Request) {
     }
 
     const settings = await getSettings()
+    const sessionEmail = await getSessionEmailFromRequest()
+    const category = sessionEmail
+      ? await resolveCustomerCategoryForEmail(sessionEmail)
+      : null
     if (
-      !isPaymentMethodEnabled(
+      !isPaymentMethodAllowedForCheckout(
         payload.paymentMethod as PaymentMethodId,
-        settings.checkout
+        settings.checkout,
+        category?.allowedPaymentMethodIds
       )
     ) {
+      console.warn("[Stripe Checkout] Zahlungsart blockiert.", {
+        method: payload.paymentMethod,
+        sessionEmail: sessionEmail ?? null,
+        categoryId: category?.id ?? null,
+        allowed: category?.allowedPaymentMethodIds ?? [],
+        globalCard: settings.checkout?.paymentCardAktiv,
+      })
       return NextResponse.json(
         {
           error:
-            "Diese Zahlungsart ist im Admin deaktiviert und kann nicht verwendet werden.",
+            "Diese Zahlungsart ist nicht verfügbar (Admin deaktiviert oder nicht für deine Kundenkategorie freigegeben).",
           success: false,
         },
         { status: 403 }
       )
     }
 
-    const sessionEmail = await getSessionEmailFromRequest()
     const billingEmail = normalizeCustomerEmail(payload.billing.email)
     // Eingeloggtes Konto hat Vorrang — unabhängig von der Formular-E-Mail
     const userId = sessionEmail || billingEmail

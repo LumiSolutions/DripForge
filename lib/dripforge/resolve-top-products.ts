@@ -4,15 +4,42 @@ import type { ServiceVisibilitySettings } from "@/lib/admin/types"
 import { NEUTRAL_PRODUCT_PLACEHOLDER } from "@/lib/dripforge/neutral-placeholder"
 import { normalizeTopProductsCount } from "@/lib/dripforge/top-products-settings"
 
+/** Bekannte Seed-/Demo-Namen aus dem alten Katalog — nie auf der Homepage. */
+const LEGACY_DEMO_PRODUCT_NAMES = new Set(
+  [
+    "Geometrischer Handyhalter",
+    "Desktop Kabelhalter",
+    "Kopfhoererhalter",
+    "Kopfhörerhalter",
+    "Sukkulenten Pflanztopf",
+    "Holz Untersetzer Set",
+    "LED Acryl Schild",
+    "Leder Schlüsselanhänger",
+    "Schiefer Namensschild",
+  ].map((n) => n.toLowerCase())
+)
+
 function isCancelledOrder(status: string): boolean {
   return status === "storniert"
 }
 
 function productCreatedAtMs(product: AdminProduct): number {
-  const raw = product.createdAt
+  const raw = product.createdAt ?? (product as { updatedAt?: string }).updatedAt
   if (!raw) return 0
   const ms = new Date(raw).getTime()
   return Number.isFinite(ms) ? ms : 0
+}
+
+function isLegacyDemoProduct(product: AdminProduct): boolean {
+  const name = String(product.name ?? "")
+    .trim()
+    .toLowerCase()
+  if (name && LEGACY_DEMO_PRODUCT_NAMES.has(name)) return true
+  // Alte numerische Seed-IDs ohne echte Galerie
+  if (/^[1-8]$/.test(String(product.id ?? "").trim()) && !hasUsableProductImage(product)) {
+    return true
+  }
+  return false
 }
 
 function isVisibleForServices(
@@ -20,6 +47,7 @@ function isVisibleForServices(
   services: ServiceVisibilitySettings
 ): boolean {
   if (!isProductVisibleInShop(product)) return false
+  if (isLegacyDemoProduct(product)) return false
   if (product.type === "3d" && !services.druck3d) return false
   if (product.type === "laser" && !services.lasergravur) return false
   return true
@@ -79,13 +107,11 @@ function pushUnique(
 }
 
 /**
- * Top-Produkte für die Startseite.
- * 1. Manuell markierte Top-Produkte (`isTopProduct` / Featured)
- * 2. Bestseller nach verkauften Einheiten (nur mit nutzbarem Bild)
- * 3. Neueste aktive Produkte (nur mit nutzbarem Bild)
+ * Top-Produkte für die Startseite (Admin: Anzahl + «Auf Startseite»).
  *
- * Produkte ohne echte Bilder werden nicht als Filler genutzt — so bleiben
- * Seed-/Demo-Einträge ohne Galerie von der Homepage fern.
+ * Priorität 1: manuell markierte Top-Produkte (`isTopProduct`) und Bestseller.
+ * Priorität 2: Auffüllen mit neuesten Produkten (`createdAt` DESC), bis die
+ * konfigurierte Anzahl erreicht ist — ohne Duplikate, ohne Legacy-Demos.
  */
 export function resolveTopProducts(options: {
   products: AdminProduct[]
@@ -104,7 +130,7 @@ export function resolveTopProducts(options: {
   const picked = new Set<string>()
   const result: AdminProduct[] = []
 
-  // 1) Featured zuerst (auch ohne Bild — Admin hat sie bewusst markiert)
+  // --- Priorität 1a: Admin-Auswahl (isTopProduct) ---
   const featured = eligible
     .filter((p) => p.isTopProduct)
     .sort((a, b) => {
@@ -118,7 +144,7 @@ export function resolveTopProducts(options: {
   }
   if (result.length >= limit) return result
 
-  // 2) Bestseller mit echtem Bild
+  // --- Priorität 1b: Bestseller nach verkauften Einheiten ---
   const bestsellers = [...sales.entries()]
     .filter(([id, qty]) => qty > 0 && byId.has(id))
     .sort((a, b) => {
@@ -131,13 +157,14 @@ export function resolveTopProducts(options: {
 
   for (const [id] of bestsellers) {
     const product = byId.get(id)
-    if (!product || !hasUsableProductImage(product)) continue
+    if (!product) continue
     if (!pushUnique(result, picked, product, limit)) break
   }
   if (result.length >= limit) return result
 
-  // 3) Neueste mit echtem Bild (kein Seed-/Platzhalter-Filler)
-  const newest = eligible
+  // --- Priorität 2: Auffüllen mit neuesten Produkten (createdAt DESC) ---
+  // Zuerst Produkte mit echtem Bild, dann restliche Aktive — immer bis `limit`.
+  const newestWithImage = eligible
     .filter((p) => !picked.has(p.id) && hasUsableProductImage(p))
     .sort((a, b) => {
       const timeDiff = productCreatedAtMs(b) - productCreatedAtMs(a)
@@ -145,7 +172,20 @@ export function resolveTopProducts(options: {
       return a.name.localeCompare(b.name, "de-CH")
     })
 
-  for (const product of newest) {
+  for (const product of newestWithImage) {
+    if (!pushUnique(result, picked, product, limit)) break
+  }
+  if (result.length >= limit) return result
+
+  const newestRest = eligible
+    .filter((p) => !picked.has(p.id))
+    .sort((a, b) => {
+      const timeDiff = productCreatedAtMs(b) - productCreatedAtMs(a)
+      if (timeDiff !== 0) return timeDiff
+      return a.name.localeCompare(b.name, "de-CH")
+    })
+
+  for (const product of newestRest) {
     if (!pushUnique(result, picked, product, limit)) break
   }
 
