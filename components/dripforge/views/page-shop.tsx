@@ -273,8 +273,14 @@ export function PageShop({
     }>
   >([])
   const [extraLaserVariants, setExtraLaserVariants] = useState<
-    Array<{ quantity: number; label: string; snapshot: LaserDesignerState }>
+    Array<{
+      quantity: number
+      label: string
+      snapshot: LaserDesignerState
+      previewMockup?: string
+    }>
   >([])
+  const [addingLaserVariant, setAddingLaserVariant] = useState(false)
   /**
    * Nach «Variante hinzufügen» ist die aktuelle Farbe bereits in der Liste —
    * nicht nochmals zur Mengenrabatt-Stückzahl zählen (Off-by-one).
@@ -590,6 +596,13 @@ export function PageShop({
           quantityDiscountTiers.length > 0
             ? { quantityDiscountTiers, baseUnitPrice }
             : { baseUnitPrice }
+        const catalogImage =
+          resolveProductImages(
+            selectedProduct.id,
+            selectedProduct.images,
+            selectedProduct.galerieBilder
+          )[0] || undefined
+        const previewImage = leitbild || catalogImage
 
         if (useMultiColor && multiColorSelection) {
           const primary =
@@ -616,7 +629,7 @@ export function PageShop({
             price: baseUnitPrice,
             quantity,
             type: "3d",
-            leitbild,
+            leitbild: previewImage,
             ...tierFields,
             customDetails: {
               filament: multiColorSelection.materialName,
@@ -652,7 +665,7 @@ export function PageShop({
               price: baseUnitPrice,
               quantity: Math.max(1, extra.quantity),
               type: "3d",
-              leitbild,
+              leitbild: previewImage,
               ...tierFields,
               customDetails: {
                 filament: extra.materialName,
@@ -864,16 +877,18 @@ export function PageShop({
 
       for (const extra of extraLaserVariants) {
         const extraLayers = ensureLaserLayers(extra.snapshot)
-        let extraPreviewMockup: string | undefined
-        try {
-          extraPreviewMockup = await buildLaserCombinedMockup({
-            layers: extraLayers,
-            backgroundUrl: productBgUrl,
-          })
-        } catch {
-          console.warn(
-            "Mockup: Shop-Laser-Extra-Snapshot konnte nicht erstellt werden."
-          )
+        let extraPreviewMockup = extra.previewMockup
+        if (!extraPreviewMockup) {
+          try {
+            extraPreviewMockup = await buildLaserCombinedMockup({
+              layers: extraLayers,
+              backgroundUrl: productBgUrl,
+            })
+          } catch {
+            console.warn(
+              "Mockup: Shop-Laser-Extra-Snapshot konnte nicht erstellt werden."
+            )
+          }
         }
         addToCart({
           id: `${selectedProduct.id}-${Date.now()}-extra-${extra.label.slice(0, 12)}`,
@@ -1223,8 +1238,18 @@ export function PageShop({
                         <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                           Preis
                         </h3>
-                        <p className="text-2xl font-bold tabular-nums text-primary">
-                          CHF {unitPrice.toFixed(2)}
+                        <p className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-2xl font-bold tabular-nums text-primary">
+                          <span>CHF {unitPrice.toFixed(2)}</span>
+                          {qtyDiscount.tier &&
+                          customerCategory.applyDiscount(baseUnitPrice) >
+                            unitPrice ? (
+                            <span className="text-base font-normal text-muted-foreground line-through">
+                              CHF{" "}
+                              {customerCategory
+                                .applyDiscount(baseUnitPrice)
+                                .toFixed(2)}
+                            </span>
+                          ) : null}
                         </p>
                         {qtyDiscount.tier ? (
                           <p className="text-xs text-emerald-600 dark:text-emerald-400">
@@ -1326,8 +1351,30 @@ export function PageShop({
                                   key={`${extra.label}-${index}`}
                                   className="flex items-center gap-3 text-sm"
                                 >
+                                  {extra.previewMockup ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img
+                                      src={extra.previewMockup}
+                                      alt=""
+                                      className="h-12 w-16 shrink-0 rounded-md border border-border/50 object-contain bg-muted/30"
+                                    />
+                                  ) : null}
                                   <span className="min-w-0 flex-1">
-                                    CHF {unitPrice.toFixed(2)} · {extra.label || "Konfiguration"} ×
+                                    <span className="font-bold tabular-nums">
+                                      CHF {unitPrice.toFixed(2)}
+                                    </span>
+                                    {qtyDiscount.tier &&
+                                    customerCategory.applyDiscount(baseUnitPrice) >
+                                      unitPrice ? (
+                                      <span className="ml-1.5 text-muted-foreground line-through">
+                                        CHF{" "}
+                                        {customerCategory
+                                          .applyDiscount(baseUnitPrice)
+                                          .toFixed(2)}
+                                      </span>
+                                    ) : null}
+                                    {" · "}
+                                    {extra.label || "Konfiguration"} ×
                                     {extra.quantity}
                                   </span>
                                   <button
@@ -1349,38 +1396,68 @@ export function PageShop({
                           <Button
                             type="button"
                             variant="outline"
-                            className="w-full whitespace-normal h-auto min-h-10 py-2"
-                            disabled={!laserDesignHasContent(laserDesign)}
+                            className="h-auto min-h-10 w-full whitespace-normal py-2 text-center leading-snug"
+                            disabled={
+                              !laserDesignHasContent(laserDesign) ||
+                              addingLaserVariant
+                            }
                             onClick={() => {
                               if (!laserDesign || !shopLaserMaterial) return
+                              const snapshot = structuredClone(laserDesign)
                               const label =
                                 summarizeLaserDesignLabel(
-                                  laserDesign,
+                                  snapshot,
                                   activeShopVariant?.name
                                 ).trim() || "Konfiguration"
-                              setExtraLaserVariants((prev) => [
-                                ...prev,
-                                {
-                                  quantity: Math.max(1, quantity),
-                                  label,
-                                  snapshot: structuredClone(laserDesign),
-                                },
-                              ])
-                              setQuantity(1)
-                              setLaserDesign((prev) => {
-                                if (!prev) return prev
-                                const fresh = createDefaultLaserDesignerState(
-                                  shopLaserMaterial,
-                                  shopProductVarianten
-                                )
-                                return {
-                                  ...fresh,
-                                  selectedVariant: prev.selectedVariant,
+                              const qty = Math.max(1, quantity)
+                              setAddingLaserVariant(true)
+                              void (async () => {
+                                let previewMockup: string | undefined
+                                try {
+                                  const bgUrl =
+                                    detailProduct.individualisierungsBild?.trim() ||
+                                    galleryImages[0] ||
+                                    null
+                                  previewMockup = await buildLaserCombinedMockup({
+                                    layers: ensureLaserLayers(snapshot),
+                                    backgroundUrl: bgUrl,
+                                    previewRoot: laserPreviewRef.current,
+                                  })
+                                } catch {
+                                  console.warn(
+                                    "Mockup: Extra-Laser-Variante konnte nicht erzeugt werden."
+                                  )
                                 }
-                              })
+                                setExtraLaserVariants((prev) => [
+                                  ...prev,
+                                  {
+                                    quantity: qty,
+                                    label,
+                                    snapshot,
+                                    previewMockup,
+                                  },
+                                ])
+                                setQuantity(1)
+                                setLaserDesign((prev) => {
+                                  if (!prev) return prev
+                                  const fresh = createDefaultLaserDesignerState(
+                                    shopLaserMaterial,
+                                    shopProductVarianten
+                                  )
+                                  return {
+                                    ...fresh,
+                                    selectedVariant: prev.selectedVariant,
+                                  }
+                                })
+                                setAddingLaserVariant(false)
+                              })()
                             }}
                           >
-                            <Plus className="mr-2 h-4 w-4 shrink-0" />
+                            {addingLaserVariant ? (
+                              <Loader2 className="mr-2 h-4 w-4 shrink-0 animate-spin" />
+                            ) : (
+                              <Plus className="mr-2 h-4 w-4 shrink-0" />
+                            )}
                             Weitere Variante hinzufügen
                           </Button>
                         </div>
@@ -1558,6 +1635,14 @@ export function PageShop({
 
                       <div className="order-3 flex min-w-0 flex-col gap-6 md:order-2 lg:h-full">
                         {shopVariantPicker}
+                        {isMultiColorProduct(detailProduct) && (
+                          <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 text-sm font-medium text-amber-900 dark:text-amber-100">
+                            Mehrteiliges Produkt: Wähle Farben für jede Komponente
+                            {(detailProduct.partLabels?.length ?? 0) > 0
+                              ? ` (${(detailProduct.partLabels ?? []).join(", ")})`
+                              : ""}
+                          </div>
+                        )}
                         {showColorModeToggle && (
                           <div className="space-y-2">
                             <p className="text-sm font-medium">Farbauswahl</p>
@@ -1636,7 +1721,21 @@ export function PageShop({
                                         ))}
                                       </div>
                                       <span className="min-w-0 flex-1">
-                                        CHF {unitPrice.toFixed(2)} · {extra.materialName} ·{" "}
+                                        <span className="font-bold tabular-nums">
+                                          CHF {unitPrice.toFixed(2)}
+                                        </span>
+                                        {qtyDiscount.tier &&
+                                        customerCategory.applyDiscount(baseUnitPrice) >
+                                          unitPrice ? (
+                                          <span className="ml-1.5 text-muted-foreground line-through">
+                                            CHF{" "}
+                                            {customerCategory
+                                              .applyDiscount(baseUnitPrice)
+                                              .toFixed(2)}
+                                          </span>
+                                        ) : null}
+                                        {" · "}
+                                        {extra.materialName} ·{" "}
                                         {extra.colors.map((c) => c.colorName).join(", ")} ×
                                         {extra.quantity}
                                       </span>
@@ -1714,8 +1813,22 @@ export function PageShop({
                                           }}
                                         />
                                         <span className="min-w-0 flex-1">
-                                          CHF {unitPrice.toFixed(2)} · {extra.filament} ·{" "}
-                                          {extra.colorName} ×{extra.quantity}
+                                          <span className="font-bold tabular-nums">
+                                            CHF {unitPrice.toFixed(2)}
+                                          </span>
+                                          {qtyDiscount.tier &&
+                                          customerCategory.applyDiscount(baseUnitPrice) >
+                                            unitPrice ? (
+                                            <span className="ml-1.5 text-muted-foreground line-through">
+                                              CHF{" "}
+                                              {customerCategory
+                                                .applyDiscount(baseUnitPrice)
+                                                .toFixed(2)}
+                                            </span>
+                                          ) : null}
+                                          {" · "}
+                                          {extra.filament} · {extra.colorName} ×
+                                          {extra.quantity}
                                         </span>
                                         <button
                                           type="button"
@@ -1772,8 +1885,18 @@ export function PageShop({
                                   <span className="text-muted-foreground">
                                     Stueckpreis
                                   </span>
-                                  <span className="font-medium">
+                                  <span className="font-bold tabular-nums">
                                     CHF {unitPrice.toFixed(2)}
+                                    {qtyDiscount.tier &&
+                                    customerCategory.applyDiscount(baseUnitPrice) >
+                                      unitPrice ? (
+                                      <span className="ml-2 font-normal text-muted-foreground line-through">
+                                        CHF{" "}
+                                        {customerCategory
+                                          .applyDiscount(baseUnitPrice)
+                                          .toFixed(2)}
+                                      </span>
+                                    ) : null}
                                   </span>
                                 </div>
                                 {qtyDiscount.tier && (
@@ -1783,9 +1906,6 @@ export function PageShop({
                                     </span>
                                     <span className="font-medium text-emerald-600 dark:text-emerald-400">
                                       −{qtyDiscount.discountPercent.toFixed(0)}%
-                                      {baseUnitPrice !== unitPrice
-                                        ? ` · statt CHF ${baseUnitPrice.toFixed(2)}`
-                                        : ""}
                                     </span>
                                   </div>
                                 )}

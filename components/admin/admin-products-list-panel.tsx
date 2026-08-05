@@ -88,6 +88,15 @@ type AdminProductsListPanelProps = {
 type TypeFilter = "all" | "3d" | "laser"
 export type StatusFilter = "all" | "active" | "inactive" | "sale"
 type QuantityDiscountFilter = "all" | "with" | "without"
+type MultiPartFilter = "all" | "multi" | "single"
+
+function isMultiPartPrintProduct(product: AdminProduct): boolean {
+  if (product.type !== "3d") return false
+  return (
+    Boolean(product.multiColorEnabled) ||
+    (Array.isArray(product.partLabels) && product.partLabels.length > 1)
+  )
+}
 
 type SortableProductColumn = Exclude<ProductColumnSort["column"], "created">
 
@@ -123,6 +132,8 @@ export function AdminProductsListPanel({
   const [tagFilter, setTagFilter] = useState<string>("all")
   const [quantityDiscountFilter, setQuantityDiscountFilter] =
     useState<QuantityDiscountFilter>("all")
+  const [multiPartFilter, setMultiPartFilter] =
+    useState<MultiPartFilter>("all")
   const [saleDialogOpen, setSaleDialogOpen] = useState(false)
   const [saleTargetIds, setSaleTargetIds] = useState<string[]>([])
   const [saleRabattTyp, setSaleRabattTyp] = useState<SaleRabattTyp>("percent")
@@ -149,6 +160,12 @@ export function AdminProductsListPanel({
         product.quantityDiscountTiers.length > 0
       if (quantityDiscountFilter === "with" && !hasQtyDiscount) return false
       if (quantityDiscountFilter === "without" && hasQtyDiscount) return false
+      if (multiPartFilter !== "all") {
+        if (product.type !== "3d") return false
+        const multi = isMultiPartPrintProduct(product)
+        if (multiPartFilter === "multi" && !multi) return false
+        if (multiPartFilter === "single" && multi) return false
+      }
       if (q) {
         const hay = [
           product.name,
@@ -170,6 +187,7 @@ export function AdminProductsListPanel({
     effectiveStatusFilter,
     tagFilter,
     quantityDiscountFilter,
+    multiPartFilter,
     searchQuery,
   ])
 
@@ -380,6 +398,7 @@ export function AdminProductsListPanel({
     (!lockedStatusFilter && effectiveStatusFilter !== "all") ||
     tagFilter !== "all" ||
     quantityDiscountFilter !== "all" ||
+    multiPartFilter !== "all" ||
     searchQuery.trim().length > 0
 
   const busy = bulkBusy || statusBusyId != null
@@ -487,6 +506,19 @@ export function AdminProductsListPanel({
               <SelectItem value="without">Ohne Mengenrabatt</SelectItem>
             </SelectContent>
           </Select>
+          <Select
+            value={multiPartFilter}
+            onValueChange={(v) => setMultiPartFilter(v as MultiPartFilter)}
+          >
+            <SelectTrigger className="w-[230px]">
+              <SelectValue placeholder="Mehrteiligkeit" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Alle 3D-Druck-Produkte</SelectItem>
+              <SelectItem value="multi">Mehrfarbig / Mehrteilig</SelectItem>
+              <SelectItem value="single">Einfarbig / Einteilig</SelectItem>
+            </SelectContent>
+          </Select>
           {hasActiveFilters && (
             <Button
               type="button"
@@ -499,6 +531,7 @@ export function AdminProductsListPanel({
                 if (!lockedStatusFilter) setStatusFilter("all")
                 setTagFilter("all")
                 setQuantityDiscountFilter("all")
+                setMultiPartFilter("all")
               }}
             >
               Filter zurücksetzen

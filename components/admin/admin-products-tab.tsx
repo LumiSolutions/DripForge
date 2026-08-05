@@ -91,6 +91,7 @@ import {
 import { AdminProductsListPanel } from "@/components/admin/admin-products-list-panel"
 import { AdminGallerySortable } from "@/components/admin/admin-gallery-sortable"
 import { AdminImageCropDialog } from "@/components/admin/admin-image-crop-dialog"
+import { AdminRotationPreview } from "@/components/admin/admin-rotation-preview"
 import type { ProductTag } from "@/lib/admin/product-tags"
 import {
   getProductShopStatus,
@@ -1316,41 +1317,13 @@ export function AdminProductsTab() {
                     ))}
                   </div>
                   {form.type === "3d" && (
-                    <div className="space-y-1.5 rounded-lg border border-border/50 p-3">
-                      <Label className={cn("text-xs font-semibold", adminUi.labelMuted)}>
-                        Standard-Ausrichtung 3D-Vorschau (Grad)
-                      </Label>
-                      <div className="grid gap-3 sm:grid-cols-3">
-                        {(["x", "y", "z"] as const).map((axis) => (
-                          <div key={axis} className="space-y-1.5">
-                            <Label className={cn("text-xs", adminUi.labelMuted)}>
-                              Rotation {axis.toUpperCase()}°
-                            </Label>
-                            <Input
-                              type="number"
-                              step="15"
-                              value={formatOptionalNumber(form.defaultRotationDeg?.[axis])}
-                              onChange={(e) => {
-                                const n = parseOptionalNumber(e.target.value)
-                                updateField("defaultRotationDeg", {
-                                  x: form.defaultRotationDeg?.x ?? 0,
-                                  y: form.defaultRotationDeg?.y ?? 0,
-                                  z: form.defaultRotationDeg?.z ?? 0,
-                                  [axis]:
-                                    n ??
-                                    (undefined as unknown as number),
-                                })
-                              }}
-                              className={adminUi.input}
-                            />
-                          </div>
-                        ))}
-                      </div>
-                      <p className={cn("text-xs", adminUi.muted)}>
-                        Orientierung, in der das Modell beim Öffnen der
-                        Produktseite initial angezeigt wird (0/0/0 = automatisch).
-                      </p>
-                    </div>
+                    <AdminRotationPreview
+                      rotation={form.defaultRotationDeg}
+                      modelUrl={
+                        form.modellDateiUrl || form.modelUrl || null
+                      }
+                      onChange={(next) => updateField("defaultRotationDeg", next)}
+                    />
                   )}
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="space-y-1.5">

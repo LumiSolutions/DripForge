@@ -76,6 +76,9 @@ import {
   normalizeDeliveryAddresses,
   setDefaultDeliveryAddressId,
 } from "@/lib/konto/delivery-addresses"
+import { CountrySelect } from "@/components/dripforge/shared/country-select"
+import { DEFAULT_COUNTRY_LABEL, normalizeCountryLabel } from "@/lib/dripforge/countries"
+import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-changes-guard"
 import { cn } from "@/lib/utils"
 
 type CustomerLoyaltyInfo = {
@@ -218,7 +221,7 @@ function addressToForm(
     street: address?.street ?? "",
     zip: address?.zip ?? "",
     city: address?.city ?? "",
-    country: address?.country || "CH",
+    country: normalizeCountryLabel(address?.country || DEFAULT_COUNTRY_LABEL),
   }
 }
 
@@ -231,7 +234,7 @@ function formToAddress(form: AddressFormState): OrderAddress {
     street: form.street.trim(),
     zip: form.zip.trim(),
     city: form.city.trim(),
-    country: form.country.trim() || "CH",
+    country: normalizeCountryLabel(form.country || DEFAULT_COUNTRY_LABEL),
   }
 }
 
@@ -313,15 +316,14 @@ function AddressFields({
           className={adminUi.input}
         />
       </div>
-      <div className="space-y-1.5 sm:col-span-2">
-        <Label className={adminUi.label}>Land</Label>
-        <Input
-          value={form.country}
-          onChange={(e) => set("country", e.target.value)}
-          disabled={disabled}
-          className={adminUi.input}
-        />
-      </div>
+      <CountrySelect
+        label="Land"
+        value={form.country}
+        onChange={(v) => set("country", v)}
+        disabled={disabled}
+        className="sm:col-span-2"
+        triggerClassName={adminUi.input}
+      />
     </div>
   )
 }
@@ -459,12 +461,17 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
     street: string
     zip: string
     city: string
+    country: string
   } | null>(null)
   const [addingDelivery, setAddingDelivery] = useState(false)
   const [editingDeliveryId, setEditingDeliveryId] = useState<string | null>(null)
   const [statusDraft, setStatusDraft] = useState<"aktiv" | "inaktiv">("aktiv")
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+
+  useUnsavedChangesGuard(
+    Boolean(editingSection && addressForm) || Boolean(deliveryDraft)
+  )
 
   const [ordersExpanded, setOrdersExpanded] = useState(false)
   const [orderSearch, setOrderSearch] = useState("")
@@ -975,6 +982,9 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
       street: "",
       zip: "",
       city: "",
+      country: normalizeCountryLabel(
+        detail?.billing.country || DEFAULT_COUNTRY_LABEL
+      ),
     })
   }
 
@@ -993,6 +1003,7 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
       street: address.street,
       zip: address.zip,
       city: address.city,
+      country: normalizeCountryLabel(address.country || DEFAULT_COUNTRY_LABEL),
     })
   }
 
@@ -1024,6 +1035,9 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
     const firstName = deliveryDraft.firstName.trim()
     const lastName = deliveryDraft.lastName.trim()
     const company = deliveryDraft.company.trim()
+    const country = normalizeCountryLabel(
+      deliveryDraft.country || DEFAULT_COUNTRY_LABEL
+    )
     if (!street || !zip || !city) {
       setSaveError("Bitte Strasse, PLZ und Ort ausfüllen.")
       return
@@ -1037,6 +1051,7 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
         street,
         zip,
         city,
+        country,
         isDefault: detailDeliveryAddresses.length === 0,
         ...(firstName ? { firstName } : {}),
         ...(lastName ? { lastName } : {}),
@@ -1061,6 +1076,7 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
                 street,
                 zip,
                 city,
+                country,
                 firstName: firstName || undefined,
                 lastName: lastName || undefined,
                 company: company || undefined,
@@ -1600,9 +1616,13 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
                                   .filter(Boolean)
                                   .join(" · ")
                                 const location = `${address.street}, ${address.zip} ${address.city}`
-                                return prefix
+                                const country = address.country
+                                  ? ` · ${address.country}`
+                                  : ""
+                                const body = prefix
                                   ? `${prefix} — ${location}`
                                   : location
+                                return `${body}${country}`
                               })()}
                             </p>
                           </div>
@@ -1759,6 +1779,17 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
                           />
                         </div>
                       </div>
+                      <CountrySelect
+                        label="Land"
+                        value={deliveryDraft.country}
+                        onChange={(v) =>
+                          setDeliveryDraft((d) =>
+                            d ? { ...d, country: v } : d
+                          )
+                        }
+                        disabled={saving}
+                        triggerClassName={adminUi.input}
+                      />
                       <div className="flex flex-wrap gap-2">
                         <Button
                           type="button"
