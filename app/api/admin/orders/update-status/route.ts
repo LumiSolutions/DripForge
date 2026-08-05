@@ -28,8 +28,12 @@ type UpdateStatusBody = {
   status?: OrderStatus
   productionStatus?: ProductionStatus
   trackingNumber?: string
-  /** Manuelle Zahlungsbestätigung (Rechnung/TWINT). */
+  /** Manuelle Zahlungsbestätigung (Rechnung/TWINT/Bar). */
   confirmPayment?: boolean
+  /** Bank Raiffeisen oder Bar/Kasse — für Rechnung/Bar. */
+  settlementAccount?: "bank" | "cash"
+  /** Effektives Zahlungsdatum (YYYY-MM-DD). */
+  paymentDate?: string
 }
 
 export async function PATCH(request: Request) {
@@ -50,7 +54,14 @@ export async function PATCH(request: Request) {
     }
 
     if (body.confirmPayment) {
-      const result = await confirmOrderPaymentManually(orderId)
+      const result = await confirmOrderPaymentManually(orderId, {
+        settlementAccount:
+          body.settlementAccount === "bank" || body.settlementAccount === "cash"
+            ? body.settlementAccount
+            : undefined,
+        paymentDate:
+          typeof body.paymentDate === "string" ? body.paymentDate.trim() : undefined,
+      })
       if (!result.ok) {
         return NextResponse.json({ error: result.error }, { status: 400 })
       }

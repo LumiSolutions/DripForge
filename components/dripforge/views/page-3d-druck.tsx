@@ -21,6 +21,8 @@ import {
 import { SiteTextPhrase } from "@/components/dripforge/site-text-phrase"
 import { EditableProcessSteps } from "@/components/dripforge/editable-process-steps"
 import { EditableExpectItems } from "@/components/dripforge/editable-expect-items"
+import { PrintabilityDesignGuide } from "@/components/dripforge/shared/printability-design-guide"
+import { PrintFeasibilityServiceNotice } from "@/components/dripforge/shared/print-feasibility-service-notice"
 import { materials3D } from "@/lib/dripforge/data"
 import { SHOP_ROUTES } from "@/lib/dripforge/shop-routes"
 import { useFilamentCatalog } from "@/hooks/use-filament-catalog"
@@ -237,6 +239,34 @@ export function Page3DDruck({
             activeTab={selectedMaterial}
             onTabChange={setSelectedMaterial}
           />
+        </div>
+      </section>
+
+      {/* Design-Richtlinien / Machbarkeit */}
+      <section className="py-10 md:py-16">
+        <div className="mx-auto max-w-7xl space-y-6 px-4">
+          <div className="mb-2 text-center md:mb-6">
+            <h2 className="text-3xl font-bold md:text-4xl">
+              <span className="text-foreground">Druckbare </span>
+              <span className="bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent">
+                Modelle
+              </span>
+            </h2>
+            <p className="mx-auto mt-4 max-w-2xl text-muted-foreground">
+              So bereitest du deine STL-Datei optimal vor — inklusive Beispielbilder,
+              die du im Incontext-Editor austauschen kannst.
+            </p>
+          </div>
+          <PrintabilityDesignGuide variant="section" />
+          <PrintFeasibilityServiceNotice variant="inquiry" className="mx-auto max-w-3xl" />
+          <div className="flex justify-center pt-2">
+            <Button asChild size="lg" className="bg-primary hover:bg-primary/90">
+              <a href={configuratorHref}>
+                Zum 3D-Konfigurator
+                <ArrowRight className="ml-2 inline h-4 w-4" />
+              </a>
+            </Button>
+          </div>
         </div>
       </section>
 

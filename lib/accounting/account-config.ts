@@ -13,7 +13,8 @@ export const DEFAULT_ACCOUNTING_ACCOUNT_CONFIG: AccountingAccountConfig = {
   revenueLaser: "3600",
   receivable: "110050",
   bank: "102001",
-  cash: "100011",
+  /** Kasse (Barzahlung bei Abholung) — per Env überschreibbar. */
+  cash: "100000",
   vatPayable: "2200",
 }
 

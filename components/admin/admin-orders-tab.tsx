@@ -60,12 +60,15 @@ import {
 import {
   isOrderPaid,
   needsManualPaymentConfirmation,
+  needsPaymentSettlementDialog,
   PRODUCTION_COLUMNS,
   resolveProductionStatus,
 } from "@/lib/admin/production-status"
 import { formatBelegDisplayId } from "@/lib/documents/beleg-number"
 import { LASER_FONT_OPTIONS } from "@/lib/dripforge/laser-fonts"
 import { getLaserFontFamily } from "@/lib/dripforge/laser-fonts"
+import { AdminPaymentReceiptDialog } from "@/components/admin/admin-payment-receipt-dialog"
+import type { PaymentSettlementAccount } from "@/lib/accounting/order-journal"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
 import { cn } from "@/lib/utils"
 
@@ -453,6 +456,9 @@ export function AdminOrdersTab({
   const [error, setError] = useState<string | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
+  const [paymentModalOrder, setPaymentModalOrder] = useState<StoredOrder | null>(
+    null
+  )
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
@@ -672,19 +678,33 @@ export function AdminOrdersTab({
     }
   }
 
-  const confirmOrderPayment = async (orderId: string) => {
+  const confirmOrderPayment = async (
+    orderId: string,
+    options?: {
+      settlementAccount?: PaymentSettlementAccount
+      paymentDate?: string
+    }
+  ) => {
     setUpdatingId(orderId)
     try {
       const res = await fetch(`/api/admin/orders/update-status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId, confirmPayment: true }),
+        body: JSON.stringify({
+          orderId,
+          confirmPayment: true,
+          ...(options?.settlementAccount
+            ? { settlementAccount: options.settlementAccount }
+            : {}),
+          ...(options?.paymentDate ? { paymentDate: options.paymentDate } : {}),
+        }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? "Zahlungsbestätigung fehlgeschlagen")
       setOrders((prev) =>
         prev.map((o) => (o.orderId === orderId ? data.order : o))
       )
+      setPaymentModalOrder(null)
     } catch (err) {
       console.warn("Admin: Zahlungsbestätigung fehlgeschlagen.", err)
       setError(
@@ -695,6 +715,16 @@ export function AdminOrdersTab({
     }
   }
 
+  const requestConfirmPayment = (orderId: string) => {
+    const target = orders.find((o) => o.orderId === orderId)
+    if (!target) return
+    if (needsPaymentSettlementDialog(target)) {
+      setPaymentModalOrder(target)
+      return
+    }
+    void confirmOrderPayment(orderId)
+  }
+
   /** Belege-Statusauswahl: Pipeline-Stufen + Storno + manuelle Zahlungsbestätigung. */
   const handleBelegeStatusChange = (order: StoredOrder, value: string) => {
     if (value === "storniert") {
@@ -702,7 +732,7 @@ export function AdminOrdersTab({
       return
     }
     if (value === "bezahlt" && !isOrderPaid(order)) {
-      void confirmOrderPayment(order.orderId)
+      void requestConfirmPayment(order.orderId)
       return
     }
     void updateProductionStatus(order.orderId, value as ProductionStatus)
@@ -985,7 +1015,7 @@ export function AdminOrdersTab({
                               size="sm"
                               disabled={updatingId === order.orderId}
                               className="h-7 bg-emerald-600 text-xs text-white hover:bg-emerald-700"
-                              onClick={() => void confirmOrderPayment(order.orderId)}
+                              onClick={() => void requestConfirmPayment(order.orderId)}
                             >
                               Zahlungseingang bestätigen
                             </Button>
@@ -1026,6 +1056,18 @@ export function AdminOrdersTab({
           </Table>
         </div>
       )}
+
+      <AdminPaymentReceiptDialog
+        order={paymentModalOrder}
+        open={paymentModalOrder != null}
+        busy={updatingId === paymentModalOrder?.orderId}
+        onOpenChange={(open) => {
+          if (!open && updatingId == null) setPaymentModalOrder(null)
+        }}
+        onConfirm={({ orderId, settlementAccount, paymentDate }) =>
+          confirmOrderPayment(orderId, { settlementAccount, paymentDate })
+        }
+      />
 
       <AlertDialog
         open={Boolean(deleteTargetId)}

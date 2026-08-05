@@ -77,6 +77,12 @@ export function needsManualPaymentConfirmation(order: StoredOrder): boolean {
   )
 }
 
+/** Rechnung/Bar brauchen Konto-Auswahl (Bank vs. Kasse) vor der Buchung. */
+export function needsPaymentSettlementDialog(order: StoredOrder): boolean {
+  if (isOrderPaid(order)) return false
+  return order.paymentMethod === "invoice" || order.paymentMethod === "cash"
+}
+
 export function productionStatusLabel(status: ProductionStatus): string {
   return PRODUCTION_COLUMNS.find((c) => c.id === status)?.label ?? status
 }

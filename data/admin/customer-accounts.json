@@ -6,7 +6,17 @@
     "firstName": "Svenja",
     "lastName": "Iten",
     "createdAt": "2026-06-04T17:49:07.143Z",
-    "updatedAt": "2026-06-04T18:05:09.707Z",
-    "kundennummer": "KD-2026-0001"
+    "updatedAt": "2026-08-05T13:14:36.005Z",
+    "kundennummer": "KD-2026-0001",
+    "customerCategoryId": "ef680255-676b-413e-aad9-9361ac841fbb",
+    "status": "aktiv",
+    "loyaltyPoints": 0,
+    "loyaltyPointGrants": {},
+    "loyaltyPointTransactions": [],
+    "deliveryAddresses": [],
+    "deliveryStreet": "",
+    "deliveryZip": "",
+    "deliveryCity": "",
+    "deliverySameAsBilling": true
   }
 ]

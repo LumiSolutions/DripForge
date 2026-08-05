@@ -8,6 +8,9 @@ import { LegalPageHero } from "@/components/dripforge/legal-page-hero"
 import { useSiteTexts } from "@/components/dripforge/site-texts-provider"
 import {
   createEmptyCmsFaqItem,
+  FAQ_CATEGORY_3D_PRINT,
+  FAQ_CATEGORY_GENERAL,
+  groupFaqItemsByCategory,
   type CmsFaqItem,
 } from "@/lib/admin/cms-faq"
 import {
@@ -66,8 +69,11 @@ export function FaqPageContent() {
     await persist(next)
   }
 
-  const addItem = async () => {
-    const item = createEmptyCmsFaqItem(faqItems.length)
+  const addItem = async (category = FAQ_CATEGORY_GENERAL) => {
+    const item = {
+      ...createEmptyCmsFaqItem(faqItems.length),
+      category,
+    }
     const next = [...faqItems, item]
     setOpenId(item.id)
     await persist(next)
@@ -86,6 +92,8 @@ export function FaqPageContent() {
     await persist(next)
   }
 
+  const grouped = groupFaqItemsByCategory(faqItems)
+
   return (
     <div className="space-y-12 py-8">
       <LegalPageHero
@@ -95,25 +103,39 @@ export function FaqPageContent() {
         titleSuffixKey="faq_hero_title_suffix"
       />
 
-      <div className="mx-auto max-w-3xl space-y-3 px-4">
+      <div className="mx-auto max-w-3xl space-y-8 px-4">
         {canInlineEdit && (
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-dashed border-primary/40 bg-primary/5 px-3 py-2">
             <p className="text-xs font-medium text-muted-foreground">
               FAQ-Verwaltung — Einträge hinzufügen, bearbeiten oder löschen.
             </p>
-            <Button
-              type="button"
-              size="sm"
-              onClick={() => void addItem()}
-              disabled={saving}
-            >
-              <Plus className="mr-1 h-3.5 w-3.5" />
-              FAQ hinzufügen
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => void addItem(FAQ_CATEGORY_GENERAL)}
+                disabled={saving}
+              >
+                <Plus className="mr-1 h-3.5 w-3.5" />
+                Allgemein
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => void addItem(FAQ_CATEGORY_3D_PRINT)}
+                disabled={saving}
+              >
+                <Plus className="mr-1 h-3.5 w-3.5" />
+                3D-Druck FAQ
+              </Button>
+            </div>
           </div>
         )}
 
         {/* Dynamische FAQ aus Admin-Auslandsversand-Einstellungen */}
+        <section className="space-y-3">
+          <h2 className="text-lg font-bold text-foreground">Versand</h2>
         <Card
           className={cn(
             "overflow-hidden border-border/50 bg-card/50 shadow-sm transition-all duration-300 dark:bg-card/90",
@@ -148,8 +170,12 @@ export function FaqPageContent() {
             </div>
           )}
         </Card>
+        </section>
 
-        {faqItems.map((item) => {
+        {grouped.map((group) => (
+          <section key={group.category} className="space-y-3">
+            <h2 className="text-lg font-bold text-foreground">{group.category}</h2>
+            {group.items.map((item) => {
           const isOpen = openId === item.id
 
           return (
@@ -245,7 +271,9 @@ export function FaqPageContent() {
               </div>
             </Card>
           )
-        })}
+            })}
+          </section>
+        ))}
       </div>
     </div>
   )
