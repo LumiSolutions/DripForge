@@ -11,6 +11,7 @@ import { PasswordInput } from "@/components/ui/password-input"
 import { Label } from "@/components/ui/label"
 import { KontoShell } from "@/components/konto/konto-shell"
 import { SiteText } from "@/components/dripforge/editable-site-text"
+import { CUSTOMER_CATEGORY_REFRESH_EVENT } from "@/components/dripforge/customer-category-provider"
 import { readClientCart, writeClientCart } from "@/lib/dripforge/cart-storage"
 import type { CartItem } from "@/lib/dripforge/types"
 
@@ -44,6 +45,7 @@ export function KontoLoginForm() {
       if (Array.isArray(data.cart)) {
         writeClientCart(data.cart)
       }
+      window.dispatchEvent(new CustomEvent(CUSTOMER_CATEGORY_REFRESH_EVENT))
       router.push(next)
       router.refresh()
     } catch (err) {
@@ -147,6 +149,7 @@ export function KontoRegisterForm() {
       if (Array.isArray(data.cart)) {
         writeClientCart(data.cart)
       }
+      window.dispatchEvent(new CustomEvent(CUSTOMER_CATEGORY_REFRESH_EVENT))
       router.push(next)
       router.refresh()
     } catch (err) {

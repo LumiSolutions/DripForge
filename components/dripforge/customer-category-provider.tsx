@@ -36,13 +36,14 @@ const CustomerCategoryContext = createContext<CustomerCategoryContextValue | nul
   null
 )
 
+export const CUSTOMER_CATEGORY_REFRESH_EVENT = "dripforge:auth-changed"
+
 export function CustomerCategoryProvider({ children }: { children: ReactNode }) {
   const [category, setCategory] = useState<ResolvedCustomerCategory | null>(null)
   const [loaded, setLoaded] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
 
   const refresh = useCallback(() => {
-    // Checkout muss auf die frische Kategorie warten (kein Flash der Standard-Optionen).
     setLoaded(false)
     setReloadKey((k) => k + 1)
   }, [])
@@ -51,13 +52,14 @@ export function CustomerCategoryProvider({ children }: { children: ReactNode }) 
     let cancelled = false
     void (async () => {
       try {
-        const res = await fetch("/api/customer/category", { cache: "no-store" })
+        const res = await fetch("/api/customer/category", {
+          cache: "no-store",
+          credentials: "include",
+        })
         const data = (await res.json().catch(() => null)) as {
           category?: ResolvedCustomerCategory | null
         } | null
         if (cancelled) return
-        // Vorherigen Stand behalten, bis die Antwort da ist — kein Flash auf null.
-        // Null nur setzen, wenn Request OK und category explizit null/fehlend ist.
         if (res.ok) {
           if (data && Object.prototype.hasOwnProperty.call(data, "category")) {
             setCategory(data.category ?? null)
@@ -73,6 +75,18 @@ export function CustomerCategoryProvider({ children }: { children: ReactNode }) 
       cancelled = true
     }
   }, [reloadKey])
+
+  // Nach Login/Logout oder Tab-Fokus Kategorie neu laden.
+  useEffect(() => {
+    const onAuth = () => refresh()
+    const onFocus = () => refresh()
+    window.addEventListener(CUSTOMER_CATEGORY_REFRESH_EVENT, onAuth)
+    window.addEventListener("focus", onFocus)
+    return () => {
+      window.removeEventListener(CUSTOMER_CATEGORY_REFRESH_EVENT, onAuth)
+      window.removeEventListener("focus", onFocus)
+    }
+  }, [refresh])
 
   const value = useMemo<CustomerCategoryContextValue>(() => {
     const discountPercent = category?.discountPercent ?? 0

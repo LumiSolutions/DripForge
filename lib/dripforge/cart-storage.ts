@@ -1,4 +1,5 @@
 import type { CartItem } from "@/lib/dripforge/types"
+import { clearAllCartPreviews } from "@/lib/dripforge/cart-preview-persist"
 
 export const CART_STORAGE_KEY = "dripforge-cart"
 
@@ -14,35 +15,61 @@ export function readClientCart(): CartItem[] {
   }
 }
 
+function stripHeavyDataUrls(items: CartItem[]): CartItem[] {
+  return items.map((item) => {
+    const next = { ...item } as CartItem
+    // Behalte komprimierte Previews; nur riesige Raw-PNGs entfernen (> ~180KB).
+    const tooBig = (v: string | undefined) =>
+      typeof v === "string" && v.startsWith("data:") && v.length > 180_000
+    if (tooBig(next.leitbild)) delete next.leitbild
+    if (tooBig(next.previewMockup)) delete next.previewMockup
+    if (
+      typeof next.productionLayer === "string" &&
+      next.productionLayer.startsWith("data:")
+    ) {
+      delete next.productionLayer
+    }
+    return next
+  })
+}
+
 export function writeClientCart(items: CartItem[]): void {
   if (typeof window === "undefined") return
   try {
     localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(items))
   } catch {
-    // QuotaExceeded bei grossen Leitbild/Mockup-Data-URLs — ohne Preview speichern.
+    // QuotaExceeded: schlanke Variante ohne übergrosse Data-URLs (IndexedDB behält Originale).
     try {
-      const slim = items.map((item) => {
-        const next = { ...item } as CartItem
-        if (typeof next.leitbild === "string" && next.leitbild.startsWith("data:")) {
-          delete next.leitbild
-        }
-        if (
-          typeof next.previewMockup === "string" &&
-          next.previewMockup.startsWith("data:")
-        ) {
-          delete next.previewMockup
-        }
-        if (
-          typeof next.productionLayer === "string" &&
-          next.productionLayer.startsWith("data:")
-        ) {
-          delete next.productionLayer
-        }
-        return next
-      })
-      localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(slim))
+      localStorage.setItem(
+        CART_STORAGE_KEY,
+        JSON.stringify(stripHeavyDataUrls(items))
+      )
     } catch {
-      console.warn("Warenkorb: Speichern in localStorage fehlgeschlagen.")
+      try {
+        // Letzter Fallback: Previews ganz weglassen — Restore via IndexedDB.
+        const bare = items.map((item) => {
+          const next = { ...item } as CartItem
+          if (typeof next.leitbild === "string" && next.leitbild.startsWith("data:")) {
+            delete next.leitbild
+          }
+          if (
+            typeof next.previewMockup === "string" &&
+            next.previewMockup.startsWith("data:")
+          ) {
+            delete next.previewMockup
+          }
+          if (
+            typeof next.productionLayer === "string" &&
+            next.productionLayer.startsWith("data:")
+          ) {
+            delete next.productionLayer
+          }
+          return next
+        })
+        localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(bare))
+      } catch {
+        console.warn("Warenkorb: Speichern in localStorage fehlgeschlagen.")
+      }
     }
   }
 }
@@ -53,7 +80,6 @@ export function clearClientCart(): void {
   try {
     localStorage.setItem(CART_STORAGE_KEY, "[]")
     localStorage.removeItem(CART_STORAGE_KEY)
-    // Danach leeres Array setzen, damit Hydration/Persist konsistent bleibt
     localStorage.setItem(CART_STORAGE_KEY, "[]")
   } catch {
     console.warn("Warenkorb: Leeren in localStorage fehlgeschlagen.")
@@ -63,4 +89,5 @@ export function clearClientCart(): void {
   } catch {
     /* optional */
   }
+  void clearAllCartPreviews()
 }

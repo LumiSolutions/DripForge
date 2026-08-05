@@ -3,6 +3,7 @@ import { LASER_FONT_OPTIONS } from "@/lib/dripforge/laser-design"
 import type { CartItem } from "@/lib/dripforge/types"
 import { cn } from "@/lib/utils"
 import { SafeProductImage } from "@/components/dripforge/shared/safe-product-image"
+import { resolveCartPreviewSrc } from "@/lib/dripforge/cart-preview-persist"
 
 type CartItemDetailsProps = {
   item: CartItem
@@ -19,14 +20,15 @@ export function CartItemDetails({
 }: CartItemDetailsProps) {
   const d = item.customDetails
   const textClass = compact ? "text-xs" : "text-sm"
+  const previewSrc = resolveCartPreviewSrc(item)
 
   return (
     <div className={cn("space-y-2", className)}>
-      {showLeitbild && item.leitbild && (
+      {showLeitbild && previewSrc ? (
         <div className="overflow-hidden rounded-lg border border-border/50 bg-muted/30">
           <div className="relative aspect-video">
             <SafeProductImage
-              src={item.leitbild}
+              src={previewSrc}
               alt="Kunden-Wunsch-Ansicht (Leitbild)"
               fill
               sizes="(max-width: 640px) 90vw, 320px"
@@ -37,7 +39,7 @@ export function CartItemDetails({
             Leitbild — Live-Vorschau beim Hinzufuegen
           </p>
         </div>
-      )}
+      ) : null}
       <div className="flex items-center gap-2">
         {item.type === "3d" ? (
           <>

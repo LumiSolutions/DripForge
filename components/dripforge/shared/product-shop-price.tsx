@@ -10,23 +10,32 @@ type ProductShopPriceProps = {
   className?: string
 }
 
+/**
+ * Shop-Kartenpreis: Sale-Preis als Basis, dann Kundenkategorie-Rabatt.
+ * Beispiel: CHF 20 → Sale 10% = 18 → Kategorie −50% = **9.00** ~~18.00~~
+ */
 export function ProductShopPrice({
   product,
   size = "sm",
   className,
 }: ProductShopPriceProps) {
-  const { discountPercent, applyDiscount, category } = useCustomerCategory()
+  const { discountPercent, applyDiscount, category, loaded } =
+    useCustomerCategory()
   const price = Number.isFinite(product.price) ? product.price : 0
   const original =
     product.originalPrice != null && Number.isFinite(product.originalPrice)
       ? product.originalPrice
       : null
-  const onSale = product.sale && original != null
+  const onSale = Boolean(product.sale) && original != null && original > price
 
-  const hasCategoryDiscount = discountPercent > 0 && price > 0
+  const hasCategoryDiscount = loaded && discountPercent > 0 && price > 0
   const effectivePrice = hasCategoryDiscount ? applyDiscount(price) : price
-  // Durchgestrichener Referenzpreis: Kategoriepreis zeigt Basispreis, sonst Sale-Original.
-  const strikePrice = hasCategoryDiscount ? price : onSale ? original : null
+  // Strike: vor Kategorie (inkl. Sale), sonst Sale-Original.
+  const strikePrice = hasCategoryDiscount
+    ? price
+    : onSale
+      ? original
+      : null
 
   return (
     <div className={cn("flex flex-wrap items-baseline gap-2", className)}>
@@ -39,7 +48,7 @@ export function ProductShopPrice({
       >
         CHF {effectivePrice.toFixed(2)}
       </span>
-      {strikePrice != null && (
+      {strikePrice != null && strikePrice > effectivePrice + 0.001 && (
         <span
           className={cn(
             "text-muted-foreground line-through tabular-nums",

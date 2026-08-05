@@ -49,7 +49,16 @@ export function safeNavigate(
   }
 
   try {
-    options.routerPush(target)
+    const maybePromise = options.routerPush(target) as unknown
+    // router.push kann eine rejected Promise liefern — ungefangen → Error-Boundary.
+    if (
+      maybePromise != null &&
+      typeof (maybePromise as Promise<unknown>).then === "function"
+    ) {
+      void Promise.resolve(maybePromise).catch(() => {
+        hardNavigate(target)
+      })
+    }
     const expected = hrefToPathname(target)
     window.setTimeout(() => {
       const current = window.location.pathname || "/"
