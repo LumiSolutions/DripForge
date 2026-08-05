@@ -16,7 +16,7 @@ export default function StorefrontError({
 
   return (
     <div className="mx-auto flex min-h-[40vh] max-w-lg flex-col items-center justify-center gap-4 px-4 py-16 text-center">
-      <h1 className="text-xl font-bold">Navigation fehlgeschlagen</h1>
+      <h1 className="text-xl font-bold">Seite konnte nicht geladen werden</h1>
       <p className="text-sm text-muted-foreground">
         Besonders in In-App-Browsern (z.&nbsp;B. Instagram) kann die Seite
         hängen. Bitte neu laden oder eine andere Seite öffnen.

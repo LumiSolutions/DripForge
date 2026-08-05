@@ -3,10 +3,12 @@
 import { cn } from "@/lib/utils"
 
 type DiscountedUnitPriceProps = {
-  /** Endpreis (nach Mengen- + Kategorie-Rabatt). */
+  /** Endpreis (nach Sale/Mengen- + Kategorie-Rabatt). */
   unitPrice: number
   /** Preis vor Kundenkategorie (nach Sale/Mengenrabatt). */
   preCategoryPrice: number
+  /** Optional: UVP / Listenpreis vor Produktrabatt. */
+  listPrice?: number
   /** Optional: Preis vor Mengenrabatt (nach Sale). */
   baseUnitPrice?: number
   categoryDiscountPercent?: number
@@ -17,12 +19,13 @@ type DiscountedUnitPriceProps = {
 }
 
 /**
- * Einheitliche Preiszeile: fetter Nettopreis + Strike des Referenzpreises.
+ * Einheitliche Preiszeile: fetter Nettopreis + Strike (bevorzugt UVP).
  * Kategorie-Rabatt stapelt auf Sale-/Mengenrabatt.
  */
 export function DiscountedUnitPrice({
   unitPrice,
   preCategoryPrice,
+  listPrice,
   baseUnitPrice,
   categoryDiscountPercent = 0,
   quantityDiscountPercent = 0,
@@ -30,19 +33,22 @@ export function DiscountedUnitPrice({
   size = "lg",
   className,
 }: DiscountedUnitPriceProps) {
-  const hasCategory = categoryDiscountPercent > 0 && preCategoryPrice > unitPrice + 0.001
+  const hasCategory =
+    categoryDiscountPercent > 0 && preCategoryPrice > unitPrice + 0.001
   const hasQty =
     quantityDiscountPercent > 0 &&
     baseUnitPrice != null &&
     baseUnitPrice > preCategoryPrice + 0.001
 
-  // Strike: vor Kategorie, sonst vor Mengenrabatt.
+  // Strike: UVP wenn vorhanden und höher, sonst vor Kategorie, sonst vor Menge.
+  const strikeCandidates = [
+    listPrice != null && listPrice > unitPrice + 0.001 ? listPrice : null,
+    hasCategory ? preCategoryPrice : null,
+    hasQty ? baseUnitPrice! : null,
+  ].filter((v): v is number => v != null && v > unitPrice + 0.001)
+
   const strike =
-    hasCategory
-      ? preCategoryPrice
-      : hasQty
-        ? baseUnitPrice!
-        : null
+    strikeCandidates.length > 0 ? Math.max(...strikeCandidates) : null
 
   return (
     <div className={cn("flex flex-col gap-1", className)}>

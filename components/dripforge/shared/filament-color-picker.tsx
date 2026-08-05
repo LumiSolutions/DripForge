@@ -85,6 +85,9 @@ function FilamentImageSlot({
           src={src}
           alt={alt}
           fill
+          sizes="200px"
+          quality={55}
+          loading="lazy"
           className="object-contain drop-shadow-2xl transition-opacity duration-300"
         />
       ) : (
@@ -256,6 +259,9 @@ export function FilamentColorPicker({
                         src={(color.printedExample ?? color.image)!}
                         alt={color.name}
                         fill
+                        sizes="64px"
+                        quality={40}
+                        loading="lazy"
                         className="object-contain transition-transform duration-200 group-hover:scale-110"
                       />
                     </div>

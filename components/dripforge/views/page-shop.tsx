@@ -26,14 +26,6 @@ import {
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
 import {
   FilamentColorPicker,
@@ -66,9 +58,10 @@ import {
   resolveShopVariantUnitPrice,
 } from "@/lib/dripforge/types"
 import {
-  applyQuantityDiscountToUnitPrice,
   normalizeQuantityDiscountTiers,
+  resolveQuantityDiscountTier,
 } from "@/lib/dripforge/quantity-discount-tiers"
+import { calculateProductPrice } from "@/lib/dripforge/calculate-product-price"
 import { resolveProductModelUrl } from "@/lib/dripforge/product-model-defaults"
 import { resolveProductPrintFile } from "@/lib/dripforge/product-print-file"
 import {
@@ -1013,21 +1006,25 @@ export function PageShop({
     // PDP-Total strikt isoliert: nur aktuelle Auswahl dieses Produkts —
     // Warenkorb-Mengen zählen weder für Staffel noch für Gesamtpreis (erst /warenkorb).
     const pricingQty = Math.max(1, activeQtyForPricing + extraVariantQty)
-    const qtyDiscount = applyQuantityDiscountToUnitPrice(
-      baseUnitPrice,
+    const priced = calculateProductPrice({
+      price: baseUnitPrice,
+      originalPrice: detailProduct.originalPrice,
+      sale: detailProduct.sale,
+      quantityDiscountTiers,
+      quantity: pricingQty,
+      categoryDiscountPercent: customerCategory.loaded
+        ? customerCategory.discountPercent
+        : 0,
+    })
+    const preCategoryUnitPrice = priced.preCategoryUnitPrice
+    const unitPrice = priced.unitPrice
+    const categoryDiscountPercent = priced.categoryDiscountPercent
+    const qtyDiscountPercent = priced.quantityDiscountPercent
+    const listPrice = priced.listPrice
+    const qtyDiscountTier = resolveQuantityDiscountTier(
       quantityDiscountTiers,
       pricingQty
     )
-    // Kundenkategorie-Rabatt zusätzlich auf den (mengenrabattierten) Anzeigepreis.
-    // Der Warenkorb speichert weiterhin den Basispreis; der Rabatt wird
-    // serverseitig verbindlich angewendet (processOrderPayload).
-    const preCategoryUnitPrice = qtyDiscount.unitPrice
-    const unitPrice = customerCategory.loaded
-      ? customerCategory.applyDiscount(preCategoryUnitPrice)
-      : preCategoryUnitPrice
-    const categoryDiscountPercent = customerCategory.loaded
-      ? customerCategory.discountPercent
-      : 0
     const shopLaserMaterial =
       detailProduct.type === "laser"
         ? getLaserMaterialForProduct(detailProduct)
@@ -1103,38 +1100,49 @@ export function PageShop({
     return (
       <>
       <div className="space-y-10 pb-12 md:pb-24">
-        <Dialog open={cartAddedOpen} onOpenChange={setCartAddedOpen}>
-          <DialogContent className="z-[200] max-w-md border-border/60 sm:rounded-2xl">
-            <DialogHeader className="items-center text-center sm:text-center">
-              <div className="mb-2 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600">
-                <CheckCircle2 className="h-8 w-8" />
+        {/* Kein Radix-Modal: hideOthers/RemoveScroll über WebGL/Embla → Storefront-Error. */}
+        {cartAddedOpen ? (
+          <div
+            role="status"
+            aria-live="polite"
+            className="fixed inset-x-3 bottom-3 z-[200] mx-auto max-w-md rounded-2xl border border-border/60 bg-background/95 p-4 shadow-xl backdrop-blur-md sm:inset-x-auto sm:right-4 sm:bottom-4"
+          >
+            <div className="mb-3 flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600">
+                <CheckCircle2 className="h-6 w-6" />
               </div>
-              <DialogTitle className="text-xl sm:text-2xl">
-                Erfolgreich zum Warenkorb hinzugefügt!
-              </DialogTitle>
-              <DialogDescription>
-                Dein Design bleibt geöffnet — du kannst weiter anpassen oder
-                zum Warenkorb wechseln.
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter className="flex flex-col gap-2 sm:flex-col">
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold leading-snug">
+                  Zum Warenkorb hinzugefügt
+                </p>
+                <p className="mt-0.5 text-sm text-muted-foreground">
+                  Du kannst weiter anpassen oder zum Warenkorb wechseln.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="rounded-md p-1 text-muted-foreground hover:bg-muted"
+                aria-label="Hinweis schliessen"
+                onClick={() => setCartAddedOpen(false)}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="flex flex-col gap-2">
               <Button
                 type="button"
                 variant="outline"
                 className="w-full"
                 onClick={() => setCartAddedOpen(false)}
               >
-                Weiter einkaufen / Anpassen
+                Weiter einkaufen
               </Button>
               <Button
                 type="button"
                 className="w-full bg-primary hover:bg-primary/90"
                 onClick={() => {
                   setCartAddedOpen(false)
-                  // Dialog zuerst schliessen — Soft-Nav während Unmount wirft in IAB.
-                  window.setTimeout(() => {
-                    hardNavigate(SHOP_ROUTES.warenkorb)
-                  }, 30)
+                  hardNavigate(SHOP_ROUTES.warenkorb)
                 }}
               >
                 <ShoppingCart className="mr-2 h-4 w-4" />
@@ -1146,18 +1154,17 @@ export function PageShop({
                 className="w-full"
                 onClick={() => {
                   setCartAddedOpen(false)
-                  window.setTimeout(() => {
-                    hardNavigate(SHOP_ROUTES.checkout)
-                  }, 30)
+                  hardNavigate(SHOP_ROUTES.checkout)
                 }}
               >
                 Zur Kasse
               </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+            </div>
+          </div>
+        ) : null}
         <div className="mx-auto max-w-7xl px-2 pt-8 sm:px-4">
           <Button
+            type="button"
             variant="outline"
             onClick={closeProduct}
             className="mb-8"
@@ -1260,15 +1267,16 @@ export function PageShop({
                         <DiscountedUnitPrice
                           unitPrice={unitPrice}
                           preCategoryPrice={preCategoryUnitPrice}
+                          listPrice={listPrice}
                           baseUnitPrice={baseUnitPrice}
                           categoryDiscountPercent={categoryDiscountPercent}
-                          quantityDiscountPercent={qtyDiscount.discountPercent}
+                          quantityDiscountPercent={qtyDiscountPercent}
                           categoryName={customerCategory.category?.name}
                         />
-                        {qtyDiscount.tier ? (
+                        {qtyDiscountTier ? (
                           <p className="text-xs text-emerald-600 dark:text-emerald-400">
-                            Mengenrabatt −{qtyDiscount.discountPercent.toFixed(0)}%
-                            (ab {qtyDiscount.tier.minQty} Stk.)
+                            Mengenrabatt −{qtyDiscountPercent.toFixed(0)}%
+                            (ab {qtyDiscountTier.minQty} Stk.)
                           </p>
                         ) : quantityDiscountTiers.length > 0 ? (
                           <p className="text-xs text-muted-foreground">
@@ -1306,11 +1314,15 @@ export function PageShop({
                         </Button>
                         <span className="ml-auto text-sm tabular-nums text-muted-foreground">
                           CHF {unitPrice.toFixed(2)} / Stk.
-                          {preCategoryUnitPrice > unitPrice + 0.001 ? (
-                            <span className="ml-1.5 line-through opacity-70">
-                              CHF {preCategoryUnitPrice.toFixed(2)}
-                            </span>
-                          ) : null}
+                          {listPrice > unitPrice + 0.001 ? (
+                                      <span className="ml-1.5 line-through opacity-70">
+                                        CHF {listPrice.toFixed(2)}
+                                      </span>
+                                    ) : preCategoryUnitPrice > unitPrice + 0.001 ? (
+                                      <span className="ml-1.5 line-through opacity-70">
+                                        CHF {preCategoryUnitPrice.toFixed(2)}
+                                      </span>
+                                    ) : null}
                         </span>
                       </div>
                       <div className="space-y-1.5">
@@ -1336,13 +1348,14 @@ export function PageShop({
                             CHF {(unitPrice * pricingQty).toFixed(2)}
                           </span>
                         </div>
-                        {qtyDiscount.tier && (
+                        {qtyDiscountTier && (
                           <p className="mt-1 text-xs text-emerald-600">
-                            inkl. Mengenrabatt −{qtyDiscount.discountPercent}%
+                            inkl. Mengenrabatt −{qtyDiscountPercent}%
                           </p>
                         )}
                       </div>
                       <Button
+                        type="button"
                         onClick={() => void handleAddToCart()}
                         disabled={!canAddToCart}
                         className="w-full bg-primary text-base hover:bg-primary/90"
@@ -1376,7 +1389,11 @@ export function PageShop({
                                     <span className="font-bold tabular-nums">
                                       CHF {unitPrice.toFixed(2)}
                                     </span>
-                                    {preCategoryUnitPrice > unitPrice + 0.001 ? (
+                                    {listPrice > unitPrice + 0.001 ? (
+                                      <span className="ml-1.5 text-muted-foreground line-through">
+                                        CHF {listPrice.toFixed(2)}
+                                      </span>
+                                    ) : preCategoryUnitPrice > unitPrice + 0.001 ? (
                                       <span className="ml-1.5 text-muted-foreground line-through">
                                         CHF {preCategoryUnitPrice.toFixed(2)}
                                       </span>
@@ -1590,6 +1607,7 @@ export function PageShop({
                               ref={product3dCanvasRef}
                               key={`${detailProduct.id}-${productModelUrl}-d`}
                               modelUrl={productModelUrl}
+                              paused={cartCapturing || cartAddedOpen}
                               color={
                                 showMultiColorPicker
                                   ? multiColorSelection?.colors.find(
@@ -1621,6 +1639,7 @@ export function PageShop({
                             ref={product3dCanvasRef}
                             key={`${detailProduct.id}-${productModelUrl}-m`}
                             modelUrl={productModelUrl}
+                            paused={cartCapturing || cartAddedOpen}
                             color={
                               showMultiColorPicker
                                 ? multiColorSelection?.colors.find(
@@ -1732,7 +1751,11 @@ export function PageShop({
                                         <span className="font-bold tabular-nums">
                                           CHF {unitPrice.toFixed(2)}
                                         </span>
-                                        {preCategoryUnitPrice > unitPrice + 0.001 ? (
+                                        {listPrice > unitPrice + 0.001 ? (
+                                      <span className="ml-1.5 text-muted-foreground line-through">
+                                        CHF {listPrice.toFixed(2)}
+                                      </span>
+                                    ) : preCategoryUnitPrice > unitPrice + 0.001 ? (
                                       <span className="ml-1.5 text-muted-foreground line-through">
                                         CHF {preCategoryUnitPrice.toFixed(2)}
                                       </span>
@@ -1819,7 +1842,11 @@ export function PageShop({
                                           <span className="font-bold tabular-nums">
                                             CHF {unitPrice.toFixed(2)}
                                           </span>
-                                          {preCategoryUnitPrice > unitPrice + 0.001 ? (
+                                          {listPrice > unitPrice + 0.001 ? (
+                                      <span className="ml-1.5 text-muted-foreground line-through">
+                                        CHF {listPrice.toFixed(2)}
+                                      </span>
+                                    ) : preCategoryUnitPrice > unitPrice + 0.001 ? (
                                       <span className="ml-1.5 text-muted-foreground line-through">
                                         CHF {preCategoryUnitPrice.toFixed(2)}
                                       </span>
@@ -1885,24 +1912,28 @@ export function PageShop({
                                   </span>
                                   <span className="font-bold tabular-nums">
                                     CHF {unitPrice.toFixed(2)}
-                                    {preCategoryUnitPrice > unitPrice + 0.001 ? (
+                                    {listPrice > unitPrice + 0.001 ? (
+                                      <span className="ml-2 font-normal text-muted-foreground line-through">
+                                        CHF {listPrice.toFixed(2)}
+                                      </span>
+                                    ) : preCategoryUnitPrice > unitPrice + 0.001 ? (
                                       <span className="ml-2 font-normal text-muted-foreground line-through">
                                         CHF {preCategoryUnitPrice.toFixed(2)}
                                       </span>
                                     ) : null}
                                   </span>
                                 </div>
-                                {qtyDiscount.tier && (
+                                {qtyDiscountTier && (
                                   <div className="flex justify-between gap-3">
                                     <span className="text-muted-foreground">
-                                      Mengenrabatt (ab {qtyDiscount.tier.minQty} Stk.)
+                                      Mengenrabatt (ab {qtyDiscountTier.minQty} Stk.)
                                     </span>
                                     <span className="font-medium text-emerald-600 dark:text-emerald-400">
-                                      −{qtyDiscount.discountPercent.toFixed(0)}%
+                                      −{qtyDiscountPercent.toFixed(0)}%
                                     </span>
                                   </div>
                                 )}
-                                {!qtyDiscount.tier &&
+                                {!qtyDiscountTier &&
                                   quantityDiscountTiers.length > 0 && (
                                     <p className="text-xs text-muted-foreground">
                                       Mengenrabatt ab{" "}
@@ -1995,7 +2026,11 @@ export function PageShop({
                                   </Button>
                                   <span className="ml-auto text-sm tabular-nums text-muted-foreground">
                                     CHF {unitPrice.toFixed(2)} / Stk.
-                                    {preCategoryUnitPrice > unitPrice + 0.001 ? (
+                                    {listPrice > unitPrice + 0.001 ? (
+                                      <span className="ml-1.5 line-through opacity-70">
+                                        CHF {listPrice.toFixed(2)}
+                                      </span>
+                                    ) : preCategoryUnitPrice > unitPrice + 0.001 ? (
                                       <span className="ml-1.5 line-through opacity-70">
                                         CHF {preCategoryUnitPrice.toFixed(2)}
                                       </span>
@@ -2040,14 +2075,15 @@ export function PageShop({
                                 CHF {(unitPrice * pricingQty).toFixed(2)}
                               </span>
                             </div>
-                            {qtyDiscount.tier && (
+                            {qtyDiscountTier && (
                               <p className="mt-1 text-xs text-emerald-600">
-                                inkl. Mengenrabatt −{qtyDiscount.discountPercent}%
+                                inkl. Mengenrabatt −{qtyDiscountPercent}%
                               </p>
                             )}
                           </div>
 
                           <Button
+                            type="button"
                             onClick={() => void handleAddToCart()}
                             disabled={!canAddToCart}
                             className="w-full bg-primary hover:bg-primary/90"
