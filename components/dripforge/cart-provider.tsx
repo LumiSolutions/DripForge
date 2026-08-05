@@ -17,11 +17,16 @@ import {
   writeClientCart,
 } from "@/lib/dripforge/cart-storage"
 import { applyQuantityDiscountsToCartItems } from "@/lib/dripforge/quantity-discount-tiers"
+import {
+  persistItemPreviews,
+  restoreCartItemPreviews,
+} from "@/lib/dripforge/cart-preview-persist"
 
 type CartContextValue = {
   cart: CartItem[]
   setCart: React.Dispatch<React.SetStateAction<CartItem[]>>
-  addToCart: (item: CartItem) => void
+  /** Komprimiert Previews + IndexedDB, dann in den Warenkorb. */
+  addToCart: (item: CartItem) => Promise<void>
   applyMergedCart: (items: CartItem[]) => void
   /** Warenkorb lokal + optional am Konto leeren (Stripe-/Checkout-Erfolg). */
   clearCart: () => Promise<void>
@@ -32,7 +37,10 @@ const CartContext = createContext<CartContextValue | null>(null)
 
 async function putAccountCart(items: CartItem[]): Promise<void> {
   try {
-    const meRes = await fetch("/api/konto/me", { cache: "no-store" })
+    const meRes = await fetch("/api/konto/me", {
+      cache: "no-store",
+      credentials: "include",
+    })
     if (!meRes.ok) return
     await fetch("/api/konto/cart", {
       method: "PUT",
@@ -56,6 +64,14 @@ export function CartProvider({ children }: { children: ReactNode }) {
     cartRef.current = initial
     setCart(initial)
     setHydrated(true)
+    // IndexedDB-Previews nach F5 wiederherstellen
+    void restoreCartItemPreviews(initial).then((restored) => {
+      if (restored === initial) return
+      const withDiscounts = applyQuantityDiscountsToCartItems(restored)
+      cartRef.current = withDiscounts
+      setCart(withDiscounts)
+      writeClientCart(withDiscounts)
+    })
   }, [])
 
   useEffect(() => {
@@ -75,8 +91,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
           typeof updater === "function"
             ? (updater as (p: CartItem[]) => CartItem[])(base)
             : updater
-        // Absicherung: leeres Array nur akzeptieren, wenn bewusst geleert —
-        // ein stale Value-Replace mit [] während parallelem addToCart vermeiden.
         const applied = applyQuantityDiscountsToCartItems(next)
         cartRef.current = applied
         return applied
@@ -85,13 +99,18 @@ export function CartProvider({ children }: { children: ReactNode }) {
     []
   )
 
-  const addToCart = useCallback((item: CartItem) => {
+  const addToCart = useCallback(async (item: CartItem) => {
+    // IDB zuerst, dann komprimierte Data-URLs — erst danach localStorage.
+    let compact = item
+    try {
+      compact = await persistItemPreviews(item)
+    } catch {
+      console.warn("Warenkorb: Preview-Persistenz fehlgeschlagen.")
+    }
     setCart((prev) => {
-      // Immer an bestehenden Stand anhängen — nie ersetzen.
       const base = Array.isArray(prev) ? prev : cartRef.current
-      const next = applyQuantityDiscountsToCartItems([...base, item])
+      const next = applyQuantityDiscountsToCartItems([...base, compact])
       cartRef.current = next
-      // Sofort persistieren (überlebt Remounts vor dem Write-Effect).
       writeClientCart(next)
       return next
     })
@@ -102,14 +121,19 @@ export function CartProvider({ children }: { children: ReactNode }) {
     cartRef.current = next
     writeClientCart(next)
     setCart(next)
+    void restoreCartItemPreviews(next).then((restored) => {
+      if (restored === next) return
+      const applied = applyQuantityDiscountsToCartItems(restored)
+      cartRef.current = applied
+      setCart(applied)
+      writeClientCart(applied)
+    })
   }, [])
 
-  /** Stabil — kein Dependency auf `cart`, sonst Re-Render-Loops. */
   const syncCartToAccount = useCallback(async (items?: CartItem[]) => {
     await putAccountCart(items ?? cartRef.current)
   }, [])
 
-  /** Stabil — darf in useEffect([]) ohne Loop aufgerufen werden. */
   const clearCart = useCallback(async () => {
     if (syncTimerRef.current) {
       window.clearTimeout(syncTimerRef.current)

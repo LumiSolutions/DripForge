@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import dynamic from "next/dynamic"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { safeNavigate } from "@/lib/dripforge/safe-navigate"
+import { hardNavigate, safeNavigate } from "@/lib/dripforge/safe-navigate"
 import {
   Printer,
   Zap,
@@ -119,6 +119,7 @@ import { useCustomerCategory } from "@/components/dripforge/customer-category-pr
 import { captureProductionLayerPng } from "@/lib/dripforge/capture-production-layer"
 import { LoadSavedDesignButton } from "@/components/konto/load-saved-design-button"
 import { hydrateLaserDesignerFromConfig } from "@/lib/konto/hydrate-laser-design"
+import { DiscountedUnitPrice } from "@/components/dripforge/shared/discounted-unit-price"
 
 const Product3DPreview = dynamic(
   () =>
@@ -139,7 +140,7 @@ type PageShopProps = {
   setCurrentView: (view: string) => void
   selectedProduct: Product | null
   setSelectedProduct: (product: Product | null) => void
-  addToCart: (item: CartItem) => void
+  addToCart: (item: CartItem) => void | Promise<void>
   services: ServiceVisibilitySettings
   shopConfigurators?: ShopConfiguratorSettings
   /** false bis /api/settings/services geantwortet hat — Teaser-Karten optimistisch anzeigen */
@@ -603,6 +604,9 @@ export function PageShop({
             selectedProduct.galerieBilder
           )[0] || undefined
         const previewImage = leitbild || catalogImage
+        const previewFallback = catalogImage
+          ? { productBackgroundUrl: catalogImage }
+          : {}
 
         if (useMultiColor && multiColorSelection) {
           const primary =
@@ -622,7 +626,7 @@ export function PageShop({
               filament: multiColorSelection.materialName,
             }))
 
-          addToCart({
+          await addToCart({
             id: `${selectedProduct.id}-${Date.now()}`,
             productId: selectedProduct.id,
             name: selectedProduct.name,
@@ -639,6 +643,7 @@ export function PageShop({
               weightG,
               ...(remarksTrimmed ? { customerRemarks: remarksTrimmed } : {}),
               partColors,
+              ...previewFallback,
               ...fileFields,
             },
           })
@@ -658,7 +663,7 @@ export function PageShop({
                 colorHex: slot.colorHex,
                 filament: extra.materialName,
               }))
-            addToCart({
+            await addToCart({
               id: `${selectedProduct.id}-${Date.now()}-${extraPrimary.colorName}-${extra.primarySlot}`,
               productId: selectedProduct.id,
               name: selectedProduct.name,
@@ -675,6 +680,7 @@ export function PageShop({
                 weightG,
                 ...(remarksTrimmed ? { customerRemarks: remarksTrimmed } : {}),
                 partColors: extraPartColors,
+                ...previewFallback,
                 ...fileFields,
               },
             })
@@ -690,14 +696,14 @@ export function PageShop({
             preferred?.colorName ||
             "Standard"
           const filamentName = preferred?.materialName || "PLA"
-          addToCart({
+          await addToCart({
             id: `${selectedProduct.id}-${Date.now()}`,
             productId: selectedProduct.id,
             name: selectedProduct.name,
             price: baseUnitPrice,
             quantity,
             type: "3d",
-            leitbild,
+            leitbild: previewImage,
             ...tierFields,
             customDetails: {
               filament: filamentName,
@@ -706,6 +712,7 @@ export function PageShop({
               dimensions: dimensionsText,
               weightG,
               ...(remarksTrimmed ? { customerRemarks: remarksTrimmed } : {}),
+              ...previewFallback,
               ...fileFields,
             },
           })
@@ -714,14 +721,14 @@ export function PageShop({
           if (!selection) return
           // Aktive Farbe nur hinzufügen, wenn sie noch nicht als Variante committed ist
           if (!activeVariantCommitted || extraVariants.length === 0) {
-            addToCart({
+            await addToCart({
               id: `${selectedProduct.id}-${Date.now()}`,
               productId: selectedProduct.id,
               name: selectedProduct.name,
               price: baseUnitPrice,
               quantity,
               type: "3d",
-              leitbild,
+              leitbild: previewImage,
               ...tierFields,
               customDetails: {
                 filament: selection.materialName,
@@ -730,20 +737,21 @@ export function PageShop({
                 dimensions: dimensionsText,
                 weightG,
                 ...(remarksTrimmed ? { customerRemarks: remarksTrimmed } : {}),
+                ...previewFallback,
                 ...fileFields,
               },
             })
           }
 
           for (const extra of extraVariants) {
-            addToCart({
+            await addToCart({
               id: `${selectedProduct.id}-${Date.now()}-${extra.colorName}`,
               productId: selectedProduct.id,
               name: selectedProduct.name,
               price: baseUnitPrice,
               quantity: Math.max(1, extra.quantity),
               type: "3d",
-              leitbild,
+              leitbild: previewImage,
               ...tierFields,
               customDetails: {
                 filament: extra.filament || selection.materialName,
@@ -752,6 +760,7 @@ export function PageShop({
                 dimensions: dimensionsText,
                 weightG,
                 ...(remarksTrimmed ? { customerRemarks: remarksTrimmed } : {}),
+                ...previewFallback,
                 ...fileFields,
               },
             })
@@ -760,6 +769,8 @@ export function PageShop({
           setActiveVariantCommitted(false)
         }
         setCartAddedOpen(true)
+      } catch (err) {
+        console.error("In den Warenkorb (3D) fehlgeschlagen:", err)
       } finally {
         setCartCapturing(false)
       }
@@ -831,6 +842,15 @@ export function PageShop({
       const laserTiers = normalizeQuantityDiscountTiers(
         selectedProduct.quantityDiscountTiers
       )
+      const productBgUrl =
+        selectedProduct.individualisierungsBild?.trim() ||
+        resolveProductImages(
+          selectedProduct.id,
+          selectedProduct.images,
+          selectedProduct.galerieBilder
+        )[0] ||
+        null
+      const laserPreview = previewMockup || productBgUrl || undefined
       const newItem: CartItem = {
         id: `${selectedProduct.id}-${Date.now()}`,
         productId: selectedProduct.id,
@@ -842,21 +862,14 @@ export function PageShop({
           : {}),
         quantity,
         type: "laser",
-        leitbild: previewMockup,
-        previewMockup,
+        leitbild: laserPreview,
+        previewMockup: laserPreview,
         productionLayer,
         customDetails: {
           ...buildLaserCartCustomDetails(designSnapshot, {
             material: selectedProduct.name,
             variant: activeShopVariant?.name || selectedVariant,
-            productBackgroundUrl:
-              selectedProduct.individualisierungsBild?.trim() ||
-              resolveProductImages(
-                selectedProduct.id,
-                selectedProduct.images,
-                selectedProduct.galerieBilder
-              )[0] ||
-              null,
+            productBackgroundUrl: productBgUrl,
           }),
           dimensions: dimensionsText,
           weightG,
@@ -864,16 +877,7 @@ export function PageShop({
         },
       }
 
-      addToCart(newItem)
-
-      const productBgUrl =
-        selectedProduct.individualisierungsBild?.trim() ||
-        resolveProductImages(
-          selectedProduct.id,
-          selectedProduct.images,
-          selectedProduct.galerieBilder
-        )[0] ||
-        null
+      await addToCart(newItem)
 
       for (const extra of extraLaserVariants) {
         const extraLayers = ensureLaserLayers(extra.snapshot)
@@ -890,7 +894,9 @@ export function PageShop({
             )
           }
         }
-        addToCart({
+        const extraPreview =
+          extraPreviewMockup || productBgUrl || undefined
+        await addToCart({
           id: `${selectedProduct.id}-${Date.now()}-extra-${extra.label.slice(0, 12)}`,
           productId: selectedProduct.id,
           name: selectedProduct.name,
@@ -899,8 +905,8 @@ export function PageShop({
           ...(laserTiers.length > 0 ? { quantityDiscountTiers: laserTiers } : {}),
           quantity: Math.max(1, extra.quantity),
           type: "laser",
-          leitbild: extraPreviewMockup,
-          previewMockup: extraPreviewMockup,
+          leitbild: extraPreview,
+          previewMockup: extraPreview,
           customDetails: {
             ...buildLaserCartCustomDetails(extra.snapshot, {
               material: selectedProduct.name,
@@ -917,6 +923,8 @@ export function PageShop({
       setExtraLaserVariants([])
 
       setCartAddedOpen(true)
+    } catch (err) {
+      console.error("In den Warenkorb (Laser) fehlgeschlagen:", err)
     } finally {
       setCartCapturing(false)
     }
@@ -1017,7 +1025,9 @@ export function PageShop({
     // Kundenkategorie-Rabatt zusätzlich auf den (mengenrabattierten) Anzeigepreis.
     // Der Warenkorb speichert weiterhin den Basispreis; der Rabatt wird
     // serverseitig verbindlich angewendet (processOrderPayload).
-    const unitPrice = customerCategory.applyDiscount(qtyDiscount.unitPrice)
+    const preCategoryUnitPrice = qtyDiscount.unitPrice
+    const unitPrice = customerCategory.applyDiscount(preCategoryUnitPrice)
+    const categoryDiscountPercent = customerCategory.discountPercent
     const shopLaserMaterial =
       detailProduct.type === "laser"
         ? getLaserMaterialForProduct(detailProduct)
@@ -1050,10 +1060,11 @@ export function PageShop({
           <div className="flex flex-wrap gap-2">
             {detailShopVariants.map((variant) => {
               const active = selectedShopVariantId === variant.id
-              const priceLabel = resolveShopVariantUnitPrice(
+              const variantBase = resolveShopVariantUnitPrice(
                 detailProduct,
                 variant.id
               )
+              const priceLabel = customerCategory.applyDiscount(variantBase)
               return (
                 <button
                   key={variant.id}
@@ -1069,6 +1080,11 @@ export function PageShop({
                   {variant.name}
                   <span className="ml-1.5 tabular-nums text-xs opacity-80">
                     CHF {priceLabel.toFixed(2)}
+                    {variantBase > priceLabel + 0.001 ? (
+                      <span className="ml-1 line-through opacity-70">
+                        {variantBase.toFixed(2)}
+                      </span>
+                    ) : null}
                   </span>
                 </button>
               )
@@ -1113,9 +1129,10 @@ export function PageShop({
                 className="w-full bg-primary hover:bg-primary/90"
                 onClick={() => {
                   setCartAddedOpen(false)
-                  safeNavigate(SHOP_ROUTES.warenkorb, {
-                    routerPush: (to) => router.push(to),
-                  })
+                  // Dialog zuerst schliessen — Soft-Nav während Unmount wirft in IAB.
+                  window.setTimeout(() => {
+                    hardNavigate(SHOP_ROUTES.warenkorb)
+                  }, 30)
                 }}
               >
                 <ShoppingCart className="mr-2 h-4 w-4" />
@@ -1127,9 +1144,9 @@ export function PageShop({
                 className="w-full"
                 onClick={() => {
                   setCartAddedOpen(false)
-                  safeNavigate(SHOP_ROUTES.checkout, {
-                    routerPush: (to) => router.push(to),
-                  })
+                  window.setTimeout(() => {
+                    hardNavigate(SHOP_ROUTES.checkout)
+                  }, 30)
                 }}
               >
                 Zur Kasse
@@ -1238,19 +1255,14 @@ export function PageShop({
                         <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                           Preis
                         </h3>
-                        <p className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-2xl font-bold tabular-nums text-primary">
-                          <span>CHF {unitPrice.toFixed(2)}</span>
-                          {qtyDiscount.tier &&
-                          customerCategory.applyDiscount(baseUnitPrice) >
-                            unitPrice ? (
-                            <span className="text-base font-normal text-muted-foreground line-through">
-                              CHF{" "}
-                              {customerCategory
-                                .applyDiscount(baseUnitPrice)
-                                .toFixed(2)}
-                            </span>
-                          ) : null}
-                        </p>
+                        <DiscountedUnitPrice
+                          unitPrice={unitPrice}
+                          preCategoryPrice={preCategoryUnitPrice}
+                          baseUnitPrice={baseUnitPrice}
+                          categoryDiscountPercent={categoryDiscountPercent}
+                          quantityDiscountPercent={qtyDiscount.discountPercent}
+                          categoryName={customerCategory.category?.name}
+                        />
                         {qtyDiscount.tier ? (
                           <p className="text-xs text-emerald-600 dark:text-emerald-400">
                             Mengenrabatt −{qtyDiscount.discountPercent.toFixed(0)}%
@@ -1298,6 +1310,11 @@ export function PageShop({
                         </Button>
                         <span className="ml-auto text-sm tabular-nums text-muted-foreground">
                           CHF {unitPrice.toFixed(2)} / Stk.
+                          {preCategoryUnitPrice > unitPrice + 0.001 ? (
+                            <span className="ml-1.5 line-through opacity-70">
+                              CHF {preCategoryUnitPrice.toFixed(2)}
+                            </span>
+                          ) : null}
                         </span>
                       </div>
                       <div className="space-y-1.5">
@@ -1363,14 +1380,9 @@ export function PageShop({
                                     <span className="font-bold tabular-nums">
                                       CHF {unitPrice.toFixed(2)}
                                     </span>
-                                    {qtyDiscount.tier &&
-                                    customerCategory.applyDiscount(baseUnitPrice) >
-                                      unitPrice ? (
+                                    {preCategoryUnitPrice > unitPrice + 0.001 ? (
                                       <span className="ml-1.5 text-muted-foreground line-through">
-                                        CHF{" "}
-                                        {customerCategory
-                                          .applyDiscount(baseUnitPrice)
-                                          .toFixed(2)}
+                                        CHF {preCategoryUnitPrice.toFixed(2)}
                                       </span>
                                     ) : null}
                                     {" · "}
@@ -1724,16 +1736,11 @@ export function PageShop({
                                         <span className="font-bold tabular-nums">
                                           CHF {unitPrice.toFixed(2)}
                                         </span>
-                                        {qtyDiscount.tier &&
-                                        customerCategory.applyDiscount(baseUnitPrice) >
-                                          unitPrice ? (
-                                          <span className="ml-1.5 text-muted-foreground line-through">
-                                            CHF{" "}
-                                            {customerCategory
-                                              .applyDiscount(baseUnitPrice)
-                                              .toFixed(2)}
-                                          </span>
-                                        ) : null}
+                                        {preCategoryUnitPrice > unitPrice + 0.001 ? (
+                                      <span className="ml-1.5 text-muted-foreground line-through">
+                                        CHF {preCategoryUnitPrice.toFixed(2)}
+                                      </span>
+                                    ) : null}
                                         {" · "}
                                         {extra.materialName} ·{" "}
                                         {extra.colors.map((c) => c.colorName).join(", ")} ×
@@ -1816,16 +1823,11 @@ export function PageShop({
                                           <span className="font-bold tabular-nums">
                                             CHF {unitPrice.toFixed(2)}
                                           </span>
-                                          {qtyDiscount.tier &&
-                                          customerCategory.applyDiscount(baseUnitPrice) >
-                                            unitPrice ? (
-                                            <span className="ml-1.5 text-muted-foreground line-through">
-                                              CHF{" "}
-                                              {customerCategory
-                                                .applyDiscount(baseUnitPrice)
-                                                .toFixed(2)}
-                                            </span>
-                                          ) : null}
+                                          {preCategoryUnitPrice > unitPrice + 0.001 ? (
+                                      <span className="ml-1.5 text-muted-foreground line-through">
+                                        CHF {preCategoryUnitPrice.toFixed(2)}
+                                      </span>
+                                    ) : null}
                                           {" · "}
                                           {extra.filament} · {extra.colorName} ×
                                           {extra.quantity}
@@ -1887,14 +1889,9 @@ export function PageShop({
                                   </span>
                                   <span className="font-bold tabular-nums">
                                     CHF {unitPrice.toFixed(2)}
-                                    {qtyDiscount.tier &&
-                                    customerCategory.applyDiscount(baseUnitPrice) >
-                                      unitPrice ? (
+                                    {preCategoryUnitPrice > unitPrice + 0.001 ? (
                                       <span className="ml-2 font-normal text-muted-foreground line-through">
-                                        CHF{" "}
-                                        {customerCategory
-                                          .applyDiscount(baseUnitPrice)
-                                          .toFixed(2)}
+                                        CHF {preCategoryUnitPrice.toFixed(2)}
                                       </span>
                                     ) : null}
                                   </span>
@@ -2008,6 +2005,11 @@ export function PageShop({
                                   </Button>
                                   <span className="ml-auto text-sm tabular-nums text-muted-foreground">
                                     CHF {unitPrice.toFixed(2)} / Stk.
+                                    {preCategoryUnitPrice > unitPrice + 0.001 ? (
+                                      <span className="ml-1.5 line-through opacity-70">
+                                        CHF {preCategoryUnitPrice.toFixed(2)}
+                                      </span>
+                                    ) : null}
                                   </span>
                                 </div>
                               </div>

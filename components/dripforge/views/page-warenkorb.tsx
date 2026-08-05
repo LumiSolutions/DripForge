@@ -28,6 +28,7 @@ import {
 import { useCustomerCategory } from "@/components/dripforge/customer-category-provider"
 import { SafeProductImage } from "@/components/dripforge/shared/safe-product-image"
 import { productHref } from "@/lib/dripforge/product-slug"
+import { resolveCartPreviewSrc } from "@/lib/dripforge/cart-preview-persist"
 
 function formatPartColorsLabel(
   partColors: NonNullable<NonNullable<CartItem["customDetails"]>["partColors"]>
@@ -143,19 +144,20 @@ function CartUnitPrice({
 
 function SingleCartItemDetails({ item }: { item: CartItem }) {
   const partColors = item.customDetails?.partColors
+  const previewSrc = resolveCartPreviewSrc(item)
   return (
     <>
-      {item.leitbild && (
+      {previewSrc ? (
         <div className="relative mb-3 aspect-video max-w-xs overflow-hidden rounded-lg border border-border/50">
           <SafeProductImage
-            src={item.leitbild}
+            src={previewSrc}
             alt="Leitbild der Live-Vorschau"
             fill
             sizes="320px"
             className="object-contain bg-muted/30"
           />
         </div>
-      )}
+      ) : null}
       {item.customDetails && (
         <div className="text-sm text-muted-foreground space-y-1">
           {Array.isArray(partColors) && partColors.length > 0 ? (
@@ -325,8 +327,7 @@ export function PageWarenkorb({
 
                 if (isMultiVariant) {
                   const first = group.items[0]
-                  const groupFallbackPreview =
-                    first.leitbild || first.previewMockup || undefined
+                  const groupFallbackPreview = resolveCartPreviewSrc(first)
                   return (
                     <Card key={group.key} className="border-border/50 bg-card/50">
                       <CardContent className="p-6">
@@ -343,18 +344,16 @@ export function PageWarenkorb({
                         <div className="space-y-3">
                           {group.items.map((item) => {
                             const previewSrc =
-                              item.leitbild ||
-                              item.previewMockup ||
-                              groupFallbackPreview
+                              resolveCartPreviewSrc(item) || groupFallbackPreview
                             return (
                             <div
                               key={item.id}
                               className="flex flex-col gap-3 rounded-lg border border-border/50 bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between"
                             >
                               <div className="flex min-w-0 flex-1 items-start gap-3">
-                                {previewSrc ? (
-                                  <div className="w-24 shrink-0 space-y-1">
-                                    <div className="relative h-16 w-24 overflow-hidden rounded-md border border-border/50 bg-muted/30">
+                                <div className="w-24 shrink-0 space-y-1">
+                                  <div className="relative h-16 w-24 overflow-hidden rounded-md border border-border/50 bg-muted/30">
+                                    {previewSrc ? (
                                       <SafeProductImage
                                         src={previewSrc}
                                         alt="Leitbild der Variante"
@@ -362,15 +361,17 @@ export function PageWarenkorb({
                                         sizes="96px"
                                         className="object-contain"
                                       />
-                                    </div>
-                                    {first.type === "3d" ? (
-                                      <p className="text-[10px] leading-snug text-muted-foreground">
-                                        Abbildung dient als Ausführungsvorschau –
-                                        gewählte Farben siehe Spezifikation
-                                      </p>
-                                    ) : null}
+                                    ) : (
+                                      <div className="absolute inset-0 bg-muted/40" />
+                                    )}
                                   </div>
-                                ) : null}
+                                  {first.type === "3d" ? (
+                                    <p className="text-[10px] leading-snug text-muted-foreground">
+                                      Abbildung dient als Ausführungsvorschau –
+                                      gewählte Farben siehe Spezifikation
+                                    </p>
+                                  ) : null}
+                                </div>
                                 <p className="text-sm text-muted-foreground">
                                   {variantLabel(item)}
                                 </p>

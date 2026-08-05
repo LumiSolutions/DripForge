@@ -31,6 +31,7 @@ import { HEADER_ICON_BTN_CLASS } from "@/components/dripforge/support-nav-link"
 import { BrandIconImage } from "@/components/dripforge/brand-icon-image"
 import { EditableCmsNavLabel } from "@/components/dripforge/editable-cms-nav-label"
 import { useSiteTexts } from "@/components/dripforge/site-texts-provider"
+import { useCustomerCategory } from "@/components/dripforge/customer-category-provider"
 import { cmsPreviewHref, cmsReadonlyPreviewHref } from "@/lib/admin/cms-preview-pages"
 import {
   ThemeInboundTour,
@@ -74,6 +75,7 @@ export function ShopHeader(props: ShopHeaderProps) {
   const pathname = usePathname()
   const router = useRouter()
   const { navItems: cmsNavItems, preview, readonly } = useSiteTexts()
+  const customerCategory = useCustomerCategory()
 
   const withPreviewHref = (href: string) => {
     if (!preview) return href
@@ -413,7 +415,17 @@ export function ShopHeader(props: ShopHeaderProps) {
                                 <p className="truncate text-sm font-medium">{p.name}</p>
                                 <p className="truncate text-xs text-muted-foreground">
                                   {p.type === "3d" ? "3D-Druck" : "Lasergravur"} · CHF{" "}
-                                  {p.price.toFixed(2)}
+                                  {customerCategory
+                                    .applyDiscount(p.price)
+                                    .toFixed(2)}
+                                  {customerCategory.discountPercent > 0 &&
+                                  customerCategory.applyDiscount(p.price) <
+                                    p.price -
+                                      0.001 ? (
+                                    <span className="ml-1 line-through opacity-70">
+                                      {p.price.toFixed(2)}
+                                    </span>
+                                  ) : null}
                                 </p>
                               </div>
                             </button>

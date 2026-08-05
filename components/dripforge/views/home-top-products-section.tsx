@@ -10,6 +10,7 @@ import { SiteTextPhrase } from "@/components/dripforge/site-text-phrase"
 import { ShopProductCard } from "@/components/dripforge/shared/shop-product-card"
 import { useSiteTexts } from "@/components/dripforge/site-texts-provider"
 import { resolveProductImages } from "@/lib/dripforge/product-images-defaults"
+import { productHref } from "@/lib/dripforge/product-slug"
 import type { Product } from "@/lib/dripforge/types"
 import { cn } from "@/lib/utils"
 
@@ -161,10 +162,9 @@ export function HomeTopProductsSection() {
                         priority={index === 0}
                         onOpen={() => {
                           if (canInlineEdit) return
-                          safeNavigate(
-                            `/shop/${encodeURIComponent(product.id)}`,
-                            { routerPush: (to) => router.push(to) }
-                          )
+                          safeNavigate(productHref(product, products ?? undefined), {
+                            routerPush: (to) => router.push(to),
+                          })
                         }}
                       />
                     </div>

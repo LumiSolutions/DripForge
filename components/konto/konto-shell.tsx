@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 import { useRewardPointsEnabled } from "@/hooks/use-reward-points-enabled"
+import { CUSTOMER_CATEGORY_REFRESH_EVENT } from "@/components/dripforge/customer-category-provider"
 
 const NAV = [
   { href: "/konto", label: "Übersicht", icon: LayoutDashboard, exact: true },
@@ -68,6 +69,7 @@ export function KontoShell({
 
   const handleLogout = async () => {
     await fetch("/api/konto/logout", { method: "POST" })
+    window.dispatchEvent(new CustomEvent(CUSTOMER_CATEGORY_REFRESH_EVENT))
     router.push("/konto/login")
     router.refresh()
   }
