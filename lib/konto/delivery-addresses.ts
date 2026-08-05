@@ -34,6 +34,10 @@ function trimAddress(raw: Partial<SavedDeliveryAddress>): SavedDeliveryAddress |
     typeof raw.lastName === "string" ? raw.lastName.trim() : ""
   const company =
     typeof raw.company === "string" ? raw.company.trim() : ""
+  const country =
+    typeof raw.country === "string" && raw.country.trim()
+      ? raw.country.trim()
+      : "Schweiz"
 
   return {
     id,
@@ -41,6 +45,7 @@ function trimAddress(raw: Partial<SavedDeliveryAddress>): SavedDeliveryAddress |
     street,
     zip,
     city,
+    country,
     isDefault: raw.isDefault === true,
     ...(firstName ? { firstName } : {}),
     ...(lastName ? { lastName } : {}),

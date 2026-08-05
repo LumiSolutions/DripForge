@@ -48,6 +48,13 @@ import {
   type ResolvedShippingOption,
   type ShippingTiersSettings,
 } from "@/lib/dripforge/shipping-tiers"
+import {
+  DEFAULT_INTERNATIONAL_SHIPPING,
+  isEuCountry,
+  normalizeInternationalShipping,
+  resolveInternationalShippingCost,
+  type InternationalShippingSettings,
+} from "@/lib/dripforge/international-shipping"
 import { Textarea } from "@/components/ui/textarea"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import type { SavedDeliveryAddress } from "@/lib/konto/account-types"
@@ -237,6 +244,13 @@ export function PageCheckout({
     []
   )
   const [shippingOptionsReady, setShippingOptionsReady] = useState(false)
+  /** Inland-Optionen nach Tier-Fetch (vor Land-/Kategorie-Anpassung). */
+  const [baseShippingOptions, setBaseShippingOptions] = useState<
+    ResolvedShippingOption[]
+  >([])
+  const [baseShippingReady, setBaseShippingReady] = useState(false)
+  const [internationalShipping, setInternationalShipping] =
+    useState<InternationalShippingSettings>(DEFAULT_INTERNATIONAL_SHIPPING)
   const [customerNote, setCustomerNote] = useState("")
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodId>("card")
   const [errors, setErrors] = useState<Partial<Record<FieldKey, string>>>({})
@@ -491,7 +505,10 @@ export function PageCheckout({
   const applyDeliverySelection = (
     selectionId: string,
     addresses: SavedDeliveryAddress[],
-    billing: Pick<CheckoutForm, "firstName" | "lastName" | "street" | "zip" | "city">
+    billing: Pick<
+      CheckoutForm,
+      "firstName" | "lastName" | "street" | "zip" | "city" | "country"
+    >
   ) => {
     setSelectedDeliveryId(selectionId)
     if (selectionId === "billing") {
@@ -503,6 +520,7 @@ export function PageCheckout({
         deliveryStreet: billing.street || prev.street,
         deliveryZip: billing.zip || prev.zip,
         deliveryCity: billing.city || prev.city,
+        deliveryCountry: billing.country || prev.country || "Schweiz",
       }))
       return
     }
@@ -521,6 +539,7 @@ export function PageCheckout({
       deliveryStreet: chosen.street,
       deliveryZip: chosen.zip,
       deliveryCity: chosen.city,
+      deliveryCountry: chosen.country?.trim() || prev.deliveryCountry || "Schweiz",
     }))
   }
 
@@ -560,22 +579,45 @@ export function PageCheckout({
     [baseSubtotal, categoryDiscountPercent]
   )
   const subtotal = Math.max(0, baseSubtotal - categoryDiscountChf)
+  const deliveryCountryEffective = sameAsBilling
+    ? form.country
+    : form.deliveryCountry
+  const internationalStatus = useMemo(
+    () =>
+      resolveInternationalShippingCost(
+        internationalShipping,
+        deliveryCountryEffective
+      ),
+    [internationalShipping, deliveryCountryEffective]
+  )
+
   const selectedShippingOption =
     shippingOptions.find((o) => o.id === selectedShippingId) ??
     shippingOptions[0] ??
     null
+  // Kein Fallback auf Standard-B-Post vor Hydration / bei Auslands-Sperre.
   const shippingCost =
-    selectedShippingOption?.price ?? getShippingCost(shippingMethod)
+    !categoryLoaded ||
+    !shippingOptionsReady ||
+    internationalStatus.blocked
+      ? 0
+      : internationalStatus.isInternational &&
+          internationalStatus.priceChf != null
+        ? internationalStatus.priceChf
+        : (selectedShippingOption?.price ?? 0)
 
   useEffect(() => {
     // Warten bis Kategorie geladen — sonst kurz ungefilterte Optionen (Flash).
     if (!categoryLoaded) {
+      setBaseShippingReady(false)
+      setBaseShippingOptions([])
       setShippingOptionsReady(false)
       setShippingOptions([])
       return
     }
 
     let cancelled = false
+    setBaseShippingReady(false)
     setShippingOptionsReady(false)
     const fallback: ResolvedShippingOption[] = SHIPPING_OPTIONS.map((o) => ({
       id: o.id,
@@ -584,27 +626,6 @@ export function PageCheckout({
       price: o.price,
     }))
 
-    const applyFiltered = (resolved: ResolvedShippingOption[]) => {
-      if (cancelled) return
-      const allowed = customerCategory?.allowedShippingMethodIds ?? []
-      const options =
-        allowed.length > 0
-          ? resolved.filter((o) =>
-              allowed.includes(o.methodId as (typeof allowed)[number])
-            )
-          : resolved
-      setShippingOptions(options)
-      setSelectedShippingId((prev) => {
-        if (options.some((o) => o.id === prev)) return prev
-        const first = options[0]
-        if (first) {
-          setShippingMethod(first.methodId as ShippingMethodId)
-        }
-        return first?.id ?? prev
-      })
-      setShippingOptionsReady(true)
-    }
-
     void fetch("/api/settings/shipping-tiers", { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
@@ -612,23 +633,85 @@ export function PageCheckout({
         const settings: ShippingTiersSettings = normalizeShippingTiers(
           data as Partial<ShippingTiersSettings> | null
         )
+        setInternationalShipping(
+          normalizeInternationalShipping(settings.international)
+        )
         const metrics = estimateCartShippingMetrics(cart)
         const resolved = resolveShippingOptionsForCart(
           settings,
           metrics,
           fallback
         )
-        // Kundenkategorie: nur erlaubte Versandarten (leer = alle aus Finanz-Setup).
-        applyFiltered(resolved)
+        setBaseShippingOptions(resolved)
+        setBaseShippingReady(true)
       })
       .catch(() => {
-        applyFiltered(fallback)
+        if (cancelled) return
+        setInternationalShipping(DEFAULT_INTERNATIONAL_SHIPPING)
+        setBaseShippingOptions(fallback)
+        setBaseShippingReady(true)
       })
 
     return () => {
       cancelled = true
     }
-  }, [cart, customerCategory, categoryLoaded])
+  }, [cart, categoryLoaded])
+
+  // Kategorie-Filter + Auslandsversand auf geladene Basis-Optionen anwenden.
+  useEffect(() => {
+    if (!categoryLoaded || !baseShippingReady) {
+      setShippingOptionsReady(false)
+      setShippingOptions([])
+      return
+    }
+
+    const allowed = customerCategory?.allowedShippingMethodIds ?? []
+    const filterAllowed = (list: ResolvedShippingOption[]) =>
+      allowed.length > 0
+        ? list.filter((o) =>
+            allowed.includes(o.methodId as (typeof allowed)[number])
+          )
+        : list
+
+    let options: ResolvedShippingOption[]
+    if (internationalStatus.blocked) {
+      options = []
+    } else if (
+      internationalStatus.isInternational &&
+      internationalStatus.priceChf != null
+    ) {
+      options = filterAllowed([
+        {
+          id: "international",
+          methodId: "bpost",
+          label: isEuCountry(deliveryCountryEffective)
+            ? "Auslandsversand (EU)"
+            : "Auslandsversand (International)",
+          price: internationalStatus.priceChf,
+        },
+      ])
+    } else {
+      options = filterAllowed(baseShippingOptions)
+    }
+
+    setShippingOptions(options)
+    setSelectedShippingId((prev) => {
+      if (options.some((o) => o.id === prev)) return prev
+      const first = options[0]
+      if (first) {
+        setShippingMethod(first.methodId as ShippingMethodId)
+      }
+      return first?.id ?? prev
+    })
+    setShippingOptionsReady(true)
+  }, [
+    categoryLoaded,
+    baseShippingReady,
+    baseShippingOptions,
+    customerCategory,
+    internationalStatus,
+    deliveryCountryEffective,
+  ])
 
   // Sync methodId when selection changes
   useEffect(() => {
@@ -889,6 +972,18 @@ export function PageCheckout({
           next[key] = `${fieldLabel(key)} ist ein Pflichtfeld.`
         }
       }
+    }
+
+    const shipCountry = sameAsBilling ? form.country : form.deliveryCountry
+    const intlCheck = resolveInternationalShippingCost(
+      internationalShipping,
+      shipCountry
+    )
+    if (intlCheck.blocked) {
+      const key = sameAsBilling ? "country" : "deliveryCountry"
+      next[key] =
+        intlCheck.message ??
+        "Auslandsbestellungen sind derzeit nicht möglich."
     }
 
     setErrors(next)
@@ -1580,12 +1675,26 @@ export function PageCheckout({
                   <Truck className="h-4 w-4 text-primary" />
                   <h2 className="font-bold">Versandart</h2>
                 </div>
+                {internationalStatus.blocked && (
+                  <p
+                    role="alert"
+                    className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-3 text-sm text-amber-900 dark:text-amber-100"
+                  >
+                    {internationalStatus.message ??
+                      internationalShipping.disabledMessage}
+                  </p>
+                )}
                 <div className="space-y-3">
                   {!categoryLoaded || !shippingOptionsReady ? (
                     <div className="flex items-center gap-2 rounded-xl border border-border/60 px-4 py-6 text-sm text-muted-foreground">
                       <Loader2 className="h-4 w-4 animate-spin" />
                       Versandoptionen werden geladen …
                     </div>
+                  ) : internationalStatus.blocked ? (
+                    <p className="text-sm text-muted-foreground">
+                      Bitte eine Lieferadresse in der Schweiz oder in
+                      Liechtenstein wählen.
+                    </p>
                   ) : shippingOptions.length === 0 ? (
                     <p
                       role="alert"

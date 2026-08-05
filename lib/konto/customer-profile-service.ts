@@ -112,11 +112,27 @@ export async function updateCustomerAddress(
   let deliveryCity: string
 
   if (input.deliveryAddresses !== undefined) {
-    deliveryAddresses = normalizeDeliveryAddresses(
+    // Leeres Array nur übernehmen, wenn explizit «wie Rechnung» (kein Wipe durch Race).
+    const incoming = normalizeDeliveryAddresses(
       input.deliveryAddresses,
       undefined,
       { defaultId: input.defaultDeliveryAddressId }
     )
+    const existingNormalized = normalizeDeliveryAddresses(
+      account.deliveryAddresses,
+      {
+        deliveryStreet: account.deliveryStreet,
+        deliveryZip: account.deliveryZip,
+        deliveryCity: account.deliveryCity,
+        deliverySameAsBilling: account.deliverySameAsBilling,
+      }
+    )
+    deliveryAddresses =
+      incoming.length === 0 &&
+      existingNormalized.length > 0 &&
+      input.deliverySameAsBilling !== true
+        ? existingNormalized
+        : incoming
     const legacy = legacyFieldsFromDeliveryAddresses(deliveryAddresses, billing)
     deliveryStreet = legacy.deliveryStreet ?? ""
     deliveryZip = legacy.deliveryZip ?? ""

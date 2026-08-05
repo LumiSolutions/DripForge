@@ -1,4 +1,9 @@
 import type { ShippingMethodId } from "@/lib/dripforge/checkout-config"
+import {
+  DEFAULT_INTERNATIONAL_SHIPPING,
+  normalizeInternationalShipping,
+  type InternationalShippingSettings,
+} from "@/lib/dripforge/international-shipping"
 
 export type ShippingTierRule = {
   id: string
@@ -23,6 +28,8 @@ export type ShippingTiersSettings = {
   pickupEnabled: boolean
   pickupLabel: string
   pickupPriceChf: number
+  /** Auslandsversand (Admin Finanz-Setup) */
+  international?: InternationalShippingSettings
 }
 
 export const DEFAULT_SHIPPING_TIERS: ShippingTiersSettings = {
@@ -30,6 +37,7 @@ export const DEFAULT_SHIPPING_TIERS: ShippingTiersSettings = {
   pickupEnabled: true,
   pickupLabel: "Abholung in Pfäffikon ZH",
   pickupPriceChf: 0,
+  international: { ...DEFAULT_INTERNATIONAL_SHIPPING },
   tiers: [
     {
       id: "brief-100",
@@ -134,6 +142,9 @@ export function normalizeShippingTiers(
       Number.isFinite(Number(input.pickupPriceChf))
         ? Math.max(0, Number(input.pickupPriceChf))
         : defaults.pickupPriceChf,
+    international: normalizeInternationalShipping(
+      input?.international ?? defaults.international
+    ),
     tiers: tiers.length > 0 ? tiers : defaults.tiers.map((t) => ({ ...t })),
   }
 }

@@ -109,6 +109,10 @@ import {
   type ShippingTiersSettings,
 } from "@/lib/dripforge/shipping-tiers"
 import {
+  DEFAULT_INTERNATIONAL_DISABLED_MESSAGE,
+  DEFAULT_INTERNATIONAL_SHIPPING,
+} from "@/lib/dripforge/international-shipping"
+import {
   DEFAULT_THANKS_PAGE_SETTINGS,
   normalizeThanksPageSettings,
   type ThanksPageSettings,
@@ -1486,6 +1490,110 @@ export function AdminSettingsTab({
                     />
                   </div>
                 </div>
+              </div>
+
+              <div className="space-y-4 border-t border-border/60 pt-4">
+                <div>
+                  <h4 className={cn("text-base font-semibold", adminUi.heading)}>
+                    Auslandsbestellungen
+                  </h4>
+                  <p className={cn("mt-1 text-sm", adminUi.muted)}>
+                    Steuert Checkout-Hinweis, Adresssperre und FAQ «Liefert ihr
+                    auch ins Ausland?». Inland = Schweiz &amp; Liechtenstein.
+                  </p>
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <Label htmlFor="intl-shipping-enabled" className={adminUi.label}>
+                    Auslandsbestellungen erlauben
+                  </Label>
+                  <Switch
+                    id="intl-shipping-enabled"
+                    checked={
+                      shippingTiers.international?.allowInternationalOrders ===
+                      true
+                    }
+                    onCheckedChange={(checked) =>
+                      setShippingTiers((prev) => ({
+                        ...prev,
+                        international: {
+                          ...(prev.international ?? DEFAULT_INTERNATIONAL_SHIPPING),
+                          allowInternationalOrders: checked,
+                        },
+                      }))
+                    }
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className={adminUi.label}>
+                    Hinweistext (wenn Auslandsversand deaktiviert)
+                  </Label>
+                  <Textarea
+                    value={
+                      shippingTiers.international?.disabledMessage ??
+                      DEFAULT_INTERNATIONAL_DISABLED_MESSAGE
+                    }
+                    onChange={(e) =>
+                      setShippingTiers((prev) => ({
+                        ...prev,
+                        international: {
+                          ...(prev.international ?? DEFAULT_INTERNATIONAL_SHIPPING),
+                          disabledMessage: e.target.value,
+                        },
+                      }))
+                    }
+                    className={cn(adminUi.input, "min-h-20")}
+                  />
+                </div>
+                {shippingTiers.international?.allowInternationalOrders && (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label className={adminUi.label}>
+                        Versandpauschale EU (CHF)
+                      </Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        step="0.05"
+                        value={shippingTiers.international?.euFlatRateChf ?? 18}
+                        onChange={(e) =>
+                          setShippingTiers((prev) => ({
+                            ...prev,
+                            international: {
+                              ...(prev.international ??
+                                DEFAULT_INTERNATIONAL_SHIPPING),
+                              euFlatRateChf: Number(e.target.value) || 0,
+                            },
+                          }))
+                        }
+                        className={adminUi.input}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className={adminUi.label}>
+                        Versandpauschale International (CHF)
+                      </Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        step="0.05"
+                        value={
+                          shippingTiers.international?.worldFlatRateChf ?? 35
+                        }
+                        onChange={(e) =>
+                          setShippingTiers((prev) => ({
+                            ...prev,
+                            international: {
+                              ...(prev.international ??
+                                DEFAULT_INTERNATIONAL_SHIPPING),
+                              worldFlatRateChf: Number(e.target.value) || 0,
+                            },
+                          }))
+                        }
+                        className={adminUi.input}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

@@ -7,6 +7,8 @@ export type SavedDeliveryAddress = {
   street: string
   zip: string
   city: string
+  /** Land (Default Schweiz) — für Auslandsversand-Prüfung */
+  country?: string
   isDefault?: boolean
 }
 

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { ChevronRight, Plus, Trash2 } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -10,12 +10,38 @@ import {
   createEmptyCmsFaqItem,
   type CmsFaqItem,
 } from "@/lib/admin/cms-faq"
+import {
+  buildInternationalFaqAnswer,
+  DEFAULT_INTERNATIONAL_SHIPPING,
+  normalizeInternationalShipping,
+} from "@/lib/dripforge/international-shipping"
+import { normalizeShippingTiers } from "@/lib/dripforge/shipping-tiers"
 import { cn } from "@/lib/utils"
+
+const INTERNATIONAL_FAQ_ID = "faq-international-shipping"
 
 export function FaqPageContent() {
   const { faqItems, canInlineEdit, saveFaqItems } = useSiteTexts()
   const [openId, setOpenId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [internationalFaq, setInternationalFaq] = useState(() =>
+    buildInternationalFaqAnswer(DEFAULT_INTERNATIONAL_SHIPPING)
+  )
+
+  useEffect(() => {
+    void fetch("/api/settings/shipping-tiers", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        const tiers = normalizeShippingTiers(data)
+        const intl = normalizeInternationalShipping(tiers.international)
+        setInternationalFaq(buildInternationalFaqAnswer(intl))
+      })
+      .catch(() => {
+        setInternationalFaq(
+          buildInternationalFaqAnswer(DEFAULT_INTERNATIONAL_SHIPPING)
+        )
+      })
+  }, [])
 
   const toggle = (id: string) => {
     setOpenId((current) => (current === id ? null : id))
@@ -86,6 +112,42 @@ export function FaqPageContent() {
             </Button>
           </div>
         )}
+
+        {/* Dynamische FAQ aus Admin-Auslandsversand-Einstellungen */}
+        <Card
+          className={cn(
+            "overflow-hidden border-border/50 bg-card/50 shadow-sm transition-all duration-300 dark:bg-card/90",
+            openId === INTERNATIONAL_FAQ_ID &&
+              "border-primary/40 bg-card ring-1 ring-primary/20"
+          )}
+        >
+          <button
+            type="button"
+            className="flex w-full items-center justify-between gap-4 p-5 text-left md:p-6"
+            onClick={() => toggle(INTERNATIONAL_FAQ_ID)}
+            aria-expanded={openId === INTERNATIONAL_FAQ_ID}
+          >
+            <span
+              className={cn(
+                "pr-2 text-sm font-bold leading-snug text-foreground md:text-base",
+                openId === INTERNATIONAL_FAQ_ID && "text-primary"
+              )}
+            >
+              {internationalFaq.question}
+            </span>
+            <ChevronRight
+              className={cn(
+                "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
+                openId === INTERNATIONAL_FAQ_ID && "rotate-90 text-primary"
+              )}
+            />
+          </button>
+          {openId === INTERNATIONAL_FAQ_ID && (
+            <div className="border-t border-border/40 px-5 pb-5 pt-3 text-sm leading-relaxed text-muted-foreground md:px-6 md:pb-6">
+              {internationalFaq.answer}
+            </div>
+          )}
+        </Card>
 
         {faqItems.map((item) => {
           const isOpen = openId === item.id
