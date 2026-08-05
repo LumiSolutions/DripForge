@@ -28,14 +28,17 @@ export function ProductShopPrice({
       : null
   const onSale = Boolean(product.sale) && original != null && original > price
 
-  const hasCategoryDiscount = loaded && discountPercent > 0 && price > 0
-  const effectivePrice = hasCategoryDiscount ? applyDiscount(price) : price
+  const hasCategoryDiscount = discountPercent > 0 && price > 0
+  // Vor erstem Fetch keinen Rabatt vortäuschen; danach Kategorie behalten.
+  const effectivePrice =
+    loaded && hasCategoryDiscount ? applyDiscount(price) : price
   // Strike: vor Kategorie (inkl. Sale), sonst Sale-Original.
-  const strikePrice = hasCategoryDiscount
-    ? price
-    : onSale
-      ? original
-      : null
+  const strikePrice =
+    loaded && hasCategoryDiscount
+      ? price
+      : onSale
+        ? original
+        : null
 
   return (
     <div className={cn("flex flex-wrap items-baseline gap-2", className)}>
@@ -43,7 +46,7 @@ export function ProductShopPrice({
         className={cn(
           "font-bold tabular-nums",
           size === "lg" ? "text-2xl sm:text-3xl" : "text-lg",
-          (onSale || hasCategoryDiscount) && "text-red-400"
+          (onSale || (loaded && hasCategoryDiscount)) && "text-red-400"
         )}
       >
         CHF {effectivePrice.toFixed(2)}
@@ -58,7 +61,7 @@ export function ProductShopPrice({
           CHF {strikePrice.toFixed(2)}
         </span>
       )}
-      {hasCategoryDiscount && (
+      {loaded && hasCategoryDiscount && (
         <span
           className={cn(
             "rounded-full bg-emerald-500/15 px-2 py-0.5 font-semibold text-emerald-700 dark:text-emerald-300",

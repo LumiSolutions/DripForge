@@ -113,6 +113,11 @@ export async function syncAccountToCrm(
         billing,
         delivery,
         deliveryAddresses,
+        // Kategorie aus Portal übernehmen, falls CRM leer ist
+        customerCategoryId:
+          account.customerCategoryId?.trim() ||
+          existingCustomer.customerCategoryId ||
+          null,
         updatedAt: now,
       }
     : {
@@ -122,6 +127,7 @@ export async function syncAccountToCrm(
         delivery,
         deliveryAddresses,
         orderIds: [],
+        customerCategoryId: account.customerCategoryId?.trim() || null,
         createdAt: account.createdAt,
         updatedAt: now,
       }
@@ -141,6 +147,29 @@ export async function syncAccountToCrm(
       "CRM-Sync: Kunde konnte nicht gespeichert werden (Cosmos?). Portal-Konto bleibt erhalten.",
       error
     )
+  }
+
+  // CRM hat Kategorie, Portal nicht → Portal nachziehen
+  const crmCategoryId = customer.customerCategoryId?.trim()
+  if (
+    crmCategoryId &&
+    !account.customerCategoryId?.trim()
+  ) {
+    try {
+      return await saveAccount({
+        ...account,
+        kundennummer:
+          account.kundennummer !== kundennummer
+            ? kundennummer
+            : account.kundennummer,
+        customerCategoryId: crmCategoryId,
+      })
+    } catch (error) {
+      console.warn(
+        "CRM-Sync: Kundenkategorie konnte lokal nicht persistiert werden.",
+        error
+      )
+    }
   }
 
   if (account.kundennummer !== kundennummer) {

@@ -66,6 +66,138 @@ const PIE_COLORS = [
   "#ef4444",
 ]
 
+const GEO_LIST_PREVIEW = 6
+
+function GeoDonutCard({
+  title,
+  icon: Icon,
+  loading,
+  emptyLabel,
+  rows,
+  countLabel = "Unique Visits",
+}: {
+  title: string
+  icon: typeof Globe2
+  loading: boolean
+  emptyLabel: string
+  rows: Array<{ key: string; label: string; sublabel?: string; count: number }>
+  countLabel?: string
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const pieData = useMemo(
+    () =>
+      rows.slice(0, 8).map((row) => ({
+        name: row.label.length > 22 ? `${row.label.slice(0, 20)}…` : row.label,
+        fullName: row.label,
+        value: row.count,
+      })),
+    [rows]
+  )
+  const visibleRows = expanded ? rows : rows.slice(0, GEO_LIST_PREVIEW)
+  const hasMore = rows.length > GEO_LIST_PREVIEW
+
+  return (
+    <Card className={adminUi.card}>
+      <CardHeader className="pb-2">
+        <CardTitle className={cn("flex items-center gap-2 text-base", adminUi.heading)}>
+          <Icon className="h-4 w-4 text-orange-500" />
+          {title}
+        </CardTitle>
+        <p className={cn("text-xs font-normal", adminUi.muted)}>
+          {countLabel} · Session-Deduplizierung
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {loading ? (
+          <p className={cn("flex items-center text-sm", adminUi.muted)}>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            Laden…
+          </p>
+        ) : rows.length === 0 ? (
+          <p className={cn("text-sm", adminUi.muted)}>{emptyLabel}</p>
+        ) : (
+          <>
+            <div className="mx-auto h-[160px] w-full max-w-[180px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={pieData}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={36}
+                    outerRadius={58}
+                    paddingAngle={2}
+                  >
+                    {pieData.map((_, index) => (
+                      <Cell
+                        key={`geo-cell-${index}`}
+                        fill={PIE_COLORS[index % PIE_COLORS.length]}
+                      />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(value, _name, item) => {
+                      const payload = item?.payload as { fullName?: string }
+                      return [`${value}`, payload?.fullName ?? ""]
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div
+              className={cn(
+                "overflow-x-auto",
+                expanded && "max-h-56 overflow-y-auto pr-1"
+              )}
+            >
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Region</TableHead>
+                    <TableHead className="text-right">Besucher</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {visibleRows.map((row) => (
+                    <TableRow key={row.key}>
+                      <TableCell className="font-medium">
+                        <span className="block">{row.label}</span>
+                        {row.sublabel ? (
+                          <span className={cn("text-xs", adminUi.muted)}>
+                            {row.sublabel}
+                          </span>
+                        ) : null}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {row.count}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            {hasMore ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-full"
+                onClick={() => setExpanded((v) => !v)}
+              >
+                {expanded
+                  ? "Weniger anzeigen"
+                  : `Mehr anzeigen (${rows.length - GEO_LIST_PREVIEW} weitere)`}
+              </Button>
+            ) : null}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
 function formatChartDate(isoDate: string) {
   const [y, m, d] = isoDate.split("-").map(Number)
   return new Intl.DateTimeFormat("de-CH", {
@@ -316,6 +448,29 @@ export function AdminStatsTab() {
         revenueChf: p.revenueChf,
       })),
     [data?.topProducts]
+  )
+
+  const countryRows = useMemo(
+    () =>
+      (visitors?.byCountry ?? []).map((row) => ({
+        key: `country-${row.countryCode}`,
+        label: row.regionLabel,
+        count: row.count,
+      })),
+    [visitors?.byCountry]
+  )
+
+  const cantonRows = useMemo(
+    () =>
+      (visitors?.byRegion ?? [])
+        .filter((row) => row.countryCode === "CH")
+        .map((row) => ({
+          key: `canton-${row.regionCode}-${row.regionLabel}`,
+          label: row.regionLabel.replace(/^CH\s*[-–]\s*/i, "") || row.regionLabel,
+          sublabel: row.regionCode !== "—" ? row.regionCode : undefined,
+          count: row.count,
+        })),
+    [visitors?.byRegion]
   )
 
   if (loading && !data) {
@@ -961,94 +1116,21 @@ export function AdminStatsTab() {
           </CardContent>
         </Card>
 
-        <Card className={adminUi.card}>
-          <CardHeader className="pb-2">
-            <CardTitle className={cn("flex items-center gap-2 text-base", adminUi.heading)}>
-              <Globe2 className="h-4 w-4 text-orange-500" />
-              Top Länder
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {visitorsLoading && !visitors ? (
-              <p className={cn("flex items-center text-sm", adminUi.muted)}>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Laden…
-              </p>
-            ) : !visitors?.byCountry?.length ? (
-              <p className={cn("text-sm", adminUi.muted)}>Noch keine Länderdaten.</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Land</TableHead>
-                      <TableHead className="text-right">Aufrufe</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {visitors.byCountry.slice(0, 12).map((row) => (
-                      <TableRow key={`country-${row.countryCode}`}>
-                        <TableCell className="font-medium">{row.regionLabel}</TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {row.count}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <GeoDonutCard
+          title="Top Länder"
+          icon={Globe2}
+          loading={visitorsLoading && !visitors}
+          emptyLabel="Noch keine Länderdaten."
+          rows={countryRows}
+        />
 
-        <Card className={adminUi.card}>
-          <CardHeader className="pb-2">
-            <CardTitle className={cn("flex items-center gap-2 text-base", adminUi.heading)}>
-              <MapPin className="h-4 w-4 text-orange-500" />
-              Besucher nach Region
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {visitorsLoading && !visitors ? (
-              <p className={cn("flex items-center text-sm", adminUi.muted)}>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Regionen…
-              </p>
-            ) : !visitors?.byRegion.length ? (
-              <p className={cn("text-sm", adminUi.muted)}>
-                Noch keine regionalen Aufrufe erfasst.
-              </p>
-            ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Region</TableHead>
-                      <TableHead className="text-right">Aufrufe</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {visitors.byRegion.slice(0, 20).map((row) => (
-                      <TableRow
-                        key={`${row.countryCode}-${row.regionCode}-${row.regionLabel}`}
-                      >
-                        <TableCell className="font-medium">
-                          <span className="block">{row.regionLabel}</span>
-                          <span className={cn("text-xs", adminUi.muted)}>
-                            {row.countryCode}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {row.count}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <GeoDonutCard
+          title="Schweizer Kantone"
+          icon={MapPin}
+          loading={visitorsLoading && !visitors}
+          emptyLabel="Noch keine Kantonsdaten."
+          rows={cantonRows}
+        />
       </div>
     </div>
   )

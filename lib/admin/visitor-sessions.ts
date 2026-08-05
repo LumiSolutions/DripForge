@@ -14,6 +14,31 @@ export const VISITOR_ONLINE_WINDOW_MS = 2 * 60 * 1000
 const PAGEVIEW_RETENTION_MS = 400 * 24 * 60 * 60 * 1000
 const GEO_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000
 
+/** Kalendertag in Europe/Zurich (YYYY-MM-DD) für Unique-Visit-Dedup. */
+function zurichDayKey(isoOrMs: string | number): string {
+  const date = typeof isoOrMs === "number" ? new Date(isoOrMs) : new Date(isoOrMs)
+  if (Number.isNaN(date.getTime())) return ""
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Zurich",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date)
+}
+
+/**
+ * Unique Visit: max. ein Pageview pro Session und Kalendertag.
+ * Pfadwechsel zählen nicht mehr separat (verhindert künstliche Explosion).
+ */
+function sessionNeedsUniquePageviewToday(
+  session: Pick<VisitorSession, "lastPageviewDay"> | null | undefined,
+  nowIso: string
+): boolean {
+  const today = zurichDayKey(nowIso)
+  if (!today) return true
+  return session?.lastPageviewDay !== today
+}
+
 export type VisitorSession = {
   id: string
   /** Anonymisierter Hash der Client-IP (kein Klartext). */
@@ -24,6 +49,11 @@ export type VisitorSession = {
   lastSeenAt: string
   firstSeenAt: string
   path?: string
+  /**
+   * Kalendertag (Europe/Zurich, YYYY-MM-DD) des letzten Unique-Pageviews.
+   * Verhindert Mehrfachzählung bei Unterseiten-Wechseln.
+   */
+  lastPageviewDay?: string
 }
 
 export type VisitorPageview = {
@@ -472,7 +502,8 @@ async function recordHeartbeatToFiles(input: {
   if (index >= 0) {
     const current = sessions[index]!
     sessionId = current.id
-    const lastAt = new Date(current.lastSeenAt).getTime()
+    const recordUnique = sessionNeedsUniquePageviewToday(current, input.nowIso)
+    const today = zurichDayKey(input.nowIso)
     sessions[index] = {
       ...current,
       ipHash: input.ipHash,
@@ -481,9 +512,9 @@ async function recordHeartbeatToFiles(input: {
       regionLabel: input.geo.regionLabel,
       lastSeenAt: input.nowIso,
       path: pathValue || current.path,
+      ...(recordUnique && today ? { lastPageviewDay: today } : {}),
     }
-    const pathChanged = Boolean(pathValue && pathValue !== current.path)
-    if (pathChanged || input.now - lastAt > VISITOR_ONLINE_WINDOW_MS) {
+    if (recordUnique) {
       newPageview = {
         id: randomUUID(),
         sessionId,
@@ -497,6 +528,7 @@ async function recordHeartbeatToFiles(input: {
       pageviews.push(newPageview)
     }
   } else {
+    const today = zurichDayKey(input.nowIso)
     sessions.push({
       id: sessionId,
       ipHash: input.ipHash,
@@ -506,6 +538,7 @@ async function recordHeartbeatToFiles(input: {
       firstSeenAt: input.nowIso,
       lastSeenAt: input.nowIso,
       path: pathValue,
+      ...(today ? { lastPageviewDay: today } : {}),
     })
     newPageview = {
       id: randomUUID(),
@@ -543,7 +576,8 @@ async function recordHeartbeatToCosmos(input: {
   let newPageview: VisitorPageview | null = null
 
   if (current) {
-    const lastAt = new Date(current.lastSeenAt).getTime()
+    const recordUnique = sessionNeedsUniquePageviewToday(current, input.nowIso)
+    const today = zurichDayKey(input.nowIso)
     const nextSession: VisitorSession = {
       ...current,
       ipHash: input.ipHash,
@@ -552,10 +586,10 @@ async function recordHeartbeatToCosmos(input: {
       regionLabel: input.geo.regionLabel,
       lastSeenAt: input.nowIso,
       path: pathValue || current.path,
+      ...(recordUnique && today ? { lastPageviewDay: today } : {}),
     }
     await cosmosUpsertVisitorSession(nextSession)
-    const pathChanged = Boolean(pathValue && pathValue !== current.path)
-    if (pathChanged || input.now - lastAt > VISITOR_ONLINE_WINDOW_MS) {
+    if (recordUnique) {
       newPageview = {
         id: randomUUID(),
         sessionId,
@@ -568,6 +602,7 @@ async function recordHeartbeatToCosmos(input: {
       }
     }
   } else {
+    const today = zurichDayKey(input.nowIso)
     const nextSession: VisitorSession = {
       id: sessionId,
       ipHash: input.ipHash,
@@ -577,6 +612,7 @@ async function recordHeartbeatToCosmos(input: {
       firstSeenAt: input.nowIso,
       lastSeenAt: input.nowIso,
       path: pathValue,
+      ...(today ? { lastPageviewDay: today } : {}),
     }
     await cosmosUpsertVisitorSession(nextSession)
     newPageview = {
@@ -632,21 +668,27 @@ export async function recordVisitorHeartbeat(input: {
   )
 }
 
-function bucketCounts(
+/** Unique Sessions pro Zeit-Bucket (für Aufrufstatistik). */
+function bucketUniqueSessionCounts(
   views: VisitorPageview[],
   keyFn: (date: Date) => string,
   labelFn: (key: string) => string
 ): VisitorTimeBucket[] {
-  const map = new Map<string, number>()
+  const map = new Map<string, Set<string>>()
   for (const view of views) {
     const date = new Date(view.at)
     if (Number.isNaN(date.getTime())) continue
     const key = keyFn(date)
-    map.set(key, (map.get(key) ?? 0) + 1)
+    if (!map.has(key)) map.set(key, new Set())
+    map.get(key)!.add(view.sessionId)
   }
   return Array.from(map.entries())
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([key, count]) => ({ key, label: labelFn(key), count }))
+    .map(([key, sessions]) => ({
+      key,
+      label: labelFn(key),
+      count: sessions.size,
+    }))
 }
 
 async function loadVisitorAnalyticsData(now: number): Promise<{
@@ -692,43 +734,64 @@ export async function getVisitorAnalyticsSnapshot(): Promise<VisitorAnalyticsSna
     (s) => now - new Date(s.lastSeenAt).getTime() <= VISITOR_ONLINE_WINDOW_MS
   )
 
-  const regionMap = new Map<string, VisitorRegionStat>()
-  const countryMap = new Map<string, VisitorRegionStat>()
+  const regionSessions = new Map<string, Set<string>>()
+  const countrySessions = new Map<string, Set<string>>()
+  const regionMeta = new Map<
+    string,
+    Pick<VisitorRegionStat, "countryCode" | "regionCode" | "regionLabel">
+  >()
+  const countryMeta = new Map<string, string>()
+
   for (const view of pageviews) {
     const regionKey = `${view.countryCode}|${view.regionCode}|${view.regionLabel}`
-    const regionExisting = regionMap.get(regionKey)
-    if (regionExisting) regionExisting.count += 1
-    else {
-      regionMap.set(regionKey, {
+    if (!regionSessions.has(regionKey)) {
+      regionSessions.set(regionKey, new Set())
+      regionMeta.set(regionKey, {
         countryCode: view.countryCode,
         regionCode: view.regionCode,
         regionLabel: view.regionLabel,
-        count: 1,
       })
     }
+    regionSessions.get(regionKey)!.add(view.sessionId)
 
     const countryLabel =
       view.countryCode === "UN" ? "Unbekannt" : view.countryCode
-    const countryExisting = countryMap.get(view.countryCode)
-    if (countryExisting) countryExisting.count += 1
-    else {
-      countryMap.set(view.countryCode, {
-        countryCode: view.countryCode,
-        regionCode: "—",
-        regionLabel: countryLabel,
-        count: 1,
-      })
+    if (!countrySessions.has(view.countryCode)) {
+      countrySessions.set(view.countryCode, new Set())
+      countryMeta.set(view.countryCode, countryLabel)
     }
+    countrySessions.get(view.countryCode)!.add(view.sessionId)
   }
 
-  const byRegion = Array.from(regionMap.values()).sort(
-    (a, b) => b.count - a.count || a.regionLabel.localeCompare(b.regionLabel, "de")
-  )
-  const byCountry = Array.from(countryMap.values()).sort(
-    (a, b) => b.count - a.count || a.regionLabel.localeCompare(b.regionLabel, "de")
-  )
+  const byRegion: VisitorRegionStat[] = Array.from(regionSessions.entries())
+    .map(([key, sessions]) => {
+      const meta = regionMeta.get(key)!
+      return {
+        countryCode: meta.countryCode,
+        regionCode: meta.regionCode,
+        regionLabel: meta.regionLabel,
+        count: sessions.size,
+      }
+    })
+    .sort(
+      (a, b) =>
+        b.count - a.count || a.regionLabel.localeCompare(b.regionLabel, "de")
+    )
 
-  const viewsByDay = bucketCounts(
+  const byCountry: VisitorRegionStat[] = Array.from(countrySessions.entries())
+    .map(([code, sessions]) => ({
+      countryCode: code,
+      regionCode: "—",
+      regionLabel: countryMeta.get(code) ?? code,
+      count: sessions.size,
+    }))
+    .sort(
+      (a, b) =>
+        b.count - a.count || a.regionLabel.localeCompare(b.regionLabel, "de")
+    )
+
+  // Zeitreihen: Unique Sessions pro Bucket (nicht Roh-Pageviews).
+  const viewsByDay = bucketUniqueSessionCounts(
     pageviews,
     (d) => d.toISOString().slice(0, 10),
     (key) => {
@@ -740,7 +803,7 @@ export async function getVisitorAnalyticsSnapshot(): Promise<VisitorAnalyticsSna
     }
   ).slice(-60)
 
-  const viewsByMonth = bucketCounts(
+  const viewsByMonth = bucketUniqueSessionCounts(
     pageviews,
     (d) => `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`,
     (key) => {
@@ -752,7 +815,7 @@ export async function getVisitorAnalyticsSnapshot(): Promise<VisitorAnalyticsSna
     }
   )
 
-  const viewsByYear = bucketCounts(
+  const viewsByYear = bucketUniqueSessionCounts(
     pageviews,
     (d) => String(d.getUTCFullYear()),
     (key) => key

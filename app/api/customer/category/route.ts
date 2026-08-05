@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server"
-import { getSettings } from "@/lib/admin/db"
-import { getAccountByEmail } from "@/lib/konto/account-db"
-import { findCustomerCategory } from "@/lib/dripforge/customer-categories"
 import { getSessionEmailFromRequest } from "@/lib/konto/api-auth"
+import { resolveCustomerCategoryForEmail } from "@/lib/konto/resolve-customer-category"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -10,6 +8,7 @@ export const runtime = "nodejs"
 /**
  * Auflösung der Kundenkategorie (Rabatt/Versand) für die aktuelle Session.
  * Liefert `category: null`, wenn nicht eingeloggt oder keine Kategorie zugeordnet.
+ * Quellen: Portal-Konto und CRM (Fallback), damit Admin-Zuordnung im Shop greift.
  */
 export async function GET() {
   const email = await getSessionEmailFromRequest()
@@ -17,14 +16,7 @@ export async function GET() {
     return NextResponse.json({ category: null }, { headers: noStore })
   }
 
-  const [account, settings] = await Promise.all([
-    getAccountByEmail(email),
-    getSettings(),
-  ])
-  const category = findCustomerCategory(
-    settings.customerCategories,
-    account?.customerCategoryId
-  )
+  const category = await resolveCustomerCategoryForEmail(email)
   if (!category) {
     return NextResponse.json({ category: null }, { headers: noStore })
   }
