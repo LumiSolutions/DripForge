@@ -19,7 +19,31 @@ export function writeClientCart(items: CartItem[]): void {
   try {
     localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(items))
   } catch {
-    console.warn("Warenkorb: Speichern in localStorage fehlgeschlagen.")
+    // QuotaExceeded bei grossen Leitbild/Mockup-Data-URLs — ohne Preview speichern.
+    try {
+      const slim = items.map((item) => {
+        const next = { ...item } as CartItem
+        if (typeof next.leitbild === "string" && next.leitbild.startsWith("data:")) {
+          delete next.leitbild
+        }
+        if (
+          typeof next.previewMockup === "string" &&
+          next.previewMockup.startsWith("data:")
+        ) {
+          delete next.previewMockup
+        }
+        if (
+          typeof next.productionLayer === "string" &&
+          next.productionLayer.startsWith("data:")
+        ) {
+          delete next.productionLayer
+        }
+        return next
+      })
+      localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(slim))
+    } catch {
+      console.warn("Warenkorb: Speichern in localStorage fehlgeschlagen.")
+    }
   }
 }
 

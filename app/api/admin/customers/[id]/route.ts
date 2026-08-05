@@ -156,6 +156,9 @@ export async function GET(request: Request, context: RouteContext) {
     return NextResponse.json({
       customer: {
         ...withNormalizedDeliveryAddresses(customer),
+        // Portal-Kategorie hat Vorrang, falls CRM-Feld fehlt/veraltet.
+        customerCategoryId:
+          portalAccount?.customerCategoryId ?? customer.customerCategoryId ?? null,
         name: customerDisplayName(customer.billing),
         status,
       },
@@ -365,21 +368,42 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
 
     let saved = updated
+    let crmSaveFailed = false
     try {
       saved = await saveCustomer(updated)
     } catch (error) {
+      crmSaveFailed = true
       console.warn(
         "Admin-API: CRM-Kunde konnte nicht gespeichert werden — Portal-Spiegelung bleibt erhalten.",
         error
       )
+      if (!portalAccount) {
+        return NextResponse.json(
+          {
+            error:
+              error instanceof Error
+                ? error.message
+                : "Kunde konnte nicht gespeichert werden.",
+          },
+          { status: 500 }
+        )
+      }
     }
 
     return NextResponse.json({
       customer: {
         ...withNormalizedDeliveryAddresses(saved),
+        // Auch bei CRM-Fehler die gewünschte Kategorie zurückgeben (Portal/Optimistic).
+        customerCategoryId: nextCategoryId ?? saved.customerCategoryId ?? null,
         name: customerDisplayName(saved.billing),
         status: nextStatus,
       },
+      ...(crmSaveFailed
+        ? {
+            warning:
+              "CRM-Speichern fehlgeschlagen — Kategorie am Portal-Konto gespeichert.",
+          }
+        : {}),
     })
   } catch (error) {
     console.warn("Admin-API: Kunde konnte nicht aktualisiert werden.", error)

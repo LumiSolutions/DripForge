@@ -3,9 +3,11 @@
 import { useEffect } from "react"
 import { ShopHeader } from "@/components/dripforge/shop-header"
 import { useCart } from "@/components/dripforge/cart-provider"
+import { useShopCatalogImagePrefetch } from "@/components/dripforge/shared/shop-image-prefetch"
 
 export function StorefrontShell({ children }: { children: React.ReactNode }) {
   const { cart } = useCart()
+  useShopCatalogImagePrefetch()
 
   useEffect(() => {
     try {
