@@ -1,7 +1,7 @@
 "use client"
 
-import { FormEvent, useCallback, useEffect, useState } from "react"
-import { Loader2, Plus, RefreshCw, Tag, Trash2 } from "lucide-react"
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react"
+import { Archive, Loader2, Plus, RefreshCw, RotateCcw, Tag, Trash2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -14,7 +14,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import type { CouponDiscountType, StoredCoupon } from "@/lib/admin/coupon-types"
+import type {
+  CouponDiscountType,
+  CouponListFilter,
+  StoredCoupon,
+} from "@/lib/admin/coupon-types"
+import {
+  isCouponArchived,
+  matchesCouponFilter,
+} from "@/lib/admin/coupon-types"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
 import { cn } from "@/lib/utils"
 
@@ -36,6 +44,7 @@ export function AdminCouponsTab() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [filter, setFilter] = useState<CouponListFilter>("all")
 
   const [code, setCode] = useState("")
   const [discountType, setDiscountType] = useState<CouponDiscountType>("percent")
@@ -66,6 +75,11 @@ export function AdminCouponsTab() {
   useEffect(() => {
     void load()
   }, [load])
+
+  const visibleCoupons = useMemo(
+    () => coupons.filter((c) => matchesCouponFilter(c, filter)),
+    [coupons, filter]
+  )
 
   const handleCreate = async (e: FormEvent) => {
     e.preventDefault()
@@ -103,6 +117,7 @@ export function AdminCouponsTab() {
   }
 
   const toggleActive = async (coupon: StoredCoupon) => {
+    if (isCouponArchived(coupon)) return
     const res = await fetch(`/api/admin/coupons/${encodeURIComponent(coupon.id)}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -120,8 +135,57 @@ export function AdminCouponsTab() {
     }
   }
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm("Gutschein wirklich löschen?")) return
+  const handleArchive = async (id: string) => {
+    if (!window.confirm("Gutschein archivieren? Er bleibt erhalten und kann wiederhergestellt werden.")) {
+      return
+    }
+    const res = await fetch(`/api/admin/coupons/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    })
+    const data = (await res.json()) as {
+      coupon?: StoredCoupon
+      softDeleted?: boolean
+      error?: string
+    }
+    if (!res.ok) {
+      setError(data.error ?? "Archivieren fehlgeschlagen")
+      return
+    }
+    if (data.coupon) {
+      setCoupons((prev) =>
+        prev.map((c) => (c.id === id ? data.coupon! : c))
+      )
+    } else {
+      await load()
+    }
+  }
+
+  const handleRestore = async (id: string) => {
+    const res = await fetch(`/api/admin/coupons/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ archiviert: false }),
+    })
+    const data = (await res.json()) as { coupon?: StoredCoupon; error?: string }
+    if (!res.ok) {
+      setError(data.error ?? "Wiederherstellen fehlgeschlagen")
+      return
+    }
+    if (data.coupon) {
+      setCoupons((prev) =>
+        prev.map((c) => (c.id === id ? data.coupon! : c))
+      )
+    }
+  }
+
+  const handleHardDelete = async (id: string) => {
+    if (
+      !window.confirm(
+        "Gutschein ENDGÜLTIG löschen? Diese Aktion kann nicht rückgängig gemacht werden."
+      )
+    ) {
+      return
+    }
     const res = await fetch(`/api/admin/coupons/${encodeURIComponent(id)}`, {
       method: "DELETE",
     })
@@ -167,6 +231,28 @@ export function AdminCouponsTab() {
       </div>
 
       {error && <p className={adminUi.errorLg}>{error}</p>}
+
+      <div className="flex flex-wrap gap-2">
+        {(
+          [
+            ["all", "Alle"],
+            ["active", "Aktiv"],
+            ["inactive", "Inaktiv"],
+            ["archived", "Archiviert"],
+          ] as const
+        ).map(([id, label]) => (
+          <Button
+            key={id}
+            type="button"
+            size="sm"
+            variant={filter === id ? "default" : "outline"}
+            className={filter === id ? adminUi.primaryBtn : adminUi.outlineBtn}
+            onClick={() => setFilter(id)}
+          >
+            {label}
+          </Button>
+        ))}
+      </div>
 
       <form
         onSubmit={handleCreate}
@@ -261,17 +347,21 @@ export function AdminCouponsTab() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {coupons.length === 0 ? (
+            {visibleCoupons.length === 0 ? (
               <TableRow>
                 <TableCell
                   colSpan={6}
                   className={cn("py-12 text-center text-sm", adminUi.muted)}
                 >
-                  Noch keine Gutscheine angelegt.
+                  {coupons.length === 0
+                    ? "Noch keine Gutscheine angelegt."
+                    : "Keine Gutscheine in diesem Filter."}
                 </TableCell>
               </TableRow>
             ) : (
-              coupons.map((coupon) => (
+              visibleCoupons.map((coupon) => {
+                const archived = isCouponArchived(coupon)
+                return (
                 <TableRow key={coupon.id} className={adminUi.tableRow}>
                   <TableCell className={cn("font-mono font-semibold", adminUi.accentTitle)}>
                     {coupon.code}
@@ -289,39 +379,74 @@ export function AdminCouponsTab() {
                       : " / ∞"}
                   </TableCell>
                   <TableCell>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className={adminUi.outlineBtn}
-                      onClick={() => void toggleActive(coupon)}
-                    >
-                      <Badge
-                        variant="outline"
-                        className={
-                          coupon.aktiv
-                            ? "border-green-500/40 text-green-700 dark:text-green-300"
-                            : adminUi.badgeInactive
-                        }
-                      >
-                        {coupon.aktiv ? "Aktiv" : "Inaktiv"}
+                    {archived ? (
+                      <Badge variant="outline" className={adminUi.badgeInactive}>
+                        Archiviert
                       </Badge>
-                    </Button>
+                    ) : (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className={adminUi.outlineBtn}
+                        onClick={() => void toggleActive(coupon)}
+                      >
+                        <Badge
+                          variant="outline"
+                          className={
+                            coupon.aktiv
+                              ? "border-green-500/40 text-green-700 dark:text-green-300"
+                              : adminUi.badgeInactive
+                          }
+                        >
+                          {coupon.aktiv ? "Aktiv" : "Inaktiv"}
+                        </Badge>
+                      </Button>
+                    )}
                   </TableCell>
                   <TableCell>
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="ghost"
-                      className="text-red-600 dark:text-red-400"
-                      onClick={() => void handleDelete(coupon.id)}
-                      aria-label="Gutschein löschen"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <div className="flex items-center justify-end gap-1">
+                      {archived ? (
+                        <>
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => void handleRestore(coupon.id)}
+                            aria-label="Gutschein wiederherstellen"
+                            title="Wiederherstellen"
+                          >
+                            <RotateCcw className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            className="text-red-600 dark:text-red-400"
+                            onClick={() => void handleHardDelete(coupon.id)}
+                            aria-label="Gutschein endgültig löschen"
+                            title="Endgültig löschen"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </>
+                      ) : (
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => void handleArchive(coupon.id)}
+                          aria-label="Gutschein archivieren"
+                          title="Archivieren"
+                        >
+                          <Archive className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
-              ))
+                )
+              })
             )}
           </TableBody>
         </Table>

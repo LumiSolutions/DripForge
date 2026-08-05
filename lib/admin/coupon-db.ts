@@ -117,6 +117,36 @@ export async function incrementCouponRedemption(
   )
 }
 
+export async function archiveCoupon(id: string): Promise<StoredCoupon | null> {
+  const normalized = normalizeCouponCode(id)
+  if (!normalized) return null
+  const current = await getCouponByCode(normalized)
+  if (!current) return null
+  const now = new Date().toISOString()
+  return upsertCoupon({
+    ...current,
+    aktiv: false,
+    archiviert: true,
+    archivedAt: current.archivedAt ?? now,
+    updatedAt: now,
+  })
+}
+
+export async function restoreCoupon(id: string): Promise<StoredCoupon | null> {
+  const normalized = normalizeCouponCode(id)
+  if (!normalized) return null
+  const current = await getCouponByCode(normalized)
+  if (!current) return null
+  return upsertCoupon({
+    ...current,
+    archiviert: false,
+    archivedAt: null,
+    aktiv: true,
+    updatedAt: new Date().toISOString(),
+  })
+}
+
+/** Hartes Löschen — nur manuell aus dem Archiv, nicht automatisch. */
 export async function deleteCoupon(id: string): Promise<boolean> {
   const normalized = normalizeCouponCode(id)
   return Boolean(
@@ -157,6 +187,8 @@ export function createCouponInput(input: {
         : Math.max(0, Number(input.maxRedemptions) || 0),
     redemptionCount: 0,
     aktiv: input.aktiv !== false,
+    archiviert: false,
+    archivedAt: null,
     createdAt: now,
     updatedAt: now,
   }

@@ -19,6 +19,10 @@ export function validateCouponForCheckout(
     return { valid: false, error: "Dieser Gutschein ist nicht mehr aktiv." }
   }
 
+  if (coupon.archiviert === true) {
+    return { valid: false, error: "Dieser Gutschein ist nicht mehr aktiv." }
+  }
+
   if (coupon.code !== code) {
     return { valid: false, error: "Gutscheincode ist ungültig." }
   }

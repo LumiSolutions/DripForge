@@ -16,7 +16,8 @@ let inflight: Promise<Branding> | null = null
 async function fetchBranding(): Promise<Branding> {
   if (cache) return cache
   if (!inflight) {
-    inflight = fetch("/api/settings/branding", { cache: "no-store" })
+    // Server setzt s-maxage=30 — Client-Cache respektieren (kein no-store).
+    inflight = fetch("/api/settings/branding")
       .then((res) => (res.ok ? res.json() : EMPTY))
       .then(
         (data): Branding => ({
@@ -31,8 +32,17 @@ async function fetchBranding(): Promise<Branding> {
         return data
       })
       .catch(() => EMPTY)
+      .finally(() => {
+        inflight = null
+      })
   }
   return inflight
+}
+
+/** Nach Admin-Logo-Upload den Modul-Cache leeren. */
+export function invalidateBrandingCache() {
+  cache = null
+  inflight = null
 }
 
 export function useBranding(): Branding {

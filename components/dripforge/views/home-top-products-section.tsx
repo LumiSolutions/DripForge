@@ -27,6 +27,35 @@ type LoopSlide = {
   product: Product
 }
 
+type TopProductsCache = {
+  enabled: boolean
+  products: Product[]
+}
+
+let topProductsCache: TopProductsCache | null = null
+let topProductsInflight: Promise<TopProductsCache> | null = null
+
+async function fetchTopProducts(): Promise<TopProductsCache> {
+  if (topProductsCache) return topProductsCache
+  if (!topProductsInflight) {
+    topProductsInflight = fetch("/api/products/top")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: TopProductsResponse | null) => {
+        const next: TopProductsCache = {
+          enabled: data?.enabled !== false,
+          products: Array.isArray(data?.products) ? data!.products! : [],
+        }
+        topProductsCache = next
+        return next
+      })
+      .catch((): TopProductsCache => ({ enabled: true, products: [] }))
+      .finally(() => {
+        topProductsInflight = null
+      })
+  }
+  return topProductsInflight
+}
+
 function buildLoopSlides(products: Product[]): LoopSlide[] {
   if (products.length === 0) return []
 
@@ -48,8 +77,10 @@ function buildLoopSlides(products: Product[]): LoopSlide[] {
 export function HomeTopProductsSection() {
   const router = useRouter()
   const { canInlineEdit } = useSiteTexts()
-  const [products, setProducts] = useState<Product[] | null>(null)
-  const [enabled, setEnabled] = useState(true)
+  const [products, setProducts] = useState<Product[] | null>(
+    topProductsCache?.products ?? null
+  )
+  const [enabled, setEnabled] = useState(topProductsCache?.enabled ?? true)
 
   const [emblaRef, emblaApi] = useEmblaCarousel({
     loop: true,
@@ -62,21 +93,12 @@ export function HomeTopProductsSection() {
   useEffect(() => {
     let cancelled = false
 
-    void (async () => {
-      try {
-        const res = await fetch("/api/products/top", { cache: "no-store" })
-        const data = (await res.json()) as TopProductsResponse
-        if (!cancelled) {
-          setEnabled(data.enabled !== false)
-          setProducts(Array.isArray(data.products) ? data.products : [])
-        }
-      } catch {
-        if (!cancelled) {
-          setEnabled(true)
-          setProducts([])
-        }
+    void fetchTopProducts().then((data) => {
+      if (!cancelled) {
+        setEnabled(data.enabled)
+        setProducts(data.products)
       }
-    })()
+    })
 
     return () => {
       cancelled = true

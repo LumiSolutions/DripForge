@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
+import { invalidateBrandingCache } from "@/hooks/use-branding"
 import { cn } from "@/lib/utils"
 
 type Slot = "icon" | "logo"
