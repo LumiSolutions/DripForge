@@ -277,6 +277,7 @@ export function PageCheckout({
   )
   const stripeRef = useRef<Stripe | null>(null)
   const [stripeDiag, setStripeDiag] = useState<{
+    secretKeyPresent?: boolean
     secretKeyMode?: string
     publishableKeyPresent?: boolean
     publishableKeyMode?: string
@@ -374,6 +375,7 @@ export function PageCheckout({
           configured?: boolean
           publishableKey?: string | null
           diagnostics?: {
+            secretKeyPresent?: boolean
             secretKeyMode?: string
             publishableKeyPresent?: boolean
             publishableKeyMode?: string
@@ -395,6 +397,11 @@ export function PageCheckout({
           if (data?.diagnostics?.modeMismatch) {
             console.error(
               "[Checkout] Stripe Mode-Mismatch: Secret- und Publishable-Key sind nicht beide live bzw. beide test."
+            )
+          }
+          if (data?.diagnostics && data.diagnostics.webhookSecretPresent === false) {
+            console.error(
+              "[Checkout] STRIPE_WEBHOOK_SECRET fehlt — Webhooks setzen Bestellungen nach Zahlung nicht auf bezahlt."
             )
           }
           if (!data?.configured) {
@@ -563,8 +570,8 @@ export function PageCheckout({
       setPaymentMethod(enabledPaymentOptions[0]!.id)
     }
   }, [enabledPaymentOptions, paymentMethod, categoryLoaded])
-  const cardPaymentsEnabled = checkoutConfig.paymentCardAktiv
-  const twintPaymentsEnabled = checkoutConfig.paymentTwintAktiv
+  const cardPaymentsEnabled = enabledPaymentOptions.some((o) => o.id === "card")
+  const twintPaymentsEnabled = enabledPaymentOptions.some((o) => o.id === "twint")
 
   const baseSubtotal = useMemo(
     () => cart.reduce((sum, item) => sum + item.price * item.quantity, 0),

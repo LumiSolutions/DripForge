@@ -20,10 +20,12 @@ export async function GET() {
       publishableKey,
       configured: diagnostics.configured,
       diagnostics: {
+        secretKeyPresent: diagnostics.secretKeyPresent,
+        secretKeyMode: diagnostics.secretKeyMode,
         publishableKeyPresent: diagnostics.publishableKeyPresent,
         publishableKeyMode: diagnostics.publishableKeyMode,
-        secretKeyMode: diagnostics.secretKeyMode,
         modeMismatch: diagnostics.modeMismatch,
+        webhookSecretPresent: diagnostics.webhookSecretPresent,
         checkoutMode: diagnostics.checkoutMode,
       },
     },

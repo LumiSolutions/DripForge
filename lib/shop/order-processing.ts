@@ -646,6 +646,7 @@ export async function fulfillPaidShopOrder(
     ...order,
     billing,
     paymentConfirmed: true,
+    paymentStatus: "paid",
     ...(advanceProduction ? { productionStatus: "bezahlt" as const } : {}),
     ...(options.stripeSessionId
       ? { stripeSessionId: options.stripeSessionId }
@@ -655,7 +656,24 @@ export async function fulfillPaidShopOrder(
       : {}),
   }
   await saveOrder(updated)
-  console.info(`Shop-Fulfillment: Zahlung bestätigt, Order gespeichert (${orderId}).`)
+  console.info(
+    `Shop-Fulfillment: Zahlung bestätigt (paymentStatus=paid, productionStatus=${
+      advanceProduction ? "bezahlt" : order.productionStatus ?? "unverändert"
+    }), Order gespeichert (${orderId}).`
+  )
+
+  try {
+    const { upsertRechnungFromOrder } = await import(
+      "@/lib/documents/beleg-service"
+    )
+    await upsertRechnungFromOrder(updated)
+    console.info(`Shop-Fulfillment: Beleg/Rechnung synchronisiert (${orderId}).`)
+  } catch (belegError) {
+    console.error(
+      `Shop-Fulfillment: Beleg-Sync fehlgeschlagen (${orderId}) — Zahlung bleibt bestätigt.`,
+      belegError
+    )
+  }
 
   const rawCoupon = order.totals.couponCode
   if (rawCoupon) {

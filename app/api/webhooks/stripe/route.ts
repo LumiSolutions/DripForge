@@ -137,13 +137,20 @@ export async function POST(request: Request) {
             error: result.error,
             orderId: result.orderId,
           })
-        } else {
-          console.info("Stripe Webhook: Shop-Order verarbeitet (inkl. Mail-Aufruf).", {
-            orderId: result.orderId,
-            fulfilled: result.fulfilled,
-            emails: result.emails,
-          })
+          // 5xx → Stripe retried; sonst gehen fehlgeschlagene Fulfillments verloren.
+          return NextResponse.json(
+            {
+              error: result.error ?? "Shop-Fulfillment fehlgeschlagen.",
+              orderId: result.orderId,
+            },
+            { status: 500 }
+          )
         }
+        console.info("Stripe Webhook: Shop-Order verarbeitet (inkl. Mail-Aufruf).", {
+          orderId: result.orderId,
+          fulfilled: result.fulfilled,
+          emails: result.emails,
+        })
       } else if (purpose === "points-purchase") {
         const purchaseId = session.metadata?.purchaseId?.trim()
         const email = session.metadata?.userId?.trim()
