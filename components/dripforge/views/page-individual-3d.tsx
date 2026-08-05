@@ -48,6 +48,8 @@ import {
 } from "@/lib/dripforge/model-scale"
 import { exceedsMaxPrintVolume } from "@/lib/dripforge/print-limits"
 import { PrintVolumeWarning } from "@/components/dripforge/shared/print-volume-warning"
+import { PrintabilityDesignGuide } from "@/components/dripforge/shared/printability-design-guide"
+import { PrintFeasibilityServiceNotice } from "@/components/dripforge/shared/print-feasibility-service-notice"
 import { useFilamentMaterials } from "@/hooks/use-filament-materials"
 import { capture3dPreviewLeitbild } from "@/lib/dripforge/capture-leitbild"
 import {
@@ -631,6 +633,12 @@ export function PageIndividual3D() {
                     </>
                   )}
                 </div>
+
+                <PrintabilityDesignGuide className="mt-4" />
+                <PrintFeasibilityServiceNotice
+                  variant="upload"
+                  className="mt-3"
+                />
               </CardContent>
             </Card>
 
@@ -874,6 +882,11 @@ export function PageIndividual3D() {
                 )}
 
                 <PricingFootnote text={pricingFootnote} />
+
+                <PrintFeasibilityServiceNotice
+                  variant="inquiry"
+                  className="mt-1"
+                />
 
                 <div className="space-y-4 rounded-xl border border-border/60 bg-background/40 p-4">
                   <div className="space-y-2">
