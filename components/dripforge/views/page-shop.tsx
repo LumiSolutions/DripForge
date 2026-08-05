@@ -67,10 +67,8 @@ import {
 } from "@/lib/dripforge/types"
 import {
   applyQuantityDiscountToUnitPrice,
-  cartQuantityByProductId,
   normalizeQuantityDiscountTiers,
 } from "@/lib/dripforge/quantity-discount-tiers"
-import { useCart } from "@/components/dripforge/cart-provider"
 import { resolveProductModelUrl } from "@/lib/dripforge/product-model-defaults"
 import { resolveProductPrintFile } from "@/lib/dripforge/product-print-file"
 import {
@@ -226,7 +224,6 @@ export function PageShop({
   productCatalog,
 }: PageShopProps) {
   const router = useRouter()
-  const { cart } = useCart()
   const { canInlineEdit } = useSiteTexts()
   // Lazy-Load: Filamentfarben nur auf der Produktdetailseite abrufen, nicht auf
   // der Shop-Übersicht (Performance beim Initial-Load).
@@ -1013,10 +1010,9 @@ export function PageShop({
       extraVariants.length > 0
         ? 0
         : quantity
-    const cartQtyForProduct =
-      cartQuantityByProductId(cart).get(detailProduct.id) ?? 0
-    const pricingQty =
-      activeQtyForPricing + extraVariantQty + cartQtyForProduct
+    // PDP-Total strikt isoliert: nur aktuelle Auswahl dieses Produkts —
+    // Warenkorb-Mengen zählen weder für Staffel noch für Gesamtpreis (erst /warenkorb).
+    const pricingQty = Math.max(1, activeQtyForPricing + extraVariantQty)
     const qtyDiscount = applyQuantityDiscountToUnitPrice(
       baseUnitPrice,
       quantityDiscountTiers,
@@ -1026,8 +1022,12 @@ export function PageShop({
     // Der Warenkorb speichert weiterhin den Basispreis; der Rabatt wird
     // serverseitig verbindlich angewendet (processOrderPayload).
     const preCategoryUnitPrice = qtyDiscount.unitPrice
-    const unitPrice = customerCategory.applyDiscount(preCategoryUnitPrice)
-    const categoryDiscountPercent = customerCategory.discountPercent
+    const unitPrice = customerCategory.loaded
+      ? customerCategory.applyDiscount(preCategoryUnitPrice)
+      : preCategoryUnitPrice
+    const categoryDiscountPercent = customerCategory.loaded
+      ? customerCategory.discountPercent
+      : 0
     const shopLaserMaterial =
       detailProduct.type === "laser"
         ? getLaserMaterialForProduct(detailProduct)
@@ -1064,7 +1064,9 @@ export function PageShop({
                 detailProduct,
                 variant.id
               )
-              const priceLabel = customerCategory.applyDiscount(variantBase)
+              const priceLabel = customerCategory.loaded
+                ? customerCategory.applyDiscount(variantBase)
+                : variantBase
               return (
                 <button
                   key={variant.id}
@@ -1279,12 +1281,6 @@ export function PageShop({
                               .join(", ")}
                           </p>
                         ) : null}
-                        {cartQtyForProduct > 0 && (
-                          <p className="text-xs text-muted-foreground">
-                            Im Warenkorb bereits {cartQtyForProduct} Stk. — zählen
-                            für den Mengenrabatt.
-                          </p>
-                        )}
                       </div>
                       <div className="flex items-center gap-3">
                         <Button
@@ -1918,12 +1914,6 @@ export function PageShop({
                                         .join(", ")}
                                     </p>
                                   )}
-                                {cartQtyForProduct > 0 && (
-                                  <p className="text-xs text-muted-foreground">
-                                    Im Warenkorb bereits {cartQtyForProduct} Stk. —
-                                    zählen für den Mengenrabatt.
-                                  </p>
-                                )}
                                 {detailShopVariants.length > 0 && (
                                   <div className="flex justify-between gap-3">
                                     <span className="text-muted-foreground">

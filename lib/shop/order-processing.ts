@@ -22,13 +22,13 @@ import { calculateCheckoutTotalsWithCoupon, calculateCheckoutTotalsWithDiscounts
 import { getShippingCost } from "@/lib/dripforge/checkout-config"
 import {
   applyCategoryDiscount,
-  findCustomerCategory,
   isPaymentMethodAllowedForCategory,
   isShippingMethodAllowedForCategory,
 } from "@/lib/dripforge/customer-categories"
 import type { OrderPayload } from "@/lib/dripforge/submit-order"
 import { grantAiCreditsForPaidOrder } from "@/lib/konto/ai-credits"
 import { getAccountByEmail } from "@/lib/konto/account-db"
+import { resolveCustomerCategoryForEmail } from "@/lib/konto/resolve-customer-category"
 import {
   grantLoyaltyPointsForPaidOrder,
   maxRedeemablePoints,
@@ -132,12 +132,9 @@ export async function processOrderPayload(
 
   // Kundenkategorie (eingeloggter Kunde) serverseitig auswerten — verbindlich
   // (Trust Boundary): Rabatt anwenden UND erlaubte Zahlungs-/Versandart prüfen.
+  // Portal + CRM (Fallback), analog /api/customer/category.
   if (options?.sessionEmail) {
-    const categoryAccount = await getAccountByEmail(options.sessionEmail)
-    const category = findCustomerCategory(
-      settings.customerCategories,
-      categoryAccount?.customerCategoryId
-    )
+    const category = await resolveCustomerCategoryForEmail(options.sessionEmail)
     if (category) {
       if (!isPaymentMethodAllowedForCategory(category, payload.paymentMethod)) {
         throw new Error(

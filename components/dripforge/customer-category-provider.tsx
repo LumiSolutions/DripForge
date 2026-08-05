@@ -44,7 +44,8 @@ export function CustomerCategoryProvider({ children }: { children: ReactNode }) 
   const [reloadKey, setReloadKey] = useState(0)
 
   const refresh = useCallback(() => {
-    setLoaded(false)
+    // Kategorie während Revalidate behalten — sonst flackert der Shop-Preis
+    // kurz auf den Listenpreis (loaded=false → ProductShopPrice ohne Rabatt).
     setReloadKey((k) => k + 1)
   }, [])
 
@@ -55,6 +56,7 @@ export function CustomerCategoryProvider({ children }: { children: ReactNode }) 
         const res = await fetch("/api/customer/category", {
           cache: "no-store",
           credentials: "include",
+          headers: { Accept: "application/json" },
         })
         const data = (await res.json().catch(() => null)) as {
           category?: ResolvedCustomerCategory | null
@@ -64,6 +66,8 @@ export function CustomerCategoryProvider({ children }: { children: ReactNode }) 
           if (data && Object.prototype.hasOwnProperty.call(data, "category")) {
             setCategory(data.category ?? null)
           }
+        } else if (res.status === 401 || res.status === 403) {
+          setCategory(null)
         }
       } catch {
         // Netzwerkfehler: Kategorie nicht zurücksetzen
@@ -76,15 +80,18 @@ export function CustomerCategoryProvider({ children }: { children: ReactNode }) 
     }
   }, [reloadKey])
 
-  // Nach Login/Logout oder Tab-Fokus Kategorie neu laden.
+  // Nach Login/Logout Kategorie neu laden (nicht bei jedem Fenster-Fokus —
+  // Fokus-Refresh setzte früher loaded=false und blendete den Rabatt aus).
   useEffect(() => {
     const onAuth = () => refresh()
-    const onFocus = () => refresh()
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") refresh()
+    }
     window.addEventListener(CUSTOMER_CATEGORY_REFRESH_EVENT, onAuth)
-    window.addEventListener("focus", onFocus)
+    document.addEventListener("visibilitychange", onVisibility)
     return () => {
       window.removeEventListener(CUSTOMER_CATEGORY_REFRESH_EVENT, onAuth)
-      window.removeEventListener("focus", onFocus)
+      document.removeEventListener("visibilitychange", onVisibility)
     }
   }, [refresh])
 
