@@ -70,22 +70,38 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const setCartWithDiscounts = useCallback(
     (updater: React.SetStateAction<CartItem[]>) => {
       setCart((prev) => {
+        const base = Array.isArray(prev) ? prev : cartRef.current
         const next =
           typeof updater === "function"
-            ? (updater as (p: CartItem[]) => CartItem[])(prev)
+            ? (updater as (p: CartItem[]) => CartItem[])(base)
             : updater
-        return applyQuantityDiscountsToCartItems(next)
+        // Absicherung: leeres Array nur akzeptieren, wenn bewusst geleert —
+        // ein stale Value-Replace mit [] während parallelem addToCart vermeiden.
+        const applied = applyQuantityDiscountsToCartItems(next)
+        cartRef.current = applied
+        return applied
       })
     },
     []
   )
 
   const addToCart = useCallback((item: CartItem) => {
-    setCart((prev) => applyQuantityDiscountsToCartItems([...prev, item]))
+    setCart((prev) => {
+      // Immer an bestehenden Stand anhängen — nie ersetzen.
+      const base = Array.isArray(prev) ? prev : cartRef.current
+      const next = applyQuantityDiscountsToCartItems([...base, item])
+      cartRef.current = next
+      // Sofort persistieren (überlebt Remounts vor dem Write-Effect).
+      writeClientCart(next)
+      return next
+    })
   }, [])
 
   const applyMergedCart = useCallback((items: CartItem[]) => {
-    setCart(applyQuantityDiscountsToCartItems(items))
+    const next = applyQuantityDiscountsToCartItems(items)
+    cartRef.current = next
+    writeClientCart(next)
+    setCart(next)
   }, [])
 
   /** Stabil — kein Dependency auf `cart`, sonst Re-Render-Loops. */

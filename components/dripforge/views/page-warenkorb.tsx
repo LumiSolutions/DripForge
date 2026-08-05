@@ -1,61 +1,22 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
-import Image from "next/image"
+import { useState, useEffect, type Dispatch, type SetStateAction } from "react"
+import Link from "next/link"
 import {
-  Home,
-  Printer,
-  Zap,
   ShoppingBag,
-  MessageSquare,
-  Menu,
+  ShoppingCart,
   X,
-  ChevronRight,
-  Mail,
-  Phone,
-  MapPin,
-  Clock,
-  Send,
-  Leaf,
-  Scissors,
-  Stamp,
-  CheckCircle2,
-  Circle,
-  Sparkles,
-  Package,
-  Timer,
-  Gem,
   Layers,
   ArrowRight,
-  MessageCircle,
-  User,
-  Bot,
-  Upload,
-  Box,
-  RotateCcw,
-  ZoomIn,
   Minus,
   Plus,
-  ShoppingCart,
-  Image as ImageIcon,
-  Tag,
-  Search,
-  Moon,
-  Sun,
+  Printer,
+  Zap,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
-import { FilamentColorPicker } from "@/components/dripforge/shared/filament-color-picker"
-import { ProcessStepItem } from "@/components/dripforge/shared/process-step-item"
-import { LaserProcessStep } from "@/components/dripforge/shared/laser-process-step"
-import { IndividualProcessBar } from "@/components/dripforge/shared/individual-process-bar"
-import { materials3D, laserMaterials, processSteps, products } from "@/lib/dripforge/data"
 import { LASER_FONT_OPTIONS } from "@/lib/dripforge/laser-design"
 import type { CartItem } from "@/lib/dripforge/types"
 import {
@@ -66,10 +27,26 @@ import {
 } from "@/lib/dripforge/checkout-config"
 import { useCustomerCategory } from "@/components/dripforge/customer-category-provider"
 import { SafeProductImage } from "@/components/dripforge/shared/safe-product-image"
+import { productHref } from "@/lib/dripforge/product-slug"
+
+function formatPartColorsLabel(
+  partColors: NonNullable<NonNullable<CartItem["customDetails"]>["partColors"]>
+): string {
+  return partColors
+    .map((p) => {
+      const filament = p.filament?.trim()
+      return `${p.partName}: ${p.colorName}${filament ? ` (${filament})` : ""}`
+    })
+    .join(" | ")
+}
 
 function variantLabel(item: CartItem): string {
   const d = item.customDetails
   if (!d) return "Konfiguration"
+
+  if (Array.isArray(d.partColors) && d.partColors.length > 0) {
+    return formatPartColorsLabel(d.partColors)
+  }
 
   const parts: string[] = []
   if (d.color) parts.push(d.color)
@@ -78,22 +55,38 @@ function variantLabel(item: CartItem): string {
   if (variant) parts.push(variant)
   const gravur = d.userText ?? d.engravingText
   if (gravur) parts.push(`Gravur: ${gravur}`)
-
   return parts.length > 0 ? parts.join(" · ") : "Konfiguration"
 }
 
 function groupCartByProduct(cart: CartItem[]): { key: string; items: CartItem[] }[] {
   const groups = new Map<string, CartItem[]>()
   for (const item of cart) {
-    const key = item.productId ?? item.id
+    const key = item.productId?.trim() || item.id
     const existing = groups.get(key)
-    if (existing) {
-      existing.push(item)
-    } else {
-      groups.set(key, [item])
-    }
+    if (existing) existing.push(item)
+    else groups.set(key, [item])
   }
   return Array.from(groups.entries()).map(([key, items]) => ({ key, items }))
+}
+
+function CartProductTitle({ item }: { item: CartItem }) {
+  const href =
+    item.productId?.trim()
+      ? productHref({ id: item.productId, name: item.name })
+      : null
+  if (!href) {
+    return <h3 className="font-bold text-foreground">{item.name}</h3>
+  }
+  return (
+    <h3 className="font-bold text-foreground">
+      <Link
+        href={href}
+        className="underline-offset-4 hover:text-primary hover:underline"
+      >
+        {item.name}
+      </Link>
+    </h3>
+  )
 }
 
 function TypeBadge({ type }: { type: "3d" | "laser" }) {
@@ -149,6 +142,7 @@ function CartUnitPrice({
 }
 
 function SingleCartItemDetails({ item }: { item: CartItem }) {
+  const partColors = item.customDetails?.partColors
   return (
     <>
       {item.leitbild && (
@@ -164,11 +158,17 @@ function SingleCartItemDetails({ item }: { item: CartItem }) {
       )}
       {item.customDetails && (
         <div className="text-sm text-muted-foreground space-y-1">
-          {item.customDetails.filament && (
-            <p>Filament: {item.customDetails.filament}</p>
-          )}
-          {item.customDetails.color && (
-            <p>Farbe: {item.customDetails.color}</p>
+          {Array.isArray(partColors) && partColors.length > 0 ? (
+            <p>{formatPartColorsLabel(partColors)}</p>
+          ) : (
+            <>
+              {item.customDetails.filament && (
+                <p>Filament: {item.customDetails.filament}</p>
+              )}
+              {item.customDetails.color && (
+                <p>Farbe: {item.customDetails.color}</p>
+              )}
+            </>
           )}
           {item.customDetails.dimensions && (
             <p>Abmessungen: {item.customDetails.dimensions}</p>
@@ -240,22 +240,24 @@ export function PageWarenkorb({
 }: { 
   setCurrentView: (view: string) => void
   cart: CartItem[]
-  setCart: (cart: CartItem[]) => void
+  setCart: Dispatch<SetStateAction<CartItem[]>>
 }) {
   const { applyDiscount: applyCategoryDiscount, discountPercent: categoryDiscountPercent } =
     useCustomerCategory()
 
   const removeFromCart = (id: string) => {
-    setCart(cart.filter(item => item.id !== id))
+    setCart((prev) => prev.filter((item) => item.id !== id))
   }
 
   const updateQuantity = (id: string, quantity: number) => {
     if (quantity <= 0) {
       removeFromCart(id)
     } else {
-      setCart(cart.map(item => 
-        item.id === id ? { ...item, quantity } : item
-      ))
+      setCart((prev) =>
+        prev.map((item) =>
+          item.id === id ? { ...item, quantity } : item
+        )
+      )
     }
   }
 
@@ -335,7 +337,9 @@ export function PageWarenkorb({
                             Mehrere Variationen
                           </Badge>
                         </div>
-                        <h3 className="mb-4 font-bold text-foreground">{first.name}</h3>
+                        <div className="mb-4">
+                          <CartProductTitle item={first} />
+                        </div>
                         <div className="space-y-3">
                           {group.items.map((item) => {
                             const previewSrc =
@@ -425,7 +429,9 @@ export function PageWarenkorb({
                           <div className="mb-2">
                             <TypeBadge type={item.type} />
                           </div>
-                          <h3 className="mb-2 font-bold text-foreground">{item.name}</h3>
+                          <div className="mb-2">
+                            <CartProductTitle item={item} />
+                          </div>
                           <SingleCartItemDetails item={item} />
                         </div>
                         <div className="text-right">

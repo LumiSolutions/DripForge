@@ -929,9 +929,36 @@ export function AdminCustomersTab({ onOpenOrder }: AdminCustomersTabProps) {
           body: JSON.stringify(payload),
         }
       )
-      const data = (await res.json()) as { error?: string }
+      const data = (await res.json()) as {
+        error?: string
+        warning?: string
+        customer?: CustomerDetail
+      }
       if (!res.ok) {
         throw new Error(data.error ?? "Speichern fehlgeschlagen.")
+      }
+      if (data.customer) {
+        setDetail((prev) =>
+          prev
+            ? {
+                ...prev,
+                ...data.customer!,
+                customerCategoryId:
+                  data.customer!.customerCategoryId ??
+                  payload.customerCategoryId ??
+                  prev.customerCategoryId,
+              }
+            : data.customer!
+        )
+      } else if (payload.customerCategoryId !== undefined) {
+        setDetail((prev) =>
+          prev
+            ? { ...prev, customerCategoryId: payload.customerCategoryId }
+            : prev
+        )
+      }
+      if (data.warning) {
+        setSaveError(data.warning)
       }
       invalidateDetailCache(detail.kundennummer)
       await Promise.all([

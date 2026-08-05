@@ -11,6 +11,7 @@ import {
   Info,
   Lasso,
   Layers,
+  Loader2,
   Maximize2,
   Plus,
   Pipette,
@@ -264,10 +265,17 @@ type DragSession = {
   /** Move: erst nach Threshold echte Verschiebung (Klick/Deselect ohne Sprung) */
   hasMoved?: boolean
   historyPushed?: boolean
+  /** Canvas-Rect bei Drag-Start — verhindert Drift bei Layout-/Chrome-Änderungen */
+  canvasWidth: number
+  canvasHeight: number
+  canvasLeft: number
+  canvasTop: number
 }
 
 /** Pixel-Schwelle bevor ein Move-Drag die Position verändert. */
 const MOVE_DRAG_THRESHOLD_PX = 5
+/** Doppelklick-Fenster für Text-Bearbeitung auf dem Canvas. */
+const TEXT_DOUBLE_CLICK_MS = 320
 
 /** Sperrt Browser-Scroll/-Select/-Drag während Canvas-Gesten (Mobil + Desktop / iOS). */
 const CANVAS_TOUCH_LOCK_CLASS =
@@ -405,6 +413,10 @@ function buildDragSession(
     maxScale,
     resizeHandle: options?.resizeHandle,
     proportional: options?.proportional,
+    canvasWidth: canvasRect.width,
+    canvasHeight: canvasRect.height,
+    canvasLeft: canvasRect.left,
+    canvasTop: canvasRect.top,
   }
 }
 
@@ -491,6 +503,9 @@ function InteractiveCanvasElement({
   const cropStartRef = useRef<{ relX: number; relY: number } | null>(null)
   const eraserPaintingRef = useRef(false)
   const eraserPointerIdRef = useRef<number | null>(null)
+  const lastTextClickRef = useRef<{ time: number; x: number; y: number } | null>(
+    null
+  )
   const [cropPreview, setCropPreview] = useState<{
     x: number
     y: number
@@ -543,7 +558,10 @@ function InteractiveCanvasElement({
     mode: DragMode,
     options?: { resizeHandle?: ResizeHandle; proportional?: boolean }
   ) => {
-    e.preventDefault()
+    // Text: preventDefault erst nach Drag-Commit — sonst blockiert es Doppelklick.
+    if (!(kind === "text" && mode === "move")) {
+      e.preventDefault()
+    }
     e.stopPropagation()
     beginDragAt(mode, e.pointerId, e.clientX, e.clientY, options)
   }
@@ -704,6 +722,27 @@ function InteractiveCanvasElement({
           }
           // Nur Move — nie Scale beim Body-Drag
           if (isResizeOrRotateHandle(e.target)) return
+          if (kind === "text") {
+            const now = Date.now()
+            const prev = lastTextClickRef.current
+            const nearPrev =
+              prev != null &&
+              now - prev.time <= TEXT_DOUBLE_CLICK_MS &&
+              Math.hypot(e.clientX - prev.x, e.clientY - prev.y) < 12
+            if (nearPrev) {
+              lastTextClickRef.current = null
+              e.preventDefault()
+              e.stopPropagation()
+              onSelect()
+              onEditText?.()
+              return
+            }
+            lastTextClickRef.current = {
+              time: now,
+              x: e.clientX,
+              y: e.clientY,
+            }
+          }
           e.stopPropagation()
           beginPointerDrag(e, "move")
         }}
@@ -1619,6 +1658,26 @@ function LaserDesignerPreview({
   const [editingTextLayerId, setEditingTextLayerId] = useState<string | null>(
     null
   )
+  const textEditorRef = useRef<HTMLTextAreaElement | null>(null)
+  const [textEditorFocusToken, setTextEditorFocusToken] = useState(0)
+
+  useEffect(() => {
+    if (textEditorFocusToken <= 0) return
+    const id = window.requestAnimationFrame(() => {
+      const el = textEditorRef.current
+      if (!el) return
+      el.focus()
+      el.select()
+      el.scrollIntoView({ block: "nearest", behavior: "smooth" })
+    })
+    return () => window.cancelAnimationFrame(id)
+  }, [textEditorFocusToken])
+
+  const openTextEditor = useCallback((layerId: string) => {
+    onStateChange({ activeLayerId: layerId })
+    setEditingTextLayerId(layerId)
+    setTextEditorFocusToken((t) => t + 1)
+  }, [onStateChange])
   const [eraserRadius, setEraserRadius] = useState(0.045)
   const [lassoPreviewPoints, setLassoPreviewPoints] = useState<
     Array<{ relX: number; relY: number }>
@@ -1901,23 +1960,29 @@ function LaserDesignerPreview({
         }
         if (!session.hasMoved) {
           session.hasMoved = true
+          // Re-base Start auf den Commit-Punkt — kein Sprung um den Threshold.
+          session.startClientX = clientX
+          session.startClientY = clientY
           if (!session.historyPushed) {
             session.historyPushed = true
             pushHistorySnapshotRef.current()
           }
+          return
         }
-        const start = getCanvasPoint(
-          canvas,
-          session.startClientX,
-          session.startClientY
-        )
-        const now = getCanvasPoint(canvas, clientX, clientY)
-        const rawX = startLayout.x + (now.percentX - start.percentX)
-        const rawY = startLayout.y + (now.percentY - start.percentY)
+        const w = session.canvasWidth || 1
+        const h = session.canvasHeight || 1
+        const startPercentX =
+          ((session.startClientX - session.canvasLeft) / w) * 100
+        const startPercentY =
+          ((session.startClientY - session.canvasTop) / h) * 100
+        const nowPercentX = ((clientX - session.canvasLeft) / w) * 100
+        const nowPercentY = ((clientY - session.canvasTop) / h) * 100
+        const rawX = startLayout.x + (nowPercentX - startPercentX)
+        const rawY = startLayout.y + (nowPercentY - startPercentY)
         // Freies Verschieben über den Rand hinaus (Zuschneiden durch Overflow)
         applyLayout(target, {
-          x: Math.max(-80, Math.min(180, rawX)),
-          y: Math.max(-80, Math.min(180, rawY)),
+          x: Math.round(Math.max(-80, Math.min(180, rawX)) * 100) / 100,
+          y: Math.round(Math.max(-80, Math.min(180, rawY)) * 100) / 100,
         })
         return
       }
@@ -1964,6 +2029,17 @@ function LaserDesignerPreview({
     const session = dragSessionRef.current
     if (!session) return
     if (pointerId !== undefined && session.pointerId !== pointerId) return
+    // Finale Position nochmals runden/einfrieren (kein Nachzittern durch Re-Render).
+    if (session.hasMoved && session.mode === "move") {
+      const layer = stateRef.current.layers.find((l) => l.id === session.target)
+      if (layer) {
+        const x = Math.round((layer.x ?? session.startLayout.x) * 100) / 100
+        const y = Math.round((layer.y ?? session.startLayout.y) * 100) / 100
+        if (x !== layer.x || y !== layer.y) {
+          applyLayout(session.target, { x, y })
+        }
+      }
+    }
     dragSessionRef.current = null
     setDragMode(null)
     try {
@@ -1973,7 +2049,7 @@ function LaserDesignerPreview({
     } catch {
       // Capture kann bereits geloest sein
     }
-  }, [])
+  }, [applyLayout])
 
   // Window-Listener: Drag bleibt aktiv auch ausserhalb des Canvas (rAF für Stabilität).
   useEffect(() => {
@@ -2032,6 +2108,15 @@ function LaserDesignerPreview({
         (t) => t.identifier === session.pointerId
       )
       if (ended || e.touches.length === 0) {
+        if (rafId != null) {
+          cancelAnimationFrame(rafId)
+          rafId = null
+        }
+        const pending = pendingRef.current
+        pendingRef.current = null
+        if (pending) {
+          processDragMove(pending.clientX, pending.clientY, pending.pointerId)
+        }
         endDragSession(session.pointerId)
       }
     }
@@ -2439,7 +2524,7 @@ function LaserDesignerPreview({
         smartRemoveSeeds,
         smartRemoveAutoMode
       )
-    }, 80)
+    }, 280)
     return () => window.clearTimeout(t)
   }, [
     smartRemoveOpen,
@@ -3210,10 +3295,7 @@ function LaserDesignerPreview({
                   }}
                   onBringForward={() => bringLayerForward(layer.id)}
                   onSendBackward={() => sendLayerBackward(layer.id)}
-                  onEditText={() => {
-                    onStateChange({ activeLayerId: layer.id })
-                    setEditingTextLayerId(layer.id)
-                  }}
+                  onEditText={() => openTextEditor(layer.id)}
                 >
                   {text || "Text"}
                 </InteractiveCanvasElement>
@@ -3336,16 +3418,32 @@ function LaserDesignerPreview({
                       ? "Maske / Nachher"
                       : "Klicke aufs Bild…"}
                 </p>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={
-                    smartRemovePreview ??
-                    smartRemoveResult ??
-                    smartRemoveBaseSrc
-                  }
-                  alt="Vorschau Freistellen"
-                  className="max-h-36 w-full rounded-md border border-border/50 object-contain bg-[linear-gradient(45deg,#ccc_25%,transparent_25%,transparent_75%,#ccc_75%),linear-gradient(45deg,#ccc_25%,transparent_25%,transparent_75%,#ccc_75%)] bg-[length:12px_12px] bg-[position:0_0,6px_6px]"
-                />
+                <div className="relative">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={
+                      smartRemovePreview ??
+                      smartRemoveResult ??
+                      smartRemoveBaseSrc
+                    }
+                    alt="Vorschau Freistellen"
+                    className="max-h-36 w-full rounded-md border border-border/50 object-contain bg-[linear-gradient(45deg,#ccc_25%,transparent_25%,transparent_75%,#ccc_75%),linear-gradient(45deg,#ccc_25%,transparent_25%,transparent_75%,#ccc_75%)] bg-[length:12px_12px] bg-[position:0_0,6px_6px]"
+                  />
+                  {smartRemoveBusy ? (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-md bg-background/75 backdrop-blur-[1px]">
+                      <Loader2 className="h-6 w-6 animate-spin text-violet-500" />
+                      <p className="px-3 text-center text-xs font-medium text-foreground">
+                        Freistellung wird berechnet…
+                        <span className="mt-0.5 block font-normal text-muted-foreground">
+                          Bitte einen Moment Geduld
+                        </span>
+                      </p>
+                      <div className="h-1.5 w-2/3 overflow-hidden rounded-full bg-muted">
+                        <div className="h-full w-1/2 animate-pulse rounded-full bg-violet-500" />
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
               </div>
             </div>
             <div className="space-y-1.5">
@@ -3451,6 +3549,7 @@ function LaserDesignerPreview({
                 </Button>
               </div>
               <Textarea
+                ref={textEditorRef}
                 key={`text-content-${textLayer.id}`}
                 value={textLayer.text ?? ""}
                 onChange={(e) => {

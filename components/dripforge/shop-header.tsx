@@ -26,6 +26,7 @@ import {
 } from "@/lib/dripforge/service-visibility"
 import type { ServiceVisibilitySettings } from "@/lib/admin/types"
 import { shopCartHref, shopNavHref } from "@/lib/dripforge/shop-routes"
+import { prefetchProductCovers } from "@/components/dripforge/shared/shop-image-prefetch"
 import { HEADER_ICON_BTN_CLASS } from "@/components/dripforge/support-nav-link"
 import { BrandIconImage } from "@/components/dripforge/brand-icon-image"
 import { EditableCmsNavLabel } from "@/components/dripforge/editable-cms-nav-label"
@@ -214,6 +215,10 @@ export function ShopHeader(props: ShopHeaderProps) {
     setMobileMenuOpen(false)
     setSearchOpen(false)
     setSearchQuery("")
+  }
+
+  const prefetchShopCatalogImages = () => {
+    if (catalogProducts.length > 0) prefetchProductCovers(catalogProducts)
   }
 
   const logo = (
@@ -428,13 +433,19 @@ export function ShopHeader(props: ShopHeaderProps) {
           {props.mode === "spa" ? (
             <Button
               onClick={() => props.onOpenShop?.() ?? props.onNavigate("shop")}
+              onMouseEnter={prefetchShopCatalogImages}
+              onFocus={prefetchShopCatalogImages}
               className="hidden bg-primary text-primary-foreground hover:bg-primary/90 md:flex"
             >
               Jetzt Erstellen
             </Button>
           ) : (
             <Button asChild className="hidden bg-primary text-primary-foreground hover:bg-primary/90 md:flex">
-              <SafeLink href={shopNavHref("shop")}>
+              <SafeLink
+                href={shopNavHref("shop")}
+                onMouseEnter={prefetchShopCatalogImages}
+                onFocus={prefetchShopCatalogImages}
+              >
                 Jetzt Erstellen
               </SafeLink>
             </Button>

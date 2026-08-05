@@ -279,6 +279,7 @@ export function AdminProductsTab() {
   const [formBaseline, setFormBaseline] = useState("")
   const [discardPromptOpen, setDiscardPromptOpen] = useState(false)
   const [stlAnalyzing, setStlAnalyzing] = useState(false)
+  const [saveSuccess, setSaveSuccess] = useState<string | null>(null)
 
   const toggleSection = (key: string) => {
     setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }))
@@ -349,6 +350,7 @@ export function AdminProductsTab() {
     setLaserMaterialFilter("")
     setMaterialLinkFilters({})
     setOpenSections({ ...DEFAULT_PRODUCT_SECTIONS })
+    setSaveSuccess(null)
   }
 
   const requestCloseEditor = () => {
@@ -447,6 +449,7 @@ export function AdminProductsTab() {
       printTimeMinutes: product.printTimeMinutes,
       printTimeShowInShop: Boolean(product.printTimeShowInShop),
       allowedFilamentMaterialTypeIds: product.allowedFilamentMaterialTypeIds,
+      defaultRotationDeg: product.defaultRotationDeg ?? { x: 0, y: 0, z: 0 },
     }
     setForm(next)
     setPartLabelsDraft(null)
@@ -459,6 +462,7 @@ export function AdminProductsTab() {
       sale: Boolean(product.sale),
     })
     setIsEditing(true)
+    setSaveSuccess(null)
   }
 
   const updateField = <K extends keyof typeof form>(
@@ -726,6 +730,7 @@ export function AdminProductsTab() {
   const saveProduct = async () => {
     setSaving(true)
     setError(null)
+    setSaveSuccess(null)
 
     const committedPartLabels =
       partLabelsDraft !== null
@@ -774,6 +779,7 @@ export function AdminProductsTab() {
           ...form,
           partLabels: committedPartLabels,
           defaultFilamentColorName: committedColor,
+          defaultRotationDeg: form.defaultRotationDeg ?? null,
           quantityDiscountTiers:
             quantityDiscountTiers.length > 0 ? quantityDiscountTiers : [],
           printTimeMinutes: form.printTimeMinutes ?? null,
@@ -792,9 +798,25 @@ export function AdminProductsTab() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? "Speichern fehlgeschlagen")
 
+      const savedProduct = (data.product ?? null) as AdminProduct | null
       await loadProducts()
-      setFormBaseline("")
-      closeEditor()
+
+      if (savedProduct) {
+        startEdit(savedProduct)
+      } else {
+        setFormBaseline(
+          snapshotForm(
+            {
+              ...form,
+              partLabels: committedPartLabels,
+              defaultFilamentColorName: committedColor,
+            },
+            null,
+            null
+          )
+        )
+      }
+      setSaveSuccess("Produktdaten erfolgreich gespeichert")
     } catch (err) {
       console.warn("Admin: Produkt konnte nicht gespeichert werden.", err)
       setError(
@@ -2387,6 +2409,14 @@ export function AdminProductsTab() {
               )}
               Speichern
             </Button>
+            {saveSuccess ? (
+              <p
+                className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300"
+                role="status"
+              >
+                {saveSuccess}
+              </p>
+            ) : null}
           </div>
         </DialogContent>
       </Dialog>

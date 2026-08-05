@@ -91,7 +91,7 @@ export function ShopProductCard({
             ? "cursor-default"
             : "cursor-pointer hover:border-primary/50 hover:shadow-md",
           surface === "brand"
-            ? "bg-gradient-to-br from-orange-500/10 via-card to-cyan-500/10"
+            ? "bg-gradient-to-br from-muted/60 via-card to-muted/40"
             : "bg-card",
           product.sale && "border-red-500/30 hover:border-red-500/60"
         )}
@@ -119,7 +119,7 @@ export function ShopProductCard({
               "relative h-40 w-full shrink-0 overflow-hidden p-2.5 sm:h-32 sm:w-40",
               productImageBayClass(product.imageShape),
               surface === "brand"
-                ? "bg-gradient-to-br from-orange-500/15 to-cyan-500/15"
+                ? "bg-[#F3F4F6] dark:bg-zinc-800/60"
                 : "bg-secondary/50"
             )}
           >
@@ -208,7 +208,7 @@ export function ShopProductCard({
           normalizeShapeAspect(product.imageShape, viewMode),
           productImageBayClass(product.imageShape),
           surface === "brand"
-            ? "bg-gradient-to-br from-orange-500/20 via-amber-500/10 to-cyan-500/20"
+            ? "bg-[#F3F4F6] dark:bg-zinc-800/60"
             : "bg-secondary/40",
           canInlineEdit && "pointer-events-none select-none"
         )}
