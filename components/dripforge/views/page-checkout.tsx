@@ -81,6 +81,7 @@ import { useCompanySettings } from "@/components/dripforge/company-settings-prov
 import { submitOrder, startStripeCheckout, startTwintCheckout, type OrderPayload } from "@/lib/dripforge/submit-order"
 import { CheckoutSuccessModal } from "@/components/dripforge/checkout-success-modal"
 import { ensureCartLaserMockups } from "@/lib/dripforge/ensure-laser-mockup"
+import { CountrySelect } from "@/components/dripforge/shared/country-select"
 import {
   fetchStripePublishableKey,
   loadBrowserStripe,
@@ -1448,7 +1449,7 @@ export function PageCheckout({
                   </div>
                 </div>
 
-                <FormField
+                <CountrySelect
                   id="country"
                   label="Land"
                   value={form.country}
@@ -1641,7 +1642,7 @@ export function PageCheckout({
                         />
                       </div>
                     </div>
-                    <FormField
+                    <CountrySelect
                       id="deliveryCountry"
                       label="Land"
                       value={form.deliveryCountry}
@@ -2037,9 +2038,13 @@ export function PageCheckout({
                 <div className="flex justify-between gap-3">
                   <span className="text-muted-foreground">Versandkosten</span>
                   <span className="font-medium tabular-nums">
-                    {shippingCost === 0
-                      ? "Gratis"
-                      : `CHF ${totals.shippingCost.toFixed(2)}`}
+                    {!categoryLoaded || !shippingOptionsReady
+                      ? "…"
+                      : internationalStatus.blocked
+                        ? "—"
+                        : shippingCost === 0
+                          ? "Gratis"
+                          : `CHF ${totals.shippingCost.toFixed(2)}`}
                   </span>
                 </div>
                 {totals.discountAmount > 0 && (

@@ -1,6 +1,6 @@
 "use client"
 
-import { FormEvent, useEffect, useState } from "react"
+import { FormEvent, useEffect, useMemo, useState } from "react"
 import {
   Check,
   KeyRound,
@@ -29,6 +29,12 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { KontoShell } from "@/components/konto/konto-shell"
+import { CountrySelect } from "@/components/dripforge/shared/country-select"
+import {
+  DEFAULT_COUNTRY_LABEL,
+  normalizeCountryLabel,
+} from "@/lib/dripforge/countries"
+import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-changes-guard"
 import type { CustomerProfileResponse } from "@/lib/konto/customer-profile-service"
 import type { SavedDeliveryAddress } from "@/lib/konto/account-types"
 import {
@@ -57,6 +63,7 @@ type DeliveryDraft = {
   street: string
   zip: string
   city: string
+  country: string
 }
 
 const EMPTY: AddressForm = {
@@ -78,10 +85,21 @@ const EMPTY_DRAFT: DeliveryDraft = {
   street: "",
   zip: "",
   city: "",
+  country: DEFAULT_COUNTRY_LABEL,
+}
+
+function billingSnapshot(form: AddressForm): string {
+  return JSON.stringify({
+    street: form.street,
+    zip: form.zip,
+    city: form.city,
+    phone: form.phone,
+  })
 }
 
 export function KontoProfilePage() {
   const [form, setForm] = useState<AddressForm>(EMPTY)
+  const [savedBillingSnapshot, setSavedBillingSnapshot] = useState("")
   const [deliveryAddresses, setDeliveryAddresses] = useState<SavedDeliveryAddress[]>(
     []
   )
@@ -104,8 +122,28 @@ export function KontoProfilePage() {
   const [passwordMessage, setPasswordMessage] = useState<string | null>(null)
   const [passwordError, setPasswordError] = useState<string | null>(null)
 
+  const showDeliveryFormEarly = addingDelivery || editingDeliveryId != null
+  const isDirty = useMemo(() => {
+    if (loading) return false
+    if (savedBillingSnapshot && billingSnapshot(form) !== savedBillingSnapshot) {
+      return true
+    }
+    if (showDeliveryFormEarly) return true
+    if (passwordCurrent || passwordNew || passwordConfirm) return true
+    return false
+  }, [
+    loading,
+    form,
+    savedBillingSnapshot,
+    showDeliveryFormEarly,
+    passwordCurrent,
+    passwordNew,
+    passwordConfirm,
+  ])
+  useUnsavedChangesGuard(isDirty)
+
   const applyProfile = (profile: CustomerProfileResponse) => {
-    setForm({
+    const nextForm: AddressForm = {
       firstName: profile.firstName ?? "",
       lastName: profile.lastName ?? "",
       street: profile.street ?? "",
@@ -114,7 +152,9 @@ export function KontoProfilePage() {
       phone: profile.phone ?? "",
       email: profile.email ?? "",
       kundennummer: profile.kundennummer,
-    })
+    }
+    setForm(nextForm)
+    setSavedBillingSnapshot(billingSnapshot(nextForm))
     setDeliveryAddresses(
       normalizeDeliveryAddresses(profile.deliveryAddresses, {
         deliveryStreet: profile.deliveryStreet,
@@ -202,6 +242,7 @@ export function KontoProfilePage() {
       street: "",
       zip: "",
       city: "",
+      country: DEFAULT_COUNTRY_LABEL,
     })
   }
 
@@ -218,6 +259,7 @@ export function KontoProfilePage() {
       street: address.street,
       zip: address.zip,
       city: address.city,
+      country: normalizeCountryLabel(address.country || DEFAULT_COUNTRY_LABEL),
     })
   }
 
@@ -236,6 +278,9 @@ export function KontoProfilePage() {
     const firstName = deliveryDraft.firstName.trim()
     const lastName = deliveryDraft.lastName.trim()
     const company = deliveryDraft.company.trim()
+    const country = normalizeCountryLabel(
+      deliveryDraft.country || DEFAULT_COUNTRY_LABEL
+    )
     if (!street || !zip || !city) {
       setDeliveryError("Bitte Strasse, PLZ und Ort ausfüllen.")
       return
@@ -253,6 +298,7 @@ export function KontoProfilePage() {
           street,
           zip,
           city,
+          country,
           isDefault: deliveryAddresses.length === 0,
           ...(firstName ? { firstName } : {}),
           ...(lastName ? { lastName } : {}),
@@ -273,6 +319,7 @@ export function KontoProfilePage() {
                   street,
                   zip,
                   city,
+                  country,
                   firstName: firstName || undefined,
                   lastName: lastName || undefined,
                   company: company || undefined,
@@ -562,7 +609,13 @@ export function KontoProfilePage() {
                             .filter(Boolean)
                             .join(" · ")
                           const location = `${address.street}, ${address.zip} ${address.city}`
-                          return prefix ? `${prefix} — ${location}` : location
+                          const country = address.country
+                            ? ` · ${address.country}`
+                            : ""
+                          const body = prefix
+                            ? `${prefix} — ${location}`
+                            : location
+                          return `${body}${country}`
                         })()}
                       </p>
                     </div>
@@ -696,6 +749,14 @@ export function KontoProfilePage() {
                     />
                   </div>
                 </div>
+                <CountrySelect
+                  id="deliveryCountry"
+                  label="Land"
+                  value={deliveryDraft.country}
+                  onChange={(v) =>
+                    setDeliveryDraft((d) => ({ ...d, country: v }))
+                  }
+                />
                 {deliveryError && (
                   <p className="text-sm text-red-500">{deliveryError}</p>
                 )}

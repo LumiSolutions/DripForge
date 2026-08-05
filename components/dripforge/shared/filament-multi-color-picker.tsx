@@ -298,8 +298,10 @@ export function FilamentMultiColorPicker({
               className={cn(
                 "flex items-center gap-1 rounded-lg border pr-1 text-xs font-medium transition-all",
                 isActive
-                  ? "border-primary bg-primary/10 text-foreground"
-                  : "border-border/60 bg-card/80 text-muted-foreground"
+                  ? "border-primary bg-primary/15 text-foreground shadow-[0_0_0_1px_hsl(var(--primary)/0.45)] ring-2 ring-primary/35"
+                  : entry
+                    ? "border-primary/35 bg-card/80 text-foreground"
+                    : "border-border/60 bg-card/80 text-muted-foreground"
               )}
             >
               <button

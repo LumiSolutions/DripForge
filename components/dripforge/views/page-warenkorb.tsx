@@ -323,6 +323,8 @@ export function PageWarenkorb({
 
                 if (isMultiVariant) {
                   const first = group.items[0]
+                  const groupFallbackPreview =
+                    first.leitbild || first.previewMockup || undefined
                   return (
                     <Card key={group.key} className="border-border/50 bg-card/50">
                       <CardContent className="p-6">
@@ -335,23 +337,36 @@ export function PageWarenkorb({
                         </div>
                         <h3 className="mb-4 font-bold text-foreground">{first.name}</h3>
                         <div className="space-y-3">
-                          {group.items.map((item) => (
+                          {group.items.map((item) => {
+                            const previewSrc =
+                              item.leitbild ||
+                              item.previewMockup ||
+                              groupFallbackPreview
+                            return (
                             <div
                               key={item.id}
                               className="flex flex-col gap-3 rounded-lg border border-border/50 bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between"
                             >
                               <div className="flex min-w-0 flex-1 items-start gap-3">
-                                {item.leitbild && (
-                                  <div className="relative h-16 w-24 shrink-0 overflow-hidden rounded-md border border-border/50 bg-muted/30">
-                                    <SafeProductImage
-                                      src={item.leitbild}
-                                      alt="Leitbild der Variante"
-                                      fill
-                                      sizes="96px"
-                                      className="object-contain"
-                                    />
+                                {previewSrc ? (
+                                  <div className="w-24 shrink-0 space-y-1">
+                                    <div className="relative h-16 w-24 overflow-hidden rounded-md border border-border/50 bg-muted/30">
+                                      <SafeProductImage
+                                        src={previewSrc}
+                                        alt="Leitbild der Variante"
+                                        fill
+                                        sizes="96px"
+                                        className="object-contain"
+                                      />
+                                    </div>
+                                    {first.type === "3d" ? (
+                                      <p className="text-[10px] leading-snug text-muted-foreground">
+                                        Abbildung dient als Ausführungsvorschau –
+                                        gewählte Farben siehe Spezifikation
+                                      </p>
+                                    ) : null}
                                   </div>
-                                )}
+                                ) : null}
                                 <p className="text-sm text-muted-foreground">
                                   {variantLabel(item)}
                                 </p>
@@ -393,7 +408,8 @@ export function PageWarenkorb({
                                 </Button>
                               </div>
                             </div>
-                          ))}
+                            )
+                          })}
                         </div>
                       </CardContent>
                     </Card>

@@ -4,7 +4,7 @@
  */
 
 export const DEFAULT_INTERNATIONAL_DISABLED_MESSAGE =
-  "Aktuell sind leider keine Auslandsbestellungen möglich. Wir liefern derzeit nur innerhalb der Schweiz & Lichtenstein."
+  "Aktuell sind leider keine Auslandsbestellungen möglich. Wir liefern derzeit nur innerhalb der Schweiz & Liechtenstein."
 
 export type InternationalShippingSettings = {
   /** Wenn false: Auslandsadressen im Checkout blockieren */
