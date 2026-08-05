@@ -38,6 +38,14 @@ export const DEFAULT_SITE_IMAGES = {
     url: PAGE_3D_HERO_DEFAULT,
     alt: "3D Printer",
   },
+  printability_good_example_image: {
+    url: EXPERTISE_DEFAULT,
+    alt: "Beispiel für gut druckbares 3D-Modell",
+  },
+  printability_bad_example_image: {
+    url: EXPERTISE_DEFAULT,
+    alt: "Beispiel für schwer druckbares 3D-Modell",
+  },
   brand_logo: {
     url: LOGO_DEFAULT,
     alt: "DripForge Logo",
@@ -67,6 +75,16 @@ export const SITE_IMAGE_SECTIONS: SiteImageSection[] = [
     label: "Unterseiten",
     fields: [
       { key: "page_3d_druck_hero_image", label: "3D-Druck Banner" },
+      {
+        key: "printability_good_example_image",
+        label: "3D-Druck: Gut druckbar (Beispielbild)",
+        description: "Infobox «Was kann gedruckt werden?» — positive Beispiele",
+      },
+      {
+        key: "printability_bad_example_image",
+        label: "3D-Druck: Schwer druckbar (Beispielbild)",
+        description: "Infobox «Was kann gedruckt werden?» — negative Beispiele",
+      },
     ],
   },
   {

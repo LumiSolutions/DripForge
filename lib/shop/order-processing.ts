@@ -523,6 +523,19 @@ export async function processOrderPayload(
         journalError
       )
     }
+  } else if (
+    order.paymentMethod === "invoice" ||
+    order.paymentMethod === "cash"
+  ) {
+    // Offene Forderung bereits bei Bestelleingang (Soll: Forderungen L+L).
+    try {
+      await recordOrderPaymentJournalEntry(order)
+    } catch (journalError) {
+      console.error(
+        `Buchhaltung: Forderungsbuchung für Bestellung ${order.orderId} fehlgeschlagen.`,
+        journalError
+      )
+    }
   }
 
   return {

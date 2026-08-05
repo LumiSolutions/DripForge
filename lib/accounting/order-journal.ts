@@ -8,6 +8,8 @@ import {
 import type { JournalLine } from "@/lib/accounting/journal-types"
 import { validateJournalEntryLines } from "@/lib/accounting/journal-types"
 
+export type PaymentSettlementAccount = "bank" | "cash"
+
 function roundChf(value: number): number {
   return Math.round(value * 100) / 100
 }
@@ -72,13 +74,22 @@ function allocateDiscountedRevenue(order: StoredOrder): {
   return { revenue3d: net3d, revenueLaser: netLaser }
 }
 
-function resolveCounterAccount(
+/** Online-Zahlung (Stripe/TWINT) → Bank; Rechnung/Bar → offene Forderung. */
+function resolveSaleCounterAccount(
   paymentMethod: PaymentMethodId,
   config: ReturnType<typeof getAccountingAccountConfig>
 ): string {
-  if (paymentMethod === "invoice") return config.receivable
-  if (paymentMethod === "twint") return config.bank
+  if (paymentMethod === "invoice" || paymentMethod === "cash") {
+    return config.receivable
+  }
   return config.bank
+}
+
+function resolveSettlementAssetAccount(
+  settlement: PaymentSettlementAccount,
+  config: ReturnType<typeof getAccountingAccountConfig>
+): string {
+  return settlement === "cash" ? config.cash : config.bank
 }
 
 function defaultVatRate(order: StoredOrder): number {
@@ -97,6 +108,11 @@ function defaultRevenueTaxCode(order: StoredOrder): string | undefined {
   return "UN81"
 }
 
+/**
+ * Verkaufsbuchung:
+ * - Stripe/TWINT: SOLL Bank / HABEN Erlöse (+ MwSt)
+ * - Rechnung/Bar: SOLL Forderungen / HABEN Erlöse (+ MwSt)
+ */
 export function buildOrderPaymentJournalLines(order: StoredOrder): JournalLine[] {
   const config = getAccountingAccountConfig()
   const total = roundChf(order.totals.total ?? 0)
@@ -106,7 +122,7 @@ export function buildOrderPaymentJournalLines(order: StoredOrder): JournalLine[]
   const { revenue3d, revenueLaser } = allocateDiscountedRevenue(order)
   const vatRate = defaultVatRate(order)
   const revenueTaxCode = defaultRevenueTaxCode(order)
-  const counterAccount = resolveCounterAccount(order.paymentMethod, config)
+  const counterAccount = resolveSaleCounterAccount(order.paymentMethod, config)
 
   const lines: JournalLine[] = [
     {
@@ -165,10 +181,45 @@ export function buildOrderPaymentJournalLines(order: StoredOrder): JournalLine[]
   return lines
 }
 
+/** Zahlungseingang: SOLL Bank/Kasse / HABEN Forderungen. */
+export function buildOrderSettlementJournalLines(
+  order: StoredOrder,
+  settlement: PaymentSettlementAccount
+): JournalLine[] {
+  const config = getAccountingAccountConfig()
+  const total = roundChf(order.totals.total ?? 0)
+  if (total <= 0) return []
+
+  const asset = resolveSettlementAssetAccount(settlement, config)
+  return [
+    {
+      accountNumber: asset,
+      type: "SOLL",
+      amount: total,
+      taxRate: 0,
+    },
+    {
+      accountNumber: config.receivable,
+      type: "HABEN",
+      amount: total,
+      taxRate: 0,
+    },
+  ]
+}
+
+export function orderSettlementSourceId(orderId: string): string {
+  return `${orderId.trim()}:settlement`
+}
+
 export async function recordOrderPaymentJournalEntry(
-  order: StoredOrder
+  order: StoredOrder,
+  options?: { bookingDate?: string }
 ): Promise<{ recorded: boolean; entryId?: string; reason?: string }> {
-  if (!order.paymentConfirmed) {
+  // Verkauf auf Rechnung/Bar wird ohne Zahlung bestätigt als Forderung gebucht —
+  // Stripe/TWINT erst nach paymentConfirmed.
+  const isReceivableSale =
+    order.paymentMethod === "invoice" || order.paymentMethod === "cash"
+  if (!isReceivableSale && !order.paymentConfirmed) {
     return { recorded: false, reason: "payment_not_confirmed" }
   }
 
@@ -190,12 +241,81 @@ export async function recordOrderPaymentJournalEntry(
     return { recorded: false, reason: "invalid_lines" }
   }
 
+  const bookingDate =
+    options?.bookingDate?.slice(0, 10) ||
+    order.createdAt.slice(0, 10) ||
+    new Date().toISOString().slice(0, 10)
+
   const entry = await cosmosCreateJournalEntry({
-    date: order.createdAt.slice(0, 10),
+    date: bookingDate,
     description: `Verkauf Bestellung ${order.orderId}`,
     lines,
     source: "order",
     sourceOrderId: order.orderId,
+  })
+
+  return { recorded: true, entryId: entry.id }
+}
+
+/**
+ * Manueller Zahlungseingang (Rechnung/Bar): Forderung auflösen → Bank oder Kasse.
+ */
+export async function recordOrderSettlementJournalEntry(
+  order: StoredOrder,
+  options: {
+    settlementAccount: PaymentSettlementAccount
+    paymentDate?: string
+  }
+): Promise<{ recorded: boolean; entryId?: string; reason?: string }> {
+  if (!order.paymentConfirmed) {
+    return { recorded: false, reason: "payment_not_confirmed" }
+  }
+
+  const orderId = order.orderId?.trim()
+  if (!orderId) {
+    return { recorded: false, reason: "missing_order_id" }
+  }
+
+  // Verkaufsbuchung (Forderung) sicherstellen — auch für ältere Bestellungen.
+  await recordOrderPaymentJournalEntry(order, {
+    bookingDate: order.createdAt.slice(0, 10),
+  })
+
+  const settlementSourceId = orderSettlementSourceId(orderId)
+  const existing =
+    await cosmosGetJournalEntryBySourceOrderId(settlementSourceId)
+  if (existing) {
+    return { recorded: false, reason: "already_recorded", entryId: existing.id }
+  }
+
+  const lines = buildOrderSettlementJournalLines(
+    order,
+    options.settlementAccount
+  )
+  if (!lines.length) {
+    return { recorded: false, reason: "empty_lines" }
+  }
+
+  const validation = validateJournalEntryLines(lines)
+  if (!validation.valid) {
+    console.error(
+      `Buchhaltung: Zahlungseingang für ${orderId} ungültig: ${validation.error}`
+    )
+    return { recorded: false, reason: "invalid_lines" }
+  }
+
+  const paymentDate =
+    options.paymentDate?.slice(0, 10) ||
+    new Date().toISOString().slice(0, 10)
+  const assetLabel =
+    options.settlementAccount === "cash" ? "Kasse" : "Bank Raiffeisen"
+
+  const entry = await cosmosCreateJournalEntry({
+    date: paymentDate,
+    description: `Zahlungseingang ${orderId} (${assetLabel})`,
+    lines,
+    source: "order",
+    sourceOrderId: settlementSourceId,
   })
 
   return { recorded: true, entryId: entry.id }
@@ -240,7 +360,6 @@ export async function recordOrderStornoJournalEntry(
 
   const paymentEntry = await cosmosGetJournalEntryBySourceOrderId(orderId)
   if (!paymentEntry) {
-    // Keine Verkaufsbuchung → nichts zu stornieren (z. B. nie bezahlt)
     return { recorded: false, reason: "no_payment_entry" }
   }
 
@@ -277,6 +396,31 @@ export async function recordOrderStornoJournalEntry(
     source: "order",
     sourceOrderId: stornoSourceId,
   })
+
+  // Auch offenen Zahlungseingang stornieren, falls vorhanden.
+  const settlementId = orderSettlementSourceId(orderId)
+  const settlementEntry =
+    await cosmosGetJournalEntryBySourceOrderId(settlementId)
+  if (settlementEntry && settlementEntry.lines.length) {
+    const settlementStornoId = `${settlementId}:storno`
+    const existingSettlementStorno =
+      await cosmosGetJournalEntryBySourceOrderId(settlementStornoId)
+    if (!existingSettlementStorno) {
+      await cosmosCreateJournalEntry({
+        date: bookingDate,
+        description: `Storno Zahlungseingang ${orderId}`,
+        lines: settlementEntry.lines.map((line) => ({
+          accountNumber: line.accountNumber,
+          type: (line.type === "SOLL" ? "HABEN" : "SOLL") as JournalLine["type"],
+          amount: roundChf(line.amount),
+          taxRate: Number(line.taxRate) || 0,
+          ...(line.taxCode ? { taxCode: line.taxCode } : {}),
+        })),
+        source: "order",
+        sourceOrderId: settlementStornoId,
+      })
+    }
+  }
 
   return { recorded: true, entryId: entry.id }
 }

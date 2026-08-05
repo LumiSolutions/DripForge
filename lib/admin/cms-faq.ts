@@ -6,7 +6,13 @@ export type CmsFaqItem = {
   question: string
   answer: string
   sortOrder: number
+  /** Optionale Kategorie (z. B. «3D-Druck & Dateivorgaben»). */
+  category?: string
 }
+
+export const FAQ_CATEGORY_GENERAL = "Allgemein"
+export const FAQ_CATEGORY_3D_PRINT =
+  "3D-Druck & Dateivorgaben"
 
 const DEFAULT_FAQ_COUNT = 10
 
@@ -24,16 +30,52 @@ function defaultAnswer(index: number): string {
   return LEGAL_SITE_TEXT_DEFAULTS[key] ?? ""
 }
 
+/** Statische Default-FAQs zur 3D-Druck-Machbarkeit. */
+export function getDefault3dPrintFaqItems(startOrder = 100): CmsFaqItem[] {
+  const items: Array<{ question: string; answer: string }> = [
+    {
+      question: "Welche 3D-Modelle sind gut druckbar?",
+      answer:
+        "Gut geeignet sind volumenechte, geschlossene Körper (watertight Solid Mesh) wie Gehäuse, Ersatzteile, Halterungen und Abdeckungen. Wichtig sind ausreichende Wandstärken (mind. 1,5–2,0 mm) und eine flache Grundfläche für stabile Druckbett-Haftung.",
+    },
+    {
+      question: "Welche Mindestwandstärke braucht mein Modell?",
+      answer:
+        "Wir empfehlen mindestens 1,5 mm, besser 2,0 mm Wandstärke. Extrem dünne, papierähnliche Flächen oder frei schwebende Linien unter 1 mm sind nicht oder nur eingeschränkt druckbar.",
+    },
+    {
+      question: "Was passiert, wenn mein Upload zu komplex oder fehlerhaft ist?",
+      answer:
+        "Jedes Modell wird vor dem Produktionsstart manuell geprüft. Bei fehlerhaften Geometrien oder zu komplexen Details stornieren wir nicht einfach — wir kontaktieren dich persönlich und bieten eine kostenlose Vereinfachung oder eine Anpassung gegen eine kleine Aufwandspauschale an.",
+    },
+    {
+      question: "Welche Dateiformate kann ich hochladen?",
+      answer:
+        "Im 3D-Konfigurator akzeptieren wir STL, OBJ, GLB und GLTF (mit Live-Vorschau) sowie 3MF (max. 50 MB). Für die beste Prüfbarkeit empfehlen wir geschlossene STL-/OBJ-Meshes.",
+    },
+  ]
+
+  return items.map((item, index) => ({
+    id: `faq-3d-${index + 1}`,
+    question: item.question,
+    answer: item.answer,
+    sortOrder: startOrder + index,
+    category: FAQ_CATEGORY_3D_PRINT,
+  }))
+}
+
 export function getDefaultCmsFaqItems(): CmsFaqItem[] {
-  return Array.from({ length: DEFAULT_FAQ_COUNT }, (_, i) => {
+  const general = Array.from({ length: DEFAULT_FAQ_COUNT }, (_, i) => {
     const index = i + 1
     return {
       id: `faq-${index}`,
       question: defaultQuestion(index),
       answer: defaultAnswer(index),
       sortOrder: i,
+      category: FAQ_CATEGORY_GENERAL,
     }
   })
+  return [...general, ...getDefault3dPrintFaqItems(general.length)]
 }
 
 /** Migriert ältere Text-Keys `faq_qN_*` in strukturierte FAQ-Einträge. */
@@ -55,9 +97,16 @@ export function faqItemsFromSiteTexts(
           : defaultQuestion(index),
       answer: typeof answer === "string" ? answer : defaultAnswer(index),
       sortOrder: items.length,
+      category: FAQ_CATEGORY_GENERAL,
     })
   }
-  return items.length > 0 ? items : getDefaultCmsFaqItems()
+  if (items.length === 0) return getDefaultCmsFaqItems()
+  // 3D-Kategorie ergänzen, falls noch nicht vorhanden
+  const has3d = items.some((item) => item.category === FAQ_CATEGORY_3D_PRINT)
+  if (!has3d) {
+    items.push(...getDefault3dPrintFaqItems(items.length))
+  }
+  return items
 }
 
 function sanitizeFaqItem(raw: unknown, index: number): CmsFaqItem | null {
@@ -71,7 +120,11 @@ function sanitizeFaqItem(raw: unknown, index: number): CmsFaqItem | null {
     typeof raw.sortOrder === "number" && Number.isFinite(raw.sortOrder)
       ? raw.sortOrder
       : index
-  return { id, question, answer, sortOrder }
+  const category =
+    typeof raw.category === "string" && raw.category.trim()
+      ? raw.category.trim().slice(0, 80)
+      : FAQ_CATEGORY_GENERAL
+  return { id, question, answer, sortOrder, category }
 }
 
 export function sanitizeCmsFaqItemsInput(input: unknown): CmsFaqItem[] {
@@ -80,9 +133,19 @@ export function sanitizeCmsFaqItemsInput(input: unknown): CmsFaqItem[] {
     .map((item, index) => sanitizeFaqItem(item, index))
     .filter((item): item is CmsFaqItem => item !== null)
   if (items.length === 0) return getDefaultCmsFaqItems()
-  return items
+  const normalized = items
     .sort((a, b) => a.sortOrder - b.sortOrder)
     .map((item, index) => ({ ...item, sortOrder: index }))
+
+  // Bestehende CMS-Daten ohne 3D-Kategorie einmalig anreichern
+  const has3d = normalized.some((item) => item.category === FAQ_CATEGORY_3D_PRINT)
+  if (!has3d) {
+    return [
+      ...normalized,
+      ...getDefault3dPrintFaqItems(normalized.length),
+    ].map((item, index) => ({ ...item, sortOrder: index }))
+  }
+  return normalized
 }
 
 export function mergeCmsFaqItems(
@@ -103,5 +166,31 @@ export function createEmptyCmsFaqItem(sortOrder: number): CmsFaqItem {
     question: "Neue Frage",
     answer: "Antwort hier eintragen…",
     sortOrder,
+    category: FAQ_CATEGORY_GENERAL,
   }
+}
+
+export function groupFaqItemsByCategory(
+  items: CmsFaqItem[]
+): Array<{ category: string; items: CmsFaqItem[] }> {
+  const order: string[] = []
+  const map = new Map<string, CmsFaqItem[]>()
+  for (const item of items) {
+    const category = item.category?.trim() || FAQ_CATEGORY_GENERAL
+    if (!map.has(category)) {
+      map.set(category, [])
+      order.push(category)
+    }
+    map.get(category)!.push(item)
+  }
+  // 3D-Kategorie nach Allgemein priorisieren, falls vorhanden
+  const preferred = [FAQ_CATEGORY_GENERAL, FAQ_CATEGORY_3D_PRINT]
+  const sorted = [
+    ...preferred.filter((c) => map.has(c)),
+    ...order.filter((c) => !preferred.includes(c)),
+  ]
+  return sorted.map((category) => ({
+    category,
+    items: map.get(category) ?? [],
+  }))
 }
