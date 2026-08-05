@@ -388,6 +388,9 @@ export function FilamentMultiColorPicker({
                     src={previewSrc}
                     alt={`${primaryColor?.colorName ?? "Filament"} Vorschaubild`}
                     fill
+                    sizes="200px"
+                    quality={55}
+                    loading="lazy"
                     className="object-contain drop-shadow-2xl transition-opacity duration-300"
                   />
                 )
@@ -447,6 +450,9 @@ export function FilamentMultiColorPicker({
                         src={(color.printedExample ?? color.image)!}
                         alt={color.name}
                         fill
+                        sizes="64px"
+                        quality={40}
+                        loading="lazy"
                         className="object-contain"
                       />
                     </div>

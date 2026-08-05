@@ -18,9 +18,9 @@ type SafeProductImageProps = {
   width?: number
   height?: number
   sizes?: string
-  /** Next.js 16: weiterhin unterstützt (mappt intern auf preload). */
+  /** Nur Above-the-Fold-Hauptbilder — mappt auf preload. */
   priority?: boolean
-  /** Next/Image Kompressionsqualität (Standard 75). Für Thumbnails/Karten niedriger. */
+  /** Next/Image Qualität (Karten/Thumbs niedriger). */
   quality?: number
   /** Optionaler Blur-Placeholder während des Ladens. */
   placeholder?: "blur" | "empty"
@@ -30,7 +30,9 @@ type SafeProductImageProps = {
 function isOptimizableImageSrc(src: string): boolean {
   if (!src?.trim()) return false
   if (src.startsWith("data:") || src.startsWith("blob:")) return false
-  return src.startsWith("/") || src.startsWith("https://") || src.startsWith("http://")
+  return (
+    src.startsWith("/") || src.startsWith("https://") || src.startsWith("http://")
+  )
 }
 
 export function SafeProductImage({
@@ -41,14 +43,12 @@ export function SafeProductImage({
   width,
   height,
   sizes,
-  priority,
+  priority = false,
   quality,
   placeholder,
   blurDataURL,
 }: SafeProductImageProps) {
   const requestedSrc = src?.trim() || FALLBACK_IMAGE_SRC
-  // Merkt sich den zuletzt fehlgeschlagenen Pfad. Ändert sich `src`, unterscheidet
-  // er sich automatisch wieder → kein Reset-Effekt nötig.
   const [failedSrc, setFailedSrc] = useState<string | null>(null)
   const [loaded, setLoaded] = useState(false)
   const currentSrc =
@@ -59,7 +59,13 @@ export function SafeProductImage({
   }
 
   const resolvedSizes =
-    sizes ?? (fill ? "(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" : undefined)
+    sizes ??
+    (fill
+      ? "(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+      : undefined)
+  // Thumbs/Swatches: niedrigere Default-Qualität; Hero mit priority etwas höher.
+  const resolvedQuality =
+    quality ?? (priority ? 75 : sizes && /\b(64|96|128)px\b/.test(sizes) ? 45 : 65)
   const useBlur = placeholder === "blur"
   const resolvedBlurDataURL = useBlur
     ? blurDataURL?.trim() || DEFAULT_BLUR_DATA_URL
@@ -71,9 +77,13 @@ export function SafeProductImage({
       <img
         src={currentSrc}
         alt={alt}
+        loading={priority ? "eager" : "lazy"}
+        decoding="async"
         onError={handleError}
         onLoad={() => setLoaded(true)}
-        className={cn(fill ? "absolute inset-0 h-full w-full object-cover" : className)}
+        className={cn(
+          fill ? "absolute inset-0 h-full w-full object-cover" : className
+        )}
         width={fill ? undefined : width}
         height={fill ? undefined : height}
       />
@@ -95,13 +105,15 @@ export function SafeProductImage({
         width={fill ? undefined : width}
         height={fill ? undefined : height}
         sizes={resolvedSizes}
-        priority={priority}
-        quality={quality}
+        quality={resolvedQuality}
         placeholder={useBlur ? "blur" : undefined}
         blurDataURL={resolvedBlurDataURL}
         onError={handleError}
         onLoad={() => setLoaded(true)}
         className={cn(className, !loaded && fill && "opacity-0")}
+        {...(priority
+          ? { priority: true as const }
+          : { loading: "lazy" as const })}
       />
     </>
   )

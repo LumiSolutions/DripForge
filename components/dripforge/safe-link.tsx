@@ -8,7 +8,10 @@ import {
   isRestrictedInAppBrowser,
 } from "@/lib/dripforge/safe-navigate"
 
-type SafeLinkProps = ComponentProps<typeof Link>
+type SafeLinkProps = ComponentProps<typeof Link> & {
+  /** Immer harte Navigation (z. B. Warenkorb nach Modal/Banner). */
+  forceHard?: boolean
+}
 
 /**
  * Next.js Link mit Hard-Navigation-Fallback für Instagram/Incognito-WebViews.
@@ -19,6 +22,7 @@ export function SafeLink({
   prefetch = false,
   onClick,
   children,
+  forceHard = false,
   ...rest
 }: SafeLinkProps) {
   const handleClick = (event: MouseEvent<HTMLAnchorElement>) => {
@@ -41,8 +45,8 @@ export function SafeLink({
       return
     }
 
-    // Instagram/FB WebViews: Client-Router oft kaputt → harte Navigation
-    if (isRestrictedInAppBrowser()) {
+    // Instagram/FB WebViews oder explizit: Client-Router oft kaputt → harte Navigation
+    if (forceHard || isRestrictedInAppBrowser()) {
       event.preventDefault()
       hardNavigate(url)
       return
