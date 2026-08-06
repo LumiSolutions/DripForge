@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { getCustomerByNumber, getOrderById, getSettings } from "@/lib/admin/db"
+import { getCustomerByNumber, getOrderById, getOrders, getSettings } from "@/lib/admin/db"
 import { saveCustomer } from "@/lib/admin/customer-store"
 import {
   customerDisplayName,
@@ -116,14 +116,36 @@ export async function GET(request: Request, context: RouteContext) {
     const portalAccount = await findLinkedPortalAccount(customer)
     const status = mergeCustomerStatus(customer.status, portalAccount?.status)
 
-    const orders = (
+    const linkedOrders = (
       await Promise.all(customer.orderIds.map((orderId) => getOrderById(orderId)))
+    ).filter((order): order is NonNullable<typeof order> => order != null)
+
+    const emails = new Set(
+      [
+        customer.email,
+        customer.billing.email,
+        portalAccount?.email,
+        portalAccount?.id,
+      ]
+        .map((email) => normalizeCustomerEmail(email ?? ""))
+        .filter(Boolean)
     )
-      .filter((order): order is NonNullable<typeof order> => order != null)
-      .sort(
-        (a, b) =>
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      )
+    const allOrders = await getOrders()
+    const ordersById = new Map(linkedOrders.map((order) => [order.orderId, order]))
+
+    for (const order of allOrders) {
+      const billing = normalizeCustomerEmail(order.billing.email)
+      const account = normalizeCustomerEmail(order.accountEmail ?? "")
+      const sameCustomerNumber =
+        order.kundennummer?.trim() === customer.kundennummer
+      if (sameCustomerNumber || emails.has(billing) || emails.has(account)) {
+        ordersById.set(order.orderId, order)
+      }
+    }
+
+    const orders = [...ordersById.values()].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    )
 
     const rewardCfg = buildRewardPointsPublicSettings(await getSettings())
     let loyaltyPoints = 0
