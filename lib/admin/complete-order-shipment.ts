@@ -21,11 +21,9 @@ export async function completeOrderShipment(
   const existing = await getOrderById(orderId)
   if (!existing) return null
 
-  let order = existing
   if (existing.status !== "versendet") {
     const updated = await updateOrderStatusWithInventory(orderId, "versendet")
     if (!updated) return null
-    order = updated
   }
 
   const saved = await updateOrderShipmentDetails(orderId, {
