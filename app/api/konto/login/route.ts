@@ -8,6 +8,7 @@ import {
   customerSessionCookieOptions,
   CUSTOMER_SESSION_COOKIE,
 } from "@/lib/konto/session-node"
+import { grantLoyaltyPointsForPaidOrdersForCustomerEmail } from "@/lib/shop/paid-order-loyalty"
 
 export async function POST(request: Request) {
   try {
@@ -40,10 +41,12 @@ export async function POST(request: Request) {
     }
 
     const mergedCart = await mergeGuestCartForCustomer(email, body.guestCart)
+    await grantLoyaltyPointsForPaidOrdersForCustomerEmail(email)
+    const refreshedAccount = (await getAccountByEmail(email)) ?? account
 
     const response = NextResponse.json({
       success: true,
-      account: toPublicAccount(account),
+      account: toPublicAccount(refreshedAccount),
       cart: mergedCart,
     })
 

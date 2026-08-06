@@ -13,6 +13,7 @@ import {
   resolveCustomerTimelineStepIndex,
   resolveCustomerTrackingUrl,
 } from "@/lib/konto/customer-order-timeline"
+import { grantLoyaltyPointsForPaidOrdersForCustomerEmail } from "@/lib/shop/paid-order-loyalty"
 
 export type CustomerOrderSummary = {
   orderId: string
@@ -98,6 +99,12 @@ export async function getOrdersForCustomerEmail(
       : ""
     return billing === normalized || account === normalized
   })
+
+  try {
+    await grantLoyaltyPointsForPaidOrdersForCustomerEmail(normalized)
+  } catch (error) {
+    console.error("Konto: Treuepunkte-Backfill fehlgeschlagen.", error)
+  }
 
   return matched
     .sort(

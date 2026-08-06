@@ -4,11 +4,9 @@ import { getSettings } from "@/lib/admin/db"
 import { getAccountByEmail } from "@/lib/konto/account-db"
 import { grantAiCreditsForPaidOrder } from "@/lib/konto/ai-credits"
 import {
-  grantLoyaltyPointsForPaidOrder,
   redeemLoyaltyPointsForOrder,
   normalizeLoyaltyPoints,
   grantLoyaltyPoints,
-  calculateLoyaltyEarnBaseChf,
 } from "@/lib/konto/loyalty-points"
 import {
   isPaymentMethodAllowedForCheckout,
@@ -127,7 +125,7 @@ export async function POST(request: Request) {
     }
 
     let aiCreditsGranted = 0
-    let loyaltyPointsGranted = 0
+    const loyaltyPointsGranted = 0
 
     try {
       const portalAccount = await getAccountByEmail(accountEmail)
@@ -173,21 +171,7 @@ export async function POST(request: Request) {
           )
         }
 
-        if (rewardPointsEnabled) {
-          const earnBase = calculateLoyaltyEarnBaseChf(order.totals)
-          const loyaltyGrant = await grantLoyaltyPointsForPaidOrder(
-            accountEmail,
-            earnBase,
-            orderId,
-            {
-              earnPercent: rewardCfg.loyaltyEarnPercent,
-              expiryMonths: rewardCfg.loyaltyPointsExpiryMonths,
-            }
-          )
-          if (loyaltyGrant.success) {
-            loyaltyPointsGranted = loyaltyGrant.points
-          }
-        }
+        // Earn-Punkte werden zentral beim Wechsel auf paymentStatus=paid verbucht.
       }
     } catch (pointsError) {
       console.error(

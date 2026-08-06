@@ -93,6 +93,10 @@ import { AdminGallerySortable } from "@/components/admin/admin-gallery-sortable"
 import { AdminImageCropDialog } from "@/components/admin/admin-image-crop-dialog"
 import { AdminRotationPreview } from "@/components/admin/admin-rotation-preview"
 import type { ProductTag } from "@/lib/admin/product-tags"
+import type {
+  ProductTextOption,
+  ProductTextOptionField,
+} from "@/lib/admin/product-text-options"
 import {
   getProductShopStatus,
   PRODUCT_SHOP_STATUS_OPTIONS,
@@ -259,6 +263,75 @@ function ProductEditAccordion({
   )
 }
 
+function normalizedTextOptionValue(value: string): string {
+  return value
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
+function textOptionPreview(value: string): string {
+  const text = normalizedTextOptionValue(value)
+  if (!text) return "Leerer Text"
+  return text.length > 80 ? `${text.slice(0, 77)}...` : text
+}
+
+function textOptionCanSave(value: string): boolean {
+  return normalizedTextOptionValue(value).length > 0
+}
+
+function ProductTextOptionControls({
+  value,
+  options,
+  saving,
+  onApply,
+  onSave,
+}: {
+  value: string
+  options: ProductTextOption[]
+  saving: boolean
+  onApply: (text: string) => void
+  onSave: () => void
+}) {
+  return (
+    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+      <select
+        className={cn(
+          "h-8 min-w-0 flex-1 rounded-md border px-2 text-xs",
+          adminUi.select
+        )}
+        defaultValue=""
+        onChange={(event) => {
+          const option = options.find((entry) => entry.id === event.target.value)
+          if (option) onApply(option.text)
+          event.target.value = ""
+        }}
+        disabled={options.length === 0}
+      >
+        <option value="">
+          {options.length === 0 ? "Noch keine Optionen" : "Textoption auswählen..."}
+        </option>
+        {options.map((option) => (
+          <option key={option.id} value={option.id}>
+            {textOptionPreview(option.text)}
+          </option>
+        ))}
+      </select>
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        className={cn("h-8 text-xs", adminUi.outlineBtn)}
+        disabled={saving || !textOptionCanSave(value)}
+        onClick={onSave}
+      >
+        {saving ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
+        Als Option speichern
+      </Button>
+    </div>
+  )
+}
+
 export function AdminProductsTab() {
   const [products, setProducts] = useState<AdminProduct[]>([])
   const [loading, setLoading] = useState(true)
@@ -279,6 +352,9 @@ export function AdminProductsTab() {
   >([])
   const [productSort, setProductSort] = useState<ProductSortMode>("name-asc")
   const [productTags, setProductTags] = useState<ProductTag[]>([])
+  const [productTextOptions, setProductTextOptions] = useState<ProductTextOption[]>([])
+  const [textOptionSavingField, setTextOptionSavingField] =
+    useState<ProductTextOptionField | null>(null)
   const [laserMaterialFilter, setLaserMaterialFilter] = useState("")
   const [materialLinkFilters, setMaterialLinkFilters] = useState<Record<number, string>>(
     {}
@@ -414,11 +490,35 @@ export function AdminProductsTab() {
     }
   }, [])
 
+  const loadProductTextOptions = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/product-text-options", {
+        credentials: "include",
+        cache: "no-store",
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        console.error(
+          "[Admin Produkte] Textoptionen laden fehlgeschlagen:",
+          res.status,
+          data
+        )
+        return
+      }
+      if (Array.isArray(data.options)) {
+        setProductTextOptions(data.options as ProductTextOption[])
+      }
+    } catch (err) {
+      console.error("[Admin Produkte] Textoptionen laden fehlgeschlagen:", err)
+    }
+  }, [])
+
   useEffect(() => {
     void loadProducts()
     void loadMaterials()
     void loadProductTags()
-  }, [loadProducts, loadMaterials, loadProductTags])
+    void loadProductTextOptions()
+  }, [loadProducts, loadMaterials, loadProductTags, loadProductTextOptions])
 
   const startCreate = () => {
     const next = {
@@ -645,6 +745,53 @@ export function AdminProductsTab() {
       .filter(Boolean)
     return fromText
   }, [form.variantenText])
+
+  const textOptionsByField = useMemo(() => {
+    const map = new Map<ProductTextOptionField, ProductTextOption[]>()
+    for (const option of productTextOptions) {
+      const entries = map.get(option.field) ?? []
+      entries.push(option)
+      map.set(option.field, entries)
+    }
+    return map
+  }, [productTextOptions])
+
+  const optionsForTextField = (field: ProductTextOptionField) =>
+    textOptionsByField.get(field) ?? []
+
+  const saveTextOption = async (field: ProductTextOptionField, text: string) => {
+    if (!textOptionCanSave(text)) return
+    setTextOptionSavingField(field)
+    setError(null)
+    try {
+      const res = await fetch("/api/admin/product-text-options", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ field, text }),
+      })
+      const data = (await res.json()) as {
+        options?: ProductTextOption[]
+        option?: ProductTextOption
+        error?: string
+      }
+      if (!res.ok) throw new Error(data.error ?? "Textoption konnte nicht gespeichert werden.")
+      if (Array.isArray(data.options)) {
+        setProductTextOptions(data.options)
+      } else if (data.option) {
+        setProductTextOptions((prev) => [
+          data.option!,
+          ...prev.filter((entry) => entry.id !== data.option!.id),
+        ])
+      }
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Textoption konnte nicht gespeichert werden."
+      )
+    } finally {
+      setTextOptionSavingField(null)
+    }
+  }
 
   const filteredMaterialCatalogForLink = useCallback(
     (index: number) => {
@@ -1023,6 +1170,13 @@ export function AdminProductsTab() {
                       onChange={(e) => updateField("name", e.target.value)}
                       className={adminUi.input}
                     />
+                    <ProductTextOptionControls
+                      value={form.name ?? ""}
+                      options={optionsForTextField("productName")}
+                      saving={textOptionSavingField === "productName"}
+                      onApply={(text) => updateField("name", text)}
+                      onSave={() => void saveTextOption("productName", form.name ?? "")}
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label className={adminUi.label}>Artikelnummer (SKU)</Label>
@@ -1049,6 +1203,15 @@ export function AdminProductsTab() {
                       key={form.id || "new-product"}
                       value={form.description ?? ""}
                       onChange={(html) => updateField("description", html)}
+                    />
+                    <ProductTextOptionControls
+                      value={form.description ?? ""}
+                      options={optionsForTextField("description")}
+                      saving={textOptionSavingField === "description"}
+                      onApply={(text) => updateField("description", text)}
+                      onSave={() =>
+                        void saveTextOption("description", form.description ?? "")
+                      }
                     />
                   </div>
                   <div className="space-y-2">
@@ -1852,6 +2015,15 @@ export function AdminProductsTab() {
                       placeholder="z. B. Schwarz, Weiss, Rot"
                       className={adminUi.input}
                     />
+                    <ProductTextOptionControls
+                      value={form.variantenText ?? ""}
+                      options={optionsForTextField("variantKeywords")}
+                      saving={textOptionSavingField === "variantKeywords"}
+                      onApply={(text) => updateField("variantenText", text)}
+                      onSave={() =>
+                        void saveTextOption("variantKeywords", form.variantenText ?? "")
+                      }
+                    />
                     <p className={cn("text-xs", adminUi.muted)}>
                       Kommagetrennt — für Laser-Auswahl und Rohmaterial-Links.
                     </p>
@@ -1912,6 +2084,22 @@ export function AdminProductsTab() {
                                     }
                                     updateField("shopVariants", next)
                                   }}
+                                />
+                                <ProductTextOptionControls
+                                  value={variant.name}
+                                  options={optionsForTextField("shopVariantName")}
+                                  saving={textOptionSavingField === "shopVariantName"}
+                                  onApply={(text) => {
+                                    const next = [...(form.shopVariants ?? [])]
+                                    next[index] = {
+                                      ...variant,
+                                      name: text,
+                                    }
+                                    updateField("shopVariants", next)
+                                  }}
+                                  onSave={() =>
+                                    void saveTextOption("shopVariantName", variant.name)
+                                  }
                                 />
                               </div>
                               <div className="space-y-1">

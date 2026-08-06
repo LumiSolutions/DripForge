@@ -30,15 +30,14 @@ import { grantAiCreditsForPaidOrder } from "@/lib/konto/ai-credits"
 import { getAccountByEmail } from "@/lib/konto/account-db"
 import { resolveCustomerCategoryForEmail } from "@/lib/konto/resolve-customer-category"
 import {
-  grantLoyaltyPointsForPaidOrder,
   maxRedeemablePoints,
   normalizeLoyaltyPoints,
   redeemLoyaltyPointsForOrder,
   grantLoyaltyPoints,
-  calculateLoyaltyEarnBaseChf,
   getEffectiveLoyaltyPoints,
   LOYALTY_MIN_GATEWAY_PAYMENT_CHF,
 } from "@/lib/konto/loyalty-points"
+import { grantLoyaltyPointsForPaidStoredOrder } from "@/lib/shop/paid-order-loyalty"
 import { orderHasCustomerInbound } from "@/lib/admin/customer-inbound-order"
 import { applyInventoryReservationForOrder } from "@/lib/admin/order-inventory-hook"
 import {
@@ -636,6 +635,14 @@ export async function fulfillPaidShopOrder(
   }
 
   if (order.paymentConfirmed) {
+    try {
+      await grantLoyaltyPointsForPaidStoredOrder(order)
+    } catch (pointsError) {
+      console.error(
+        `Shop-Fulfillment: Treuepunkte-Backfill fehlgeschlagen (${orderId}).`,
+        pointsError
+      )
+    }
     return { fulfilled: false, aiCreditsGranted: 0, loyaltyPointsGranted: 0 }
   }
 
@@ -790,15 +797,13 @@ export async function fulfillPaidShopOrder(
     if (grant.granted) aiCreditsGranted = grant.credits
 
     if (rewardPointsEnabled) {
-      const earnBase = calculateLoyaltyEarnBaseChf(order.totals)
-      const loyaltyGrant = await grantLoyaltyPointsForPaidOrder(
-        creditEmail,
-        earnBase,
-        orderId,
+      const loyaltyGrant = await grantLoyaltyPointsForPaidStoredOrder(
         {
-          earnPercent: rewardCfg.loyaltyEarnPercent,
-          expiryMonths: rewardCfg.loyaltyPointsExpiryMonths,
-        }
+          ...orderWithCustomer,
+          accountEmail: creditEmail,
+          billing: { ...orderWithCustomer.billing, email: creditEmail },
+        },
+        settings
       )
       loyaltyPointsGranted = loyaltyGrant.success ? loyaltyGrant.points : 0
     }
