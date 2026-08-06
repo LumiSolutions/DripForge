@@ -28,6 +28,10 @@ export function createProductTagId(name: string): string {
   return `ptag-${slug || "tag"}-${Date.now().toString(36)}`
 }
 
+export function normalizeProductTagNameKey(name: string): string {
+  return name.trim().replace(/\s+/g, " ").toLowerCase()
+}
+
 export function normalizeProductTag(
   input: Partial<ProductTag> & { id?: string; name?: string },
   existing?: ProductTag

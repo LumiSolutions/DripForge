@@ -37,6 +37,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
+  normalizeProductTagNameKey,
   PRODUCT_TAG_GROUPS,
   type ProductTag,
 } from "@/lib/admin/product-tags"
@@ -59,6 +60,7 @@ type AdminProductTagsSectionProps = {
 type TagsApiPayload = {
   tags?: ProductTag[]
   tag?: ProductTag
+  duplicate?: boolean
   error?: string
 }
 
@@ -584,18 +586,17 @@ export function AdminProductTagCheckboxes({
   tags,
   selectedTagIds,
   onChange,
+  onTagsChange,
 }: {
   tags: ProductTag[]
   selectedTagIds: string[]
   onChange: (tagIds: string[]) => void
+  onTagsChange?: (tags: ProductTag[]) => void
 }) {
-  if (tags.length === 0) {
-    return (
-      <p className={cn("text-sm", adminUi.muted)}>
-        Noch keine Tags vorhanden — unter „Produkt-Tags verwalten“ anlegen.
-      </p>
-    )
-  }
+  const [inlineTagName, setInlineTagName] = useState("")
+  const [inlineCreating, setInlineCreating] = useState(false)
+  const [inlineMessage, setInlineMessage] = useState<string | null>(null)
+  const [inlineError, setInlineError] = useState<string | null>(null)
 
   const toggle = (tagId: string, checked: boolean) => {
     const next = checked
@@ -604,13 +605,73 @@ export function AdminProductTagCheckboxes({
     onChange(next)
   }
 
+  const selectTag = (tagId: string) => {
+    onChange([...new Set([...selectedTagIds, tagId])])
+  }
+
+  const createInlineTag = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const name = inlineTagName.trim()
+    if (!name || inlineCreating) return
+
+    setInlineError(null)
+    setInlineMessage(null)
+
+    const existing = tags.find(
+      (tag) =>
+        normalizeProductTagNameKey(tag.name) === normalizeProductTagNameKey(name)
+    )
+    if (existing) {
+      selectTag(existing.id)
+      setInlineTagName("")
+      setInlineMessage(`Tag „${existing.name}“ existiert bereits und wurde ausgewählt.`)
+      return
+    }
+
+    setInlineCreating(true)
+    try {
+      const data = await requestAdminTags("Inline-Erstellen", ADMIN_TAGS_API, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, sortOrder: tags.length }),
+      })
+
+      if (!data.tag) {
+        throw new Error("Server hat keinen Tag zurückgegeben.")
+      }
+
+      if (Array.isArray(data.tags)) {
+        onTagsChange?.(data.tags)
+      } else {
+        onTagsChange?.([...tags.filter((tag) => tag.id !== data.tag!.id), data.tag])
+      }
+
+      selectTag(data.tag.id)
+      setInlineTagName("")
+      setInlineMessage(
+        data.duplicate
+          ? `Tag „${data.tag.name}“ existiert bereits und wurde ausgewählt.`
+          : `Tag „${data.tag.name}“ wurde erstellt und ausgewählt.`
+      )
+    } catch (err) {
+      setInlineError(
+        err instanceof Error ? err.message : "Tag konnte nicht erstellt werden."
+      )
+    } finally {
+      setInlineCreating(false)
+    }
+  }
+
   const grouped = PRODUCT_TAG_GROUPS.map((group) => ({
     group,
     items: tags.filter((tag) => (tag.group || "Allgemein") === group),
   })).filter((entry) => entry.items.length > 0)
 
   const ungrouped = tags.filter(
-    (tag) => !PRODUCT_TAG_GROUPS.includes((tag.group || "Allgemein") as (typeof PRODUCT_TAG_GROUPS)[number])
+    (tag) =>
+      !PRODUCT_TAG_GROUPS.includes(
+        (tag.group || "Allgemein") as (typeof PRODUCT_TAG_GROUPS)[number]
+      )
   )
 
   const renderTag = (tag: ProductTag) => (
@@ -630,21 +691,87 @@ export function AdminProductTagCheckboxes({
 
   return (
     <div className="space-y-4">
-      {grouped.map(({ group, items }) => (
-        <div key={group} className="space-y-2">
-          <p className={cn("text-xs font-semibold uppercase tracking-wide", adminUi.muted)}>
-            {group}
-          </p>
-          <div className="grid gap-2 sm:grid-cols-2">{items.map(renderTag)}</div>
+      <form
+        onSubmit={(event) => void createInlineTag(event)}
+        className={cn("rounded-lg border p-3", adminUi.section)}
+      >
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Input
+            value={inlineTagName}
+            onChange={(event) => {
+              setInlineTagName(event.target.value)
+              setInlineError(null)
+              setInlineMessage(null)
+            }}
+            placeholder="Neuen Tag hinzufügen..."
+            className={cn("min-w-0 flex-1", adminUi.input)}
+            disabled={inlineCreating}
+            aria-label="Neuen Produkt-Tag hinzufügen"
+          />
+          <Button
+            type="submit"
+            size="sm"
+            className={adminUi.primaryBtn}
+            disabled={inlineCreating || !inlineTagName.trim()}
+          >
+            {inlineCreating ? (
+              <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+            ) : (
+              <Plus className="mr-1.5 h-4 w-4" />
+            )}
+            Hinzufügen
+          </Button>
         </div>
-      ))}
-      {ungrouped.length > 0 && (
-        <div className="space-y-2">
-          <p className={cn("text-xs font-semibold uppercase tracking-wide", adminUi.muted)}>
-            Sonstige
+        <p className={cn("mt-2 text-xs", adminUi.muted)}>
+          Enter oder „Hinzufügen“ speichert den Tag und wählt ihn direkt aus.
+        </p>
+        {inlineMessage && (
+          <p className="mt-2 text-xs text-emerald-600 dark:text-emerald-400">
+            {inlineMessage}
           </p>
-          <div className="grid gap-2 sm:grid-cols-2">{ungrouped.map(renderTag)}</div>
-        </div>
+        )}
+        {inlineError && (
+          <p className={cn("mt-2 text-xs", adminUi.errorLg)}>{inlineError}</p>
+        )}
+      </form>
+
+      {tags.length === 0 ? (
+        <p className={cn("text-sm", adminUi.muted)}>
+          Noch keine Tags vorhanden — lege oben den ersten Tag an.
+        </p>
+      ) : (
+        <>
+          {grouped.map(({ group, items }) => (
+            <div key={group} className="space-y-2">
+              <p
+                className={cn(
+                  "text-xs font-semibold uppercase tracking-wide",
+                  adminUi.muted
+                )}
+              >
+                {group}
+              </p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {items.map(renderTag)}
+              </div>
+            </div>
+          ))}
+          {ungrouped.length > 0 && (
+            <div className="space-y-2">
+              <p
+                className={cn(
+                  "text-xs font-semibold uppercase tracking-wide",
+                  adminUi.muted
+                )}
+              >
+                Sonstige
+              </p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {ungrouped.map(renderTag)}
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   )
