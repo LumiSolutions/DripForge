@@ -76,6 +76,11 @@ export async function getCustomerProfile(
 ): Promise<CustomerProfileResponse | null> {
   const account = await ensureAccountHasCustomerNumber(email)
   if (!account || !isActiveCustomerAccount(account)) return null
+  const { grantLoyaltyPointsForPaidOrdersForCustomerEmail } = await import(
+    "@/lib/shop/paid-order-loyalty"
+  )
+  await grantLoyaltyPointsForPaidOrdersForCustomerEmail(email)
+  const refreshed = (await getAccountByEmail(email)) ?? account
   const { getSettings } = await import("@/lib/admin/db")
   const { buildRewardPointsPublicSettings } = await import(
     "@/lib/dripforge/reward-points-settings"
@@ -86,7 +91,7 @@ export async function getCustomerProfile(
     (await syncLoyaltyAccountBalance(
       email,
       rewardCfg.loyaltyPointsExpiryMonths
-    )) ?? account
+    )) ?? refreshed
   return toCustomerProfileResponse(synced, {
     pointValueChf: rewardCfg.loyaltyPointValueChf,
   })

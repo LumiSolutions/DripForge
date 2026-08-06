@@ -6,6 +6,7 @@ import {
   type PaymentSettlementAccount,
 } from "@/lib/accounting/order-journal"
 import { fulfillPaidShopOrder } from "@/lib/shop/order-processing"
+import { grantLoyaltyPointsForPaidStoredOrder } from "@/lib/shop/paid-order-loyalty"
 
 export type ConfirmPaymentOptions = {
   /** Bank Raiffeisen oder Bar/Kasse — Pflicht für Rechnung/Bar. */
@@ -38,6 +39,14 @@ export async function confirmOrderPaymentManually(
   }
 
   if (existing.paymentConfirmed === true || existing.paymentStatus === "paid") {
+    try {
+      await grantLoyaltyPointsForPaidStoredOrder(existing)
+    } catch (error) {
+      console.error(
+        `Zahlungsbestätigung: Treuepunkte-Backfill für ${orderId} fehlgeschlagen.`,
+        error
+      )
+    }
     return { ok: true, order: existing, alreadyConfirmed: true }
   }
 
@@ -68,6 +77,20 @@ export async function confirmOrderPaymentManually(
     ...(advanceProduction ? { productionStatus: "bezahlt" as const } : {}),
   }
   await saveOrder(paid)
+
+  try {
+    const grant = await grantLoyaltyPointsForPaidStoredOrder(paid)
+    if (grant.success) {
+      console.info(
+        `Zahlungsbestätigung: +${grant.points} Treuepunkte verbucht (${orderId}).`
+      )
+    }
+  } catch (error) {
+    console.error(
+      `Zahlungsbestätigung: Treuepunkte für ${orderId} fehlgeschlagen.`,
+      error
+    )
+  }
 
   try {
     if (needsSettlementDialog(paid.paymentMethod)) {

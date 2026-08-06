@@ -12,6 +12,7 @@ import {
   customerSessionCookieOptions,
   CUSTOMER_SESSION_COOKIE,
 } from "@/lib/konto/session-node"
+import { grantLoyaltyPointsForPaidOrdersForCustomerEmail } from "@/lib/shop/paid-order-loyalty"
 
 export async function POST(request: Request) {
   try {
@@ -72,6 +73,7 @@ export async function POST(request: Request) {
 
     await saveAccount(account)
     const synced = await syncAccountToCrm(account)
+    await grantLoyaltyPointsForPaidOrdersForCustomerEmail(email)
     const mergedCart = await mergeGuestCartForCustomer(email, body.guestCart)
 
     const response = NextResponse.json({

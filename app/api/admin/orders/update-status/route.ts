@@ -22,6 +22,7 @@ import {
   maybeNotifyOrderStatusChange,
   notifyOrderShipped,
 } from "@/lib/email/order-notifications"
+import { syncOrderStatusSideEffects } from "@/lib/admin/order-status-sync"
 import type { OrderStatus, ProductionStatus } from "@/lib/admin/types"
 
 type UpdateStatusBody = {
@@ -95,6 +96,7 @@ export async function PATCH(request: Request) {
 
       const settings = await getSettings()
       const emailSent = await notifyOrderShipped(result.order, settings)
+      await syncOrderStatusSideEffects(result.order)
 
       return NextResponse.json({
         order: result.order,
@@ -114,6 +116,7 @@ export async function PATCH(request: Request) {
         return NextResponse.json({ error: "Bestellung nicht gefunden." }, { status: 404 })
       }
       const emailSent = await maybeNotifyOrderStatusChange(existing, order)
+      await syncOrderStatusSideEffects(order)
       return NextResponse.json({ order, emailSent })
     }
 
@@ -123,6 +126,7 @@ export async function PATCH(request: Request) {
         return NextResponse.json({ error: "Bestellung nicht gefunden." }, { status: 404 })
       }
       const emailSent = await maybeNotifyOrderStatusChange(existing, order)
+      await syncOrderStatusSideEffects(order)
       return NextResponse.json({ order, emailSent })
     }
 

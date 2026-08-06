@@ -18,6 +18,7 @@ import {
   newDeliveryAddressId,
   normalizeDeliveryAddresses,
 } from "@/lib/konto/delivery-addresses"
+import { grantLoyaltyPointsForPaidStoredOrder } from "@/lib/shop/paid-order-loyalty"
 
 export function resolveLoyaltyAccountEmail(
   sessionEmail: string | null | undefined,
@@ -159,6 +160,15 @@ export async function bindOrderToCustomer(
               accountEmail: sessionEmail,
               order: updatedOrder,
             }
+          }
+
+          try {
+            await grantLoyaltyPointsForPaidStoredOrder(updatedOrder)
+          } catch (pointsError) {
+            console.error(
+              `Bestellung: Treuepunkte-Backfill nach Kundenbindung fehlgeschlagen (${order.orderId}).`,
+              pointsError
+            )
           }
 
           if (options?.saveAddressToAccount !== false) {

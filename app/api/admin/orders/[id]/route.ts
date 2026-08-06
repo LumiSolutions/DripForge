@@ -15,6 +15,7 @@ import {
 } from "@/lib/admin/require-admin-session"
 import { CosmosDatabaseError } from "@/lib/admin/storage-bridge"
 import { maybeNotifyOrderStatusChange } from "@/lib/email/order-notifications"
+import { syncOrderStatusSideEffects } from "@/lib/admin/order-status-sync"
 import type { OrderStatus } from "@/lib/admin/types"
 
 type RouteContext = { params: Promise<{ id: string }> }
@@ -76,6 +77,7 @@ export async function PATCH(request: Request, context: RouteContext) {
         )
       }
       const emailSent = await maybeNotifyOrderStatusChange(existing, order)
+      await syncOrderStatusSideEffects(order)
       return NextResponse.json({ order, emailSent })
     }
 
@@ -93,6 +95,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       )
     }
     const emailSent = await maybeNotifyOrderStatusChange(existing, order)
+    await syncOrderStatusSideEffects(order)
     return NextResponse.json({ order, emailSent })
   } catch (error) {
     console.warn("Admin-API: Status konnte nicht aktualisiert werden.", error)
