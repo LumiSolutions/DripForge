@@ -34,6 +34,7 @@ import {
   normalizeOrderEmailLayout,
   type OrderEmailMetaFields,
 } from "@/lib/email/order-email-layout"
+import { isHandoffFulfillment } from "@/lib/admin/order-fulfillment"
 import { generateAndStoreOrderInvoice } from "@/lib/invoices/process-order-invoice"
 import { ensureOrderInvoiceNumber } from "@/lib/invoices/order-invoice-number"
 import {
@@ -626,11 +627,18 @@ export async function notifyOrderShipped(
     const adminSettings = settings ?? (await getSettings())
     const branding = await resolveEmailBranding(adminSettings)
     const customerName = `${order.billing.firstName} ${order.billing.lastName}`.trim()
-    const subject = `Deine Bestellung ${order.orderId} wurde versendet`
-    const trackingNumber = order.trackingNumber?.trim()
+    const handoff = isHandoffFulfillment(order)
+    const subject = handoff
+      ? `Deine Bestellung ${order.orderId} wurde abgeholt / übergeben`
+      : `Deine Bestellung ${order.orderId} wurde versendet`
+    const trackingNumber = handoff ? "" : order.trackingNumber?.trim()
     const trackingUrl = trackingNumber
       ? swissPostTrackingUrl(trackingNumber)
       : null
+    const title = handoff ? "Abholung / Übergabe abgeschlossen" : "Versendet"
+    const lead = handoff
+      ? `gute Nachrichten — deine Bestellung ${order.orderId} wurde abgeholt oder direkt übergeben.`
+      : `gute Nachrichten — deine Bestellung ${order.orderId} ist auf dem Weg zu dir.`
 
     const trackingBlock = trackingNumber
       ? [
@@ -644,7 +652,7 @@ export async function notifyOrderShipped(
     const plain = [
       `Guten Tag ${customerName},`,
       "",
-      `gute Nachrichten — deine Bestellung ${order.orderId} ist auf dem Weg zu dir.`,
+      lead,
       "",
       trackingBlock,
       trackingBlock ? "" : null,
@@ -659,13 +667,13 @@ export async function notifyOrderShipped(
       .join("\n")
 
     const html = renderDripForgeEmailHtml({
-      title: "Versendet",
+      title,
       bodyHtml:
         textToHtmlParagraphs(
           [
             `Guten Tag ${customerName},`,
             "",
-            `gute Nachrichten — deine Bestellung ${order.orderId} ist auf dem Weg zu dir.`,
+            lead,
             "",
             trackingBlock,
           ]

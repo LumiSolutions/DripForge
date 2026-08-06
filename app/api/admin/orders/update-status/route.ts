@@ -12,6 +12,7 @@ import {
   isValidTrackingNumber,
   normalizeTrackingNumber,
 } from "@/lib/admin/production-status"
+import { shouldCollectPostTracking } from "@/lib/admin/order-fulfillment"
 import { confirmOrderPaymentManually } from "@/lib/shop/confirm-order-payment"
 import {
   isAuthError,
@@ -72,8 +73,12 @@ export async function PATCH(request: Request) {
     }
 
     if (body.status === "versendet" || body.productionStatus === "versendet") {
-      const tracking = body.trackingNumber ?? existing.trackingNumber ?? ""
-      if (!isValidTrackingNumber(tracking)) {
+      const requiresPostTracking = shouldCollectPostTracking(existing)
+      const tracking = requiresPostTracking
+        ? normalizeTrackingNumber(body.trackingNumber ?? existing.trackingNumber ?? "")
+        : ""
+
+      if (tracking && !isValidTrackingNumber(tracking)) {
         return NextResponse.json(
           { error: "Bitte eine gültige Schweizer Post Sendungsnummer angeben." },
           { status: 400 }

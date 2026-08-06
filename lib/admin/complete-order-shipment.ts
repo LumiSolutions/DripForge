@@ -13,10 +13,10 @@ export type CompleteShipmentResult = {
 
 export async function completeOrderShipment(
   orderId: string,
-  trackingNumber: string
+  trackingNumber?: string | null
 ): Promise<CompleteShipmentResult | null> {
-  const normalized = normalizeTrackingNumber(trackingNumber)
-  if (!isValidTrackingNumber(normalized)) return null
+  const normalized = normalizeTrackingNumber(trackingNumber ?? "")
+  if (normalized && !isValidTrackingNumber(normalized)) return null
 
   const existing = await getOrderById(orderId)
   if (!existing) return null
@@ -31,7 +31,7 @@ export async function completeOrderShipment(
   const saved = await updateOrderShipmentDetails(orderId, {
     status: "versendet",
     productionStatus: "versendet",
-    trackingNumber: normalized,
+    trackingNumber: normalized || undefined,
   })
   if (!saved) return null
 
