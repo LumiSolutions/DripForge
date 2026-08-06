@@ -3,6 +3,8 @@ export const PRODUCT_TEXT_OPTION_FIELDS = [
   "description",
   "variantKeywords",
   "shopVariantName",
+  "partLabels",
+  "filamentColor",
 ] as const
 
 export type ProductTextOptionField = (typeof PRODUCT_TEXT_OPTION_FIELDS)[number]
