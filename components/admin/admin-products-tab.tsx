@@ -1856,6 +1856,25 @@ export function AdminProductsTab() {
                         placeholder="z. B. Ash Gray"
                         className={adminUi.input}
                       />
+                      <ProductTextOptionControls
+                        value={
+                          defaultColorDraft ??
+                          (form.defaultFilamentColorName ?? "")
+                        }
+                        options={optionsForTextField("filamentColor")}
+                        saving={textOptionSavingField === "filamentColor"}
+                        onApply={(text) => {
+                          setDefaultColorDraft(text)
+                          updateField("defaultFilamentColorName", text.trim() || null)
+                        }}
+                        onSave={() =>
+                          void saveTextOption(
+                            "filamentColor",
+                            defaultColorDraft ??
+                              (form.defaultFilamentColorName ?? "")
+                          )
+                        }
+                      />
                     </div>
                     <div className="space-y-1.5">
                       <Label className={cn("text-xs", adminUi.labelMuted)}>
@@ -1870,6 +1889,21 @@ export function AdminProductsTab() {
                         onBlur={commitPartLabelsDraft}
                         placeholder="z. B. Rücken, Körper, Pfoten"
                         className={adminUi.input}
+                      />
+                      <ProductTextOptionControls
+                        value={partLabelsDraft ?? (form.partLabels ?? []).join(", ")}
+                        options={optionsForTextField("partLabels")}
+                        saving={textOptionSavingField === "partLabels"}
+                        onApply={(text) => {
+                          setPartLabelsDraft(text)
+                          updateField("partLabels", parsePartLabelsDraft(text))
+                        }}
+                        onSave={() =>
+                          void saveTextOption(
+                            "partLabels",
+                            partLabelsDraft ?? (form.partLabels ?? []).join(", ")
+                          )
+                        }
                       />
                       <p className={cn("text-xs", adminUi.muted)}>
                         Kommas und Leerzeichen sind erlaubt — z. B.
