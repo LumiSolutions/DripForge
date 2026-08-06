@@ -97,6 +97,7 @@ import { ShopTagFilterPanel } from "@/components/dripforge/shared/shop-tag-filte
 import { ShopStickyFilterChrome } from "@/components/dripforge/shared/shop-sticky-filter-chrome"
 import type { ProductTag } from "@/lib/admin/product-tags"
 import { normalizeShopProduct } from "@/lib/dripforge/normalize-shop-product"
+import { resolveProductStockState } from "@/lib/dripforge/product-inventory"
 import { productHref } from "@/lib/dripforge/product-slug"
 import { SHOP_ROUTES } from "@/lib/dripforge/shop-routes"
 import { ProductDetailErrorBoundary } from "@/components/dripforge/product-detail-error-boundary"
@@ -520,6 +521,7 @@ export function PageShop({
 
   const handleAddToCart = async () => {
     if (!selectedProduct || cartCapturing) return
+    if (!resolveProductStockState(selectedProduct).canPurchase) return
 
     const dimensionsText = selectedProduct.dimensionsMm
       ? formatProductDimensionsText(selectedProduct.dimensionsMm)
@@ -933,9 +935,14 @@ export function PageShop({
       ? "custom"
       : multiColorMode
 
+  const productStockState = selectedProduct
+    ? resolveProductStockState(selectedProduct)
+    : null
+
   const canAddToCart =
     !cartCapturing &&
     Boolean(selectedProduct) &&
+    Boolean(productStockState?.canPurchase) &&
     (selectedProduct?.type === "3d"
       ? (cartMultiColorMode === "standard"
           ? !productHasShopVariants(selectedProduct) ||
@@ -958,6 +965,21 @@ export function PageShop({
               laserDesign.imageLayout.src ||
               laserDesignHasContent(laserDesign))
         ))
+
+  const addToCartLabel = cartCapturing
+    ? selectedProduct?.type === "laser"
+      ? "Design wird gespeichert…"
+      : "Wird hinzugefügt…"
+    : productStockState?.ctaLabel ?? "In den Warenkorb"
+
+  const stockStatusToneClass =
+    productStockState?.tone === "danger"
+      ? "text-red-600 dark:text-red-400"
+      : productStockState?.tone === "warning"
+        ? "text-amber-600 dark:text-amber-400"
+        : productStockState?.tone === "info"
+          ? "text-sky-700 dark:text-sky-400"
+          : "text-muted-foreground"
 
   if (selectedProduct) {
     const detailProduct = normalizeShopProduct(selectedProduct)
@@ -1365,8 +1387,25 @@ export function PageShop({
                         ) : (
                           <ShoppingCart className="mr-2 h-5 w-5" />
                         )}
-                        {cartCapturing ? "Design wird gespeichert…" : "In den Warenkorb"}
+                        {addToCartLabel}
                       </Button>
+                      {productStockState?.statusMessage ? (
+                        <p
+                          className={cn(
+                            "text-center text-sm font-medium",
+                            stockStatusToneClass
+                          )}
+                        >
+                          {productStockState.kind === "low_stock"
+                            ? "⚠️ "
+                            : productStockState.tone === "danger"
+                              ? "🔴 "
+                              : productStockState.tone === "warning"
+                                ? "🟠 "
+                                : ""}
+                          {productStockState.statusMessage}
+                        </p>
+                      ) : null}
                       {(canAddToCart || laserDesignHasContent(laserDesign)) && (
                         <div className="space-y-3">
                           {extraLaserVariants.length > 0 && (
@@ -2093,10 +2132,25 @@ export function PageShop({
                             ) : (
                               <ShoppingCart className="mr-2 h-5 w-5" />
                             )}
-                            {cartCapturing
-                              ? "Wird hinzugefügt…"
-                              : "In den Warenkorb"}
+                            {addToCartLabel}
                           </Button>
+                          {productStockState?.statusMessage ? (
+                            <p
+                              className={cn(
+                                "text-center text-sm font-medium",
+                                stockStatusToneClass
+                              )}
+                            >
+                              {productStockState.kind === "low_stock"
+                                ? "⚠️ "
+                                : productStockState.tone === "danger"
+                                  ? "🔴 "
+                                  : productStockState.tone === "warning"
+                                    ? "🟠 "
+                                    : ""}
+                              {productStockState.statusMessage}
+                            </p>
+                          ) : null}
                           {!showMultiColorPicker &&
                             effectiveFilamentSelection &&
                             !effectiveFilamentSelection.inStock && (

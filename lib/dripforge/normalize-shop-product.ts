@@ -5,6 +5,13 @@ import { PRODUCT_DOC_TYPE } from "@/lib/cosmos/products-container"
 import { normalizeProductTagIds } from "@/lib/admin/product-tags"
 import { NEUTRAL_PRODUCT_PLACEHOLDER } from "@/lib/dripforge/neutral-placeholder"
 import { normalizeQuantityDiscountTiers } from "@/lib/dripforge/quantity-discount-tiers"
+import {
+  DEFAULT_LOW_STOCK_THRESHOLD,
+  normalizeLowStockThreshold,
+  normalizeManualAvailability,
+  normalizeStockQuantity,
+  normalizeZeroStockBehavior,
+} from "@/lib/dripforge/product-inventory"
 
 const PLACEHOLDER_IMAGE = NEUTRAL_PRODUCT_PLACEHOLDER
 
@@ -261,6 +268,13 @@ export function normalizeShopProduct(
           .filter(Boolean)
         return ids
       })(),
+      trackInventory: Boolean(source.trackInventory),
+      stockQuantity: normalizeStockQuantity(source.stockQuantity ?? 0),
+      lowStockThreshold: normalizeLowStockThreshold(
+        source.lowStockThreshold ?? DEFAULT_LOW_STOCK_THRESHOLD
+      ),
+      manualAvailability: normalizeManualAvailability(source.manualAvailability),
+      zeroStockBehavior: normalizeZeroStockBehavior(source.zeroStockBehavior),
     }
   } catch (error) {
     console.error("Shop: normalizeShopProduct fehlgeschlagen.", error, raw)
