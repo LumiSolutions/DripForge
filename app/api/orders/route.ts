@@ -125,7 +125,7 @@ export async function POST(request: Request) {
     }
 
     let aiCreditsGranted = 0
-    let loyaltyPointsGranted = 0
+    const loyaltyPointsGranted = 0
 
     try {
       const portalAccount = await getAccountByEmail(accountEmail)
