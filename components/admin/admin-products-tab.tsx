@@ -104,6 +104,13 @@ import {
   parseOptionalInt,
   parseOptionalNumber,
 } from "@/lib/admin/optional-number"
+import {
+  DEFAULT_LOW_STOCK_THRESHOLD,
+  MANUAL_AVAILABILITY_OPTIONS,
+  ZERO_STOCK_BEHAVIOR_OPTIONS,
+  type ProductManualAvailability,
+  type ProductZeroStockBehavior,
+} from "@/lib/dripforge/product-inventory"
 
 type ProductFormState = Partial<AdminProduct> & {
   variantenText?: string
@@ -140,6 +147,11 @@ const EMPTY_FORM: ProductFormState = {
   tags: [],
   imageShape: "rounded",
   sku: "",
+  trackInventory: false,
+  stockQuantity: 0,
+  lowStockThreshold: DEFAULT_LOW_STOCK_THRESHOLD,
+  manualAvailability: "available",
+  zeroStockBehavior: "sold_out",
 }
 
 type MediaUploadCategory = "gallery" | "customization" | "model"
@@ -199,6 +211,7 @@ function marginToneClass(marginPercent: number | null): string {
 
 const DEFAULT_PRODUCT_SECTIONS: Record<string, boolean> = {
   allgemein: true,
+  inventory: false,
   sale: false,
   quantityDiscount: false,
   tags: false,
@@ -449,6 +462,12 @@ export function AdminProductsTab() {
       printTimeMinutes: product.printTimeMinutes,
       printTimeShowInShop: Boolean(product.printTimeShowInShop),
       allowedFilamentMaterialTypeIds: product.allowedFilamentMaterialTypeIds,
+      trackInventory: Boolean(product.trackInventory),
+      stockQuantity: product.stockQuantity ?? 0,
+      lowStockThreshold:
+        product.lowStockThreshold ?? DEFAULT_LOW_STOCK_THRESHOLD,
+      manualAvailability: product.manualAvailability ?? "available",
+      zeroStockBehavior: product.zeroStockBehavior ?? "sold_out",
       defaultRotationDeg: product.defaultRotationDeg ?? { x: 0, y: 0, z: 0 },
     }
     setForm(next)
@@ -460,6 +479,10 @@ export function AdminProductsTab() {
     setOpenSections({
       ...DEFAULT_PRODUCT_SECTIONS,
       sale: Boolean(product.sale),
+      inventory:
+        Boolean(product.trackInventory) ||
+        (product.manualAvailability != null &&
+          product.manualAvailability !== "available"),
     })
     setIsEditing(true)
     setSaveSuccess(null)
@@ -1121,6 +1144,138 @@ export function AdminProductsTab() {
                       </div>
                     </div>
                   </div>
+                </div>
+              </ProductEditAccordion>
+
+              <ProductEditAccordion
+                title="Lagerbestand & Status"
+                open={Boolean(openSections.inventory)}
+                onToggle={() => toggleSection("inventory")}
+              >
+                <p className={cn("text-xs", adminUi.muted)}>
+                  Standard: Bestandsverwaltung aus — Produkt gilt als unbegrenzt
+                  verfügbar. Manueller Status überschreibt die Menge.
+                </p>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2 sm:col-span-2">
+                    <Label className={adminUi.label}>
+                      Manuelle Verfügbarkeit
+                    </Label>
+                    <Select
+                      value={form.manualAvailability ?? "available"}
+                      onValueChange={(value) =>
+                        updateField(
+                          "manualAvailability",
+                          value as ProductManualAvailability
+                        )
+                      }
+                    >
+                      <SelectTrigger className={adminUi.select}>
+                        <SelectValue placeholder="Status wählen" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {MANUAL_AVAILABILITY_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-start gap-3 rounded-lg border border-border/60 px-3 py-3 sm:col-span-2">
+                    <Switch
+                      id="trackInventory"
+                      checked={Boolean(form.trackInventory)}
+                      onCheckedChange={(checked) =>
+                        updateField("trackInventory", checked)
+                      }
+                      className="mt-0.5"
+                    />
+                    <div className="space-y-1">
+                      <Label htmlFor="trackInventory" className={adminUi.label}>
+                        Lagerbestand verfolgen
+                      </Label>
+                      <p className={cn("text-xs", adminUi.muted)}>
+                        Wenn aktiv, steuert die Stückzahl Verfügbarkeit und Badges
+                        im Shop (zusätzlich zum manuellen Status).
+                      </p>
+                    </div>
+                  </div>
+                  {form.trackInventory ? (
+                    <>
+                      <div className="space-y-2">
+                        <Label className={adminUi.label}>
+                          Lagerbestand (Anzahl)
+                        </Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          step={1}
+                          value={form.stockQuantity ?? 0}
+                          onChange={(e) =>
+                            updateField(
+                              "stockQuantity",
+                              Math.max(0, Math.floor(Number(e.target.value) || 0))
+                            )
+                          }
+                          className={adminUi.input}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className={adminUi.label}>
+                          Schwellenwert «Fast ausverkauft»
+                        </Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          step={1}
+                          value={
+                            form.lowStockThreshold ?? DEFAULT_LOW_STOCK_THRESHOLD
+                          }
+                          onChange={(e) =>
+                            updateField(
+                              "lowStockThreshold",
+                              Math.max(0, Math.floor(Number(e.target.value) || 0))
+                            )
+                          }
+                          className={adminUi.input}
+                        />
+                        <p className={cn("text-xs", adminUi.muted)}>
+                          Default {DEFAULT_LOW_STOCK_THRESHOLD} Stk. — Warnt auf der
+                          Produktdetailseite.
+                        </p>
+                      </div>
+                      <div className="space-y-2 sm:col-span-2">
+                        <Label className={adminUi.label}>
+                          Status bei Bestand 0
+                        </Label>
+                        <Select
+                          value={form.zeroStockBehavior ?? "sold_out"}
+                          onValueChange={(value) =>
+                            updateField(
+                              "zeroStockBehavior",
+                              value as ProductZeroStockBehavior
+                            )
+                          }
+                        >
+                          <SelectTrigger className={adminUi.select}>
+                            <SelectValue placeholder="Verhalten wählen" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {ZERO_STOCK_BEHAVIOR_OPTIONS.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className={cn("text-xs", adminUi.muted)}>
+                          «Vorbestellung erlaubt» lässt den Kauf zu und ändert den
+                          Button-Text im Shop.
+                        </p>
+                      </div>
+                    </>
+                  ) : null}
                 </div>
               </ProductEditAccordion>
 

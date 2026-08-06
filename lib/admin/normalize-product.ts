@@ -19,6 +19,13 @@ import { normalizeProductSku } from "@/lib/admin/product-sku"
 import { normalizeProductImageShape } from "@/lib/dripforge/types"
 import { normalizeQuantityDiscountTiers } from "@/lib/dripforge/quantity-discount-tiers"
 import { normalizeAllowedFilamentMaterialTypeIds } from "@/lib/dripforge/product-filament-materials"
+import {
+  DEFAULT_LOW_STOCK_THRESHOLD,
+  normalizeLowStockThreshold,
+  normalizeManualAvailability,
+  normalizeStockQuantity,
+  normalizeZeroStockBehavior,
+} from "@/lib/dripforge/product-inventory"
 
 export { isProductActive }
 
@@ -220,6 +227,30 @@ export function normalizeAdminProductInput(
       }
       return undefined
     })(),
+    trackInventory:
+      input.trackInventory !== undefined
+        ? Boolean(input.trackInventory)
+        : Boolean(existing?.trackInventory),
+    stockQuantity: normalizeStockQuantity(
+      input.stockQuantity !== undefined
+        ? input.stockQuantity
+        : existing?.stockQuantity ?? 0
+    ),
+    lowStockThreshold: normalizeLowStockThreshold(
+      input.lowStockThreshold !== undefined
+        ? input.lowStockThreshold
+        : existing?.lowStockThreshold ?? DEFAULT_LOW_STOCK_THRESHOLD
+    ),
+    manualAvailability: normalizeManualAvailability(
+      input.manualAvailability !== undefined
+        ? input.manualAvailability
+        : existing?.manualAvailability
+    ),
+    zeroStockBehavior: normalizeZeroStockBehavior(
+      input.zeroStockBehavior !== undefined
+        ? input.zeroStockBehavior
+        : existing?.zeroStockBehavior
+    ),
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   }

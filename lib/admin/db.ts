@@ -581,6 +581,46 @@ export async function upsertProduct(product: AdminProduct): Promise<AdminProduct
   return withCosmosRequired("upsertProduct", () => cosmosUpsertProduct(next))
 }
 
+/**
+ * Teil-Update eines Produkts (z. B. Lagerbestand) mit Datei-Fallback —
+ * für Bestell-Hooks ohne Cosmos-Admin-Schreibzugriff.
+ */
+export async function patchProductFields(
+  id: string,
+  patch: Partial<AdminProduct>
+): Promise<AdminProduct | null> {
+  return withCosmosFallback(
+    "patchProductFields",
+    async () => {
+      const existing = await cosmosGetProductById(id)
+      if (!existing) return null
+      const next: AdminProduct = {
+        ...existing,
+        ...patch,
+        id: existing.id,
+        updatedAt: new Date().toISOString(),
+      }
+      return cosmosUpsertProduct(next)
+    },
+    async () => {
+      const products = await getProductsFromFile()
+      const idx = products.findIndex((p) => p.id === id)
+      if (idx < 0) return null
+      const existing = products[idx]!
+      const next: AdminProduct = {
+        ...existing,
+        ...patch,
+        id: existing.id,
+        updatedAt: new Date().toISOString(),
+      }
+      const updated = [...products]
+      updated[idx] = next
+      await writeJsonFile(PRODUCTS_FILE, updated)
+      return next
+    }
+  )
+}
+
 export async function deleteProduct(id: string): Promise<boolean> {
   return withCosmosRequired("deleteProduct", () => cosmosDeleteProduct(id))
 }

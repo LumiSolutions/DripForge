@@ -114,6 +114,25 @@ export type Product = {
    * `undefined` = alle aktiven Arten (Legacy). Explizites Array filtert die Tabs.
    */
   allowedFilamentMaterialTypeIds?: string[]
+  /**
+   * Lagerbestand verfolgen. Default false = unbegrenzt verfügbar
+   * (ohne Rohlinge-/Stückzahl-Pflege).
+   */
+  trackInventory?: boolean
+  /** Aktueller Lagerbestand (Stück), nur wenn trackInventory. */
+  stockQuantity?: number
+  /** Schwellenwert für «Fast ausverkauft» (Default 3). */
+  lowStockThreshold?: number
+  /**
+   * Manuelle Verfügbarkeit — überschreibt Bestandsmenge.
+   * available | out_of_stock | coming_soon
+   */
+  manualAvailability?: import("@/lib/dripforge/product-inventory").ProductManualAvailability
+  /**
+   * Verhalten bei Bestand 0 (wenn trackInventory):
+   * sold_out | coming_soon | preorder
+   */
+  zeroStockBehavior?: import("@/lib/dripforge/product-inventory").ProductZeroStockBehavior
 }
 
 export type ProductShopVariant = {

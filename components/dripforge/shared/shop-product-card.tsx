@@ -12,6 +12,7 @@ import {
   type Product,
 } from "@/lib/dripforge/types"
 import { productDescriptionPreview } from "@/lib/dripforge/product-description-html"
+import { resolveShopCardStockBadge } from "@/lib/dripforge/product-inventory"
 import { cn } from "@/lib/utils"
 
 export type ShopCardSurface = "brand" | "neutral"
@@ -53,6 +54,7 @@ export function ShopProductCard({
 }: ShopProductCardProps) {
   const salePercent = getSaleBadgePercent(product)
   const isList = viewMode === "list"
+  const stockBadge = resolveShopCardStockBadge(product)
 
   const typeBadge = (
     <div className="mb-1.5 flex items-center gap-2 text-xs font-medium text-muted-foreground">
@@ -128,10 +130,16 @@ export function ShopProductCard({
                 -{salePercent}%
               </span>
             )}
+            {stockBadge ? (
+              <span className="absolute bottom-2 left-2 z-10 rounded-md bg-zinc-900/85 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white shadow-sm">
+                {stockBadge.label}
+              </span>
+            ) : null}
             <div
               className={cn(
                 "relative h-full w-full overflow-hidden",
-                productImageShapeClass(product.imageShape)
+                productImageShapeClass(product.imageShape),
+                stockBadge?.dimImage && "opacity-80 grayscale-[35%]"
               )}
             >
               <SafeProductImage
@@ -216,7 +224,8 @@ export function ShopProductCard({
         <div
           className={cn(
             "relative h-full w-full overflow-hidden bg-background/40",
-            productImageShapeClass(product.imageShape)
+            productImageShapeClass(product.imageShape),
+            stockBadge?.dimImage && "opacity-80 grayscale-[35%]"
           )}
         >
           <SafeProductImage
@@ -235,6 +244,11 @@ export function ShopProductCard({
             -{salePercent}%
           </span>
         )}
+        {stockBadge ? (
+          <span className="absolute bottom-3 left-3 z-10 rounded-md bg-zinc-900/85 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-white shadow-sm">
+            {stockBadge.label}
+          </span>
+        ) : null}
       </div>
       <CardContent
         className={cn(

@@ -97,6 +97,8 @@ export type StoredOrder = {
   inventoryState?: import("@/lib/admin/material-types").OrderInventoryState
   /** Reservierte Materialmengen pro Bestellung */
   materialReservations?: import("@/lib/admin/material-types").OrderMaterialReservation[]
+  /** Produkt-Stückbestand (trackInventory) bereits abgebucht */
+  productStockDebited?: boolean
   /** Schweizer Post Sendungsnummer (nach Versand) */
   trackingNumber?: string
   /** Versand-E-Mail-Benachrichtigungen (Idempotenz) */

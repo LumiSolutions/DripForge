@@ -3,6 +3,10 @@ import {
   releaseReservedMaterialsForOrder,
   reserveMaterialsForOrder,
 } from "@/lib/admin/material-orders"
+import {
+  debitTrackedProductStockForOrder,
+  restoreTrackedProductStockForOrder,
+} from "@/lib/admin/product-stock"
 import { getOrderById, saveOrder } from "@/lib/admin/db"
 import type { OrderStatus, StoredOrder } from "@/lib/admin/types"
 import { reverseLoyaltyPointsForStoredOrder } from "@/lib/shop/loyalty-order-reversal"
@@ -11,19 +15,33 @@ import { recordOrderStornoJournalEntry } from "@/lib/accounting/order-journal"
 export async function applyInventoryReservationForOrder(
   order: StoredOrder
 ): Promise<StoredOrder> {
-  if (order.inventoryState === "reserved" || order.inventoryState === "consumed") {
-    return order
+  let current = order
+
+  if (!current.productStockDebited) {
+    const debit = await debitTrackedProductStockForOrder(current)
+    if (!debit.ok) {
+      console.warn(
+        `Lager: Produktbestand unvollständig für ${order.orderId}:`,
+        debit.errors.join("; ")
+      )
+    }
+    current = { ...current, productStockDebited: true }
+    await saveOrder(current)
   }
 
-  const reserve = await reserveMaterialsForOrder(order)
+  if (current.inventoryState === "reserved" || current.inventoryState === "consumed") {
+    return current
+  }
+
+  const reserve = await reserveMaterialsForOrder(current)
   if (reserve.reservations.length === 0) {
-    return order
+    return current
   }
 
   const next: StoredOrder = {
-    ...order,
+    ...current,
     materialReservations: reserve.reservations,
-    inventoryState: reserve.reserved ? "reserved" : order.inventoryState ?? "none",
+    inventoryState: reserve.reserved ? "reserved" : current.inventoryState ?? "none",
   }
   await saveOrder(next)
 
@@ -63,10 +81,20 @@ export async function updateOrderStatusWithInventory(
     if (!release.ok) {
       console.warn(`Lager: Freigabe fehlgeschlagen (${orderId}):`, release.errors.join("; "))
     }
+    if (order.productStockDebited) {
+      const restore = await restoreTrackedProductStockForOrder(order)
+      if (!restore.ok) {
+        console.warn(
+          `Lager: Produktbestand-Restore fehlgeschlagen (${orderId}):`,
+          restore.errors.join("; ")
+        )
+      }
+    }
     const next: StoredOrder = {
       ...order,
       status,
       inventoryState: "released",
+      productStockDebited: false,
     }
     await saveOrder(next)
     if (order.status !== "storniert") {
@@ -84,6 +112,16 @@ export async function updateOrderStatusWithInventory(
   }
 
   const next: StoredOrder = { ...order, status }
+  if (status === "storniert" && order.productStockDebited) {
+    const restore = await restoreTrackedProductStockForOrder(order)
+    if (!restore.ok) {
+      console.warn(
+        `Lager: Produktbestand-Restore fehlgeschlagen (${orderId}):`,
+        restore.errors.join("; ")
+      )
+    }
+    next.productStockDebited = false
+  }
   await saveOrder(next)
   if (status === "storniert" && order.status !== "storniert") {
     await reverseLoyaltyPointsForStoredOrder(next)
