@@ -64,6 +64,10 @@ import {
   requiresShipmentModal,
   resolveProductionStatus,
 } from "@/lib/admin/production-status"
+import {
+  resolveOrderFulfillmentLabel,
+  shouldCollectPostTracking,
+} from "@/lib/admin/order-fulfillment"
 import { handlePrintPostLabel } from "@/lib/admin/post-label"
 import {
   CUSTOMER_INBOUND_PRODUCTION_LABEL,
@@ -762,6 +766,13 @@ export function AdminProductionTab() {
     return map
   }, [filteredOrders])
 
+  const shipModalUsesPostTracking = shipModalOrder
+    ? shouldCollectPostTracking(shipModalOrder)
+    : true
+  const shipModalFulfillmentLabel = shipModalOrder
+    ? resolveOrderFulfillmentLabel(shipModalOrder)
+    : ""
+
   const moveOrder = async (orderId: string, productionStatus: ProductionStatus) => {
     if (productionStatus === "versendet") return
     // Zahlung muss vor "Bezahlt" bestätigt sein (Rechnung/TWINT).
@@ -853,6 +864,7 @@ export function AdminProductionTab() {
 
   const completeShipment = async () => {
     if (!shipModalOrder) return
+    const usesPostTracking = shouldCollectPostTracking(shipModalOrder)
     setShipBusy(true)
     setError(null)
     setShipNotice(null)
@@ -864,7 +876,7 @@ export function AdminProductionTab() {
           orderId: shipModalOrder.orderId,
           status: "versendet",
           productionStatus: "versendet",
-          trackingNumber,
+          trackingNumber: usesPostTracking ? trackingNumber : "",
         }),
       })
       const data = (await res.json()) as {
@@ -880,8 +892,12 @@ export function AdminProductionTab() {
       }
       setShipNotice(
         data.emailSent
-          ? "Versand abgeschlossen — Kunde wurde per E-Mail benachrichtigt."
-          : "Versand abgeschlossen — Versandbestätigung vorbereitet (SMTP prüfen)."
+          ? usesPostTracking
+            ? "Versand abgeschlossen — Kunde wurde per E-Mail benachrichtigt."
+            : "Abholung / Übergabe abgeschlossen — Kunde wurde per E-Mail benachrichtigt."
+          : usesPostTracking
+            ? "Versand abgeschlossen — Versandbestätigung vorbereitet (SMTP prüfen)."
+            : "Abholung / Übergabe abgeschlossen — Bestätigung vorbereitet (SMTP prüfen)."
       )
       setShipModalOrder(null)
       setTrackingNumber("")
@@ -1166,7 +1182,11 @@ export function AdminProductionTab() {
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Versand abschliessen</DialogTitle>
+            <DialogTitle>
+              {shipModalUsesPostTracking
+                ? "Versand abschliessen"
+                : "Übergabe / Abholung abschliessen"}
+            </DialogTitle>
           </DialogHeader>
           {shipModalOrder && (
             <div className="space-y-4">
@@ -1177,34 +1197,41 @@ export function AdminProductionTab() {
                 </span>{" "}
                 — {customerName(shipModalOrder)}
               </p>
-              <div className="space-y-2">
-                <Label htmlFor="trackingNumber">
-                  Schweizer Post Tracking-Nummer (Sendungsnummer)
-                </Label>
-                <Input
-                  id="trackingNumber"
-                  value={trackingNumber}
-                  onChange={(e) => setTrackingNumber(e.target.value)}
-                  placeholder="z. B. 99.60.123456.12345678"
-                  autoComplete="off"
-                />
-              </div>
+              <p className={cn("text-xs", adminUi.muted)}>
+                Versandart: {shipModalFulfillmentLabel}
+              </p>
+              {shipModalUsesPostTracking && (
+                <div className="space-y-2">
+                  <Label htmlFor="trackingNumber">
+                    Schweizer Post Tracking-Nummer (Sendungsnummer)
+                  </Label>
+                  <Input
+                    id="trackingNumber"
+                    value={trackingNumber}
+                    onChange={(e) => setTrackingNumber(e.target.value)}
+                    placeholder="z. B. 99.60.123456.12345678"
+                    autoComplete="off"
+                  />
+                </div>
+              )}
             </div>
           )}
           <DialogFooter className="flex-col gap-2 sm:flex-col sm:space-x-0">
+            {shipModalUsesPostTracking && (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={!shipModalOrder || shipBusy}
+                onClick={() => {
+                  if (shipModalOrder) void handlePrintPostLabel(shipModalOrder.orderId)
+                }}
+              >
+                Post-Etikette drucken
+              </Button>
+            )}
             <Button
               type="button"
-              variant="outline"
               disabled={!shipModalOrder || shipBusy}
-              onClick={() => {
-                if (shipModalOrder) void handlePrintPostLabel(shipModalOrder.orderId)
-              }}
-            >
-              Post-Etikette drucken
-            </Button>
-            <Button
-              type="button"
-              disabled={!shipModalOrder || shipBusy || !trackingNumber.trim()}
               className={adminUi.primaryBtn}
               onClick={() => void completeShipment()}
             >
@@ -1214,7 +1241,9 @@ export function AdminProductionTab() {
                   Wird gespeichert…
                 </>
               ) : (
-                "Versand abschliessen"
+                shipModalUsesPostTracking
+                  ? "Versand abschliessen"
+                  : "Als abgeholt / übergeben markieren"
               )}
             </Button>
           </DialogFooter>
