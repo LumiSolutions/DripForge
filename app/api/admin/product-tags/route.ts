@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server"
 import { resolveCosmosApiError } from "@/lib/admin/api-errors"
 import { getProductTags, upsertProductTag } from "@/lib/admin/product-tag-db"
-import { createProductTagId, normalizeProductTag } from "@/lib/admin/product-tags"
+import {
+  createProductTagId,
+  normalizeProductTag,
+  normalizeProductTagNameKey,
+} from "@/lib/admin/product-tags"
 import { warmCosmosInfrastructure } from "@/lib/cosmos/client"
 import {
   isAuthError,
@@ -32,16 +36,33 @@ export async function POST(request: Request) {
 
   try {
     await warmCosmosInfrastructure()
-    const body = (await request.json()) as { name?: string; sortOrder?: number; group?: string }
+    const body = (await request.json()) as {
+      name?: string
+      sortOrder?: number
+      group?: string
+    }
     const name = body.name?.trim()
     if (!name) {
       return NextResponse.json({ error: "Tag-Name fehlt." }, { status: 400 })
     }
 
+    const existingTags = await getProductTags()
+    const existingTag = existingTags.find(
+      (tag) =>
+        normalizeProductTagNameKey(tag.name) === normalizeProductTagNameKey(name)
+    )
+    if (existingTag) {
+      return NextResponse.json({
+        duplicate: true,
+        tag: existingTag,
+        tags: existingTags,
+      })
+    }
+
     const tag = normalizeProductTag({
       id: createProductTagId(name),
       name,
-      sortOrder: body.sortOrder,
+      sortOrder: body.sortOrder ?? existingTags.length,
       group: body.group,
     })
     const saved = await upsertProductTag(tag)

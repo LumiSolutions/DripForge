@@ -1454,6 +1454,7 @@ export function AdminProductsTab() {
                   tags={productTags}
                   selectedTagIds={form.tags ?? []}
                   onChange={(tagIds) => updateField("tags", tagIds)}
+                  onTagsChange={setProductTags}
                 />
               </ProductEditAccordion>
 
