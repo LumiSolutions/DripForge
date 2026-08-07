@@ -21,6 +21,7 @@ import { SiteTextsProvider } from "@/components/dripforge/site-texts-provider"
 import { CompanySettingsProvider } from "@/components/dripforge/company-settings-provider"
 import { StorefrontFloatingActions } from "@/components/dripforge/storefront-floating-actions"
 import { LaunchGateShell } from "@/components/dripforge/launch-gate-shell"
+import { SeasonalProvider } from "@/components/dripforge/seasonal-storefront"
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -121,11 +122,13 @@ export default function RootLayout({
           <SiteConfigPreviewProvider>
             <SiteTextsProvider>
               <CompanySettingsProvider>
-                <AnnouncementBanner />
-                <SiteConfigPreviewBanner />
-                <LaunchGateShell>{children}</LaunchGateShell>
-                <GlobalShopFooter />
-                <StorefrontFloatingActions />
+                <SeasonalProvider>
+                  <AnnouncementBanner />
+                  <SiteConfigPreviewBanner />
+                  <LaunchGateShell>{children}</LaunchGateShell>
+                  <GlobalShopFooter />
+                  <StorefrontFloatingActions />
+                </SeasonalProvider>
               </CompanySettingsProvider>
             </SiteTextsProvider>
           </SiteConfigPreviewProvider>

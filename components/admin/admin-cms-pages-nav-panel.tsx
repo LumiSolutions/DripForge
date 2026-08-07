@@ -11,6 +11,8 @@ import {
 } from "@/lib/admin/site-nav"
 import {
   customPagePathFromSlug,
+  normalizeCmsPagePath,
+  slugFromCmsPagePath,
   slugifyCmsPathSegment,
 } from "@/lib/admin/cms-custom-pages"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
@@ -49,21 +51,22 @@ export function AdminCmsPagesNavPanel({
 }: AdminCmsPagesNavPanelProps) {
   const addPage = () => {
     const id = `custom-${Date.now()}`
-    const slug = `seite-${Date.now().toString(36)}`
+    const path = normalizeCmsPagePath(`/seite-${Date.now().toString(36)}`)
     onPagesChange([
       ...pages,
       {
         id,
         title: "Neue Seite",
-        path: customPagePathFromSlug(slug),
+        path,
         enabled: true,
         sortOrder: pages.length,
         system: false,
-        slug,
+        slug: slugFromCmsPagePath(path) ?? "seite",
         published: false,
         heroTitle: "Neue Seite",
         heroSubtitle: "",
         bannerImageUrl: null,
+        rows: [{ id: `row-${Date.now()}`, layout: "1", sortOrder: 0 }],
         blocks: [],
       },
     ])
@@ -91,7 +94,7 @@ export function AdminCmsPagesNavPanel({
           <div>
             <h3 className={cn("text-sm font-semibold", adminUi.heading)}>Seiten</h3>
             <p className={cn("text-xs", adminUi.muted)}>
-              System-Seiten und Custom-Seiten (`/seiten/[slug]`). Inhalte im{" "}
+              System-Seiten und Custom-Seiten mit sauberen URLs. Inhalte im{" "}
               <Link
                 href={adminRouteHref("seiten")}
                 className="underline underline-offset-2 hover:text-foreground"
@@ -127,29 +130,26 @@ export function AdminCmsPagesNavPanel({
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">
-                  {page.system ? "Pfad" : "Slug (/seiten/…)"}
+                  {page.system ? "Pfad" : "URL-Pfad"}
                 </Label>
                 <Input
-                  value={page.system ? page.path : page.slug ?? ""}
+                  value={page.path}
                   disabled={disabled || page.system}
                   onChange={(e) => {
                     const next = [...pages]
                     if (page.system) {
                       next[index] = { ...page, path: e.target.value }
                     } else {
-                      const slug = slugifyCmsPathSegment(e.target.value)
+                      const path = normalizeCmsPagePath(e.target.value)
                       next[index] = {
                         ...page,
-                        slug,
-                        path: customPagePathFromSlug(slug || "seite"),
+                        path,
+                        slug: slugFromCmsPagePath(path) ?? page.slug,
                       }
                     }
                     onPagesChange(next)
                   }}
                 />
-                {!page.system ? (
-                  <p className="text-[11px] text-muted-foreground">{page.path}</p>
-                ) : null}
               </div>
               <label className="flex items-end gap-2 pb-2 text-xs">
                 <input

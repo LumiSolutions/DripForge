@@ -1084,12 +1084,29 @@ export function AdminSettingsTab({
                               onChange={(e) =>
                                 updateAnnouncementEntry(entry.id, {
                                   endAt: e.target.value || null,
+                                  ...(e.target.value
+                                    ? {}
+                                    : { showCountdown: false }),
                                 })
                               }
                               className={adminUi.input}
                             />
                           </div>
                         </div>
+                        {entry.endAt ? (
+                          <label className="flex items-center gap-2 text-sm">
+                            <input
+                              type="checkbox"
+                              checked={entry.showCountdown === true}
+                              onChange={(e) =>
+                                updateAnnouncementEntry(entry.id, {
+                                  showCountdown: e.target.checked,
+                                })
+                              }
+                            />
+                            Countdown anzeigen (Tage : Stunden : Minuten : Sekunden)
+                          </label>
+                        ) : null}
                       </div>
                     ))}
                   </div>

@@ -28,7 +28,34 @@ function isAdminPath(pathname: string): boolean {
   )
 }
 
-/** Textsegment + optionaler Rabattcode; optional als Link umschlossen. */
+/** Textsegment + optionaler Rabattcode + optionaler Countdown; optional als Link. */
+function formatCountdown(remainingMs: number): string {
+  const totalSec = Math.max(0, Math.floor(remainingMs / 1000))
+  const days = Math.floor(totalSec / 86400)
+  const hours = Math.floor((totalSec % 86400) / 3600)
+  const minutes = Math.floor((totalSec % 3600) / 60)
+  const seconds = totalSec % 60
+  const pad = (n: number) => String(n).padStart(2, "0")
+  if (days > 0) return `${days}d ${pad(hours)}:${pad(minutes)}:${pad(seconds)}`
+  return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`
+}
+
+function BannerCountdown({ endAt }: { endAt: string }) {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [])
+  const end = Date.parse(endAt)
+  if (Number.isNaN(end) || end <= now) return null
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-md bg-black/25 px-2 py-0.5 font-mono text-xs tracking-wide tabular-nums">
+      <span className="opacity-80">noch</span>
+      <span className="animate-pulse">{formatCountdown(end - now)}</span>
+    </span>
+  )
+}
+
 function EntryContent({ entry }: { entry: AnnouncementBannerEntry }) {
   const inner = (
     <span className="inline-flex items-center gap-2 whitespace-nowrap">
@@ -37,6 +64,9 @@ function EntryContent({ entry }: { entry: AnnouncementBannerEntry }) {
         <span className="rounded-md bg-black/20 px-2 py-0.5 font-mono text-xs tracking-wide">
           {entry.discountCode.trim()}
         </span>
+      ) : null}
+      {entry.showCountdown && entry.endAt ? (
+        <BannerCountdown endAt={entry.endAt} />
       ) : null}
     </span>
   )

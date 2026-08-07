@@ -17,6 +17,8 @@ export type AnnouncementBannerEntry = {
   startAt: string | null
   /** ISO/datetime-local String; leer/null = keine Endbegrenzung. */
   endAt: string | null
+  /** Live-Countdown bis endAt im Banner anzeigen. */
+  showCountdown: boolean
 }
 
 export type AnnouncementBannerSettings = {
@@ -79,6 +81,7 @@ function normalizeEntry(input: Partial<AnnouncementBannerEntry> | null | undefin
       typeof input?.linkUrl === "string" ? input.linkUrl.trim().slice(0, 500) : "",
     startAt: normalizeDateValue(input?.startAt),
     endAt: normalizeDateValue(input?.endAt),
+    showCountdown: input?.showCountdown === true,
   }
 }
 
@@ -174,5 +177,6 @@ export function createEmptyAnnouncementEntry(): AnnouncementBannerEntry {
     linkUrl: "",
     startAt: null,
     endAt: null,
+    showCountdown: false,
   }
 }

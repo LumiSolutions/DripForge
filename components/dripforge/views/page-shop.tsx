@@ -112,7 +112,6 @@ import { LoadSavedDesignButton } from "@/components/konto/load-saved-design-butt
 import { hydrateLaserDesignerFromConfig } from "@/lib/konto/hydrate-laser-design"
 import { DiscountedUnitPrice } from "@/components/dripforge/shared/discounted-unit-price"
 import {
-  SeasonalEffects,
   seasonalBadgeForProduct,
   useSeasonalEvent,
 } from "@/components/dripforge/seasonal-storefront"
@@ -1156,7 +1155,6 @@ export function PageShop({
 
     return (
       <>
-      <SeasonalEffects event={activeEvent} />
       <div className="space-y-10 pb-12 md:pb-24">
         {/* Kein Radix-Modal: hideOthers/RemoveScroll über WebGL/Embla → Storefront-Error. */}
         {cartAddedOpen ? (
@@ -2261,7 +2259,6 @@ export function PageShop({
 
   return (
     <div className="space-y-10 pb-12 md:space-y-16 md:pb-24">
-      <SeasonalEffects event={activeEvent} />
       <section className="py-10 text-center md:py-16">
         <Badge variant="outline" className="mb-6 border-primary/30 bg-primary/10 text-primary">
           <ShoppingBag className="mr-1 h-3 w-3" />

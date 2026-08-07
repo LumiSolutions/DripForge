@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/select"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
 import {
+  normalizeCustomParticles,
   normalizeSeasonalSettings,
   type SeasonalEffect,
   type SeasonalEvent,
@@ -25,10 +26,15 @@ import { cn } from "@/lib/utils"
 
 const EFFECTS: { value: SeasonalEffect; label: string }[] = [
   { value: "none", label: "Keine Animation" },
-  { value: "snow", label: "Dezenter Schnee" },
+  { value: "snow", label: "Schnee" },
   { value: "hearts", label: "Herzen" },
   { value: "confetti", label: "Konfetti" },
-  { value: "spooky", label: "Halloween-Akzente" },
+  { value: "fireworks", label: "Feuerwerk" },
+  { value: "flowers", label: "Blumen / Blütenregen" },
+  { value: "pumpkins", label: "Kürbisse / Spinnenweben" },
+  { value: "blackFriday", label: "Black Friday (Neon/Glitch)" },
+  { value: "spooky", label: "Spooky-Akzente" },
+  { value: "custom", label: "Custom / Eigenes Theme" },
 ]
 
 const THEME_TYPES: { value: SeasonalThemeType; label: string }[] = [
@@ -37,6 +43,9 @@ const THEME_TYPES: { value: SeasonalThemeType; label: string }[] = [
   { value: "valentine", label: "Valentinstag" },
   { value: "easter", label: "Ostern" },
   { value: "summer", label: "Sommer-Special" },
+  { value: "blackFriday", label: "Black Friday" },
+  { value: "newYear", label: "Silvester" },
+  { value: "spring", label: "Frühling / Muttertag" },
   { value: "custom", label: "Custom" },
 ]
 
@@ -242,7 +251,14 @@ export function AdminSeasonalEventsTab() {
                 <Select
                   value={event.effect}
                   onValueChange={(value) =>
-                    updateEvent(event.id, { effect: value as SeasonalEffect })
+                    updateEvent(event.id, {
+                      effect: value as SeasonalEffect,
+                      ...(value === "custom" && !event.customParticles
+                        ? {
+                            customParticles: normalizeCustomParticles(undefined),
+                          }
+                        : {}),
+                    })
                   }
                 >
                   <SelectTrigger>
@@ -268,6 +284,82 @@ export function AdminSeasonalEventsTab() {
                   />
                 </div>
               </div>
+              {event.effect === "custom" ? (
+                <div className="space-y-3 sm:col-span-2 rounded-lg border border-border/50 bg-muted/20 p-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Custom-Effekt-Mixer
+                  </p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label>Icons / Emojis (Leerzeichen getrennt)</Label>
+                      <Input
+                        value={event.customParticles?.glyphs ?? ""}
+                        onChange={(e) =>
+                          updateEvent(event.id, {
+                            customParticles: normalizeCustomParticles({
+                              ...event.customParticles,
+                              glyphs: e.target.value,
+                            }),
+                          })
+                        }
+                        placeholder="✦ ★ 🌸"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Partikel-Farbe</Label>
+                      <Input
+                        type="color"
+                        value={event.customParticles?.color ?? event.accentColor}
+                        onChange={(e) =>
+                          updateEvent(event.id, {
+                            customParticles: normalizeCustomParticles({
+                              ...event.customParticles,
+                              color: e.target.value,
+                            }),
+                          })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Dichte ({event.customParticles?.density ?? 18})</Label>
+                      <Input
+                        type="range"
+                        min={4}
+                        max={40}
+                        value={event.customParticles?.density ?? 18}
+                        onChange={(e) =>
+                          updateEvent(event.id, {
+                            customParticles: normalizeCustomParticles({
+                              ...event.customParticles,
+                              density: Number(e.target.value),
+                            }),
+                          })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>
+                        Geschwindigkeit ({event.customParticles?.speed ?? 1})
+                      </Label>
+                      <Input
+                        type="range"
+                        min={0.4}
+                        max={2.5}
+                        step={0.1}
+                        value={event.customParticles?.speed ?? 1}
+                        onChange={(e) =>
+                          updateEvent(event.id, {
+                            customParticles: normalizeCustomParticles({
+                              ...event.customParticles,
+                              speed: Number(e.target.value),
+                            }),
+                          })
+                        }
+                      />
+                    </div>
+                  </div>
+                </div>
+              ) : null}
               <div className="space-y-1.5">
                 <Label>Startdatum (optional)</Label>
                 <Input

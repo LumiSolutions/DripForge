@@ -3,9 +3,8 @@
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import {
-  ArrowDown,
-  ArrowUp,
   ExternalLink,
+  GripVertical,
   Loader2,
   Plus,
   Save,
@@ -24,37 +23,32 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Card, CardContent } from "@/components/ui/card"
+import { AdminMediaUploadButton } from "@/components/admin/admin-media-upload-button"
+import { CmsRichTextEditor } from "@/components/admin/cms-rich-text-editor"
+import { CmsCustomPageView } from "@/components/dripforge/views/cms-custom-page-view"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
 import {
   CMS_PAGE_BLOCK_TYPES,
   createEmptyCmsPageBlock,
-  customPagePathFromSlug,
-  slugifyCmsPathSegment,
+  createEmptyCmsPageRow,
+  groupBlocksByRow,
+  isCmsReservedPath,
+  normalizeCmsPagePath,
+  slugFromCmsPagePath,
   type CmsPageBlock,
   type CmsPageBlockType,
+  type CmsPageColumnLayout,
+  type CmsPageRow,
 } from "@/lib/admin/cms-custom-pages"
-import {
-  mergeCmsPages,
-  type CmsPageEntry,
-} from "@/lib/admin/site-nav"
+import { mergeCmsPages, type CmsPageEntry } from "@/lib/admin/site-nav"
 import { cn } from "@/lib/utils"
 
 const BLOCK_LABELS: Record<CmsPageBlockType, string> = {
-  richtext: "Text (Rich-Text)",
+  richtext: "Text",
   imageText: "Bild + Text",
-  gallery: "Bilder-Galerie",
-  faq: "FAQ-Akkordeon",
-  contact: "Kontaktformular",
-}
-
-function reorderBlocks(blocks: CmsPageBlock[], index: number, direction: -1 | 1) {
-  const target = index + direction
-  if (target < 0 || target >= blocks.length) return blocks
-  const next = [...blocks]
-  const tmp = next[index]
-  next[index] = next[target]
-  next[target] = tmp
-  return next.map((block, i) => ({ ...block, sortOrder: i }))
+  gallery: "Galerie",
+  faq: "FAQ",
+  contact: "Kontakt",
 }
 
 export function AdminCmsPageBuilder() {
@@ -65,6 +59,8 @@ export function AdminCmsPageBuilder() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [addBlockType, setAddBlockType] = useState<CmsPageBlockType>("richtext")
+  const [dragBlockId, setDragBlockId] = useState<string | null>(null)
+  const [showPreview, setShowPreview] = useState(true)
 
   const customPages = useMemo(
     () => pages.filter((page) => !page.system),
@@ -85,8 +81,7 @@ export function AdminCmsPageBuilder() {
         if (cancelled) return
         const next = mergeCmsPages(data.pages)
         setPages(next)
-        const firstCustom = next.find((page) => !page.system)
-        setSelectedId(firstCustom?.id ?? null)
+        setSelectedId(next.find((page) => !page.system)?.id ?? null)
       })
       .catch((err) => {
         if (!cancelled) {
@@ -109,46 +104,63 @@ export function AdminCmsPageBuilder() {
       prev.map((page) => {
         if (page.id !== selected.id) return page
         const next = { ...page, ...patch }
-        if (patch.slug != null || patch.title != null) {
-          const slug = slugifyCmsPathSegment(
-            patch.slug ?? next.slug ?? next.title ?? "seite"
-          )
-          next.slug = slug
-          next.path = customPagePathFromSlug(slug)
+        if (patch.path != null) {
+          const path = normalizeCmsPagePath(patch.path)
+          next.path = path
+          next.slug = slugFromCmsPagePath(path) ?? next.slug
         }
         return next
       })
     )
   }
 
-  const updateBlocks = (blocks: CmsPageBlock[]) => {
+  const rows = selected?.rows?.length
+    ? selected.rows
+    : [{ id: "row-default", layout: "1" as const, sortOrder: 0 }]
+  const blocks = selected?.blocks ?? []
+
+  const setRows = (nextRows: CmsPageRow[]) => {
     updateSelected({
-      blocks: blocks.map((block, index) => ({ ...block, sortOrder: index })),
+      rows: nextRows.map((row, index) => ({ ...row, sortOrder: index })),
+    })
+  }
+
+  const setBlocks = (nextBlocks: CmsPageBlock[]) => {
+    updateSelected({
+      blocks: nextBlocks.map((block, index) => ({ ...block, sortOrder: index })),
     })
   }
 
   const addCustomPage = () => {
-    const slug = `seite-${Date.now().toString(36)}`
+    const path = normalizeCmsPagePath(`/seite-${Date.now().toString(36)}`)
     const id = `custom-${Date.now()}`
+    const row = createEmptyCmsPageRow("1")
     const page: CmsPageEntry = {
       id,
       title: "Neue Seite",
-      path: customPagePathFromSlug(slug),
+      path,
       enabled: true,
       sortOrder: pages.length,
       system: false,
-      slug,
+      slug: slugFromCmsPagePath(path) ?? "seite",
       published: false,
       heroTitle: "Neue Seite",
       heroSubtitle: "",
       bannerImageUrl: null,
-      blocks: [createEmptyCmsPageBlock("richtext")],
+      rows: [row],
+      blocks: [createEmptyCmsPageBlock("richtext", row.id, 0)],
     }
     setPages((prev) => [...prev, page])
     setSelectedId(id)
   }
 
   const savePages = async () => {
+    if (selected && isCmsReservedPath(selected.path)) {
+      setError(
+        `Pfad «${selected.path}» ist reserviert. Bitte einen freien Pfad wählen (z. B. /ueber-uns).`
+      )
+      return
+    }
     setSaving(true)
     setError(null)
     setSuccess(null)
@@ -163,13 +175,23 @@ export function AdminCmsPageBuilder() {
       if (!res.ok) throw new Error(data.error ?? "Speichern fehlgeschlagen.")
       setPages(mergeCmsPages(data.pages ?? pages))
       setSuccess(
-        "Staging gespeichert. Zum Live-Schalten unter «Website bearbeiten» publizieren."
+        "Staging gespeichert. Unter «Website bearbeiten» publizieren, damit die Seite live ist."
       )
     } catch (err) {
       setError(err instanceof Error ? err.message : "Speichern fehlgeschlagen.")
     } finally {
       setSaving(false)
     }
+  }
+
+  const onDropBlock = (rowId: string, columnIndex: number) => {
+    if (!dragBlockId) return
+    setBlocks(
+      blocks.map((block) =>
+        block.id === dragBlockId ? { ...block, rowId, columnIndex } : block
+      )
+    )
+    setDragBlockId(null)
   }
 
   if (loading) {
@@ -181,6 +203,8 @@ export function AdminCmsPageBuilder() {
     )
   }
 
+  const grouped = selected ? groupBlocksByRow(rows, blocks) : []
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -189,8 +213,8 @@ export function AdminCmsPageBuilder() {
             Seiten-Builder
           </h1>
           <p className={cn("mt-1 text-sm", adminUi.muted)}>
-            Custom-Unterseiten mit Blöcken erstellen. Öffentliche URL:{" "}
-            <code className="rounded bg-muted px-1">/seiten/[slug]</code>
+            Saubere URLs (z.&nbsp;B. <code>/ueber-uns</code>), Uploads, Spalten-Layout und
+            Live-Vorschau.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -220,16 +244,14 @@ export function AdminCmsPageBuilder() {
         </div>
       ) : null}
 
-      <div className="grid gap-6 lg:grid-cols-[240px_1fr]">
+      <div className="grid gap-6 xl:grid-cols-[220px_1fr]">
         <Card className={adminUi.card}>
           <CardContent className="space-y-2 p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Custom-Seiten
+              Seiten
             </p>
             {customPages.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Noch keine Custom-Seiten. Erstellen Sie die erste Seite.
-              </p>
+              <p className="text-sm text-muted-foreground">Noch keine Custom-Seiten.</p>
             ) : (
               <ul className="space-y-1">
                 {customPages.map((page) => (
@@ -238,19 +260,16 @@ export function AdminCmsPageBuilder() {
                       type="button"
                       onClick={() => setSelectedId(page.id)}
                       className={cn(
-                        "w-full rounded-lg px-3 py-2 text-left text-sm transition-colors",
+                        "w-full rounded-lg px-3 py-2 text-left text-sm",
                         selected?.id === page.id
                           ? "bg-primary/15 text-foreground"
-                          : "hover:bg-muted/60 text-muted-foreground"
+                          : "text-muted-foreground hover:bg-muted/60"
                       )}
                     >
                       <span className="block font-medium text-foreground">
                         {page.title}
                       </span>
-                      <span className="block text-xs">
-                        {page.published ? "Veröffentlicht" : "Entwurf"} ·{" "}
-                        {page.path}
-                      </span>
+                      <span className="block text-xs">{page.path}</span>
                     </button>
                   </li>
                 ))}
@@ -277,12 +296,15 @@ export function AdminCmsPageBuilder() {
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label>Slug</Label>
+                    <Label>URL-Pfad</Label>
                     <Input
-                      value={selected.slug ?? ""}
-                      onChange={(e) => updateSelected({ slug: e.target.value })}
+                      value={selected.path}
+                      onChange={(e) => updateSelected({ path: e.target.value })}
+                      placeholder="/ueber-uns oder /kategorie/seite"
                     />
-                    <p className="text-xs text-muted-foreground">{selected.path}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Live: dripforge.ch{selected.path}
+                    </p>
                   </div>
                 </div>
 
@@ -298,12 +320,10 @@ export function AdminCmsPageBuilder() {
                   </label>
                   <label className="flex items-center gap-2 text-sm">
                     <Switch
-                      checked={selected.enabled !== false}
-                      onCheckedChange={(checked) =>
-                        updateSelected({ enabled: checked })
-                      }
+                      checked={showPreview}
+                      onCheckedChange={setShowPreview}
                     />
-                    In Listen aktiv
+                    Live-Vorschau
                   </label>
                   <Button asChild variant="outline" size="sm">
                     <Link
@@ -313,7 +333,7 @@ export function AdminCmsPageBuilder() {
                       target="_blank"
                     >
                       <ExternalLink className="mr-2 h-3.5 w-3.5" />
-                      Vorschau
+                      Öffnen
                     </Link>
                   </Button>
                 </div>
@@ -329,16 +349,34 @@ export function AdminCmsPageBuilder() {
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label>Banner-Bild URL</Label>
-                    <Input
-                      value={selected.bannerImageUrl ?? ""}
-                      onChange={(e) =>
-                        updateSelected({
-                          bannerImageUrl: e.target.value.trim() || null,
-                        })
-                      }
-                      placeholder="https://… oder /uploads/…"
-                    />
+                    <Label>Banner-Bild</Label>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <AdminMediaUploadButton
+                        onUploaded={(url) =>
+                          updateSelected({ bannerImageUrl: url })
+                        }
+                      />
+                      {selected.bannerImageUrl ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() =>
+                            updateSelected({ bannerImageUrl: null })
+                          }
+                        >
+                          Entfernen
+                        </Button>
+                      ) : null}
+                    </div>
+                    {selected.bannerImageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={selected.bannerImageUrl}
+                        alt=""
+                        className="mt-2 h-16 rounded-md object-cover"
+                      />
+                    ) : null}
                   </div>
                 </div>
                 <div className="space-y-1.5">
@@ -358,16 +396,33 @@ export function AdminCmsPageBuilder() {
               <CardContent className="space-y-4 p-5">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <h2 className={cn("text-base font-semibold", adminUi.heading)}>
-                    Inhalts-Blöcke
+                    Layout & Blöcke
                   </h2>
-                  <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex flex-wrap gap-2">
+                    <Select
+                      onValueChange={(value) => {
+                        const row = createEmptyCmsPageRow(
+                          value as CmsPageColumnLayout
+                        )
+                        setRows([...rows, row])
+                      }}
+                    >
+                      <SelectTrigger className="w-[180px]">
+                        <SelectValue placeholder="Zeile hinzufügen" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1">1-spaltig</SelectItem>
+                        <SelectItem value="2">2-spaltig 50/50</SelectItem>
+                        <SelectItem value="3">3-spaltig</SelectItem>
+                      </SelectContent>
+                    </Select>
                     <Select
                       value={addBlockType}
                       onValueChange={(value) =>
                         setAddBlockType(value as CmsPageBlockType)
                       }
                     >
-                      <SelectTrigger className="w-[200px]">
+                      <SelectTrigger className="w-[150px]">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -382,12 +437,13 @@ export function AdminCmsPageBuilder() {
                       type="button"
                       size="sm"
                       variant="outline"
-                      onClick={() =>
-                        updateBlocks([
-                          ...(selected.blocks ?? []),
-                          createEmptyCmsPageBlock(addBlockType),
+                      onClick={() => {
+                        const rowId = rows[0]?.id ?? "row-default"
+                        setBlocks([
+                          ...blocks,
+                          createEmptyCmsPageBlock(addBlockType, rowId, 0),
                         ])
-                      }
+                      }}
                     >
                       <Plus className="mr-1 h-3.5 w-3.5" />
                       Block
@@ -395,228 +451,275 @@ export function AdminCmsPageBuilder() {
                   </div>
                 </div>
 
-                {(selected.blocks ?? []).length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    Noch keine Blöcke. Fügen Sie Text, Galerie, FAQ oder Kontakt hinzu.
-                  </p>
-                ) : (
-                  <ul className="space-y-3">
-                    {(selected.blocks ?? []).map((block, index) => (
-                      <li
-                        key={block.id}
-                        className="space-y-3 rounded-xl border border-border/60 bg-muted/20 p-4"
+                {grouped.map(({ row, columns }, rowIndex) => (
+                  <div
+                    key={row.id}
+                    className="space-y-3 rounded-xl border border-border/60 bg-muted/15 p-3"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-semibold">
+                          Zeile {rowIndex + 1}
+                        </p>
+                        <Select
+                          value={row.layout}
+                          onValueChange={(value) => {
+                            setRows(
+                              rows.map((entry) =>
+                                entry.id === row.id
+                                  ? {
+                                      ...entry,
+                                      layout: value as CmsPageColumnLayout,
+                                    }
+                                  : entry
+                              )
+                            )
+                          }}
+                        >
+                          <SelectTrigger className="h-8 w-[130px]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="1">1 Spalte</SelectItem>
+                            <SelectItem value="2">2 Spalten</SelectItem>
+                            <SelectItem value="3">3 Spalten</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        disabled={rows.length <= 1}
+                        onClick={() => {
+                          setRows(rows.filter((entry) => entry.id !== row.id))
+                          setBlocks(
+                            blocks.filter((block) => block.rowId !== row.id)
+                          )
+                        }}
                       >
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <p className="text-sm font-semibold">
-                            {BLOCK_LABELS[block.type]}
+                        <Trash2 className="h-4 w-4 text-red-500" />
+                      </Button>
+                    </div>
+
+                    <div
+                      className={cn(
+                        "grid gap-3",
+                        row.layout === "2" && "md:grid-cols-2",
+                        row.layout === "3" && "md:grid-cols-3"
+                      )}
+                    >
+                      {columns.map((colBlocks, colIndex) => (
+                        <div
+                          key={`${row.id}-${colIndex}`}
+                          className="min-h-[80px] rounded-lg border border-dashed border-border/70 bg-background/60 p-2"
+                          onDragOver={(e) => e.preventDefault()}
+                          onDrop={() => onDropBlock(row.id, colIndex)}
+                        >
+                          <p className="mb-2 text-[11px] uppercase tracking-wide text-muted-foreground">
+                            Spalte {colIndex + 1}
                           </p>
-                          <div className="flex items-center gap-1">
-                            <Button
-                              type="button"
-                              size="icon"
-                              variant="ghost"
-                              disabled={index === 0}
-                              onClick={() =>
-                                updateBlocks(
-                                  reorderBlocks(selected.blocks ?? [], index, -1)
-                                )
-                              }
-                            >
-                              <ArrowUp className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              type="button"
-                              size="icon"
-                              variant="ghost"
-                              disabled={
-                                index === (selected.blocks ?? []).length - 1
-                              }
-                              onClick={() =>
-                                updateBlocks(
-                                  reorderBlocks(selected.blocks ?? [], index, 1)
-                                )
-                              }
-                            >
-                              <ArrowDown className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              type="button"
-                              size="icon"
-                              variant="ghost"
-                              onClick={() =>
-                                updateBlocks(
-                                  (selected.blocks ?? []).filter(
-                                    (entry) => entry.id !== block.id
-                                  )
-                                )
-                              }
-                            >
-                              <Trash2 className="h-4 w-4 text-red-500" />
-                            </Button>
-                          </div>
-                        </div>
-
-                        {block.type === "richtext" ? (
-                          <Textarea
-                            rows={6}
-                            value={block.html ?? ""}
-                            onChange={(e) => {
-                              const next = [...(selected.blocks ?? [])]
-                              next[index] = { ...block, html: e.target.value }
-                              updateBlocks(next)
-                            }}
-                            placeholder="<h2>Überschrift</h2><p>Text…</p><ul><li>Punkt</li></ul>"
-                          />
-                        ) : null}
-
-                        {block.type === "imageText" ? (
-                          <div className="grid gap-3 md:grid-cols-2">
-                            <div className="space-y-1.5">
-                              <Label>Bild-URL</Label>
-                              <Input
-                                value={block.imageUrl ?? ""}
-                                onChange={(e) => {
-                                  const next = [...(selected.blocks ?? [])]
-                                  next[index] = {
-                                    ...block,
-                                    imageUrl: e.target.value.trim() || null,
-                                  }
-                                  updateBlocks(next)
-                                }}
-                              />
-                            </div>
-                            <div className="space-y-1.5">
-                              <Label>Bildposition</Label>
-                              <Select
-                                value={block.imagePosition ?? "left"}
-                                onValueChange={(value) => {
-                                  const next = [...(selected.blocks ?? [])]
-                                  next[index] = {
-                                    ...block,
-                                    imagePosition:
-                                      value === "right" ? "right" : "left",
-                                  }
-                                  updateBlocks(next)
-                                }}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="left">Bild links</SelectItem>
-                                  <SelectItem value="right">Bild rechts</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            <div className="space-y-1.5 md:col-span-2">
-                              <Label>Text (HTML)</Label>
-                              <Textarea
-                                rows={5}
-                                value={block.textHtml ?? ""}
-                                onChange={(e) => {
-                                  const next = [...(selected.blocks ?? [])]
-                                  next[index] = {
-                                    ...block,
-                                    textHtml: e.target.value,
-                                  }
-                                  updateBlocks(next)
-                                }}
-                              />
-                            </div>
-                          </div>
-                        ) : null}
-
-                        {block.type === "gallery" ? (
-                          <div className="space-y-1.5">
-                            <Label>Bild-URLs (eine pro Zeile)</Label>
-                            <Textarea
-                              rows={4}
-                              value={(block.images ?? []).join("\n")}
-                              onChange={(e) => {
-                                const images = e.target.value
-                                  .split("\n")
-                                  .map((line) => line.trim())
-                                  .filter(Boolean)
-                                const next = [...(selected.blocks ?? [])]
-                                next[index] = { ...block, images }
-                                updateBlocks(next)
-                              }}
-                            />
-                          </div>
-                        ) : null}
-
-                        {block.type === "faq" ? (
-                          <div className="space-y-3">
-                            {(block.faqItems ?? []).map((item, faqIndex) => (
+                          <div className="space-y-2">
+                            {colBlocks.map((block) => (
                               <div
-                                key={item.id}
-                                className="space-y-2 rounded-lg border border-border/50 p-3"
+                                key={block.id}
+                                draggable
+                                onDragStart={() => setDragBlockId(block.id)}
+                                className="space-y-2 rounded-lg border border-border/60 bg-card p-3"
                               >
-                                <Input
-                                  value={item.question}
-                                  placeholder="Frage"
-                                  onChange={(e) => {
-                                    const faqItems = [...(block.faqItems ?? [])]
-                                    faqItems[faqIndex] = {
-                                      ...item,
-                                      question: e.target.value,
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="inline-flex items-center gap-1 text-xs font-semibold">
+                                    <GripVertical className="h-3.5 w-3.5 text-muted-foreground" />
+                                    {BLOCK_LABELS[block.type]}
+                                  </span>
+                                  <Button
+                                    type="button"
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-7 w-7"
+                                    onClick={() =>
+                                      setBlocks(
+                                        blocks.filter((b) => b.id !== block.id)
+                                      )
                                     }
-                                    const next = [...(selected.blocks ?? [])]
-                                    next[index] = { ...block, faqItems }
-                                    updateBlocks(next)
-                                  }}
-                                />
-                                <Textarea
-                                  rows={2}
-                                  value={item.answer}
-                                  placeholder="Antwort"
-                                  onChange={(e) => {
-                                    const faqItems = [...(block.faqItems ?? [])]
-                                    faqItems[faqIndex] = {
-                                      ...item,
-                                      answer: e.target.value,
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                                  </Button>
+                                </div>
+
+                                {block.type === "richtext" ? (
+                                  <CmsRichTextEditor
+                                    value={block.html ?? ""}
+                                    onChange={(html) =>
+                                      setBlocks(
+                                        blocks.map((b) =>
+                                          b.id === block.id ? { ...b, html } : b
+                                        )
+                                      )
                                     }
-                                    const next = [...(selected.blocks ?? [])]
-                                    next[index] = { ...block, faqItems }
-                                    updateBlocks(next)
-                                  }}
-                                />
+                                  />
+                                ) : null}
+
+                                {block.type === "imageText" ? (
+                                  <div className="space-y-2">
+                                    <AdminMediaUploadButton
+                                      onUploaded={(url) =>
+                                        setBlocks(
+                                          blocks.map((b) =>
+                                            b.id === block.id
+                                              ? { ...b, imageUrl: url }
+                                              : b
+                                          )
+                                        )
+                                      }
+                                    />
+                                    <CmsRichTextEditor
+                                      value={block.textHtml ?? ""}
+                                      onChange={(textHtml) =>
+                                        setBlocks(
+                                          blocks.map((b) =>
+                                            b.id === block.id
+                                              ? { ...b, textHtml }
+                                              : b
+                                          )
+                                        )
+                                      }
+                                    />
+                                  </div>
+                                ) : null}
+
+                                {block.type === "gallery" ? (
+                                  <div className="space-y-2">
+                                    <AdminMediaUploadButton
+                                      label="Bild zur Galerie"
+                                      onUploaded={(url) =>
+                                        setBlocks(
+                                          blocks.map((b) =>
+                                            b.id === block.id
+                                              ? {
+                                                  ...b,
+                                                  images: [
+                                                    ...(b.images ?? []),
+                                                    url,
+                                                  ],
+                                                }
+                                              : b
+                                          )
+                                        )
+                                      }
+                                    />
+                                    <div className="flex flex-wrap gap-2">
+                                      {(block.images ?? []).map((src) => (
+                                        // eslint-disable-next-line @next/next/no-img-element
+                                        <img
+                                          key={src}
+                                          src={src}
+                                          alt=""
+                                          className="h-14 w-14 rounded object-cover"
+                                        />
+                                      ))}
+                                    </div>
+                                  </div>
+                                ) : null}
+
+                                {block.type === "faq" ? (
+                                  <div className="space-y-2">
+                                    {(block.faqItems ?? []).map((item, faqIndex) => (
+                                      <div key={item.id} className="space-y-1">
+                                        <Input
+                                          value={item.question}
+                                          onChange={(e) => {
+                                            const faqItems = [
+                                              ...(block.faqItems ?? []),
+                                            ]
+                                            faqItems[faqIndex] = {
+                                              ...item,
+                                              question: e.target.value,
+                                            }
+                                            setBlocks(
+                                              blocks.map((b) =>
+                                                b.id === block.id
+                                                  ? { ...b, faqItems }
+                                                  : b
+                                              )
+                                            )
+                                          }}
+                                        />
+                                        <Textarea
+                                          rows={2}
+                                          value={item.answer}
+                                          onChange={(e) => {
+                                            const faqItems = [
+                                              ...(block.faqItems ?? []),
+                                            ]
+                                            faqItems[faqIndex] = {
+                                              ...item,
+                                              answer: e.target.value,
+                                            }
+                                            setBlocks(
+                                              blocks.map((b) =>
+                                                b.id === block.id
+                                                  ? { ...b, faqItems }
+                                                  : b
+                                              )
+                                            )
+                                          }}
+                                        />
+                                      </div>
+                                    ))}
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() =>
+                                        setBlocks(
+                                          blocks.map((b) =>
+                                            b.id === block.id
+                                              ? {
+                                                  ...b,
+                                                  faqItems: [
+                                                    ...(b.faqItems ?? []),
+                                                    {
+                                                      id: `faq-${Date.now()}`,
+                                                      question: "Neue Frage",
+                                                      answer: "",
+                                                    },
+                                                  ],
+                                                }
+                                              : b
+                                          )
+                                        )
+                                      }
+                                    >
+                                      FAQ-Eintrag
+                                    </Button>
+                                  </div>
+                                ) : null}
+
+                                {block.type === "contact" ? (
+                                  <p className="text-xs text-muted-foreground">
+                                    Bindet das Storefront-Kontaktformular ein.
+                                  </p>
+                                ) : null}
                               </div>
                             ))}
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                const faqItems = [
-                                  ...(block.faqItems ?? []),
-                                  {
-                                    id: `faq-${Date.now()}`,
-                                    question: "Neue Frage",
-                                    answer: "",
-                                  },
-                                ]
-                                const next = [...(selected.blocks ?? [])]
-                                next[index] = { ...block, faqItems }
-                                updateBlocks(next)
-                              }}
-                            >
-                              FAQ-Eintrag
-                            </Button>
                           </div>
-                        ) : null}
-
-                        {block.type === "contact" ? (
-                          <p className="text-sm text-muted-foreground">
-                            Rendert das Standard-Kontaktformular der Storefront.
-                          </p>
-                        ) : null}
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </CardContent>
             </Card>
+
+            {showPreview ? (
+              <Card className={adminUi.card}>
+                <CardContent className="p-4">
+                  <p className="mb-3 text-sm font-semibold">Live-Vorschau</p>
+                  <CmsCustomPageView page={selected} preview />
+                </CardContent>
+              </Card>
+            ) : null}
           </div>
         ) : (
           <Card className={adminUi.card}>

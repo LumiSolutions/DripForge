@@ -1,11 +1,13 @@
 import { CMS_PREVIEW_PAGES } from "@/lib/admin/cms-preview-pages"
 import {
   customPagePathFromSlug,
+  normalizeCmsPagePath,
   sanitizeCmsCustomPageContent,
   sanitizeCmsPageBlocks,
   slugFromCmsPagePath,
   slugifyCmsPathSegment,
   type CmsPageBlock,
+  type CmsPageRow,
 } from "@/lib/admin/cms-custom-pages"
 import { navItems as HARDCODED_NAV } from "@/lib/dripforge/data"
 import { shopNavHref } from "@/lib/dripforge/shop-routes"
@@ -33,6 +35,7 @@ export type CmsPageEntry = {
   heroTitle?: string
   heroSubtitle?: string
   bannerImageUrl?: string | null
+  rows?: CmsPageRow[]
   blocks?: CmsPageBlock[]
 }
 
@@ -131,9 +134,20 @@ function sanitizePageEntry(raw: unknown, index: number): CmsPageEntry | null {
     slugFromInput ||
     slugFromPath ||
     (!system ? slugifyCmsPathSegment(id.replace(/^custom-/, "") || title) : "")
-  const path = system
-    ? pathFromInput || `/${id}`
-    : customPagePathFromSlug(slug || id)
+
+  let path: string
+  if (system) {
+    path = pathFromInput || `/${id}`
+  } else if (pathFromInput) {
+    path = normalizeCmsPagePath(pathFromInput)
+    // Legacy /seiten/foo → /foo
+    if (path.startsWith("/seiten/")) {
+      path = normalizeCmsPagePath(path.replace(/^\/seiten/, "") || `/${slug}`)
+    }
+  } else {
+    path = customPagePathFromSlug(slug || id)
+  }
+
   const sortOrder =
     typeof raw.sortOrder === "number" && Number.isFinite(raw.sortOrder)
       ? raw.sortOrder
@@ -142,11 +156,13 @@ function sanitizePageEntry(raw: unknown, index: number): CmsPageEntry | null {
     ? null
     : sanitizeCmsCustomPageContent(
         {
-          slug,
+          slug: slugFromCmsPagePath(path) || slug,
+          path,
           published: raw.published === true,
           heroTitle: raw.heroTitle,
           heroSubtitle: raw.heroSubtitle,
           bannerImageUrl: raw.bannerImageUrl,
+          rows: raw.rows,
           blocks: sanitizeCmsPageBlocks(raw.blocks),
         },
         slug || id
@@ -165,6 +181,7 @@ function sanitizePageEntry(raw: unknown, index: number): CmsPageEntry | null {
           heroTitle: content.heroTitle,
           heroSubtitle: content.heroSubtitle,
           bannerImageUrl: content.bannerImageUrl,
+          rows: content.rows,
           blocks: content.blocks,
         }
       : {}),
@@ -248,6 +265,7 @@ export function mergeCmsPages(input: unknown): CmsPageEntry[] {
               heroTitle: undefined,
               heroSubtitle: undefined,
               bannerImageUrl: undefined,
+              rows: undefined,
               blocks: undefined,
             }
           : {
@@ -259,6 +277,7 @@ export function mergeCmsPages(input: unknown): CmsPageEntry[] {
                 page.bannerImageUrl !== undefined
                   ? page.bannerImageUrl
                   : existing.bannerImageUrl ?? null,
+              rows: page.rows ?? existing.rows ?? [],
               blocks: page.blocks ?? existing.blocks ?? [],
             }),
       })
@@ -310,8 +329,36 @@ export function findCustomCmsPageBySlug(
   const match = mergeCmsPages(pages).find(
     (page) =>
       !page.system &&
-      (page.slug === wanted || slugFromCmsPagePath(page.path) === wanted)
+      (page.slug === wanted ||
+        slugFromCmsPagePath(page.path) === wanted ||
+        normalizeCmsPagePath(page.path) === `/${wanted}` ||
+        normalizeCmsPagePath(page.path) === `/seiten/${wanted}`)
   )
+  if (!match) return null
+  if (!options?.includeDrafts) {
+    if (!match.enabled || match.published !== true) return null
+  }
+  return match
+}
+
+/** Resolve custom CMS page by full path (`/ueber-uns`, `/a/b`). */
+export function findCustomCmsPageByPath(
+  pages: CmsPageEntry[] | null | undefined,
+  path: string,
+  options?: { includeDrafts?: boolean }
+): CmsPageEntry | null {
+  const wanted = normalizeCmsPagePath(path)
+  if (wanted === "/") return null
+  const match = mergeCmsPages(pages).find((page) => {
+    if (page.system) return false
+    const pagePath = normalizeCmsPagePath(page.path)
+    if (pagePath === wanted) return true
+    // Legacy /seiten/x ↔ /x
+    if (pagePath === `/seiten${wanted}` || wanted === `/seiten${pagePath}`) {
+      return true
+    }
+    return false
+  })
   if (!match) return null
   if (!options?.includeDrafts) {
     if (!match.enabled || match.published !== true) return null

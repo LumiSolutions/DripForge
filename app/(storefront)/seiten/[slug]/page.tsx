@@ -1,45 +1,20 @@
-import { notFound } from "next/navigation"
-import {
-  getSiteConfigProduction,
-  getSiteConfigStaging,
-} from "@/lib/admin/db"
-import { findCustomCmsPageBySlug } from "@/lib/admin/site-nav"
-import { CmsCustomPageView } from "@/components/dripforge/views/cms-custom-page-view"
+import { redirect } from "next/navigation"
 
 type PageProps = {
   params: Promise<{ slug: string }>
   searchParams: Promise<{ preview?: string; staging?: string }>
 }
 
-export async function generateMetadata({ params, searchParams }: PageProps) {
+/** Legacy `/seiten/[slug]` → saubere URL `/{slug}`. */
+export default async function LegacySeitenRedirect({
+  params,
+  searchParams,
+}: PageProps) {
   const { slug } = await params
   const query = await searchParams
-  const preview = query.preview === "1" || query.staging === "1"
-  const bundle = preview
-    ? await getSiteConfigStaging()
-    : await getSiteConfigProduction()
-  const page = findCustomCmsPageBySlug(bundle.pages, slug, {
-    includeDrafts: preview,
-  })
-  if (!page) return { title: "Seite nicht gefunden | DripForge" }
-  return {
-    title: `${page.heroTitle?.trim() || page.title} | DripForge`,
-    description: page.heroSubtitle?.trim() || undefined,
-  }
-}
-
-export default async function CustomCmsPage({ params, searchParams }: PageProps) {
-  const { slug } = await params
-  const query = await searchParams
-  const preview = query.preview === "1" || query.staging === "1"
-  const bundle = preview
-    ? await getSiteConfigStaging()
-    : await getSiteConfigProduction()
-  const page = findCustomCmsPageBySlug(bundle.pages, slug, {
-    includeDrafts: preview,
-  })
-
-  if (!page) notFound()
-
-  return <CmsCustomPageView page={page} />
+  const qs = new URLSearchParams()
+  if (query.preview === "1") qs.set("preview", "1")
+  if (query.staging === "1") qs.set("staging", "1")
+  const suffix = qs.toString() ? `?${qs.toString()}` : ""
+  redirect(`/${encodeURIComponent(slug)}${suffix}`)
 }

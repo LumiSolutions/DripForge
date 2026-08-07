@@ -3,6 +3,7 @@
 import Image from "next/image"
 import type { CmsPageEntry } from "@/lib/admin/site-nav"
 import type { CmsPageBlock } from "@/lib/admin/cms-custom-pages"
+import { groupBlocksByRow } from "@/lib/admin/cms-custom-pages"
 import {
   Accordion,
   AccordionContent,
@@ -37,7 +38,7 @@ function BlockRenderer({ block }: { block: CmsPageBlock }) {
       return (
         <div
           className={cn(
-            "grid items-center gap-8 md:grid-cols-2",
+            "grid items-center gap-6 md:grid-cols-2 md:gap-8",
             !imageFirst && "md:[&>*:first-child]:order-2"
           )}
         >
@@ -111,15 +112,22 @@ function BlockRenderer({ block }: { block: CmsPageBlock }) {
   }
 }
 
-export function CmsCustomPageView({ page }: { page: CmsPageEntry }) {
+export function CmsCustomPageView({
+  page,
+  preview = false,
+}: {
+  page: CmsPageEntry
+  preview?: boolean
+}) {
   const title = page.heroTitle?.trim() || page.title
   const subtitle = page.heroSubtitle?.trim()
-  const blocks = [...(page.blocks ?? [])].sort(
-    (a, b) => a.sortOrder - b.sortOrder
-  )
+  const rows = page.rows?.length
+    ? page.rows
+    : [{ id: "row-default", layout: "1" as const, sortOrder: 0 }]
+  const grouped = groupBlocksByRow(rows, page.blocks ?? [])
 
   return (
-    <div className="pb-16">
+    <div className={cn("pb-16", preview && "rounded-xl border border-border/50")}>
       <section className="relative overflow-hidden border-b border-border/50">
         {page.bannerImageUrl ? (
           <div className="absolute inset-0">
@@ -127,7 +135,7 @@ export function CmsCustomPageView({ page }: { page: CmsPageEntry }) {
               src={page.bannerImageUrl}
               alt=""
               fill
-              priority
+              priority={!preview}
               className="object-cover opacity-30"
               sizes="100vw"
             />
@@ -136,26 +144,63 @@ export function CmsCustomPageView({ page }: { page: CmsPageEntry }) {
         ) : (
           <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-background to-cyan-400/10" />
         )}
-        <div className="relative mx-auto max-w-4xl px-4 py-14 text-center md:py-20">
-          <h1 className="text-4xl font-bold tracking-tight md:text-5xl">{title}</h1>
+        <div
+          className={cn(
+            "relative mx-auto max-w-4xl px-4 text-center",
+            preview ? "py-8" : "py-14 md:py-20"
+          )}
+        >
+          <h1
+            className={cn(
+              "font-bold tracking-tight",
+              preview ? "text-2xl" : "text-4xl md:text-5xl"
+            )}
+          >
+            {title}
+          </h1>
           {subtitle ? (
-            <p className="mx-auto mt-4 max-w-2xl text-muted-foreground md:text-lg">
+            <p
+              className={cn(
+                "mx-auto mt-3 max-w-2xl text-muted-foreground",
+                !preview && "md:text-lg"
+              )}
+            >
               {subtitle}
             </p>
           ) : null}
         </div>
       </section>
 
-      <div className="mx-auto flex max-w-4xl flex-col gap-12 px-4 py-10 md:py-14">
-        {blocks.length === 0 ? (
+      <div
+        className={cn(
+          "mx-auto flex max-w-5xl flex-col gap-10 px-4",
+          preview ? "py-6" : "py-10 md:gap-12 md:py-14"
+        )}
+      >
+        {grouped.every(({ columns }) => columns.every((col) => col.length === 0)) ? (
           <p className="text-center text-muted-foreground">
             Diese Seite hat noch keinen Inhalt.
           </p>
         ) : (
-          blocks.map((block) => (
-            <section key={block.id}>
-              <BlockRenderer block={block} />
-            </section>
+          grouped.map(({ row, columns }) => (
+            <div
+              key={row.id}
+              className={cn(
+                "grid gap-6",
+                row.layout === "2" && "md:grid-cols-2",
+                row.layout === "3" && "md:grid-cols-3"
+              )}
+            >
+              {columns.map((colBlocks, colIndex) => (
+                <div key={`${row.id}-${colIndex}`} className="flex min-w-0 flex-col gap-6">
+                  {colBlocks.map((block) => (
+                    <section key={block.id}>
+                      <BlockRenderer block={block} />
+                    </section>
+                  ))}
+                </div>
+              ))}
+            </div>
           ))
         )}
       </div>
