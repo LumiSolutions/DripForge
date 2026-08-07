@@ -7,8 +7,10 @@ import { safeNavigate } from "@/lib/dripforge/safe-navigate"
 import { safeLocalGet, safeLocalSet } from "@/lib/dripforge/safe-storage"
 import {
   Box,
+  ChevronDown,
   Menu,
   Moon,
+  MoreHorizontal,
   Search,
   ShoppingBag,
   Sun,
@@ -17,7 +19,14 @@ import {
   Zap,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
+import { useNavOverflow } from "@/hooks/use-nav-overflow"
 import {
   filterNavItems,
   isLaserNavVisible,
@@ -192,6 +201,12 @@ export function ShopHeader(props: ShopHeaderProps) {
 
   const fallbackNavItems = filterNavItems(services)
   const useCmsNav = visibleCmsNav.length > 0
+  const desktopNavCount = useCmsNav ? visibleCmsNav.length : fallbackNavItems.length
+  const {
+    containerRef: navContainerRef,
+    measureRef: navMeasureRef,
+    visibleCount: desktopVisibleCount,
+  } = useNavOverflow(desktopNavCount)
 
   const searchResults = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
@@ -238,11 +253,31 @@ export function ShopHeader(props: ShopHeaderProps) {
 
   const navLinkClass = (active: boolean) =>
     cn(
-      "inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-colors sm:px-4",
+      "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-2 text-xs font-medium transition-colors lg:gap-2 lg:px-3 lg:text-sm xl:px-4",
       active
         ? "bg-secondary text-foreground"
         : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
     )
+
+  const cmsPrimaryNav = useCmsNav
+    ? visibleCmsNav.slice(0, desktopVisibleCount)
+    : []
+  const cmsOverflowNav = useCmsNav
+    ? visibleCmsNav.slice(desktopVisibleCount)
+    : []
+  const fallbackPrimaryNav = !useCmsNav
+    ? fallbackNavItems.slice(0, desktopVisibleCount)
+    : []
+  const fallbackOverflowNav = !useCmsNav
+    ? fallbackNavItems.slice(desktopVisibleCount)
+    : []
+  const hasOverflow =
+    (useCmsNav ? cmsOverflowNav.length : fallbackOverflowNav.length) > 0
+  const overflowActive = useCmsNav
+    ? cmsOverflowNav.some((item) =>
+        isNavActive(item.id, item.href || shopNavHref(item.id))
+      )
+    : fallbackOverflowNav.some((item) => isNavActive(item.id))
 
   return (
     <>
@@ -272,9 +307,39 @@ export function ShopHeader(props: ShopHeaderProps) {
           </SafeLink>
         )}
 
-        <nav className="hidden min-w-0 flex-1 items-center justify-center gap-0.5 md:flex">
+        <nav
+          ref={(node) => {
+            navContainerRef.current = node
+          }}
+          className="relative hidden min-w-0 flex-1 items-center justify-center gap-0.5 overflow-hidden md:flex"
+          aria-label="Hauptnavigation"
+        >
+          {/* Unsichtbare Messzeile für Overflow-Berechnung */}
+          <div
+            ref={navMeasureRef}
+            className="pointer-events-none invisible absolute left-0 top-0 flex items-center gap-0.5"
+            aria-hidden="true"
+          >
+            {useCmsNav
+              ? visibleCmsNav.map((item) => {
+                  const Icon = resolveCmsNavIcon(item.icon)
+                  return (
+                    <span key={item.id} className={navLinkClass(false)}>
+                      <Icon className="h-4 w-4 shrink-0" />
+                      <span>{item.label}</span>
+                    </span>
+                  )
+                })
+              : fallbackNavItems.map((item) => (
+                  <span key={item.id} className={navLinkClass(false)}>
+                    <item.icon className="h-4 w-4 shrink-0" />
+                    <span>{item.label}</span>
+                  </span>
+                ))}
+          </div>
+
           {useCmsNav
-            ? visibleCmsNav.map((item) => {
+            ? cmsPrimaryNav.map((item) => {
                 const Icon = resolveCmsNavIcon(item.icon)
                 const href = withPreviewHref(item.href || shopNavHref(item.id))
                 if (props.mode === "spa") {
@@ -301,7 +366,7 @@ export function ShopHeader(props: ShopHeaderProps) {
                   </SafeLink>
                 )
               })
-            : fallbackNavItems.map((item) =>
+            : fallbackPrimaryNav.map((item) =>
                 props.mode === "spa" ? (
                   <button
                     key={item.id}
@@ -323,6 +388,82 @@ export function ShopHeader(props: ShopHeaderProps) {
                   </SafeLink>
                 )
               )}
+
+          {hasOverflow ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className={navLinkClass(overflowActive)}
+                  aria-label="Weitere Menüpunkte"
+                >
+                  <MoreHorizontal className="h-4 w-4 shrink-0" />
+                  <span>Mehr</span>
+                  <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-70" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="center" className="min-w-[12rem]">
+                {useCmsNav
+                  ? cmsOverflowNav.map((item) => {
+                      const Icon = resolveCmsNavIcon(item.icon)
+                      const href = withPreviewHref(
+                        item.href || shopNavHref(item.id)
+                      )
+                      if (props.mode === "spa") {
+                        return (
+                          <DropdownMenuItem
+                            key={item.id}
+                            className="cursor-pointer gap-2"
+                            onSelect={() => handleSpaNav(item.id)}
+                          >
+                            <Icon className="h-4 w-4" />
+                            <EditableCmsNavLabel
+                              navId={item.id}
+                              label={item.label}
+                            />
+                          </DropdownMenuItem>
+                        )
+                      }
+                      return (
+                        <DropdownMenuItem key={item.id} asChild>
+                          <SafeLink
+                            href={href}
+                            className="flex cursor-pointer items-center gap-2"
+                          >
+                            <Icon className="h-4 w-4" />
+                            <EditableCmsNavLabel
+                              navId={item.id}
+                              label={item.label}
+                            />
+                          </SafeLink>
+                        </DropdownMenuItem>
+                      )
+                    })
+                  : fallbackOverflowNav.map((item) =>
+                      props.mode === "spa" ? (
+                        <DropdownMenuItem
+                          key={item.id}
+                          className="cursor-pointer gap-2"
+                          onSelect={() => handleSpaNav(item.id)}
+                        >
+                          <item.icon className="h-4 w-4" />
+                          {item.label}
+                        </DropdownMenuItem>
+                      ) : (
+                        <DropdownMenuItem key={item.id} asChild>
+                          <SafeLink
+                            href={withPreviewHref(shopNavHref(item.id))}
+                            className="flex cursor-pointer items-center gap-2"
+                          >
+                            <item.icon className="h-4 w-4" />
+                            {item.label}
+                          </SafeLink>
+                        </DropdownMenuItem>
+                      )
+                    )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : null}
         </nav>
 
         <div className="ml-auto flex shrink-0 flex-nowrap items-center gap-1.5 sm:gap-3 md:gap-5">
@@ -568,15 +709,17 @@ export function ShopHeader(props: ShopHeaderProps) {
                             : "text-muted-foreground hover:bg-secondary/50"
                         )}
                       >
-                        <Icon className="h-5 w-5" />
-                        <EditableCmsNavLabel navId={item.id} label={item.label} />
+                        <Icon className="h-5 w-5 shrink-0" />
+                        <span className="min-w-0 whitespace-normal break-words text-left">
+                          <EditableCmsNavLabel navId={item.id} label={item.label} />
+                        </span>
                       </button>
                     )
                   }
                   return (
                     <SafeLink
                       key={item.id}
-                      href={href}
+                      href={withPreviewHref(href)}
                       onClick={() => setMobileMenuOpen(false)}
                       className={cn(
                         "inline-flex min-h-11 items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors touch-manipulation",
@@ -585,8 +728,10 @@ export function ShopHeader(props: ShopHeaderProps) {
                           : "text-muted-foreground hover:bg-secondary/50"
                       )}
                     >
-                      <Icon className="h-5 w-5" />
-                      <EditableCmsNavLabel navId={item.id} label={item.label} />
+                      <Icon className="h-5 w-5 shrink-0" />
+                      <span className="min-w-0 whitespace-normal break-words text-left">
+                        <EditableCmsNavLabel navId={item.id} label={item.label} />
+                      </span>
                     </SafeLink>
                   )
                 })

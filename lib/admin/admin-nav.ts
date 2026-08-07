@@ -49,6 +49,7 @@ export type AdminRouteId =
   | "website-staging"
   | "edit"
   | "edit-preview"
+  | "seiten"
   | "test"
   | "test-preview"
   | "dokumenten-vorlagen"
@@ -98,6 +99,7 @@ export const ADMIN_ROUTE_PATHS: Record<AdminRouteId, string> = {
   "website-staging": "/website-staging",
   edit: "/edit",
   "edit-preview": "/edit/preview",
+  seiten: "/seiten",
   test: "/test",
   "test-preview": "/test/preview",
   "dokumenten-vorlagen": "/dokumenten-vorlagen",
@@ -275,6 +277,11 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
             href: adminRouteHref("edit-preview"),
           },
           {
+            id: "seiten",
+            label: "Seiten-Builder",
+            href: adminRouteHref("seiten"),
+          },
+          {
             id: "test",
             label: "Test-Umgebung",
             href: adminRouteHref("test"),
@@ -285,6 +292,12 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
             href: adminRouteHref("test-preview"),
           },
         ],
+      },
+      {
+        id: "seiten",
+        label: "Seiten-Builder",
+        href: adminRouteHref("seiten"),
+        icon: Files,
       },
       {
         id: "dokumenten-vorlagen",

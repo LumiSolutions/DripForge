@@ -9,8 +9,14 @@ import {
   type CmsNavItem,
   type CmsPageEntry,
 } from "@/lib/admin/site-nav"
+import {
+  customPagePathFromSlug,
+  slugifyCmsPathSegment,
+} from "@/lib/admin/cms-custom-pages"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
 import { cn } from "@/lib/utils"
+import Link from "next/link"
+import { adminRouteHref } from "@/lib/admin/admin-nav"
 
 type AdminCmsPagesNavPanelProps = {
   pages: CmsPageEntry[]
@@ -43,15 +49,22 @@ export function AdminCmsPagesNavPanel({
 }: AdminCmsPagesNavPanelProps) {
   const addPage = () => {
     const id = `custom-${Date.now()}`
+    const slug = `seite-${Date.now().toString(36)}`
     onPagesChange([
       ...pages,
       {
         id,
         title: "Neue Seite",
-        path: `/${id}`,
+        path: customPagePathFromSlug(slug),
         enabled: true,
         sortOrder: pages.length,
         system: false,
+        slug,
+        published: false,
+        heroTitle: "Neue Seite",
+        heroSubtitle: "",
+        bannerImageUrl: null,
+        blocks: [],
       },
     ])
   }
@@ -78,7 +91,14 @@ export function AdminCmsPagesNavPanel({
           <div>
             <h3 className={cn("text-sm font-semibold", adminUi.heading)}>Seiten</h3>
             <p className={cn("text-xs", adminUi.muted)}>
-              Sichtbare Seiten für den In-Context-Editor und die Staging-Navigation.
+              System-Seiten und Custom-Seiten (`/seiten/[slug]`). Inhalte im{" "}
+              <Link
+                href={adminRouteHref("seiten")}
+                className="underline underline-offset-2 hover:text-foreground"
+              >
+                Seiten-Builder
+              </Link>
+              .
             </p>
           </div>
           <Button type="button" size="sm" variant="outline" onClick={addPage} disabled={disabled}>
@@ -91,7 +111,7 @@ export function AdminCmsPagesNavPanel({
           {pages.map((page, index) => (
             <li
               key={page.id}
-              className="grid gap-2 rounded-lg border border-border/60 bg-muted/20 p-3 sm:grid-cols-[1fr_1fr_auto_auto]"
+              className="grid gap-2 rounded-lg border border-border/60 bg-muted/20 p-3 sm:grid-cols-[1fr_1fr_auto_auto_auto]"
             >
               <div className="space-y-1">
                 <Label className="text-xs">Titel</Label>
@@ -106,16 +126,30 @@ export function AdminCmsPagesNavPanel({
                 />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Pfad</Label>
+                <Label className="text-xs">
+                  {page.system ? "Pfad" : "Slug (/seiten/…)"}
+                </Label>
                 <Input
-                  value={page.path}
+                  value={page.system ? page.path : page.slug ?? ""}
                   disabled={disabled || page.system}
                   onChange={(e) => {
                     const next = [...pages]
-                    next[index] = { ...page, path: e.target.value }
+                    if (page.system) {
+                      next[index] = { ...page, path: e.target.value }
+                    } else {
+                      const slug = slugifyCmsPathSegment(e.target.value)
+                      next[index] = {
+                        ...page,
+                        slug,
+                        path: customPagePathFromSlug(slug || "seite"),
+                      }
+                    }
                     onPagesChange(next)
                   }}
                 />
+                {!page.system ? (
+                  <p className="text-[11px] text-muted-foreground">{page.path}</p>
+                ) : null}
               </div>
               <label className="flex items-end gap-2 pb-2 text-xs">
                 <input
@@ -130,6 +164,23 @@ export function AdminCmsPagesNavPanel({
                 />
                 Aktiv
               </label>
+              {!page.system ? (
+                <label className="flex items-end gap-2 pb-2 text-xs">
+                  <input
+                    type="checkbox"
+                    checked={page.published === true}
+                    disabled={disabled}
+                    onChange={(e) => {
+                      const next = [...pages]
+                      next[index] = { ...page, published: e.target.checked }
+                      onPagesChange(next)
+                    }}
+                  />
+                  Live
+                </label>
+              ) : (
+                <span className="pb-2 text-[11px] text-muted-foreground">System</span>
+              )}
               <div className="flex items-end gap-1">
                 <Button
                   type="button"

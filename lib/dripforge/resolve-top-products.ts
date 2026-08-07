@@ -74,8 +74,9 @@ export function hasUsableProductImage(
 }
 
 /**
- * Zählt verkaufte Einheiten aus nicht-stornierten Bestellungen (productId → Menge).
- * CartItem.id entspricht der Produkt-ID im Katalog.
+ * Zählt verkaufte Einheiten aus nicht-stornierten Bestellungen (Katalog-productId → Menge).
+ * Bevorzugt `CartItem.productId` (stabile Produkt-ID); fällt auf `id` zurück,
+ * sofern diese keine Timestamp-Warenkorbzeile ist (`productId-timestamp`).
  */
 export function countSoldUnitsByProductId(orders: StoredOrder[]): Map<string, number> {
   const sales = new Map<string, number>()
@@ -83,7 +84,15 @@ export function countSoldUnitsByProductId(orders: StoredOrder[]): Map<string, nu
   for (const order of orders) {
     if (isCancelledOrder(order.status)) continue
     for (const item of order.items ?? []) {
-      const productId = typeof item.id === "string" ? item.id.trim() : ""
+      const explicit =
+        typeof item.productId === "string" ? item.productId.trim() : ""
+      const lineId = typeof item.id === "string" ? item.id.trim() : ""
+      let productId = explicit
+      if (!productId && lineId) {
+        // Legacy: Zeilen-ID war früher die Produkt-ID; neu: `${productId}-${Date.now()}`
+        const stamped = lineId.match(/^(.*)-(\d{10,})$/)
+        productId = stamped?.[1]?.trim() || lineId
+      }
       if (!productId) continue
       const qty = Math.max(1, Number(item.quantity) || 1)
       sales.set(productId, (sales.get(productId) ?? 0) + qty)
@@ -107,11 +116,11 @@ function pushUnique(
 }
 
 /**
- * Top-Produkte für die Startseite (Admin: Anzahl + «Auf Startseite»).
+ * Top-Produkte / Bestseller für die Startseite.
  *
- * Priorität 1: manuell markierte Top-Produkte (`isTopProduct`) und Bestseller.
- * Priorität 2: Auffüllen mit neuesten Produkten (`createdAt` DESC), bis die
- * konfigurierte Anzahl erreicht ist — ohne Duplikate, ohne Legacy-Demos.
+ * 1. Meistverkaufte Produkte (echte Order-Items, absteigend nach Menge)
+ * 2. Auffüllen mit manuell markierten Empfehlungen (`isTopProduct`)
+ * 3. Auffüllen mit neuesten Produkten (`createdAt` DESC)
  */
 export function resolveTopProducts(options: {
   products: AdminProduct[]
@@ -130,21 +139,7 @@ export function resolveTopProducts(options: {
   const picked = new Set<string>()
   const result: AdminProduct[] = []
 
-  // --- Priorität 1a: Admin-Auswahl (isTopProduct) ---
-  const featured = eligible
-    .filter((p) => p.isTopProduct)
-    .sort((a, b) => {
-      const timeDiff = productCreatedAtMs(b) - productCreatedAtMs(a)
-      if (timeDiff !== 0) return timeDiff
-      return a.name.localeCompare(b.name, "de-CH")
-    })
-
-  for (const product of featured) {
-    if (!pushUnique(result, picked, product, limit)) break
-  }
-  if (result.length >= limit) return result
-
-  // --- Priorität 1b: Bestseller nach verkauften Einheiten ---
+  // --- Priorität 1: Bestseller nach verkauften Einheiten (live aus Orders) ---
   const bestsellers = [...sales.entries()]
     .filter(([id, qty]) => qty > 0 && byId.has(id))
     .sort((a, b) => {
@@ -162,8 +157,21 @@ export function resolveTopProducts(options: {
   }
   if (result.length >= limit) return result
 
-  // --- Priorität 2: Auffüllen mit neuesten Produkten (createdAt DESC) ---
-  // Zuerst Produkte mit echtem Bild, dann restliche Aktive — immer bis `limit`.
+  // --- Priorität 2: manuelle Empfehlungen (isTopProduct) ---
+  const featured = eligible
+    .filter((p) => p.isTopProduct)
+    .sort((a, b) => {
+      const timeDiff = productCreatedAtMs(b) - productCreatedAtMs(a)
+      if (timeDiff !== 0) return timeDiff
+      return a.name.localeCompare(b.name, "de-CH")
+    })
+
+  for (const product of featured) {
+    if (!pushUnique(result, picked, product, limit)) break
+  }
+  if (result.length >= limit) return result
+
+  // --- Priorität 3: Auffüllen mit neuesten Produkten (createdAt DESC) ---
   const newestWithImage = eligible
     .filter((p) => !picked.has(p.id) && hasUsableProductImage(p))
     .sort((a, b) => {
