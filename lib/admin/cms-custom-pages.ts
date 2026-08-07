@@ -6,6 +6,8 @@ export const CMS_PAGE_BLOCK_TYPES = [
   "gallery",
   "faq",
   "contact",
+  "valueCards",
+  "cta",
 ] as const
 
 export type CmsPageBlockType = (typeof CMS_PAGE_BLOCK_TYPES)[number]
@@ -15,6 +17,13 @@ export type CmsPageFaqItem = {
   id: string
   question: string
   answer: string
+}
+
+export type CmsValueCard = {
+  id: string
+  icon: string
+  title: string
+  description: string
 }
 
 export type CmsPageRow = {
@@ -42,6 +51,12 @@ export type CmsPageBlock = {
   faqItems?: CmsPageFaqItem[]
   /** contact embed */
   showContactForm?: boolean
+  /** valueCards */
+  cards?: CmsValueCard[]
+  /** cta */
+  ctaTitle?: string
+  ctaButtonLabel?: string
+  ctaButtonHref?: string
 }
 
 export type CmsCustomPageContent = {
@@ -167,6 +182,28 @@ function sanitizeImages(input: unknown): string[] {
     .slice(0, 24)
 }
 
+function sanitizeValueCards(input: unknown): CmsValueCard[] {
+  if (!Array.isArray(input)) return []
+  return input
+    .map((raw, index) => {
+      if (!isRecord(raw)) return null
+      const title = cleanString(raw.title).trim()
+      const description = cleanString(raw.description).trim()
+      if (!title && !description) return null
+      return {
+        id:
+          typeof raw.id === "string" && raw.id.trim()
+            ? raw.id.trim()
+            : `card-${index}`,
+        icon: cleanString(raw.icon, "Sparkles").slice(0, 40) || "Sparkles",
+        title: title || "Titel",
+        description,
+      }
+    })
+    .filter((card): card is CmsValueCard => card !== null)
+    .slice(0, 6)
+}
+
 function sanitizeLayout(value: unknown): CmsPageColumnLayout {
   if (value === "2" || value === 2) return "2"
   if (value === "3" || value === 3) return "3"
@@ -256,6 +293,18 @@ export function sanitizeCmsPageBlock(
       return { ...base, faqItems: sanitizeFaqItems(raw.faqItems) }
     case "contact":
       return { ...base, showContactForm: raw.showContactForm !== false }
+    case "valueCards":
+      return { ...base, cards: sanitizeValueCards(raw.cards) }
+    case "cta":
+      return {
+        ...base,
+        ctaTitle: cleanString(raw.ctaTitle).slice(0, 200),
+        ctaButtonLabel: cleanString(raw.ctaButtonLabel, "Jetzt Kontakt aufnehmen").slice(
+          0,
+          80
+        ),
+        ctaButtonHref: cleanString(raw.ctaButtonHref, "/kontakt").slice(0, 200),
+      }
     default:
       return base
   }
@@ -327,6 +376,25 @@ export function createEmptyCmsPageBlock(
       }
     case "contact":
       return { ...base, showContactForm: true }
+    case "valueCards":
+      return {
+        ...base,
+        cards: [
+          {
+            id: makeId("card"),
+            icon: "Sparkles",
+            title: "Neuer Vorteil",
+            description: "Kurzbeschreibung",
+          },
+        ],
+      }
+    case "cta":
+      return {
+        ...base,
+        ctaTitle: "Hast du eine eigene Idee oder einen Sonderwunsch?",
+        ctaButtonLabel: "Jetzt Kontakt aufnehmen",
+        ctaButtonHref: "/kontakt",
+      }
   }
 }
 

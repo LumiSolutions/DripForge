@@ -49,6 +49,8 @@ const BLOCK_LABELS: Record<CmsPageBlockType, string> = {
   gallery: "Galerie",
   faq: "FAQ",
   contact: "Kontakt",
+  valueCards: "Value Cards",
+  cta: "Call to Action",
 }
 
 export function AdminCmsPageBuilder() {
@@ -700,6 +702,150 @@ export function AdminCmsPageBuilder() {
                                   <p className="text-xs text-muted-foreground">
                                     Bindet das Storefront-Kontaktformular ein.
                                   </p>
+                                ) : null}
+
+                                {block.type === "valueCards" ? (
+                                  <div className="space-y-3">
+                                    {(block.cards ?? []).map((card, cardIndex) => (
+                                      <div
+                                        key={card.id}
+                                        className="space-y-2 rounded-lg border border-border/50 p-3"
+                                      >
+                                        <Input
+                                          value={card.icon}
+                                          placeholder="Icon (Printer, CheckCircle2, HeartHandshake…)"
+                                          onChange={(e) => {
+                                            const cards = [...(block.cards ?? [])]
+                                            cards[cardIndex] = {
+                                              ...card,
+                                              icon: e.target.value,
+                                            }
+                                            setBlocks(
+                                              blocks.map((b) =>
+                                                b.id === block.id
+                                                  ? { ...b, cards }
+                                                  : b
+                                              )
+                                            )
+                                          }}
+                                        />
+                                        <Input
+                                          value={card.title}
+                                          placeholder="Titel"
+                                          onChange={(e) => {
+                                            const cards = [...(block.cards ?? [])]
+                                            cards[cardIndex] = {
+                                              ...card,
+                                              title: e.target.value,
+                                            }
+                                            setBlocks(
+                                              blocks.map((b) =>
+                                                b.id === block.id
+                                                  ? { ...b, cards }
+                                                  : b
+                                              )
+                                            )
+                                          }}
+                                        />
+                                        <Textarea
+                                          rows={2}
+                                          value={card.description}
+                                          placeholder="Beschreibung"
+                                          onChange={(e) => {
+                                            const cards = [...(block.cards ?? [])]
+                                            cards[cardIndex] = {
+                                              ...card,
+                                              description: e.target.value,
+                                            }
+                                            setBlocks(
+                                              blocks.map((b) =>
+                                                b.id === block.id
+                                                  ? { ...b, cards }
+                                                  : b
+                                              )
+                                            )
+                                          }}
+                                        />
+                                      </div>
+                                    ))}
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() =>
+                                        setBlocks(
+                                          blocks.map((b) =>
+                                            b.id === block.id
+                                              ? {
+                                                  ...b,
+                                                  cards: [
+                                                    ...(b.cards ?? []),
+                                                    {
+                                                      id: `card-${Date.now()}`,
+                                                      icon: "Sparkles",
+                                                      title: "Neuer Vorteil",
+                                                      description: "",
+                                                    },
+                                                  ],
+                                                }
+                                              : b
+                                          )
+                                        )
+                                      }
+                                    >
+                                      Card hinzufügen
+                                    </Button>
+                                  </div>
+                                ) : null}
+
+                                {block.type === "cta" ? (
+                                  <div className="space-y-2">
+                                    <Input
+                                      value={block.ctaTitle ?? ""}
+                                      placeholder="CTA-Text"
+                                      onChange={(e) =>
+                                        setBlocks(
+                                          blocks.map((b) =>
+                                            b.id === block.id
+                                              ? { ...b, ctaTitle: e.target.value }
+                                              : b
+                                          )
+                                        )
+                                      }
+                                    />
+                                    <Input
+                                      value={block.ctaButtonLabel ?? ""}
+                                      placeholder="Button-Label"
+                                      onChange={(e) =>
+                                        setBlocks(
+                                          blocks.map((b) =>
+                                            b.id === block.id
+                                              ? {
+                                                  ...b,
+                                                  ctaButtonLabel: e.target.value,
+                                                }
+                                              : b
+                                          )
+                                        )
+                                      }
+                                    />
+                                    <Input
+                                      value={block.ctaButtonHref ?? ""}
+                                      placeholder="/kontakt"
+                                      onChange={(e) =>
+                                        setBlocks(
+                                          blocks.map((b) =>
+                                            b.id === block.id
+                                              ? {
+                                                  ...b,
+                                                  ctaButtonHref: e.target.value,
+                                                }
+                                              : b
+                                          )
+                                        )
+                                      }
+                                    />
+                                  </div>
                                 ) : null}
                               </div>
                             ))}

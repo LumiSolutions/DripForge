@@ -9,6 +9,7 @@ import {
   type CmsPageBlock,
   type CmsPageRow,
 } from "@/lib/admin/cms-custom-pages"
+import { buildUeberUnsPageTemplate } from "@/lib/admin/cms-page-templates"
 import { navItems as HARDCODED_NAV } from "@/lib/dripforge/data"
 import { shopNavHref } from "@/lib/dripforge/shop-routes"
 
@@ -66,7 +67,7 @@ const NAV_ICON_BY_ID: Record<string, string> = {
 }
 
 export function getDefaultCmsNavItems(): CmsNavItem[] {
-  return HARDCODED_NAV.map((item, index) => ({
+  const base: CmsNavItem[] = HARDCODED_NAV.map((item, index) => ({
     id: item.id,
     label: item.label,
     href: shopNavHref(item.id),
@@ -74,10 +75,29 @@ export function getDefaultCmsNavItems(): CmsNavItem[] {
     sortOrder: index,
     icon: NAV_ICON_BY_ID[item.id] ?? "Home",
   }))
+  const hasUeberUns = base.some(
+    (item) => item.href === "/ueber-uns" || item.id === "ueber-uns"
+  )
+  if (hasUeberUns) return base
+  const kontaktIndex = base.findIndex((item) => item.id === "kontakt")
+  const ueberUns: CmsNavItem = {
+    id: "ueber-uns",
+    label: "Über uns",
+    href: "/ueber-uns",
+    enabled: true,
+    sortOrder: 0,
+    icon: "Info",
+  }
+  if (kontaktIndex >= 0) {
+    const next = [...base]
+    next.splice(kontaktIndex, 0, ueberUns)
+    return next.map((item, index) => ({ ...item, sortOrder: index }))
+  }
+  return [...base, { ...ueberUns, sortOrder: base.length }]
 }
 
 export function getDefaultCmsPages(): CmsPageEntry[] {
-  return CMS_PREVIEW_PAGES.map((page, index) => ({
+  const system = CMS_PREVIEW_PAGES.map((page, index) => ({
     id: page.id,
     title: page.label,
     path: page.path,
@@ -85,6 +105,7 @@ export function getDefaultCmsPages(): CmsPageEntry[] {
     sortOrder: index,
     system: true,
   }))
+  return [...system, buildUeberUnsPageTemplate()]
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -212,7 +233,25 @@ export function sanitizeCmsPagesInput(input: unknown): CmsPageEntry[] {
 
 export function mergeCmsNavItems(input: unknown): CmsNavItem[] {
   if (input == null) return getDefaultCmsNavItems()
-  return sanitizeCmsNavItemsInput(input)
+  const items = sanitizeCmsNavItemsInput(input)
+  if (items.some((item) => item.id === "ueber-uns" || item.href === "/ueber-uns")) {
+    return items
+  }
+  const ueberUns: CmsNavItem = {
+    id: "ueber-uns",
+    label: "Über uns",
+    href: "/ueber-uns",
+    enabled: true,
+    sortOrder: items.length,
+    icon: "Info",
+  }
+  const kontaktIndex = items.findIndex((item) => item.id === "kontakt")
+  if (kontaktIndex >= 0) {
+    const next = [...items]
+    next.splice(kontaktIndex, 0, ueberUns)
+    return next.map((item, index) => ({ ...item, sortOrder: index }))
+  }
+  return [...items, ueberUns].map((item, index) => ({ ...item, sortOrder: index }))
 }
 
 function normalizeCmsPath(path: string): string {
