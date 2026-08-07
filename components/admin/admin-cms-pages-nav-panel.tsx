@@ -10,10 +10,8 @@ import {
   type CmsPageEntry,
 } from "@/lib/admin/site-nav"
 import {
-  customPagePathFromSlug,
   normalizeCmsPagePath,
   slugFromCmsPagePath,
-  slugifyCmsPathSegment,
 } from "@/lib/admin/cms-custom-pages"
 import { adminUi } from "@/lib/admin/admin-ui-classes"
 import { cn } from "@/lib/utils"
