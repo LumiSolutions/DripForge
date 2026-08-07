@@ -292,7 +292,14 @@ export function sanitizeCmsPageBlock(
     case "faq":
       return { ...base, faqItems: sanitizeFaqItems(raw.faqItems) }
     case "contact":
-      return { ...base, showContactForm: raw.showContactForm !== false }
+      return {
+        ...base,
+        showContactForm: raw.showContactForm !== false,
+        ctaTitle: cleanString(
+          raw.ctaTitle,
+          "Schreib uns / Fragen & Sonderwünsche"
+        ).slice(0, 200),
+      }
     case "valueCards":
       return { ...base, cards: sanitizeValueCards(raw.cards) }
     case "cta":
@@ -375,7 +382,11 @@ export function createEmptyCmsPageBlock(
         ],
       }
     case "contact":
-      return { ...base, showContactForm: true }
+      return {
+        ...base,
+        showContactForm: true,
+        ctaTitle: "Schreib uns / Fragen & Sonderwünsche",
+      }
     case "valueCards":
       return {
         ...base,

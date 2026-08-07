@@ -25,7 +25,7 @@ export function buildUeberUnsPageTemplate(): CmsPageEntry {
   const rows: CmsPageRow[] = [
     { id: "ueber-row-story", layout: "1", sortOrder: 0 },
     { id: "ueber-row-values", layout: "1", sortOrder: 1 },
-    { id: "ueber-row-cta", layout: "1", sortOrder: 2 },
+    { id: "ueber-row-contact", layout: "1", sortOrder: 2 },
   ]
 
   const blocks: CmsPageBlock[] = [
@@ -71,14 +71,13 @@ export function buildUeberUnsPageTemplate(): CmsPageEntry {
       ],
     },
     {
-      id: "ueber-block-cta",
-      type: "cta",
+      id: "ueber-block-contact",
+      type: "contact",
       sortOrder: 2,
-      rowId: "ueber-row-cta",
+      rowId: "ueber-row-contact",
       columnIndex: 0,
-      ctaTitle: "Hast du eine eigene Idee oder einen Sonderwunsch?",
-      ctaButtonLabel: "Jetzt Kontakt aufnehmen",
-      ctaButtonHref: "/kontakt",
+      showContactForm: true,
+      ctaTitle: "Schreib uns / Fragen & Sonderwünsche",
     },
   ]
 

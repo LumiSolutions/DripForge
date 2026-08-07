@@ -19,8 +19,8 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion"
 import { Button } from "@/components/ui/button"
-import { PageKontakt } from "@/components/dripforge/views/page-kontakt"
-import { useShopNavigate } from "@/hooks/use-shop-navigate"
+import { Card, CardContent } from "@/components/ui/card"
+import { DynamicContactForm } from "@/components/dripforge/dynamic-contact-form"
 import { cn } from "@/lib/utils"
 
 const VALUE_ICONS: Record<string, LucideIcon> = {
@@ -46,8 +46,6 @@ function RichHtml({ html, className }: { html?: string; className?: string }) {
 }
 
 function BlockRenderer({ block }: { block: CmsPageBlock }) {
-  const navigate = useShopNavigate()
-
   switch (block.type) {
     case "richtext":
       return <RichHtml html={block.html} />
@@ -129,8 +127,22 @@ function BlockRenderer({ block }: { block: CmsPageBlock }) {
     }
     case "contact":
       return (
-        <div className="rounded-2xl border border-border/60 bg-card/40 p-2 md:p-4">
-          <PageKontakt setCurrentView={navigate} />
+        <div className="mx-auto max-w-3xl">
+          <div className="mb-8 text-center">
+            <h2 className="text-2xl font-bold md:text-3xl">
+              {block.ctaTitle?.trim() ||
+                "Schreib uns / Fragen & Sonderwünsche"}
+            </h2>
+            <p className="mx-auto mt-3 max-w-xl text-muted-foreground">
+              Hast du eine eigene Idee oder einen Sonderwunsch? Schreib uns –
+              wir melden uns persönlich.
+            </p>
+          </div>
+          <Card className="border-border/50 bg-card/50">
+            <CardContent className="p-6 md:p-8">
+              <DynamicContactForm />
+            </CardContent>
+          </Card>
         </div>
       )
     case "valueCards": {

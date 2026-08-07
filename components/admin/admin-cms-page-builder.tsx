@@ -699,9 +699,24 @@ export function AdminCmsPageBuilder() {
                                 ) : null}
 
                                 {block.type === "contact" ? (
-                                  <p className="text-xs text-muted-foreground">
-                                    Bindet das Storefront-Kontaktformular ein.
-                                  </p>
+                                  <div className="space-y-2">
+                                    <Input
+                                      value={block.ctaTitle ?? ""}
+                                      placeholder="Abschnitt-Titel (z. B. Schreib uns…)"
+                                      onChange={(e) =>
+                                        setBlocks(
+                                          blocks.map((b) =>
+                                            b.id === block.id
+                                              ? { ...b, ctaTitle: e.target.value }
+                                              : b
+                                          )
+                                        )
+                                      }
+                                    />
+                                    <p className="text-xs text-muted-foreground">
+                                      Bindet das vollwertige Storefront-Kontaktformular ein.
+                                    </p>
+                                  </div>
                                 ) : null}
 
                                 {block.type === "valueCards" ? (
