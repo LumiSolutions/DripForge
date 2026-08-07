@@ -300,6 +300,8 @@ export type AdminSettings = {
   shippingTiers?: import("@/lib/dripforge/shipping-tiers").ShippingTiersSettings
   /** Dankesseite-Animation (Checkout Success) */
   thanksPage?: import("@/lib/dripforge/thanks-page-settings").ThanksPageSettings
+  /** Saisonale Theme- und Limited-Edition-Steuerung */
+  seasonal?: import("@/lib/dripforge/seasonal-events").SeasonalSettings
   updatedAt: string
 }
 

@@ -3,7 +3,7 @@ import type { Product } from "@/lib/dripforge/types"
 import { getSaleBadgePercent } from "@/lib/dripforge/product-sale"
 import { isProductActive } from "@/lib/admin/product-status"
 
-export type ShopFilterId = "all" | "3d" | "laser" | "sale"
+export type ShopFilterId = "all" | "3d" | "laser" | "sale" | "limited"
 
 export type ShopFilterOption = {
   id: ShopFilterId
@@ -17,6 +17,7 @@ const DEFAULT_FILTER_LABELS: Record<ShopFilterId, string> = {
   "3d": "3D-Druck",
   laser: "Laser-Gravur",
   sale: "Sale %",
+  limited: "Limited Edition",
 }
 
 export function isProductOnSale(product: Product): boolean {
@@ -36,6 +37,7 @@ export function buildShopFilterOptions(
   const has3dProducts = activeProducts.some((p) => p.type === "3d")
   const hasLaserProducts = activeProducts.some((p) => p.type === "laser")
   const hasSaleProducts = activeProducts.some(isProductOnSale)
+  const hasLimitedProducts = activeProducts.some((p) => p.limitedEdition)
 
   const filters: ShopFilterOption[] = [{ id: "all", label: label("all") }]
 
@@ -48,6 +50,9 @@ export function buildShopFilterOptions(
   if (hasSaleProducts) {
     filters.push({ id: "sale", label: label("sale") })
   }
+  if (hasLimitedProducts) {
+    filters.push({ id: "limited", label: label("limited") })
+  }
 
   return filters
 }
@@ -56,9 +61,15 @@ export function isShopFilterId(value: string, options: ShopFilterOption[]): valu
   return (options ?? []).some((option) => option.id === value)
 }
 
+export type ShopFilterOptions = {
+  /** When set with filter `limited`, only products for this seasonal event are shown. */
+  seasonalEventId?: string | null
+}
+
 export function filterProductsByShopFilter(
   products: Product[],
-  filterId: ShopFilterId
+  filterId: ShopFilterId,
+  options: ShopFilterOptions = {}
 ): Product[] {
   const active = products.filter((p) => isProductActive(p))
 
@@ -69,6 +80,12 @@ export function filterProductsByShopFilter(
       return active.filter((p) => p.type === "laser")
     case "sale":
       return active.filter(isProductOnSale)
+    case "limited": {
+      const limited = active.filter((p) => p.limitedEdition)
+      const eventId = options.seasonalEventId?.trim()
+      if (!eventId) return limited
+      return limited.filter((p) => p.seasonalEventId === eventId)
+    }
     default:
       return active
   }

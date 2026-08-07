@@ -164,6 +164,18 @@ export function normalizeAdminProductInput(
     ),
     materialLinks: input.materialLinks ?? existing?.materialLinks ?? [],
     tags: normalizeProductTagIds(input.tags ?? existing?.tags),
+    limitedEdition:
+      input.limitedEdition !== undefined
+        ? Boolean(input.limitedEdition)
+        : Boolean(existing?.limitedEdition),
+    seasonalEventId:
+      input.seasonalEventId !== undefined
+        ? String(input.seasonalEventId ?? "").trim() || null
+        : existing?.seasonalEventId ?? null,
+    seasonalUrgencyText:
+      input.seasonalUrgencyText !== undefined
+        ? String(input.seasonalUrgencyText ?? "").trim().slice(0, 120) || null
+        : existing?.seasonalUrgencyText ?? null,
     imageShape: normalizeProductImageShape(
       input.imageShape ?? existing?.imageShape
     ),

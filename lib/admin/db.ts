@@ -72,6 +72,7 @@ import { normalizeEmailSignature } from "@/lib/admin/email-signature"
 import { normalizeBelegNumbering } from "@/lib/documents/beleg-numbering-settings"
 import { normalizeShippingTiers } from "@/lib/dripforge/shipping-tiers"
 import { normalizeThanksPageSettings } from "@/lib/dripforge/thanks-page-settings"
+import { normalizeSeasonalSettings } from "@/lib/dripforge/seasonal-events"
 import {
   CosmosDatabaseError,
   withCosmosFallback,
@@ -690,6 +691,7 @@ async function getSettingsFromFile(): Promise<AdminSettings> {
       customerCategories: normalizeCustomerCategories(stored.customerCategories),
       shippingTiers: normalizeShippingTiers(stored.shippingTiers),
       thanksPage: normalizeThanksPageSettings(stored.thanksPage),
+      seasonal: normalizeSeasonalSettings(stored.seasonal),
       updatedAt: stored.updatedAt,
     }
   }
@@ -729,6 +731,7 @@ async function getSettingsFromFile(): Promise<AdminSettings> {
     customerCategories: [],
     shippingTiers: normalizeShippingTiers(undefined),
     thanksPage: normalizeThanksPageSettings(undefined),
+    seasonal: normalizeSeasonalSettings(undefined),
     updatedAt: new Date().toISOString(),
   }
   // Fehlende settings.json: Defaults nur im Speicher — kein Auto-Write bei Restart.
@@ -780,6 +783,7 @@ export async function saveSettings(input: {
   customerCategories?: unknown
   shippingTiers?: Partial<AdminSettings["shippingTiers"]> | null
   thanksPage?: Partial<AdminSettings["thanksPage"]> | null
+  seasonal?: Partial<AdminSettings["seasonal"]> | null
 }): Promise<AdminSettings> {
   const current = await getSettings()
 
@@ -955,6 +959,13 @@ export async function saveSettings(input: {
             ...input.thanksPage,
           })
         : normalizeThanksPageSettings(current.thanksPage),
+    seasonal:
+      input.seasonal !== undefined && input.seasonal !== null
+        ? normalizeSeasonalSettings({
+            ...normalizeSeasonalSettings(current.seasonal),
+            ...input.seasonal,
+          })
+        : normalizeSeasonalSettings(current.seasonal),
     updatedAt: new Date().toISOString(),
   }
   await withCosmosFallback(

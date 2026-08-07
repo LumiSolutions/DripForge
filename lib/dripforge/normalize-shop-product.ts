@@ -225,6 +225,16 @@ export function normalizeShopProduct(
           ? source.createdAt.trim()
           : undefined,
       tags: normalizeProductTagIds(source.tags),
+      limitedEdition: Boolean(source.limitedEdition),
+      seasonalEventId:
+        typeof source.seasonalEventId === "string" && source.seasonalEventId.trim()
+          ? source.seasonalEventId.trim()
+          : null,
+      seasonalUrgencyText:
+        typeof source.seasonalUrgencyText === "string" &&
+        source.seasonalUrgencyText.trim()
+          ? source.seasonalUrgencyText.trim()
+          : null,
       imageShape: normalizeProductImageShape(source.imageShape),
       sku:
         typeof source.sku === "string" && source.sku.trim()

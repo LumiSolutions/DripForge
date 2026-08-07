@@ -14,6 +14,7 @@ import {
   Settings,
   Settings2,
   Sparkles,
+  PartyPopper,
   Tag,
   Users,
   HeartHandshake,
@@ -42,6 +43,7 @@ export type AdminRouteId =
   | "laserkonfigurator"
   | "ki-modell"
   | "shop-einstellungen"
+  | "saisons"
   | "support-kampagne"
   | "dienstleistungen"
   | "website-staging"
@@ -90,6 +92,7 @@ export const ADMIN_ROUTE_PATHS: Record<AdminRouteId, string> = {
   laserkonfigurator: "/laserkonfigurator",
   "ki-modell": "/ki-modell",
   "shop-einstellungen": "/shop-einstellungen",
+  saisons: "/saisons",
   "support-kampagne": "/support-kampagne",
   dienstleistungen: "/dienstleistungen",
   "website-staging": "/website-staging",
@@ -236,6 +239,12 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
         label: "Shop-Einstellungen",
         href: adminRouteHref("shop-einstellungen"),
         icon: Settings,
+      },
+      {
+        id: "saisons",
+        label: "Saisons & Events",
+        href: adminRouteHref("saisons"),
+        icon: PartyPopper,
       },
       {
         id: "support-kampagne",

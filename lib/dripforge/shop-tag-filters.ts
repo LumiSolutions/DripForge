@@ -8,15 +8,18 @@ import {
 export type ShopCombinedFilterState = {
   categoryFilter: ShopFilterId
   selectedTagIds: string[]
+  seasonalEventId?: string | null
 }
 
 export function filterProductsByShopTags(
   products: Product[],
-  { categoryFilter, selectedTagIds }: ShopCombinedFilterState
+  { categoryFilter, selectedTagIds, seasonalEventId }: ShopCombinedFilterState
 ): Product[] {
   const safeProducts = products ?? []
   const safeTagIds = selectedTagIds ?? []
-  let list = filterProductsByShopFilter(safeProducts, categoryFilter)
+  const list = filterProductsByShopFilter(safeProducts, categoryFilter, {
+    seasonalEventId,
+  })
 
   if (safeTagIds.length === 0) {
     return list
@@ -32,9 +35,12 @@ export function filterProductsByShopTags(
 export function getTagsForCategoryScope(
   products: Product[],
   allTags: ProductTag[],
-  categoryFilter: ShopFilterId
+  categoryFilter: ShopFilterId,
+  seasonalEventId?: string | null
 ): ProductTag[] {
-  const scopedProducts = filterProductsByShopFilter(products ?? [], categoryFilter)
+  const scopedProducts = filterProductsByShopFilter(products ?? [], categoryFilter, {
+    seasonalEventId,
+  })
   const tagIdsInScope = new Set<string>()
 
   for (const product of scopedProducts) {

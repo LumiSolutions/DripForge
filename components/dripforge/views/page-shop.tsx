@@ -111,6 +111,11 @@ import { captureProductionLayerPng } from "@/lib/dripforge/capture-production-la
 import { LoadSavedDesignButton } from "@/components/konto/load-saved-design-button"
 import { hydrateLaserDesignerFromConfig } from "@/lib/konto/hydrate-laser-design"
 import { DiscountedUnitPrice } from "@/components/dripforge/shared/discounted-unit-price"
+import {
+  SeasonalEffects,
+  seasonalBadgeForProduct,
+  useSeasonalEvent,
+} from "@/components/dripforge/seasonal-storefront"
 
 const Product3DPreview = dynamic(
   () =>
@@ -235,6 +240,7 @@ export function PageShop({
   )
 
   const aiPublic = useAiPublicSettings()
+  const { activeEvent } = useSeasonalEvent()
   const showCustom3d = servicesLoaded ? Boolean(shopConfigurators.custom3d) : true
   const showCustomLaser = servicesLoaded ? Boolean(shopConfigurators.customLaser) : true
   const showAiKonfigurator = showCustom3d && Boolean(aiPublic?.enabled)
@@ -313,6 +319,24 @@ export function PageShop({
 
   useEffect(() => {
     try {
+      const params = new URLSearchParams(window.location.search)
+      const filterParam = params.get("filter")
+      if (
+        filterParam === "limited" ||
+        filterParam === "sale" ||
+        filterParam === "3d" ||
+        filterParam === "laser" ||
+        filterParam === "all"
+      ) {
+        setCategoryFilter(filterParam)
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
+  useEffect(() => {
+    try {
       const stored = window.localStorage.getItem("df-shop-view-mode")
       setViewMode(normalizeShopViewMode(stored))
       const surface = window.localStorage.getItem("df-shop-card-surface")
@@ -380,14 +404,24 @@ export function PageShop({
   }, [])
 
   const mainFilterOptions = useMemo(
-    () => buildShopFilterOptions(shopProducts ?? [], services),
-    [shopProducts, services]
+    () =>
+      buildShopFilterOptions(shopProducts ?? [], services, {
+        limited: activeEvent
+          ? `Limited Edition / ${activeEvent.name}`
+          : "Limited Edition",
+      }),
+    [shopProducts, services, activeEvent]
   )
 
   const visibleProductTags = useMemo(
     () =>
-      getTagsForCategoryScope(shopProducts ?? [], productTags ?? [], categoryFilter),
-    [shopProducts, productTags, categoryFilter]
+      getTagsForCategoryScope(
+        shopProducts ?? [],
+        productTags ?? [],
+        categoryFilter,
+        activeEvent?.id ?? null
+      ),
+    [shopProducts, productTags, categoryFilter, activeEvent?.id]
   )
 
   useEffect(() => {
@@ -400,9 +434,10 @@ export function PageShop({
     const filtered = filterProductsByShopTags(shopProducts ?? [], {
       categoryFilter,
       selectedTagIds: selectedTagIds ?? [],
+      seasonalEventId: activeEvent?.id ?? null,
     })
     return sortShopProducts(filtered, sortMode)
-  }, [shopProducts, categoryFilter, selectedTagIds, sortMode])
+  }, [shopProducts, categoryFilter, selectedTagIds, sortMode, activeEvent?.id])
 
   // Bei Filter-/Sortierwechsel wieder auf die erste Seite zurücksetzen.
   useEffect(() => {
@@ -983,6 +1018,7 @@ export function PageShop({
 
   if (selectedProduct) {
     const detailProduct = normalizeShopProduct(selectedProduct)
+    const detailSeasonalBadge = seasonalBadgeForProduct(detailProduct, activeEvent)
     const detailShopVariants = resolveProductShopVariants(detailProduct)
     const activeShopVariant = detailShopVariants.find(
       (v) => v.id === selectedShopVariantId
@@ -1120,6 +1156,7 @@ export function PageShop({
 
     return (
       <>
+      <SeasonalEffects event={activeEvent} />
       <div className="space-y-10 pb-12 md:pb-24">
         {/* Kein Radix-Modal: hideOthers/RemoveScroll über WebGL/Embla → Storefront-Error. */}
         {cartAddedOpen ? (
@@ -1215,10 +1252,27 @@ export function PageShop({
                             Rabatt
                           </Badge>
                         )}
+                        {detailSeasonalBadge.label ? (
+                          <Badge
+                            className="border-0 text-white hover:opacity-95"
+                            style={{
+                              backgroundColor:
+                                detailSeasonalBadge.accentColor ?? "#f97316",
+                            }}
+                          >
+                            {detailSeasonalBadge.label}
+                          </Badge>
+                        ) : null}
                       </div>
                       <h1 className="text-xl font-bold sm:text-2xl">
                         {detailProduct.name}
                       </h1>
+                      {detailProduct.limitedEdition &&
+                        detailProduct.seasonalUrgencyText && (
+                          <p className="mt-2 text-sm font-medium text-amber-700 dark:text-amber-300">
+                            {detailProduct.seasonalUrgencyText}
+                          </p>
+                        )}
                       <ProductDescription
                         html={detailProduct.description}
                         className="mt-2"
@@ -1609,10 +1663,27 @@ export function PageShop({
                                   Rabatt
                                 </Badge>
                               )}
+                              {detailSeasonalBadge.label ? (
+                                <Badge
+                                  className="border-0 text-white hover:opacity-95"
+                                  style={{
+                                    backgroundColor:
+                                      detailSeasonalBadge.accentColor ?? "#f97316",
+                                  }}
+                                >
+                                  {detailSeasonalBadge.label}
+                                </Badge>
+                              ) : null}
                             </div>
                             <h1 className="text-xl font-bold sm:text-2xl lg:text-3xl">
                               {detailProduct.name}
                             </h1>
+                            {detailProduct.limitedEdition &&
+                              detailProduct.seasonalUrgencyText && (
+                                <p className="mt-2 text-sm font-medium text-amber-700 dark:text-amber-300">
+                                  {detailProduct.seasonalUrgencyText}
+                                </p>
+                              )}
                             <ProductDescription
                               html={detailProduct.description}
                               className="mt-3"
@@ -2190,6 +2261,7 @@ export function PageShop({
 
   return (
     <div className="space-y-10 pb-12 md:space-y-16 md:pb-24">
+      <SeasonalEffects event={activeEvent} />
       <section className="py-10 text-center md:py-16">
         <Badge variant="outline" className="mb-6 border-primary/30 bg-primary/10 text-primary">
           <ShoppingBag className="mr-1 h-3 w-3" />
@@ -2424,6 +2496,7 @@ export function PageShop({
                 product.images?.[0]?.trim() ||
                 cardImages[0] ||
                 "/placeholder.svg"
+              const seasonalBadge = seasonalBadgeForProduct(product, activeEvent)
               return (
                 <ShopProductCard
                   key={product.id}
@@ -2433,6 +2506,8 @@ export function PageShop({
                   surface={cardSurface}
                   canInlineEdit={canInlineEdit}
                   priority={index < 4}
+                  seasonalBadgeLabel={seasonalBadge.label}
+                  seasonalAccentColor={seasonalBadge.accentColor}
                   onOpen={() => openProduct(product)}
                 />
               )

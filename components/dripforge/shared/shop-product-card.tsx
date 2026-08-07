@@ -22,6 +22,8 @@ type ShopProductCardProps = {
   coverSrc: string
   viewMode: "grid3" | "grid5" | "list"
   surface?: ShopCardSurface
+  seasonalBadgeLabel?: string | null
+  seasonalAccentColor?: string | null
   onOpen: () => void
   canInlineEdit?: boolean
   /** Erste Karten above-the-fold priorisieren. */
@@ -48,6 +50,8 @@ export function ShopProductCard({
   coverSrc,
   viewMode,
   surface = "brand",
+  seasonalBadgeLabel,
+  seasonalAccentColor,
   onOpen,
   canInlineEdit = false,
   priority = false,
@@ -103,6 +107,14 @@ export function ShopProductCard({
             Dynamisch aus Shop
           </span>
         )}
+        {product.limitedEdition && seasonalBadgeLabel ? (
+          <span
+            className="absolute left-2 top-2 z-20 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white shadow-sm"
+            style={{ backgroundColor: seasonalAccentColor ?? "#f97316" }}
+          >
+            {seasonalBadgeLabel}
+          </span>
+        ) : null}
         {!canInlineEdit && (
           <WishlistButton
             productId={product.id}
@@ -126,7 +138,7 @@ export function ShopProductCard({
             )}
           >
             {product.sale && salePercent != null && (
-              <span className="absolute left-2 top-2 z-10 rounded-full bg-red-500 px-2 py-0.5 text-xs font-bold text-white">
+              <span className="absolute left-2 top-8 z-10 rounded-full bg-red-500 px-2 py-0.5 text-xs font-bold text-white">
                 -{salePercent}%
               </span>
             )}
@@ -203,6 +215,14 @@ export function ShopProductCard({
           Dynamisch aus Shop
         </span>
       )}
+        {product.limitedEdition && seasonalBadgeLabel ? (
+          <span
+            className="absolute left-3 top-3 z-20 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white shadow-sm"
+            style={{ backgroundColor: seasonalAccentColor ?? "#f97316" }}
+          >
+            {seasonalBadgeLabel}
+          </span>
+        ) : null}
       {!canInlineEdit && (
         <WishlistButton
           productId={product.id}

@@ -85,6 +85,12 @@ export type Product = {
   createdAt?: string
   /** Zugewiesene Produkt-Tag-IDs (Shop-Filter) */
   tags?: string[]
+  /** Limited Edition / Saison-Produkt */
+  limitedEdition?: boolean
+  /** Zugeordnetes Saison/Event (SeasonalEvent.id) */
+  seasonalEventId?: string | null
+  /** Optionaler Dringlichkeitstext, z. B. "Nur bis 24.12." */
+  seasonalUrgencyText?: string | null
   /**
    * Anzeigeform der Produktbilder im Shop-Grid:
    * rounded = abgerundete Ecken (Standard), square = scharfe Kanten, circle = rund

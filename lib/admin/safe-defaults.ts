@@ -30,6 +30,7 @@ import {
 import { DEFAULT_ANNOUNCEMENT_BANNER } from "@/lib/dripforge/announcement-banner-settings"
 import { DEFAULT_SHIPPING_TIERS } from "@/lib/dripforge/shipping-tiers"
 import { DEFAULT_THANKS_PAGE_SETTINGS } from "@/lib/dripforge/thanks-page-settings"
+import { DEFAULT_SEASONAL_SETTINGS } from "@/lib/dripforge/seasonal-events"
 
 /** Sichere Standard-Einstellungen wenn Cosmos/Datei nicht erreichbar sind. */
 export function buildDefaultAdminSettings(): AdminSettings {
@@ -75,6 +76,10 @@ export function buildDefaultAdminSettings(): AdminSettings {
       tiers: DEFAULT_SHIPPING_TIERS.tiers.map((t) => ({ ...t })),
     },
     thanksPage: { ...DEFAULT_THANKS_PAGE_SETTINGS },
+    seasonal: {
+      ...DEFAULT_SEASONAL_SETTINGS,
+      events: DEFAULT_SEASONAL_SETTINGS.events.map((event) => ({ ...event })),
+    },
     updatedAt: new Date().toISOString(),
   }
 }

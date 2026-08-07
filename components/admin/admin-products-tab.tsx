@@ -98,6 +98,10 @@ import type {
   ProductTextOptionField,
 } from "@/lib/admin/product-text-options"
 import {
+  normalizeSeasonalSettings,
+  type SeasonalSettings,
+} from "@/lib/dripforge/seasonal-events"
+import {
   getProductShopStatus,
   PRODUCT_SHOP_STATUS_OPTIONS,
   productFieldsFromShopStatus,
@@ -149,6 +153,9 @@ const EMPTY_FORM: ProductFormState = {
   shopVariants: [],
   materialLinks: [],
   tags: [],
+  limitedEdition: false,
+  seasonalEventId: null,
+  seasonalUrgencyText: null,
   imageShape: "rounded",
   sku: "",
   trackInventory: false,
@@ -219,6 +226,7 @@ const DEFAULT_PRODUCT_SECTIONS: Record<string, boolean> = {
   sale: false,
   quantityDiscount: false,
   tags: false,
+  seasonal: false,
   dimensions: false,
   colors: false,
   laser: false,
@@ -353,6 +361,9 @@ export function AdminProductsTab() {
   const [productSort, setProductSort] = useState<ProductSortMode>("name-asc")
   const [productTags, setProductTags] = useState<ProductTag[]>([])
   const [productTextOptions, setProductTextOptions] = useState<ProductTextOption[]>([])
+  const [seasonalSettings, setSeasonalSettings] = useState<SeasonalSettings>(() =>
+    normalizeSeasonalSettings(undefined)
+  )
   const [textOptionSavingField, setTextOptionSavingField] =
     useState<ProductTextOptionField | null>(null)
   const [laserMaterialFilter, setLaserMaterialFilter] = useState("")
@@ -513,12 +524,34 @@ export function AdminProductsTab() {
     }
   }, [])
 
+  const loadSeasonalSettings = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/seasonal-events", {
+        credentials: "include",
+        cache: "no-store",
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setSeasonalSettings(normalizeSeasonalSettings(data.seasonal))
+      }
+    } catch (err) {
+      console.error("[Admin Produkte] Saison-Events laden fehlgeschlagen:", err)
+    }
+  }, [])
+
   useEffect(() => {
     void loadProducts()
     void loadMaterials()
     void loadProductTags()
     void loadProductTextOptions()
-  }, [loadProducts, loadMaterials, loadProductTags, loadProductTextOptions])
+    void loadSeasonalSettings()
+  }, [
+    loadProducts,
+    loadMaterials,
+    loadProductTags,
+    loadProductTextOptions,
+    loadSeasonalSettings,
+  ])
 
   const startCreate = () => {
     const next = {
@@ -1619,6 +1652,72 @@ export function AdminProductsTab() {
                   onChange={(tagIds) => updateField("tags", tagIds)}
                   onTagsChange={setProductTags}
                 />
+              </ProductEditAccordion>
+
+              <ProductEditAccordion
+                title="Limited Edition / Saison"
+                open={Boolean(openSections.seasonal)}
+                onToggle={() => toggleSection("seasonal")}
+              >
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between gap-3 rounded-lg border border-border/60 p-3">
+                    <div>
+                      <Label className={adminUi.label}>
+                        Limited Edition / Saison-Produkt
+                      </Label>
+                      <p className={cn("text-xs", adminUi.muted)}>
+                        Aktiviert Event-Badges, saisonale Filter und Homepage-Hervorhebung.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={Boolean(form.limitedEdition)}
+                      onCheckedChange={(checked) => updateField("limitedEdition", checked)}
+                    />
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label className={cn("text-xs", adminUi.labelMuted)}>
+                        Zugeordnetes Event
+                      </Label>
+                      <Select
+                        value={form.seasonalEventId ?? "none"}
+                        onValueChange={(value) =>
+                          updateField(
+                            "seasonalEventId",
+                            value === "none" ? null : value
+                          )
+                        }
+                        disabled={!form.limitedEdition}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Kein Event</SelectItem>
+                          {seasonalSettings.events.map((event) => (
+                            <SelectItem key={event.id} value={event.id}>
+                              {event.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className={cn("text-xs", adminUi.labelMuted)}>
+                        Dringlichkeit (optional)
+                      </Label>
+                      <Input
+                        value={form.seasonalUrgencyText ?? ""}
+                        onChange={(e) =>
+                          updateField("seasonalUrgencyText", e.target.value)
+                        }
+                        placeholder="z. B. Nur bis 24.12. oder Nur 12 Stück"
+                        disabled={!form.limitedEdition}
+                        className={adminUi.input}
+                      />
+                    </div>
+                  </div>
+                </div>
               </ProductEditAccordion>
 
               {(form.type === "3d" || form.type === "laser") && (

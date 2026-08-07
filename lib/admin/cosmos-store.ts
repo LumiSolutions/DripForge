@@ -67,6 +67,7 @@ import { normalizeEmailSignature } from "@/lib/admin/email-signature"
 import { normalizeBelegNumbering } from "@/lib/documents/beleg-numbering-settings"
 import { normalizeShippingTiers } from "@/lib/dripforge/shipping-tiers"
 import { normalizeThanksPageSettings } from "@/lib/dripforge/thanks-page-settings"
+import { normalizeSeasonalSettings } from "@/lib/dripforge/seasonal-events"
 import {
   buildCustomerFromOrder,
   mergeOrderIntoCustomer,
@@ -495,6 +496,7 @@ export async function cosmosGetSettings(): Promise<AdminSettings> {
         ),
         shippingTiers: normalizeShippingTiers(resource.shippingTiers),
         thanksPage: normalizeThanksPageSettings(resource.thanksPage),
+        seasonal: normalizeSeasonalSettings(resource.seasonal),
         updatedAt: resource.updatedAt,
       }
     }

@@ -100,6 +100,7 @@ import { SiteTextPhrase } from "@/components/dripforge/site-text-phrase"
 import { useAiPublicSettings } from "@/hooks/use-ai-public-settings"
 import { SHOP_ROUTES } from "@/lib/dripforge/shop-routes"
 import { HomeTopProductsSection } from "@/components/dripforge/views/home-top-products-section"
+import { HomeLimitedEditionSection } from "@/components/dripforge/views/home-limited-edition-section"
 
 export function HomePage({
   setCurrentView,
@@ -169,6 +170,8 @@ export function HomePage({
           </div>
         </div>
       </section>
+
+      <HomeLimitedEditionSection />
 
       <HomeTopProductsSection />
 
