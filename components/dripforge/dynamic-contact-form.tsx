@@ -53,7 +53,18 @@ const FIELD_TYPES: Array<{ id: CmsContactFieldType; label: string }> = [
   { id: "file", label: "Datei-Upload" },
 ]
 
-export function DynamicContactForm() {
+const POLISHED_CONTROL =
+  "border-border/60 bg-secondary/40 shadow-none transition-[border-color,box-shadow,background-color] hover:bg-secondary/55 focus-visible:border-primary focus-visible:ring-primary/30"
+
+type DynamicContactFormProps = {
+  /** `polished` = dunklere Inputs, Primary-Focus, Vollbreiten-Button (Über-uns). */
+  variant?: "default" | "polished"
+}
+
+export function DynamicContactForm({
+  variant = "default",
+}: DynamicContactFormProps = {}) {
+  const polished = variant === "polished"
   const { canInlineEdit, contactFormFields, saveContactFormFields } =
     useSiteTexts()
   const [values, setValues] = useState<Record<string, string>>({})
@@ -378,6 +389,7 @@ export function DynamicContactForm() {
                     onChange={(e) => setValue(field.key, e.target.value)}
                     disabled={isSubmitting || Boolean(submitSuccess)}
                     required={field.required}
+                    className={polished ? POLISHED_CONTROL : undefined}
                   />
                 ) : field.type === "select" ? (
                   <Select
@@ -385,7 +397,10 @@ export function DynamicContactForm() {
                     onValueChange={(value) => setValue(field.key, value)}
                     disabled={isSubmitting || Boolean(submitSuccess)}
                   >
-                    <SelectTrigger id={field.id}>
+                    <SelectTrigger
+                      id={field.id}
+                      className={polished ? POLISHED_CONTROL : undefined}
+                    >
                       <SelectValue placeholder={field.placeholder || "Auswählen"} />
                     </SelectTrigger>
                     <SelectContent>
@@ -401,6 +416,7 @@ export function DynamicContactForm() {
                     id={field.id}
                     type="file"
                     disabled={isSubmitting || Boolean(submitSuccess)}
+                    className={polished ? POLISHED_CONTROL : undefined}
                     onChange={(e) => {
                       const file = e.target.files?.[0]
                       if (!file) return
@@ -425,6 +441,7 @@ export function DynamicContactForm() {
                     onChange={(e) => setValue(field.key, e.target.value)}
                     disabled={isSubmitting || Boolean(submitSuccess)}
                     required={field.required}
+                    className={polished ? POLISHED_CONTROL : undefined}
                   />
                 )}
               </div>
@@ -444,23 +461,29 @@ export function DynamicContactForm() {
           </p>
         ) : null}
 
-        <Button
-          type="submit"
-          className="bg-primary text-primary-foreground hover:bg-primary/90"
-          disabled={isSubmitting || Boolean(submitSuccess)}
-        >
-          {isSubmitting ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Wird gesendet…
-            </>
-          ) : (
-            <>
-              Nachricht Senden
-              <Send className="ml-2 h-4 w-4" />
-            </>
-          )}
-        </Button>
+        <div className={polished ? "flex justify-end" : undefined}>
+          <Button
+            type="submit"
+            className={
+              polished
+                ? "w-full bg-primary text-primary-foreground shadow-sm transition-[transform,background-color,box-shadow] hover:bg-primary/90 hover:shadow-md active:scale-[0.99] sm:w-auto sm:min-w-[11rem]"
+                : "bg-primary text-primary-foreground hover:bg-primary/90"
+            }
+            disabled={isSubmitting || Boolean(submitSuccess)}
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Wird gesendet…
+              </>
+            ) : (
+              <>
+                Nachricht senden
+                <Send className="ml-2 h-4 w-4" />
+              </>
+            )}
+          </Button>
+        </div>
       </form>
     </div>
   )

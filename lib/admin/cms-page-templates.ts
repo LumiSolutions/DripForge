@@ -22,10 +22,11 @@ const STORY_HTML = `
  * Wird in mergeCmsPages geseedet und ist im Seiten-Builder editierbar.
  */
 export function buildUeberUnsPageTemplate(): CmsPageEntry {
+  // Kontaktformular bewusst nicht im CMS-Template – es wird fest einmal
+  // über UeberUnsContactSection auf /ueber-uns gerendert (kein Doppel-Render).
   const rows: CmsPageRow[] = [
     { id: "ueber-row-story", layout: "1", sortOrder: 0 },
     { id: "ueber-row-values", layout: "1", sortOrder: 1 },
-    { id: "ueber-row-contact", layout: "1", sortOrder: 2 },
   ]
 
   const blocks: CmsPageBlock[] = [
@@ -69,15 +70,6 @@ export function buildUeberUnsPageTemplate(): CmsPageEntry {
             "Handwerkliche Sorgfalt und Leidenschaft für Design – vom digitalen Entwurf zum greifbaren Unikat.",
         },
       ],
-    },
-    {
-      id: "ueber-block-contact",
-      type: "contact",
-      sortOrder: 2,
-      rowId: "ueber-row-contact",
-      columnIndex: 0,
-      showContactForm: true,
-      ctaTitle: "Schreib uns / Fragen & Sonderwünsche",
     },
   ]
 

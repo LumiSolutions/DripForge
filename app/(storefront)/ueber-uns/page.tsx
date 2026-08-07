@@ -5,6 +5,7 @@ import {
 import { findCustomCmsPageByPath, type CmsPageEntry } from "@/lib/admin/site-nav"
 import { buildUeberUnsPageTemplate } from "@/lib/admin/cms-page-templates"
 import { CmsCustomPageView } from "@/components/dripforge/views/cms-custom-page-view"
+import { UeberUnsContactSection } from "@/components/dripforge/ueber-uns-contact-section"
 
 type PageProps = {
   searchParams: Promise<{ preview?: string; staging?: string }>
@@ -15,28 +16,17 @@ export const metadata = {
   description: "Vom digitalen Entwurf zum greifbaren Unikat.",
 }
 
-/** Stellt sicher, dass die Kontaktsektion immer am Ende der Über-uns-Seite steht. */
-function withContactSection(page: CmsPageEntry): CmsPageEntry {
-  const hasContact = (page.blocks ?? []).some((block) => block.type === "contact")
-  if (hasContact) return page
-
-  const template = buildUeberUnsPageTemplate()
-  const contactBlock = template.blocks?.find((block) => block.type === "contact")
-  const contactRow = template.rows?.find((row) => row.id === contactBlock?.rowId)
-  if (!contactBlock || !contactRow) return page
-
-  const rows = [...(page.rows ?? [])]
-  const blocks = [...(page.blocks ?? [])].filter((block) => block.type !== "cta")
-  const nextSort = Math.max(0, ...rows.map((row) => row.sortOrder)) + 1
-  const row = { ...contactRow, sortOrder: nextSort }
-  rows.push(row)
-  blocks.push({
-    ...contactBlock,
-    rowId: row.id,
-    sortOrder: blocks.length,
-  })
-
-  return { ...page, rows, blocks }
+/**
+ * Entfernt CMS-Contact-/CTA-Blöcke, damit das Formular exakt einmal
+ * über UeberUnsContactSection gerendert wird (kein Doppel-Render).
+ */
+function withoutEmbeddedContact(page: CmsPageEntry): CmsPageEntry {
+  const blocks = (page.blocks ?? []).filter(
+    (block) => block.type !== "contact" && block.type !== "cta"
+  )
+  const usedRowIds = new Set(blocks.map((block) => block.rowId).filter(Boolean))
+  const rows = (page.rows ?? []).filter((row) => usedRowIds.has(row.id))
+  return { ...page, blocks, rows }
 }
 
 export default async function UeberUnsPage({ searchParams }: PageProps) {
@@ -45,11 +35,16 @@ export default async function UeberUnsPage({ searchParams }: PageProps) {
   const bundle = preview
     ? await getSiteConfigStaging()
     : await getSiteConfigProduction()
-  const page = withContactSection(
+  const page = withoutEmbeddedContact(
     findCustomCmsPageByPath(bundle.pages, "/ueber-uns", {
       includeDrafts: preview,
     }) ?? buildUeberUnsPageTemplate()
   )
 
-  return <CmsCustomPageView page={page} />
+  return (
+    <>
+      <CmsCustomPageView page={page} />
+      <UeberUnsContactSection />
+    </>
+  )
 }

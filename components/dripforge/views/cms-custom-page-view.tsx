@@ -45,7 +45,13 @@ function RichHtml({ html, className }: { html?: string; className?: string }) {
   )
 }
 
-function BlockRenderer({ block }: { block: CmsPageBlock }) {
+function BlockRenderer({
+  block,
+  skipContact,
+}: {
+  block: CmsPageBlock
+  skipContact?: boolean
+}) {
   switch (block.type) {
     case "richtext":
       return <RichHtml html={block.html} />
@@ -126,6 +132,7 @@ function BlockRenderer({ block }: { block: CmsPageBlock }) {
       )
     }
     case "contact":
+      if (skipContact) return null
       return (
         <div className="mx-auto max-w-3xl">
           <div className="mb-8 text-center">
@@ -211,8 +218,17 @@ export function CmsCustomPageView({
     Boolean(page.bannerImageUrl) &&
     !String(page.bannerImageUrl).includes("placeholder")
 
+  // Kontaktformular höchstens einmal – doppelte CMS-Blöcke werden übersprungen.
+  const firstContactId = [...(page.blocks ?? [])]
+    .filter((block) => block.type === "contact")
+    .sort((a, b) => a.sortOrder - b.sortOrder)[0]?.id
+
   return (
-    <div className={cn("pb-16", preview && "rounded-xl border border-border/50")}>
+    <div
+      className={cn(
+        preview ? "rounded-xl border border-border/50 pb-6" : "pb-4 md:pb-8"
+      )}
+    >
       <section className="relative overflow-hidden border-b border-border/50">
         {hasRealBanner ? (
           <div className="absolute inset-0">
@@ -295,7 +311,14 @@ export function CmsCustomPageView({
                 >
                   {colBlocks.map((block) => (
                     <section key={block.id}>
-                      <BlockRenderer block={block} />
+                      <BlockRenderer
+                        block={block}
+                        skipContact={
+                          block.type === "contact" &&
+                          Boolean(firstContactId) &&
+                          block.id !== firstContactId
+                        }
+                      />
                     </section>
                   ))}
                 </div>
