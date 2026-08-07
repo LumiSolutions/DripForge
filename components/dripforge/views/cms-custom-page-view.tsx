@@ -224,11 +224,7 @@ export function CmsCustomPageView({
     .sort((a, b) => a.sortOrder - b.sortOrder)[0]?.id
 
   return (
-    <div
-      className={cn(
-        preview ? "rounded-xl border border-border/50 pb-6" : "pb-4 md:pb-8"
-      )}
-    >
+    <div className={cn("pb-16", preview && "rounded-xl border border-border/50")}>
       <section className="relative overflow-hidden border-b border-border/50">
         {hasRealBanner ? (
           <div className="absolute inset-0">
