@@ -274,7 +274,7 @@ export function ShopHeader(props: ShopHeaderProps) {
         )}
 
         <nav
-          className="hidden min-w-0 flex-1 flex-nowrap items-center justify-center gap-0.5 overflow-x-auto md:flex lg:gap-1"
+          className="hidden min-w-0 flex-1 flex-nowrap items-center justify-evenly gap-0.5 overflow-x-auto md:flex lg:gap-1"
           aria-label="Hauptnavigation"
         >
           {useCmsNav

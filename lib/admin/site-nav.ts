@@ -63,7 +63,39 @@ const NAV_ICON_BY_ID: Record<string, string> = {
   "3d-druck": "Printer",
   laser: "Zap",
   shop: "ShoppingBag",
-  kontakt: "MessageSquare",
+  "ueber-uns": "Info",
+}
+
+const UEBER_UNS_NAV_ITEM: CmsNavItem = {
+  id: "ueber-uns",
+  label: "Über uns",
+  href: "/ueber-uns",
+  enabled: true,
+  sortOrder: 0,
+  icon: "Info",
+}
+
+/** Header-Nav: separater Kontakt-Eintrag entfällt (Kontakt liegt auf /ueber-uns#kontakt). */
+function isHeaderKontaktNavItem(item: CmsNavItem): boolean {
+  const label = item.label.trim().toLowerCase()
+  if (item.id === "kontakt" || label === "kontakt") return true
+  const pathOnly =
+    item.href.split("#")[0]?.split("?")[0]?.replace(/\/+$/, "") || "/"
+  return pathOnly === "/kontakt" || pathOnly === "/contact"
+}
+
+function withUeberUnsNav(items: CmsNavItem[]): CmsNavItem[] {
+  const withoutKontakt = items.filter((item) => !isHeaderKontaktNavItem(item))
+  if (
+    withoutKontakt.some(
+      (item) => item.id === "ueber-uns" || item.href.split("#")[0] === "/ueber-uns"
+    )
+  ) {
+    return withoutKontakt.map((item, index) => ({ ...item, sortOrder: index }))
+  }
+  return [...withoutKontakt, { ...UEBER_UNS_NAV_ITEM, sortOrder: withoutKontakt.length }].map(
+    (item, index) => ({ ...item, sortOrder: index })
+  )
 }
 
 export function getDefaultCmsNavItems(): CmsNavItem[] {
@@ -75,25 +107,7 @@ export function getDefaultCmsNavItems(): CmsNavItem[] {
     sortOrder: index,
     icon: NAV_ICON_BY_ID[item.id] ?? "Home",
   }))
-  const hasUeberUns = base.some(
-    (item) => item.href === "/ueber-uns" || item.id === "ueber-uns"
-  )
-  if (hasUeberUns) return base
-  const kontaktIndex = base.findIndex((item) => item.id === "kontakt")
-  const ueberUns: CmsNavItem = {
-    id: "ueber-uns",
-    label: "Über uns",
-    href: "/ueber-uns",
-    enabled: true,
-    sortOrder: 0,
-    icon: "Info",
-  }
-  if (kontaktIndex >= 0) {
-    const next = [...base]
-    next.splice(kontaktIndex, 0, ueberUns)
-    return next.map((item, index) => ({ ...item, sortOrder: index }))
-  }
-  return [...base, { ...ueberUns, sortOrder: base.length }]
+  return withUeberUnsNav(base)
 }
 
 export function getDefaultCmsPages(): CmsPageEntry[] {
@@ -247,25 +261,7 @@ export function sanitizeCmsPagesInput(input: unknown): CmsPageEntry[] {
 
 export function mergeCmsNavItems(input: unknown): CmsNavItem[] {
   if (input == null) return getDefaultCmsNavItems()
-  const items = sanitizeCmsNavItemsInput(input)
-  if (items.some((item) => item.id === "ueber-uns" || item.href === "/ueber-uns")) {
-    return items
-  }
-  const ueberUns: CmsNavItem = {
-    id: "ueber-uns",
-    label: "Über uns",
-    href: "/ueber-uns",
-    enabled: true,
-    sortOrder: items.length,
-    icon: "Info",
-  }
-  const kontaktIndex = items.findIndex((item) => item.id === "kontakt")
-  if (kontaktIndex >= 0) {
-    const next = [...items]
-    next.splice(kontaktIndex, 0, ueberUns)
-    return next.map((item, index) => ({ ...item, sortOrder: index }))
-  }
-  return [...items, ueberUns].map((item, index) => ({ ...item, sortOrder: index }))
+  return withUeberUnsNav(sanitizeCmsNavItemsInput(input))
 }
 
 function normalizeCmsPath(path: string): string {

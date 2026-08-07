@@ -1,6 +1,5 @@
 ﻿import {
   Home,
-  MessageSquare,
   Printer,
   ShoppingBag,
   Zap,
@@ -20,7 +19,6 @@ export const navItems = [
   { id: "3d-druck", label: "3D-Druck", icon: Printer },
   { id: "laser", label: "Laser & Cut", icon: Zap },
   { id: "shop", label: "Shop", icon: ShoppingBag },
-  { id: "kontakt", label: "Kontakt", icon: MessageSquare },
 ]
 
 export const products: Product[] = [
