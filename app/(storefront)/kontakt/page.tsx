@@ -1,8 +1,9 @@
 import { permanentRedirect } from "next/navigation"
 
 /**
- * Die eigenständige Kontaktseite entfällt.
- * Permanente Weiterleitung (308) zum Kontaktbereich auf «Über uns».
+ * Eigenständige Kontaktseite entfernt.
+ * Permanenter Redirect zum Kontaktbereich auf «Über uns».
+ * (Middleware sendet zusätzlich HTTP 301 für /kontakt und /contact.)
  */
 export default function KontaktRedirectPage() {
   permanentRedirect("/ueber-uns#kontakt")

@@ -4,26 +4,17 @@ import type { CmsPageBlock, CmsPageRow } from "@/lib/admin/cms-custom-pages"
 const UEBER_UNS_ID = "ueber-uns"
 
 const STORY_HTML = `
-<p><strong>Willkommen bei DripForge – Präzision trifft Leidenschaft</strong></p>
-<p>Bei DripForge verwandeln wir kreative Ideen in einzigartige, greifbare Produkte. Was als Begeisterung für moderne Fertigungstechnologien und individuelles Design begann, ist heute unsere tägliche Leidenschaft: Produkte zu schaffen, die durch Qualität, Detailverliebtheit und Funktionalität überzeugen.</p>
-<h3>Vom Code zum fertigen Unikat</h3>
-<p>Egal ob hochpräziser 3D-Druck oder edle Lasergravur – bei uns kommt alles aus einer Hand. Wir setzen auf modernste Fertigungsmethoden, um sowohl maßgeschneiderte Einzelanfertigungen als auch durchdachte Kollektionen zu realisieren.</p>
-<h3>Unsere Philosophie</h3>
-<ul>
-  <li><strong>Echte Schweizer Präzision:</strong> Wir prüfen jedes Teil persönlich, bevor es verpackt wird.</li>
-  <li><strong>Nachhaltige Qualität:</strong> Wir nutzen langlebige Materialien und fertigen ressourcenschonend auf Bestellung.</li>
-  <li><strong>Kreativität ohne Grenzen:</strong> Ob personalisiertes Geschenk oder technisches Bauteil – wir machen eure Vorstellungen möglich.</li>
-</ul>
-<p>Vielen Dank, dass du Teil unserer Reise bist!</p>
+<h2>Leidenschaft für High-Tech &amp; Detail</h2>
+<p>DripForge entstand aus der Begeisterung für grenzenlose kreative Gestaltung. Wir glauben daran, dass individuelle Produkte nicht nur funktional, sondern auch ästhetisch erstklassig sein müssen. Mit modernster additiver Fertigung (3D-Druck) und hochpräziser Lasergravur verwandeln wir komplexe digitale Designs in greifbare Realität – ob maßgeschneiderte Einzelanfertigung, Prototyp oder exklusive Kleinserie.</p>
 `.trim()
 
 /**
  * Default-Template für die Unterseite «Über uns» (/ueber-uns).
- * Wird in mergeCmsPages geseedet und ist im Seiten-Builder editierbar.
+ * Storefront rendert die dedizierte UeberUnsPageView; dieses Template
+ * bleibt für CMS-Seed / Builder-Konsistenz synchron.
+ * Kontaktformular bewusst nicht enthalten (einmalig auf der Page-View).
  */
 export function buildUeberUnsPageTemplate(): CmsPageEntry {
-  // Kontaktformular bewusst nicht im CMS-Template – es wird fest einmal
-  // über UeberUnsContactSection auf /ueber-uns gerendert (kein Doppel-Render).
   const rows: CmsPageRow[] = [
     { id: "ueber-row-story", layout: "1", sortOrder: 0 },
     { id: "ueber-row-values", layout: "1", sortOrder: 1 },
@@ -50,24 +41,24 @@ export function buildUeberUnsPageTemplate(): CmsPageEntry {
       cards: [
         {
           id: "ueber-card-tech",
-          icon: "Printer",
-          title: "High-Tech Fertigung",
+          icon: "Sparkles",
+          title: "Modernste Fertigung",
           description:
-            "3D-Druck & Lasergravur aus einer Hand – präzise, modern und für Unikate wie Serien geeignet.",
+            "Präziser 3D-Druck & scharfe Lasergravuren auf höchstem technischem Niveau.",
         },
         {
           id: "ueber-card-quality",
-          icon: "CheckCircle2",
-          title: "Höchste Qualitätskontrolle",
+          icon: "ShieldCheck",
+          title: "Schweizer Präzision",
           description:
-            "Echte Schweizer Präzision: Jedes Teil wird persönlich geprüft, bevor es verpackt wird.",
+            "Jedes Produkt wird vor dem Versand persönlich geprüft und in der Schweiz fertiggestellt.",
         },
         {
           id: "ueber-card-detail",
           icon: "HeartHandshake",
-          title: "Mit Liebe zum Detail",
+          title: "Individuelle Wünsche",
           description:
-            "Handwerkliche Sorgfalt und Leidenschaft für Design – vom digitalen Entwurf zum greifbaren Unikat.",
+            "Ob Sonderfarben, Namensgravuren oder STL-Dateien – wir setzen deine Vision exakt um.",
         },
       ],
     },
@@ -82,8 +73,9 @@ export function buildUeberUnsPageTemplate(): CmsPageEntry {
     system: false,
     slug: "ueber-uns",
     published: true,
-    heroTitle: "Über DripForge – Präzision trifft Leidenschaft",
-    heroSubtitle: "Vom digitalen Entwurf zum greifbaren Unikat.",
+    heroTitle: "Über DripForge – Wo Idee auf Präzision trifft",
+    heroSubtitle:
+      "Vom digitalen Entwurf zum perfekten Unikat. Wir verbinden modernste 3D-Druck- & Lasergravur-Technologie mit Schweizer Qualitätsanspruch.",
     bannerImageUrl: "/placeholder.svg",
     rows,
     blocks,

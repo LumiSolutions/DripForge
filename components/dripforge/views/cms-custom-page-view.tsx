@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   HeartHandshake,
   Printer,
+  ShieldCheck,
   Sparkles,
   type LucideIcon,
 } from "lucide-react"
@@ -27,6 +28,7 @@ const VALUE_ICONS: Record<string, LucideIcon> = {
   Printer,
   CheckCircle2,
   HeartHandshake,
+  ShieldCheck,
   Sparkles,
   Zap: Sparkles,
   Layers: Sparkles,

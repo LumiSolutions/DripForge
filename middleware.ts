@@ -47,12 +47,12 @@ function allowsShopAccess(data: LaunchPayload, hasPreviewCookie: boolean): boole
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // Standalone-Kontaktseite entfernt → permanenter Redirect zum Kontaktbereich
+  // Standalone-Kontaktseite entfernt → 301 zum Kontaktbereich auf «Über uns»
   if (pathname === "/kontakt" || pathname === "/contact") {
     const dest = request.nextUrl.clone()
     dest.pathname = "/ueber-uns"
     dest.hash = "kontakt"
-    return NextResponse.redirect(dest, 308)
+    return NextResponse.redirect(dest, 301)
   }
 
   if (isLegacyAdminPath(pathname)) {
