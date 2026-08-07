@@ -310,7 +310,10 @@ export function sanitizeCmsPageBlock(
           0,
           80
         ),
-        ctaButtonHref: cleanString(raw.ctaButtonHref, "/kontakt").slice(0, 200),
+        ctaButtonHref: cleanString(
+          raw.ctaButtonHref,
+          "/ueber-uns#kontakt"
+        ).slice(0, 200),
       }
     default:
       return base
@@ -404,7 +407,7 @@ export function createEmptyCmsPageBlock(
         ...base,
         ctaTitle: "Hast du eine eigene Idee oder einen Sonderwunsch?",
         ctaButtonLabel: "Jetzt Kontakt aufnehmen",
-        ctaButtonHref: "/kontakt",
+        ctaButtonHref: "/ueber-uns#kontakt",
       }
   }
 }

@@ -1,10 +1,9 @@
-"use client"
+import { permanentRedirect } from "next/navigation"
 
-import { PageKontakt } from "@/components/dripforge/views/page-kontakt"
-import { useShopNavigate } from "@/hooks/use-shop-navigate"
-
-export default function KontaktPage() {
-  const navigate = useShopNavigate()
-
-  return <PageKontakt setCurrentView={navigate} />
+/**
+ * Die eigenständige Kontaktseite entfällt.
+ * Permanente Weiterleitung (308) zum Kontaktbereich auf «Über uns».
+ */
+export default function KontaktRedirectPage() {
+  permanentRedirect("/ueber-uns#kontakt")
 }

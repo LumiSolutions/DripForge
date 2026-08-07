@@ -87,8 +87,8 @@ function CategoryEditors({
           className={adminUi.input}
         />
         <p className={cn("text-xs", adminUi.muted)}>
-          Der Wortlaut «unverbindliche Offerte» wird im Shop automatisch auf /kontakt
-          verlinkt.
+          Der Wortlaut «unverbindliche Offerte» wird im Shop automatisch auf
+          /ueber-uns#kontakt verlinkt.
         </p>
       </div>
     </div>

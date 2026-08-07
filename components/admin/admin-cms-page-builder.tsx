@@ -846,7 +846,7 @@ export function AdminCmsPageBuilder() {
                                     />
                                     <Input
                                       value={block.ctaButtonHref ?? ""}
-                                      placeholder="/kontakt"
+                                      placeholder="/ueber-uns#kontakt"
                                       onChange={(e) =>
                                         setBlocks(
                                           blocks.map((b) =>

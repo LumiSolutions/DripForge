@@ -16,7 +16,7 @@ export const CMS_PREVIEW_PAGES: CmsPreviewPage[] = [
   { id: "shop", label: "Shop", path: SHOP_ROUTES.shop },
   { id: "3d-druck", label: "3D-Druck", path: SHOP_ROUTES["3d-druck"] },
   { id: "laser", label: "Laser", path: SHOP_ROUTES.laser },
-  { id: "kontakt", label: "Kontakt", path: SHOP_ROUTES.kontakt },
+  { id: "kontakt", label: "Kontakt", path: "/ueber-uns#kontakt" },
   { id: "faq", label: "FAQ", path: SHOP_ROUTES.faq },
   { id: "ai", label: "KI-Konfigurator", path: SHOP_ROUTES.aiKonfigurator },
   { id: "support", label: "Support", path: SHOP_ROUTES.support },
@@ -39,7 +39,11 @@ function withPreviewParams(
   path: string,
   options?: { readonly?: boolean }
 ): string {
-  const normalized = path === "/" ? "/" : path.replace(/\/+$/, "") || "/"
+  const hashIndex = path.indexOf("#")
+  const hash = hashIndex >= 0 ? path.slice(hashIndex) : ""
+  const withoutHash = hashIndex >= 0 ? path.slice(0, hashIndex) : path
+  const normalized =
+    withoutHash === "/" ? "/" : withoutHash.replace(/\/+$/, "") || "/"
   const url = new URL(normalized, "https://dripforge.local")
   url.searchParams.set(SITE_CONFIG_PREVIEW_PARAM, "true")
   if (options?.readonly) {
@@ -47,7 +51,7 @@ function withPreviewParams(
   } else {
     url.searchParams.set(SITE_CONFIG_READONLY_PARAM, "0")
   }
-  return `${url.pathname}${url.search}`
+  return `${url.pathname}${url.search}${hash}`
 }
 
 /** In-Context-Editor: Staging + Inline-Edit (readonly aus). */

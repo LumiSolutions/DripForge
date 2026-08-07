@@ -36,8 +36,9 @@ import { HomePage } from "@/components/dripforge/views/home-page"
 import { Page3DDruck } from "@/components/dripforge/views/page-3d-druck"
 import { PageLaser } from "@/components/dripforge/views/page-laser"
 import { PageShop } from "@/components/dripforge/views/page-shop"
-import { PageKontakt } from "@/components/dripforge/views/page-kontakt"
 import { PageFAQ } from "@/components/dripforge/views/page-faq"
+import { hardNavigate } from "@/lib/dripforge/safe-navigate"
+import { SHOP_ROUTES } from "@/lib/dripforge/shop-routes"
 import { PageImpressum } from "@/components/dripforge/views/page-impressum"
 import { PageAGB } from "@/components/dripforge/views/page-agb"
 import { PageIndividual3D } from "@/components/dripforge/views/page-individual-3d"
@@ -110,6 +111,13 @@ export default function DripForgeApp() {
       setCurrentView("home")
     }
   }, [currentView, services, aiPublic.enabled])
+
+  // Kontakt ist in «Über uns» integriert – SPA-View sofort weiterleiten.
+  useEffect(() => {
+    if (currentView === "kontakt") {
+      hardNavigate(SHOP_ROUTES.kontakt)
+    }
+  }, [currentView])
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -231,7 +239,6 @@ export default function DripForgeApp() {
             servicesLoaded={servicesLoaded}
           />
         )}
-        {currentView === "kontakt" && <PageKontakt setCurrentView={setCurrentView} />}
         {currentView === "faq" && <PageFAQ setCurrentView={setCurrentView} />}
         {currentView === "impressum" && <PageImpressum setCurrentView={setCurrentView} />}
         {currentView === "agb" && <PageAGB setCurrentView={setCurrentView} />}
@@ -315,7 +322,7 @@ export default function DripForgeApp() {
               </Button>
             </div>
             <button 
-              onClick={() => setCurrentView("kontakt")}
+              onClick={() => hardNavigate(SHOP_ROUTES.kontakt)}
               className="mt-2 text-xs text-primary hover:underline"
             >
               Team kontaktieren

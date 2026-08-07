@@ -184,7 +184,7 @@ function BlockRenderer({
         block.ctaTitle?.trim() ||
         "Hast du eine eigene Idee oder einen Sonderwunsch?"
       const label = block.ctaButtonLabel?.trim() || "Jetzt Kontakt aufnehmen"
-      const href = block.ctaButtonHref?.trim() || "/kontakt"
+      const href = block.ctaButtonHref?.trim() || "/ueber-uns#kontakt"
       return (
         <div className="relative overflow-hidden rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/10 via-card to-cyan-400/10 px-6 py-10 text-center md:px-10 md:py-14">
           <h2 className="text-2xl font-bold md:text-3xl">{title}</h2>

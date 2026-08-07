@@ -112,15 +112,29 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === "object" && !Array.isArray(value))
 }
 
+/** Alte /kontakt-Links auf den Kontaktbereich der Über-uns-Seite umbiegen. */
+function normalizeNavHref(id: string, href: string): string {
+  const pathOnly = href.split("#")[0]?.split("?")[0]?.replace(/\/+$/, "") || "/"
+  if (
+    id === "kontakt" ||
+    pathOnly === "/kontakt" ||
+    pathOnly === "/contact"
+  ) {
+    return "/ueber-uns#kontakt"
+  }
+  return href
+}
+
 function sanitizeNavItem(raw: unknown, index: number): CmsNavItem | null {
   if (!isRecord(raw)) return null
   const id = typeof raw.id === "string" && raw.id.trim() ? raw.id.trim() : `nav-${index}`
   const label =
     typeof raw.label === "string" && raw.label.trim() ? raw.label.trim() : id
-  const href =
+  const rawHref =
     typeof raw.href === "string" && raw.href.trim()
       ? raw.href.trim()
       : shopNavHref(id)
+  const href = normalizeNavHref(id, rawHref)
   const icon =
     typeof raw.icon === "string" && raw.icon.trim() ? raw.icon.trim() : undefined
   const sortOrder =

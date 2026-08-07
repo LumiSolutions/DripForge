@@ -2238,7 +2238,7 @@ export function PageShop({
                           <p className="rounded-xl border border-border/40 bg-muted/20 px-4 py-3 text-sm leading-relaxed text-muted-foreground">
                             <SiteText k="shop_delivery_notice" />{" "}
                             <Link
-                              href="/kontakt"
+                              href="/ueber-uns#kontakt"
                               className="font-medium text-primary underline-offset-2 hover:underline"
                             >
                               Kontaktformular

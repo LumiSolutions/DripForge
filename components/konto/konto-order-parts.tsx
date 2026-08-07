@@ -254,7 +254,9 @@ export function OrderActions({
         </p>
       )}
       <Button type="button" size="sm" variant="ghost" asChild>
-        <Link href={`/kontakt?order=${encodeURIComponent(order.orderId)}`}>
+        <Link
+          href={`/ueber-uns?order=${encodeURIComponent(order.orderId)}#kontakt`}
+        >
           <LifeBuoy className="mr-2 h-4 w-4" />
           Support kontaktieren
         </Link>

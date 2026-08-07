@@ -33,7 +33,7 @@ export function PrintVolumeWarning() {
                 Spezialanfertigung (z. B. ein Druck in mehreren Einzelteilen)
                 direkt über unser{" "}
                 <Link
-                  href="/kontakt"
+                  href="/ueber-uns#kontakt"
                   className="font-semibold text-red-800 underline underline-offset-2 hover:text-red-600 dark:text-red-200 dark:hover:text-red-100"
                 >
                   Kontaktformular

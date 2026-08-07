@@ -94,7 +94,7 @@ export function ShopFooter() {
             <h4 className="mb-4 font-semibold text-foreground"><SiteText k="footer_company_heading" /></h4>
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li>
-                <SafeLink href="/kontakt" className="hover:text-primary">
+                <SafeLink href="/ueber-uns#kontakt" className="hover:text-primary">
                   Kontakt
                 </SafeLink>
               </li>

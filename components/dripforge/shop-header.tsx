@@ -208,8 +208,9 @@ export function ShopHeader(props: ShopHeaderProps) {
   const isNavActive = (viewId: string, href?: string) => {
     if (props.mode === "spa") return props.currentView === viewId
     const target = href ?? shopNavHref(viewId)
-    if (target === "/") return pathname === "/"
-    return pathname === target || pathname.startsWith(`${target}/`)
+    const pathOnly = (target.split("#")[0] || "/").split("?")[0] || "/"
+    if (pathOnly === "/") return pathname === "/"
+    return pathname === pathOnly || pathname.startsWith(`${pathOnly}/`)
   }
 
   const handleSpaNav = (viewId: string) => {

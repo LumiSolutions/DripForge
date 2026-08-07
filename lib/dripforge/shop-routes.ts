@@ -5,7 +5,8 @@ export const SHOP_ROUTES = {
   laser: "/laser",
   shop: "/shop",
   produkt: "/p",
-  kontakt: "/kontakt",
+  /** Kontakt ist in «Über uns» integriert (kein eigener Page-Body mehr). */
+  kontakt: "/ueber-uns#kontakt",
   support: "/support",
   warenkorb: "/warenkorb",
   checkout: "/checkout",

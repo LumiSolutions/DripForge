@@ -11,7 +11,7 @@ type PricingFootnoteProps = {
   className?: string
 }
 
-/** Rendert den Preis-Hinweis und verlinkt «unverbindliche Offerte» auf /kontakt. */
+/** Rendert den Preis-Hinweis und verlinkt «unverbindliche Offerte» auf den Kontaktbereich. */
 export function PricingFootnote({ text, className }: PricingFootnoteProps) {
   const content = text.trim()
   if (!content) return null
@@ -35,7 +35,7 @@ export function PricingFootnote({ text, className }: PricingFootnoteProps) {
     <p className={cn("text-xs leading-relaxed text-muted-foreground", className)}>
       {before}
       <Link
-        href={SHOP_ROUTES.kontakt ?? "/kontakt"}
+        href={SHOP_ROUTES.kontakt}
         className="font-medium text-primary underline underline-offset-2 hover:text-primary/80"
       >
         {matched}
